@@ -1,0 +1,4015 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+ 
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { 
+  Plus, 
+  LayoutDashboard, 
+  Grid2X2, 
+  Calendar as CalendarIcon, 
+  Settings, 
+  Bell, 
+  Search, 
+  CheckCircle2, 
+  Circle,
+  Compass, 
+  Clock, 
+  ChevronRight,
+  ChevronLeft, 
+  ChevronDown,
+  ChevronUp,
+  Trash2,
+  Edit,
+  Check,
+  History,
+  ArrowRight,
+  MoreVertical,
+  X,
+  PlusCircle,
+  Briefcase,
+  Layers,
+  Users,
+  CreditCard,
+  Megaphone,
+  User,
+  Zap,
+  Target,
+  ArrowUpRight,
+  Pause,
+  Play,
+  Hammer,
+  Coffee,
+  Globe,
+  LifeBuoy,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  GripVertical,
+  Paperclip,
+  Maximize2,
+  Minimize2,
+  Dot,
+  ArrowUpLeft,
+  ArrowDownRight
+} from 'lucide-react';
+import { motion, AnimatePresence, Reorder } from 'motion/react';
+import { WorkBlock, Task, ViewType, TagType, SubtaskTemplate, Priority, TimeEntry } from './types';
+import { INITIAL_BLOCKS, TAG_LABELS, MOCK_TASKS, COLORS } from './constants';
+import { formatLocalISO, parseLocalISO } from './dateUtils';
+import { 
+  getTaskLevel, 
+  generateInstances, 
+  isTaskCompleted, 
+  isTaskRepetitive,
+  projectLoad, 
+  projectLoadForDay,
+  getTaskEstimatedCombo,
+  getTaskRegisteredSelf,
+  getTaskRegisteredCombo
+} from './utils';
+ 
+// --- Storage Key ---
+const STORAGE_KEY = 'workmanager-v19-data-v1';
+ 
+export default function App() {
+  // --- State ---
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [blocks, setBlocks] = useState<WorkBlock[]>(INITIAL_BLOCKS);
+  const [tasks, setTasks] = useState<Record<string, Task>>(MOCK_TASKS);
+  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const todayLocal = formatLocalISO(new Date());
+  const [activeDate, setActiveDate] = useState(todayLocal);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [inlineEditingTaskId, setInlineEditingTaskId] = useState<string | null>(null);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [recurrenceAction, setRecurrenceAction] = useState<{ taskId: string, type: 'edit' | 'delete', ruleId: string } | null>(null);
+  const [addSubtaskWarning, setAddSubtaskWarning] = useState<{ parentTaskId: string, blockId?: string, overrideDate?: string } | null>(null);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [activeTimer, setActiveTimer] = useState<{
+    entityId: string;
+    parentTaskId: string;
+    subtaskId: string | null;
+    startTime: string;
+    accumulatedSeconds: number;
+    title: string;
+  } | null>(null);
+  const [showTimePanel, setShowTimePanel] = useState<{ taskId: string, subtaskId: string | null } | null>(null);
+ 
+  // --- Initialization & Sync ---
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.blocks) setBlocks(data.blocks);
+        if (data.tasks) setTasks(data.tasks);
+        if (data.timeEntries) setTimeEntries(data.timeEntries);
+        if (data.activeTimer) setActiveTimer(data.activeTimer);
+      } else {
+        setTasks(MOCK_TASKS);
+      }
+    } catch (e) {
+      console.error("Error loading data", e);
+    }
+    setIsDataLoaded(true);
+  }, []);
+ 
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    try {
+      // Guardar plantillas/manuales + instancias que son excepciones (fecha cambiada)
+      const tasksToSave = Object.fromEntries(
+        Object.entries(tasks).filter(([, t]) => 
+          !t.templateId || t.isException
+        )
+      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ blocks, tasks: tasksToSave, timeEntries, activeTimer }));
+    } catch (e) {
+      console.error("Error saving data", e);
+    }
+  }, [blocks, tasks, timeEntries, activeTimer, isDataLoaded]);
+ 
+  const handleResetData = () => {
+    if (confirm("¿Estás seguro de que quieres reiniciar todos los datos?")) {
+      localStorage.removeItem(STORAGE_KEY);
+      setBlocks(INITIAL_BLOCKS);
+      setTasks(MOCK_TASKS);
+      setCurrentView('dashboard');
+      window.location.reload();
+    }
+  };
+ 
+  const handleToggleExpandTask = (taskId: string) => {
+    setTasks(prev => ({
+      ...prev,
+      [taskId]: {
+        ...prev[taskId],
+        isExpanded: prev[taskId].isExpanded !== undefined ? !prev[taskId].isExpanded : true // Fix logic: if was undefined (default collapsed), now becomes expanded (true)
+      }
+    }));
+  };
+ 
+  const handleExpandAllInBlock = (blockId: string, expand: boolean) => {
+    const updatedTasks = { ...tasks };
+    Object.values(updatedTasks).forEach((t: Task) => {
+      if (t.blockId === blockId) {
+        t.isExpanded = expand;
+      }
+    });
+    setTasks(updatedTasks);
+  };
+ 
+  // Generation Trigger - genera instancias para todo el año visible
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    const start = formatLocalISO(new Date());
+    setTasks(prev => {
+      const instantiated = generateInstances(prev, start, 365);
+      if (instantiated.length === 0) return prev;
+      let changed = false;
+      const updated = { ...prev };
+      instantiated.forEach(t => {
+        if (!updated[t.id]) {
+          updated[t.id] = t;
+          changed = true;
+        }
+      });
+      return changed ? updated : prev;
+    });
+  }, [isDataLoaded]);
+ 
+  // --- Handlers ---
+  const handleUpdateTasksOrder = (orderedTasks: Task[]) => {
+    const updated = { ...tasks };
+    orderedTasks.forEach((t, i) => {
+      updated[t.id] = { ...updated[t.id], order: i, modifiedAt: new Date().toISOString() };
+    });
+    setTasks(updated);
+  };
+ 
+  const handleUpdateSubtasksOrder = (parentId: string, subtaskIds: string[]) => {
+    setTasks(prev => ({
+      ...prev,
+      [parentId]: {
+        ...prev[parentId],
+        subtasks: subtaskIds,
+        modifiedAt: new Date().toISOString()
+      }
+    }));
+  };
+ 
+  const handleEditTaskRequest = (taskId: string | null) => {
+    if (taskId === null) {
+      setEditingTaskId(null);
+      setInlineEditingTaskId(null);
+      return;
+    }
+    let task = tasks[taskId];
+    if (!task) {
+      task = dashboardTasks.find(t => t.id === taskId);
+      if (task) {
+        // Materialize it in main state to allow editing
+        setTasks(prev => ({ ...prev, [taskId]: task! }));
+      }
+    }
+ 
+    if (task?.templateId && currentView !== 'dashboard') {
+      setRecurrenceAction({ taskId, type: 'edit', ruleId: task.templateId });
+    } else {
+      setEditingTaskId(taskId);
+    }
+  };
+ 
+  const handleDeleteTaskRequest = (taskId: string) => {
+    let task = tasks[taskId];
+    if (!task) {
+      task = dashboardTasks.find(t => t.id === taskId);
+    }
+ 
+    // Si es una subtarea, buscamos a su padre para materializarla si es necesario
+    if (task?.parentTaskId && !tasks[task.parentTaskId]) {
+      const parentTask = dashboardTasks.find(t => t.id === task!.parentTaskId);
+      if (parentTask) {
+        setTasks(prev => ({ ...prev, [parentTask.id]: parentTask }));
+      }
+    }
+ 
+    if (task?.templateId && currentView !== 'dashboard') {
+      setRecurrenceAction({ taskId, type: 'delete', ruleId: task.templateId });
+    } else if (task?.templateId && currentView === 'dashboard') {
+      // Si es recurrente y estamos en dashboard, simplemente marcamos ESTA instancia como eliminada
+      setTasks(prev => ({
+        ...prev,
+        [taskId]: { ...(prev[taskId] || task!), isDeleted: true, modifiedAt: new Date().toISOString() }
+      }));
+    } else {
+      handleDeleteTask(taskId);
+    }
+  };
+ 
+  const handleToggleStatus = (taskId: string) => {
+    const updatedTasks = { ...tasks };
+    let task = updatedTasks[taskId];
+ 
+    if (!task) {
+      // Find in generated dashboard tasks
+      task = dashboardTasks.find(t => t.id === taskId);
+    }
+ 
+    if (!task) return;
+ 
+    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
+    const timestamp = new Date().toISOString();
+    
+    const toggleRecursive = (targetTask: Task, status: 'pending' | 'completed') => {
+      updatedTasks[targetTask.id] = { 
+        ...targetTask, 
+        status, 
+        modifiedAt: timestamp,
+        completedAt: status === 'completed' ? timestamp : undefined 
+      };
+      
+      targetTask.subtasks.forEach(sid => {
+        const subtask = updatedTasks[sid] || dashboardTasks.find(dt => dt.id === sid);
+        if (subtask) {
+          toggleRecursive(subtask, status);
+        }
+      });
+    };
+ 
+    toggleRecursive(task, newStatus);
+    setTasks(updatedTasks);
+  };
+ 
+  const handleAddTask = (parentTaskId: string | null = null, blockId?: string, overrideDate?: string) => {
+    // Si el padre tiene fecha o etiqueta y no tiene subtareas aún → mostrar aviso de conversión a contenedor
+    if (parentTaskId && tasks[parentTaskId]) {
+      const parent = tasks[parentTaskId];
+      const hasDate = !!parent.dueDate;
+      const hasTag = parent.tags && parent.tags.length > 0;
+      if ((hasDate || hasTag) && (!parent.subtasks || parent.subtasks.length === 0)) {
+        setAddSubtaskWarning({ parentTaskId, blockId, overrideDate });
+        return;
+      }
+    }
+    return doAddTask(parentTaskId, blockId, overrideDate);
+  };
+
+  const doAddTask = (parentTaskId: string | null = null, blockId?: string, overrideDate?: string) => {
+    const id = `t-${Date.now()}`;
+    const timestamp = new Date().toISOString();
+    
+    let finalBlockId = blockId;
+    let isTemplate = false;
+    
+    // Si se pasa un parentId, heredamos su bloque si no se especifica uno y su estado de template
+    if (parentTaskId && tasks[parentTaskId]) {
+      const parent = tasks[parentTaskId];
+      if (!finalBlockId) finalBlockId = parent.blockId;
+      isTemplate = parent.isTemplate || false;
+    }
+ 
+    // Fallback al bloque seleccionado globalmente o al primero disponible
+    if (!finalBlockId) {
+      finalBlockId = selectedBlockId || (blocks.length > 0 ? blocks[0].id : 'b1');
+    }
+ 
+    const newTask: Task = {
+      id,
+      blockId: finalBlockId,
+      title: '',
+      notes: '',
+      priority: 'media',
+      status: 'pending',
+      dueDate: isTemplate ? null : (overrideDate || activeDate),
+      dueTime: '',
+      parentTaskId,
+      subtasks: [],
+      estimatedMinutes: 0,
+      tags: [],
+      order: 0,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+      attachments: [],
+      isExpanded: true,
+      isTemplate
+    };
+ 
+    const updatedTasks = { ...tasks, [id]: newTask };
+    if (parentTaskId && updatedTasks[parentTaskId]) {
+      updatedTasks[parentTaskId] = {
+        ...updatedTasks[parentTaskId],
+        subtasks: [...(updatedTasks[parentTaskId].subtasks || []), id],
+        isExpanded: true,
+        // Quitar fecha del padre cuando tiene su primera subtarea
+        dueDate: (updatedTasks[parentTaskId].subtasks || []).length === 0 
+          ? null 
+          : updatedTasks[parentTaskId].dueDate,
+        modifiedAt: timestamp
+      };
+    }
+    setTasks(updatedTasks);
+    // Always open modal for root tasks, inline for subtasks
+    if (!parentTaskId) {
+      setTimeout(() => setEditingTaskId(id), 50);
+    } else {
+      setInlineEditingTaskId(id);
+    }
+    return id;
+  };
+ 
+  const handleUpdateTask = (updatedTask: Task) => {
+    const isException = updatedTask.templateId && 
+      updatedTask.instanceDate && 
+      updatedTask.dueDate !== updatedTask.instanceDate;
+    
+    setTasks(prev => {
+      const updated = { ...prev };
+      const timestamp = new Date().toISOString();
+
+      if (isException && updatedTask.parentTaskId && updatedTask.instanceDate) {
+        const newDate = updatedTask.dueDate;
+        const oldDate = updatedTask.instanceDate;
+        
+        // 1. Obtener instancia padre original
+        const oldParent = updated[updatedTask.parentTaskId];
+        
+        if (oldParent) {
+          // 2. Quitar esta subtarea del padre original
+          const newParentSubtasks = (oldParent.subtasks || []).filter(
+            sid => sid !== updatedTask.id
+          );
+          updated[oldParent.id] = {
+            ...oldParent,
+            subtasks: newParentSubtasks,
+            modifiedAt: timestamp
+          };
+
+          // 3. Crear o actualizar instancia padre en el nuevo día
+          const newParentId = oldParent.templateId 
+            ? `inst-${oldParent.templateId}-${newDate}`
+            : `inst-${oldParent.id}-${newDate}`;
+          
+          const existingNewParent = updated[newParentId];
+          const newSubtaskId = `inst-${updatedTask.templateId}-${newDate}`;
+          
+          if (existingNewParent) {
+            // Ya existe padre en nuevo día → añadir subtarea
+            updated[newParentId] = {
+              ...existingNewParent,
+              subtasks: [...(existingNewParent.subtasks || []), newSubtaskId],
+              modifiedAt: timestamp
+            };
+          } else {
+            // Crear nuevo padre en el nuevo día
+            const parentTemplate = oldParent.templateId 
+              ? updated[oldParent.templateId] 
+              : oldParent;
+            updated[newParentId] = {
+              ...(parentTemplate || oldParent),
+              id: newParentId,
+              templateId: oldParent.templateId || oldParent.id,
+              dueDate: newDate,
+              instanceDate: newDate,
+              isTemplate: false,
+              isException: true,
+              subtasks: [newSubtaskId],
+              status: 'pending',
+              modifiedAt: timestamp,
+              createdAt: timestamp
+            };
+          }
+
+          // 4. Crear la subtarea excepción en el nuevo día
+          updated[newSubtaskId] = {
+            ...updatedTask,
+            id: newSubtaskId,
+            dueDate: newDate,
+            instanceDate: oldDate,
+            parentTaskId: newParentId,
+            isException: true,
+            modifiedAt: timestamp
+          };
+
+          // 5. Eliminar la subtarea del día original
+          delete updated[updatedTask.id];
+          
+          return updated;
+        }
+      }
+
+      // Para tareas normales o padres con fecha cambiada
+      updated[updatedTask.id] = { 
+        ...updatedTask, 
+        isException: isException ? true : updatedTask.isException,
+        modifiedAt: timestamp
+      };
+      
+      return updated;
+    });
+    setEditingTaskId(null);
+    setInlineEditingTaskId(null);
+  };
+ 
+  // Subir nivel: la tarea sale de su padre y queda al mismo nivel que su padre
+  const handlePromoteTask = (taskId: string) => {
+    setTasks(prev => {
+      const task = prev[taskId];
+      if (!task || !task.parentTaskId) return prev; // Ya es nivel 1, no puede subir
+
+      const parentTask = prev[task.parentTaskId];
+      if (!parentTask) return prev;
+      const grandParentId = parentTask.parentTaskId || null;
+
+      const newTasks = { ...prev };
+
+      // 1. Quitar la tarea del array de subtareas del padre
+      newTasks[parentTask.id] = {
+        ...parentTask,
+        subtasks: parentTask.subtasks.filter(sid => sid !== taskId),
+        modifiedAt: new Date().toISOString()
+      };
+
+      // 2. Añadir la tarea al abuelo (o a nivel raíz si no hay abuelo)
+      if (grandParentId && newTasks[grandParentId]) {
+        const grandParent = newTasks[grandParentId];
+        // Insertar justo después del padre en el array del abuelo
+        const parentIdx = grandParent.subtasks.indexOf(parentTask.id);
+        const newSubtasks = [...grandParent.subtasks];
+        newSubtasks.splice(parentIdx + 1, 0, taskId);
+        newTasks[grandParentId] = {
+          ...grandParent,
+          subtasks: newSubtasks,
+          modifiedAt: new Date().toISOString()
+        };
+      }
+
+      // 3. Actualizar la tarea con nuevo parentTaskId
+      newTasks[taskId] = {
+        ...task,
+        parentTaskId: grandParentId,
+        modifiedAt: new Date().toISOString()
+      };
+
+      return newTasks;
+    });
+  };
+
+  // Bajar nivel: la tarea se convierte en subtarea de la tarea inmediatamente anterior
+  const handleDemoteTask = (taskId: string) => {
+    setTasks(prev => {
+      const task = prev[taskId];
+      if (!task) return prev;
+
+      // Buscar hermanos (mismo padre) usando el array de subtareas del padre
+      let siblings: string[] = [];
+      if (task.parentTaskId && prev[task.parentTaskId]) {
+        siblings = prev[task.parentTaskId].subtasks || [];
+      } else {
+        // Nivel raíz: buscar por blockId sin parentTaskId
+        siblings = (Object.values(prev) as Task[])
+          .filter(t => !t.parentTaskId && t.blockId === task.blockId && !t.isTemplate && !t.isDeleted)
+          .sort((a, b) => (a.order || 0) - (b.order || 0))
+          .map(t => t.id);
+      }
+
+      const idx = siblings.indexOf(taskId);
+      if (idx <= 0) return prev; // Es el primero, no hay tarea arriba
+
+      const aboveTaskId = siblings[idx - 1];
+      const aboveTask = prev[aboveTaskId];
+      if (!aboveTask) return prev;
+
+      // No permitir bajar más de nivel 3
+      const aboveLevel = aboveTask.parentTaskId ? (prev[aboveTask.parentTaskId]?.parentTaskId ? 3 : 2) : 1;
+      if (aboveLevel >= 3) return prev;
+
+      const newTasks = { ...prev };
+
+      // 1. Quitar del padre actual
+      if (task.parentTaskId && newTasks[task.parentTaskId]) {
+        const parent = newTasks[task.parentTaskId];
+        newTasks[task.parentTaskId] = {
+          ...parent,
+          subtasks: parent.subtasks.filter(sid => sid !== taskId),
+          modifiedAt: new Date().toISOString()
+        };
+      }
+
+      // 2. Añadir como última subtarea de la tarea de arriba
+      newTasks[aboveTaskId] = {
+        ...aboveTask,
+        subtasks: [...(aboveTask.subtasks || []), taskId],
+        isExpanded: true,
+        modifiedAt: new Date().toISOString()
+      };
+
+      // 3. Actualizar la tarea
+      newTasks[taskId] = {
+        ...task,
+        parentTaskId: aboveTaskId,
+        modifiedAt: new Date().toISOString()
+      };
+
+      return newTasks;
+    });
+  };
+ 
+  const handleDeleteTask = (taskId: string) => {
+    const updatedTasks = { ...tasks };
+    const task = updatedTasks[taskId];
+    if (!task) return;
+ 
+    if (task.parentTaskId && updatedTasks[task.parentTaskId]) {
+      updatedTasks[task.parentTaskId] = {
+        ...updatedTasks[task.parentTaskId],
+        subtasks: updatedTasks[task.parentTaskId].subtasks.filter(id => id !== taskId)
+      };
+    }
+ 
+    const removeRecursive = (id: string) => {
+      const t = updatedTasks[id];
+      if (!t) return;
+      t.subtasks.forEach(sid => removeRecursive(sid));
+      delete updatedTasks[id];
+    };
+ 
+    removeRecursive(taskId);
+    setTasks(updatedTasks);
+  };
+ 
+  const handleDayChange = (offset: number) => {
+    const current = parseLocalISO(activeDate);
+    current.setDate(current.getDate() + offset);
+    setActiveDate(formatLocalISO(current));
+  };
+ 
+  const handleAddRule = (blockId?: string) => {
+    const id = `tmpl-${Date.now()}`;
+    const newTemplate: Task = {
+      id,
+      blockId: blockId || (blocks.length > 0 ? blocks[0].id : 'b1'),
+      title: '',
+      notes: '',
+      priority: 'media',
+      status: 'pending',
+      dueDate: null,
+      subtasks: [],
+      estimatedMinutes: 0,
+      tags: [],
+      order: 0,
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
+      isTemplate: true,
+      isActive: true
+    };
+    setTasks(prev => ({ ...prev, [id]: newTemplate }));
+    setEditingRuleId(id);
+  };
+ 
+  const handleAddBlock = () => {
+    const id = `b-${Date.now()}`;
+    const newBlock: WorkBlock = {
+      id,
+      name: '',
+      color: COLORS.turquesa.main,
+      pastelColor: COLORS.turquesa.pastel,
+      icon: '🏢',
+      isActive: true,
+      order: blocks.length
+    };
+    setBlocks(prev => [...prev, newBlock]);
+    setEditingBlockId(id);
+  };
+ 
+  const handleUpdateBlock = (updated: WorkBlock) => {
+    setBlocks(prev => prev.map(b => b.id === updated.id ? updated : b));
+    setEditingBlockId(null);
+  };
+ 
+  const handleReorderBlocks = (newOrder: WorkBlock[]) => {
+    setBlocks(newOrder.map((b, i) => ({ ...b, order: i + 1 })));
+  };
+ 
+  const handleToggleBlockActive = (id: string) => {
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, isActive: !b.isActive } : b));
+  };
+ 
+  const handleDeleteBlock = (id: string) => {
+    if (confirm('¿Eliminar este bloque y todas sus tareas/reglas asociadas?')) {
+      setBlocks(prev => prev.filter(b => b.id !== id));
+      setTasks(prev => {
+        const newTasks = { ...prev };
+        Object.keys(newTasks).forEach(taskId => {
+          if (newTasks[taskId].blockId === id) delete newTasks[taskId];
+        });
+        return newTasks;
+      });
+    }
+  };
+ 
+  // --- Timer Handlers ---
+  const handleStartTimer = (taskId: string, subtaskId: string | null = null) => {
+    if (activeTimer) {
+      if (!confirm("Ya hay un cronómetro activo. ¿Deseas pararlo y empezar este?")) return;
+      // Note: In real app we would save the current one first. 
+      // For this action, let's just stop it and discard or save. 
+      // User said: "Si intenta iniciar otro, se le avisa con opción de parar el actual primero"
+      handleStopTimer();
+    }
+    
+    const task = tasks[taskId];
+    if (!task) return;
+    const targetEntity = subtaskId ? tasks[subtaskId] : task;
+    const title = targetEntity?.title || "Tarea sin título";
+ 
+    setActiveTimer({
+      entityId: subtaskId || taskId,
+      parentTaskId: taskId,
+      subtaskId,
+      startTime: new Date().toISOString(),
+      accumulatedSeconds: 0,
+      title
+    });
+  };
+ 
+  const handleStopTimer = () => {
+    if (!activeTimer) return;
+    
+    const start = new Date(activeTimer.startTime).getTime();
+    const now = new Date().getTime();
+    const elapsedSeconds = Math.floor((now - start) / 1000) + activeTimer.accumulatedSeconds;
+    const minutes = Math.floor(elapsedSeconds / 60);
+ 
+    if (minutes < 1) {
+      if (confirm("El tiempo transcurrido es menor a 1 minuto. ¿Deseas descartarlo?")) {
+        setActiveTimer(null);
+        return;
+      }
+    }
+ 
+    let note = prompt("Nota opcional para el registro de tiempo:", "");
+    if (note === null) note = ""; // If cancelled, just proceed with empty note
+ 
+    const newEntry: TimeEntry = {
+      id: `te-${Date.now()}`,
+      taskId: activeTimer.parentTaskId,
+      subtaskId: activeTimer.subtaskId,
+      date: formatLocalISO(new Date()),
+      duration: Math.max(1, minutes),
+      note,
+      createdAt: new Date().toISOString(),
+      source: 'timer'
+    };
+ 
+    setTimeEntries(prev => [...prev, newEntry]);
+    setActiveTimer(null);
+  };
+ 
+  const handleManualTimeEntry = (taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string) => {
+    const newEntry: TimeEntry = {
+      id: `te-${Date.now()}`,
+      taskId,
+      subtaskId,
+      date,
+      duration: minutes,
+      note,
+      createdAt: new Date().toISOString(),
+      source: 'manual'
+    };
+    setTimeEntries(prev => [...prev, newEntry]);
+  };
+ 
+  const handleDeleteTimeEntry = (entryId: string) => {
+    setTimeEntries(prev => prev.filter(e => e.id !== entryId));
+  };
+ 
+  const handleUpdateTimeEntry = (id: string, updates: Partial<TimeEntry>) => {
+    setTimeEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+  };
+ 
+  // --- Computed ---
+  const allActiveTasks = useMemo(() => Object.values(tasks).filter((t: Task) => !t.isDeleted), [tasks]);
+ 
+  const filteredTasks = useMemo(() => {
+    let result = allActiveTasks;
+    if (searchQuery) {
+      result = result.filter((t: Task) => t.title.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    return result;
+  }, [allActiveTasks, searchQuery]);
+ 
+  // --- Views ---
+  const dashboardTasks = useMemo(() => {
+    const activeBlockIds = new Set(blocks.filter(b => b && b.isActive).map(b => b.id));
+    return filteredTasks.filter(t => {
+      if (!t) return false;
+      if (!activeBlockIds.has(t.blockId)) return false;
+      if (t.isTemplate) return false;
+      // Subtareas: nunca aparecen solas en el Dashboard
+      if (t.parentTaskId) return false;
+
+      // Contenedor sin fecha (dueDate null): mostrar si alguna subtarea tiene fecha de hoy
+      if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
+        const hasSubtaskToday = t.subtasks.some(subId => {
+          const sub = tasks[subId];
+          return sub && sub.dueDate === activeDate;
+        });
+        if (hasSubtaskToday) return true;
+      }
+
+      // Resto de tareas: deben tener la fecha del día activo
+      if (t.dueDate !== activeDate) return false;
+
+      // Ocultar instancias padre sin subtareas (contenedor huérfano)
+      if (t.templateId && (!t.subtasks || t.subtasks.length === 0)) return false;
+      // Siempre mostrar excepciones
+      if (t.isException) return true;
+      // Excluir plantillas con recurrencia propia
+      if (t.recurrence) return false;
+      // Excluir plantillas padre de recurrentes
+      if (t.subtasks && t.subtasks.length > 0 && !t.templateId) {
+        const hasRecurringChild = t.subtasks.some(subId => {
+          const sub = tasks[subId];
+          return sub && (sub.recurrence || sub.isTemplate);
+        });
+        if (hasRecurringChild) return false;
+      }
+
+      return true;
+    });
+  }, [filteredTasks, blocks, activeDate, tasks]);
+ 
+  const dashboardTasksMap = useMemo(() => {
+    const map: any = { ...tasks };
+    dashboardTasks.forEach(t => {
+      map[t.id] = t;
+    });
+    return map;
+  }, [tasks, dashboardTasks]);
+ 
+  return (
+    <div className="min-h-screen bg-bg-main text-text-main flex flex-col md:flex-row font-sans relative">
+      {/* Global Timer Bar */}
+      <AnimatePresence>
+        {activeTimer && (
+          <motion.div 
+            initial={{ y: -50 }}
+            animate={{ y: 0 }}
+            exit={{ y: -50 }}
+            className="fixed top-0 left-0 right-0 h-10 bg-rosa z-[200] flex items-center justify-between px-6 shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              <span className="text-[10px] font-black text-white uppercase tracking-widest truncate max-w-[200px]">
+                {activeTimer.title}
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <TimerDisplay startTime={activeTimer.startTime} accumulatedSeconds={activeTimer.accumulatedSeconds} />
+              <button 
+                onClick={handleStopTimer}
+                className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-[10px] font-black text-white uppercase transition-all"
+              >
+                Parar
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+ 
+      {/* Sidebar Navigation */}
+      <nav className="w-full md:w-20 lg:w-72 bg-bg-secondary border-r border-border-main flex flex-col py-6 shrink-0 transition-all duration-300">
+        <div className="flex items-center gap-3 mb-12 px-6">
+          <div className="w-10 h-10 bg-gradient-to-br from-turquesa to-azul rounded-2xl flex items-center justify-center text-white shadow-xl shadow-turquesa/20">
+            <Zap size={22} fill="white" />
+          </div>
+          <div className="hidden lg:block overflow-hidden">
+            <h1 className="text-xl font-bold tracking-tight text-white whitespace-nowrap">WM v18</h1>
+            <p className="text-[10px] text-text-secondary uppercase font-bold tracking-widest leading-none">Enterprise Edition</p>
+          </div>
+        </div>
+ 
+        <div className="flex flex-col gap-1 w-full px-4">
+          <NavItem 
+            active={currentView === 'dashboard'} 
+            onClick={() => setCurrentView('dashboard')} 
+            icon={<LayoutDashboard size={20} />} 
+            label="Mi Día" 
+          />
+          <NavItem 
+            active={currentView === 'blocks'} 
+            onClick={() => setCurrentView('blocks')} 
+            icon={<Grid2X2 size={20} />} 
+            label="Bloques" 
+          />
+          <NavItem 
+            active={currentView === 'calendar'} 
+            onClick={() => setCurrentView('calendar')} 
+            icon={<CalendarIcon size={20} />} 
+            label="Calendario" 
+          />
+        </div>
+ 
+        <div className="mt-auto px-4">
+          <div className="h-px bg-border-main/50 mb-6" />
+          <NavItem 
+            active={false} 
+            onClick={handleResetData} 
+            icon={<Settings size={20} />} 
+            label="Configuración" 
+          />
+        </div>
+      </nav>
+ 
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col overflow-hidden max-w-full">
+        {/* Header Bar */}
+        <header className="h-20 bg-bg-main border-b border-border-main flex items-center justify-between px-8 shrink-0">
+          <div className="flex items-center gap-6 flex-1">
+            <div className="flex items-center gap-2 lg:hidden">
+               <div className="w-8 h-8 bg-turquesa rounded-lg flex items-center justify-center text-white">
+                 <Zap size={18} />
+               </div>
+            </div>
+            <div className="relative max-w-sm w-full hidden sm:block">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary" size={16} />
+              <input 
+                type="text" 
+                placeholder="Buscar tareas, bloques..."
+                className="w-full pl-11 pr-4 py-2.5 bg-bg-secondary rounded-xl text-sm text-text-main border border-border-main focus:ring-2 focus:ring-turquesa/20 outline-none transition-all placeholder:text-text-secondary/50"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+ 
+          <div className="flex items-center gap-5">
+            <button className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-secondary hover:text-white transition-colors">
+              <span className="w-2 h-2 bg-lima rounded-full animate-pulse" />
+              Sincronizado
+            </button>
+            <div className="h-8 w-px bg-border-main" />
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-bold leading-none">Vanessa Carrión</p>
+                <p className="text-[10px] text-text-secondary font-bold uppercase tracking-tighter">Pro Plan</p>
+              </div>
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-card border border-border-main flex items-center justify-center text-turquesa font-bold text-sm shadow-inner">
+                VC
+              </div>
+            </div>
+          </div>
+        </header>
+ 
+        {/* Content Container */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar bg-bg-main">
+          <AnimatePresence mode="wait">
+            {currentView === 'dashboard' && (
+              <DashboardView 
+                tasks={dashboardTasks} 
+                allTasksMap={dashboardTasksMap}
+                blocks={blocks}
+                timeEntries={timeEntries}
+                activeTimer={activeTimer}
+                onStartTimer={handleStartTimer}
+                onStopTimer={handleStopTimer}
+                onToggle={handleToggleStatus} 
+                onDelete={handleDeleteTaskRequest}
+                onAddTask={handleAddTask}
+                onUpdateTask={handleUpdateTask}
+                onEditTask={handleEditTaskRequest}
+                editingTaskId={editingTaskId}
+                inlineEditingTaskId={inlineEditingTaskId}
+                setInlineEditingTaskId={setInlineEditingTaskId}
+                onOpenTimePanel={(taskId: string, subtaskId: string | null) => setShowTimePanel({ taskId, subtaskId })}
+                activeDate={activeDate}
+                onSetDate={setActiveDate}
+                onDayChange={handleDayChange}
+                onReorderTasks={handleUpdateTasksOrder}
+                onReorderSubtasks={handleUpdateSubtasksOrder}
+                onToggleExpand={handleToggleExpandTask}
+                onPromote={handlePromoteTask}
+                onDemote={handleDemoteTask}
+              />
+            )}
+            {currentView === 'blocks' && (
+              <BlocksManagerView 
+                blocks={blocks} 
+                tasks={allActiveTasks}
+                allTasksMap={tasks}
+                timeEntries={timeEntries}
+                activeTimer={activeTimer}
+                onStartTimer={handleStartTimer}
+                onStopTimer={handleStopTimer}
+                onAddBlock={handleAddBlock} 
+                onDelete={handleDeleteTaskRequest}
+                onAddTask={handleAddTask}
+                onAddRule={handleAddRule}
+                onToggleTask={handleToggleStatus}
+                onUpdateTask={handleUpdateTask}
+                onEditTask={handleEditTaskRequest}
+                editingTaskId={editingTaskId}
+                inlineEditingTaskId={inlineEditingTaskId}
+                setInlineEditingTaskId={setInlineEditingTaskId}
+                onOpenTimePanel={(taskId: string, subtaskId: string | null) => setShowTimePanel({ taskId, subtaskId })}
+                onEditRule={setEditingRuleId}
+                onToggleRule={(id: string) => setTasks(prev => ({
+                  ...prev,
+                  [id]: { ...prev[id], isActive: prev[id].isActive !== false, modifiedAt: new Date().toISOString() }
+                }))}
+                onEditBlock={setEditingBlockId}
+                onReorderBlocks={handleReorderBlocks}
+                onToggleBlock={handleToggleBlockActive}
+                activeDate={activeDate}
+                onReorderTasks={handleUpdateTasksOrder}
+                onReorderSubtasks={handleUpdateSubtasksOrder}
+                onToggleExpand={handleToggleExpandTask}
+                onExpandAll={handleExpandAllInBlock}
+                onPromote={handlePromoteTask}
+                onDemote={handleDemoteTask}
+              />
+            )}
+            {currentView === 'calendar' && (
+              <CalendarView 
+                tasks={allActiveTasks} 
+                allTasksMap={tasks}
+                blocks={blocks}
+                timeEntries={timeEntries}
+                activeTimer={activeTimer}
+                onStartTimer={handleStartTimer}
+                onStopTimer={handleStopTimer}
+                onUpdateTask={handleUpdateTask}
+                onEditTask={handleEditTaskRequest}
+                editingTaskId={editingTaskId}
+                inlineEditingTaskId={inlineEditingTaskId}
+                setInlineEditingTaskId={setInlineEditingTaskId}
+                onOpenTimePanel={(taskId: string, subtaskId: string | null) => setShowTimePanel({ taskId, subtaskId })}
+                activeDate={activeDate}
+                onDateSelect={(d: string) => { setActiveDate(d); setCurrentView('dashboard'); }}
+                onAddTask={handleAddTask}
+                onToggleTask={handleToggleStatus}
+                onDelete={handleDeleteTaskRequest}
+                onReorderTasks={handleUpdateTasksOrder}
+                onReorderSubtasks={handleUpdateSubtasksOrder}
+                onToggleExpand={handleToggleExpandTask}
+                onPromote={handlePromoteTask}
+                onDemote={handleDemoteTask}
+              />
+            )}
+          </AnimatePresence>
+        </div>
+      </main>
+ 
+      {editingTaskId && tasks[editingTaskId] && (
+        <TaskModal 
+          key={editingTaskId}
+          task={tasks[editingTaskId]}
+          allTasksMap={tasks}
+          onClose={() => setEditingTaskId(null)}
+          onSave={handleUpdateTask}
+          onAddTask={handleAddTask}
+          onDeleteTask={handleDeleteTask}
+          onEditTask={handleEditTaskRequest}
+          blocks={blocks}
+        />
+      )}
+ 
+      {editingRuleId && tasks[editingRuleId] && (
+        <TaskModal 
+          key={editingRuleId}
+          task={tasks[editingRuleId]}
+          allTasksMap={tasks}
+          onClose={() => setEditingRuleId(null)}
+          onSave={handleUpdateTask}
+          onAddTask={handleAddTask}
+          onDeleteTask={handleDeleteTask}
+          onEditTask={handleEditTaskRequest}
+          blocks={blocks}
+        />
+      )}
+ 
+      {editingBlockId && (
+        <BlockModal 
+          block={blocks.find(b => b.id === editingBlockId) || { id: editingBlockId, name: '', color: COLORS.turquesa.main, pastelColor: COLORS.turquesa.pastel, icon: '🏢', isActive: true, order: blocks.length }}
+          onClose={() => setEditingBlockId(null)}
+          onSave={handleUpdateBlock}
+          onDelete={handleDeleteBlock}
+        />
+      )}
+ 
+      {/* Modal aviso: añadir subtarea a tarea con fecha */}
+      {addSubtaskWarning && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAddSubtaskWarning(null)} />
+          <div className="relative bg-bg-card border border-border-main rounded-3xl p-6 shadow-2xl max-w-sm w-full z-10">
+            <div className="text-center mb-5">
+              <div className="text-3xl mb-3">⚠️</div>
+              <h3 className="text-white font-black text-lg mb-2">¿Convertir en tarea contenedora?</h3>
+              <p className="text-text-secondary text-sm leading-relaxed">
+                Al añadir subtareas, se convertirá en una <span className="text-white font-bold">tarea contenedora</span>. Esto implica:
+              </p>
+              <ul className="text-text-secondary text-sm mt-2 space-y-1 text-left">
+                {tasks[addSubtaskWarning.parentTaskId]?.dueDate && (
+                  <li>• Su <span className="text-turquesa font-bold">fecha de ejecución</span> se eliminará</li>
+                )}
+                {tasks[addSubtaskWarning.parentTaskId]?.tags?.length > 0 && (
+                  <li>• Su <span className="text-rosa font-bold">etiqueta</span> se eliminará</li>
+                )}
+                <li>• La fecha y etiqueta las asignarán sus subtareas</li>
+              </ul>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAddSubtaskWarning(null)}
+                className="flex-1 py-3 rounded-2xl border border-border-main text-text-secondary hover:text-white hover:border-white/30 transition-all font-bold text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const { parentTaskId, blockId, overrideDate } = addSubtaskWarning;
+                  setAddSubtaskWarning(null);
+                  // Al convertir en contenedor: quitar fecha, etiqueta y forzar expandido
+                  // Todo en un solo setTasks para evitar race conditions
+                  const id = `t-${Date.now()}`;
+                  const timestamp = new Date().toISOString();
+                  const parentTask = tasks[parentTaskId];
+                  const newTask = {
+                    id,
+                    blockId: blockId || parentTask?.blockId || (blocks.length > 0 ? blocks[0].id : 'b1'),
+                    title: '',
+                    notes: '',
+                    priority: 'media' as const,
+                    status: 'pending' as const,
+                    dueDate: overrideDate || activeDate,
+                    dueTime: '',
+                    parentTaskId,
+                    subtasks: [],
+                    estimatedMinutes: 0,
+                    tags: [],
+                    order: 0,
+                    createdAt: timestamp,
+                    modifiedAt: timestamp,
+                    attachments: [],
+                    isExpanded: true,
+                    isTemplate: false
+                  };
+                  setTasks(prev => ({
+                    ...prev,
+                    [parentTaskId]: { 
+                      ...prev[parentTaskId], 
+                      dueDate: null,
+                      tags: [],
+                      isExpanded: true,
+                      subtasks: [...(prev[parentTaskId]?.subtasks || []), id],
+                      modifiedAt: timestamp
+                    },
+                    [id]: newTask
+                  }));
+                  setTimeout(() => setEditingTaskId(id), 50);
+                }}
+                className="flex-1 py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/80 transition-all"
+              >
+                Sí, convertir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {recurrenceAction && (
+        <RecurrenceChoiceModal 
+          type={recurrenceAction.type}
+          onClose={() => setRecurrenceAction(null)}
+          onConfirm={(choice) => {
+            const { taskId, type, ruleId } = recurrenceAction;
+            setRecurrenceAction(null);
+ 
+            if (choice === 'instance') {
+              if (type === 'edit') {
+                setTasks(prev => ({
+                  ...prev,
+                  [taskId]: { ...prev[taskId], isException: true }
+                }));
+                setEditingTaskId(taskId);
+              } else {
+                setTasks(prev => ({
+                  ...prev,
+                  [taskId]: { ...prev[taskId], isDeleted: true }
+                }));
+              }
+            } else if (choice === 'series') {
+              if (type === 'edit') {
+                setEditingRuleId(ruleId);
+              } else {
+                setTasks(prev => ({
+                  ...prev,
+                  [ruleId]: { ...prev[ruleId], isActive: false, modifiedAt: new Date().toISOString() }
+                }));
+              }
+            }
+          }}
+        />
+      )}
+ 
+      <AnimatePresence>
+        {showTimePanel && (
+          <TimeManagementPanel 
+            taskId={showTimePanel.taskId}
+            subtaskId={showTimePanel.subtaskId}
+            allTasksMap={tasks}
+            timeEntries={timeEntries}
+            onAddEntry={handleManualTimeEntry}
+            onDeleteEntry={handleDeleteTimeEntry}
+            onUpdateEntry={handleUpdateTimeEntry}
+            onClose={() => setShowTimePanel(null)}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+ 
+// --- Task Modal ---
+function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask, onEditTask, blocks }: any) {
+  const [localTask, setLocalTask] = useState<Task>(task);
+  const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
+  const [showDateSelector, setShowDateSelector] = useState(false);
+  const tags: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
+ 
+  useEffect(() => {
+    setLocalTask(task);
+  }, [task]);
+ 
+  const subtasks = useMemo(() => {
+    return (localTask.subtasks || [])
+      .map(id => allTasksMap[id])
+      .filter(Boolean)
+      .sort((a, b) => (a?.order || 0) - (b?.order || 0));
+  }, [localTask.subtasks, allTasksMap]);
+ 
+  const handleUpdateSubtask = (sid: string, updates: Partial<Task>) => {
+    onSave({ ...allTasksMap[sid], ...updates });
+  };
+ 
+  const frequencies = [
+    { id: 'daily', label: 'Diaria' },
+    { id: 'weekdays', label: 'L-V' },
+    { id: 'weekly', label: 'Semanal' },
+    { id: 'monthly', label: 'Mensual' }
+  ];
+ 
+  return (
+    <div className="fixed inset-0 bg-bg-main/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        key={localTask.id}
+        className="bg-bg-card w-full max-w-2xl rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] border border-border-main overflow-hidden flex flex-col max-h-[90vh]"
+      >
+        <div className="p-8 border-b border-border-main flex justify-between items-start bg-bg-card/50">
+          <div className="flex-1 flex items-start gap-4">
+            {localTask.parentTaskId && (
+              <button 
+                onClick={() => onEditTask(localTask.parentTaskId)}
+                className="p-2 bg-turquesa/10 text-turquesa rounded-xl border border-turquesa/20 hover:bg-turquesa/20 transition-all mt-6"
+                title="Volver al padre"
+              >
+                <ArrowUpLeft size={16} />
+              </button>
+            )}
+            <div className="flex-1">
+              <p className="text-[10px] font-black text-turquesa uppercase tracking-[0.2em] mb-2">
+                {localTask.recurrence || localTask.isTemplate ? 'Configurar Tarea Repetitiva' : 'Configurar Tarea Puntual'}
+              </p>
+              <input 
+                autoFocus
+                className="text-3xl font-black w-full bg-transparent outline-none placeholder:text-text-secondary text-white"
+                value={localTask.title}
+                onChange={e => setLocalTask(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="¿Qué hay que hacer?"
+              />
+            </div>
+          </div>
+          <button onClick={onClose} className="p-3 bg-bg-secondary hover:bg-bg-main rounded-2xl border border-border-main text-text-secondary hover:text-white transition-all">
+            <X size={20} />
+          </button>
+        </div>
+ 
+        <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
+          {/* Core/Ad-hoc Toggle */}
+          <div className="space-y-3">
+            <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest pl-1">Tipo de Tarea</label>
+            <div className="flex gap-3 bg-bg-main p-1 rounded-2xl border border-border-main">
+              <button 
+                onClick={() => setLocalTask(prev => ({ ...prev, taskType: 'core' }))}
+                className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-xl transition-all ${localTask.taskType === 'core' || ((localTask.recurrence || localTask.isTemplate) && !localTask.taskType) ? 'bg-turquesa text-white shadow-lg' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
+              >
+                <Compass size={18} />
+                <span className="text-[11px] font-black uppercase tracking-widest">Puesto (CORE)</span>
+              </button>
+              <button 
+                onClick={() => setLocalTask(prev => ({ ...prev, taskType: 'adhoc' }))}
+                className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-xl transition-all ${localTask.taskType === 'adhoc' || ((!localTask.recurrence && !localTask.isTemplate) && !localTask.taskType) ? 'bg-rosa text-white shadow-lg' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
+              >
+                <div className="w-3 h-3 bg-current rounded-full mx-1 shadow-[0_0_8px_rgba(251,113,133,0.5)]" />
+                <span className="text-[11px] font-black uppercase tracking-widest">Puntual (AD-HOC)</span>
+              </button>
+            </div>
+          </div>
+ 
+          {/* Main Config Grid */}
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest pl-1">Bloque / Contexto</label>
+              <select 
+                className="w-full p-4 bg-bg-main border border-border-main rounded-2xl text-sm font-bold text-white outline-none focus:ring-2 focus:ring-turquesa/20 appearance-none cursor-pointer"
+                value={localTask.blockId}
+                onChange={e => setLocalTask(prev => ({ ...prev, blockId: e.target.value }))}
+              >
+                {blocks.map((b: any) => (
+                  <option key={b.id} value={b.id}>{b.icon} {b.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest pl-1">Estimado (min)</label>
+              <div className="relative">
+                <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-turquesa" size={16} />
+                <input 
+                  type="number"
+                  className="w-full pl-12 pr-4 py-4 bg-bg-main border border-border-main rounded-2xl text-sm font-bold text-white outline-none focus:ring-2 focus:ring-turquesa/20"
+                  value={localTask.estimatedMinutes || ''}
+                  onChange={e => setLocalTask(prev => ({ ...prev, estimatedMinutes: parseInt(e.target.value) || 0 }))}
+                />
+              </div>
+            </div>
+          </div>
+ 
+          <div className="space-y-3">
+            <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest pl-1">Categoría</label>
+            {localTask.subtasks && localTask.subtasks.length > 0 ? (
+              <div className="bg-bg-main border border-border-main rounded-2xl p-3 flex items-center gap-2">
+                <span className="text-lg">🗂️</span>
+                <p className="text-[11px] font-bold text-text-secondary">
+                  Las tareas contenedor no tienen etiqueta. La etiqueta la asignan sus subtareas.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {tags.map(t => {
+                  const active = localTask.tags.includes(t);
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setLocalTask(prev => ({ ...prev, tags: [t] }))}
+                      className={`
+                        px-4 py-3 rounded-xl text-xl border transition-all flex items-center justify-center
+                        ${active 
+                          ? 'bg-turquesa border-turquesa shadow-lg shadow-turquesa/20' 
+                          : 'bg-bg-main border-border-main hover:border-turquesa/50'}
+                      `}
+                      title={TAG_LABELS[t].label}
+                    >
+                      {TAG_LABELS[t].icon}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+ 
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Fecha de ejecución</label>
+            </div>
+            
+            <div className="bg-bg-main border border-border-main rounded-2xl p-4 flex items-center justify-between group/date">
+              <div className="flex items-center gap-3">
+                <CalendarIcon size={18} className="text-turquesa" />
+                <span className="text-sm font-bold text-white">
+                  {localTask.dueDate ? (() => {
+                    const d = parseLocalISO(localTask.dueDate);
+                    const dd = d.getDate().toString().padStart(2, '0');
+                    const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+                    const yyyy = d.getFullYear();
+                    return `${dd}-${mm}-${yyyy}`;
+                  })() : 'Sin fecha asignada'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => setShowDateSelector(!showDateSelector)}
+                  className={`p-2 rounded-lg transition-all ${showDateSelector ? 'bg-turquesa text-white' : 'text-turquesa hover:bg-turquesa/10'}`}
+                  title="Modificar fecha"
+                >
+                  <CalendarIcon size={18} />
+                </button>
+                {localTask.dueDate && (
+                  <button 
+                    onClick={() => setLocalTask(prev => ({ ...prev, dueDate: null }))}
+                    className="p-2 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
+                    title="Eliminar fecha"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+              </div>
+            </div>
+ 
+            {showDateSelector && (
+              <div className="p-4 bg-bg-main border border-border-main rounded-[2rem] animate-in fade-in slide-in-from-top-2">
+                <div className="mb-4 flex items-center justify-between px-2">
+                  <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Seleccionar Día</span>
+                </div>
+                <MonthDatePicker 
+                  value={localTask.dueDate} 
+                  onChange={(d) => {
+                    setLocalTask(prev => ({ ...prev, dueDate: d }));
+                    setShowDateSelector(false);
+                  }} 
+                />
+              </div>
+            )}
+          </div>
+ 
+          {/* Recurrence Section */}
+          <div className="p-6 bg-bg-main/30 border border-border-main rounded-[2rem] space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <RefreshCw size={20} className={localTask.recurrence ? 'text-turquesa' : 'text-text-secondary'} />
+                <h3 className="text-sm font-black text-white uppercase tracking-widest">Recurrencia (Repetir tarea)</h3>
+              </div>
+              <button 
+                onClick={() => setLocalTask(prev => ({ 
+                  ...prev, 
+                  recurrence: prev.recurrence ? undefined : { frequency: 'daily', startDate: prev.dueDate || formatLocalISO(new Date()) },
+                  isTemplate: !prev.recurrence
+                }))}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${localTask.recurrence ? 'bg-turquesa text-white' : 'bg-bg-secondary text-text-secondary'}`}
+              >
+                {localTask.recurrence ? 'ACTIVA' : 'DESACTIVADA'}
+              </button>
+            </div>
+ 
+            {localTask.recurrence && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-text-secondary uppercase tracking-widest">Frecuencia</label>
+                    <div className="flex bg-bg-secondary rounded-xl p-1 gap-1">
+                      {frequencies.map(f => (
+                        <button 
+                          key={f.id}
+                          onClick={() => setLocalTask(prev => {
+                            const today = new Date();
+                            const updates: any = { frequency: f.id as any };
+                            if (f.id === 'weekly' && (!prev.recurrence?.weekDays || prev.recurrence.weekDays.length === 0)) {
+                              updates.weekDays = [(today.getDay() + 6) % 7];
+                            }
+                            if (f.id === 'monthly' && !prev.recurrence?.monthDay) {
+                              updates.monthDay = today.getDate();
+                            }
+                            return { ...prev, recurrence: { ...prev.recurrence!, ...updates } };
+                          })}
+                          className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${localTask.recurrence?.frequency === f.id ? 'bg-turquesa text-white' : 'text-text-secondary hover:text-white'}`}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-text-secondary uppercase tracking-widest">Inicio de Serie</label>
+                    <input 
+                      type="date"
+                      className="w-full p-3 bg-bg-secondary border border-border-main rounded-xl text-xs font-bold text-white outline-none"
+                      value={localTask.recurrence.startDate}
+                      onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, startDate: e.target.value } }))}
+                    />
+                  </div>
+                </div>
+ 
+                {localTask.recurrence.frequency === 'weekly' && (
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-text-secondary uppercase tracking-widest">Días de ejecución</label>
+                    <div className="flex justify-between gap-1">
+                      {['L','M','X','J','V','S','D'].map((d, i) => {
+                        const dayNum = i; // 0=Lunes, ..., 6=Domingo (matches matchesRecurrence specDay)
+                        const active = localTask.recurrence?.weekDays?.includes(dayNum);
+                        return (
+                          <button 
+                            key={d}
+                            onClick={() => {
+                              const curr = localTask.recurrence?.weekDays || [];
+                              const next = curr.includes(dayNum) ? curr.filter(v => v !== dayNum) : [...curr, dayNum];
+                              setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, weekDays: next } }));
+                            }}
+                            className={`flex-1 py-1 px-1 aspect-square rounded-lg text-[9px] font-black border transition-all ${active ? 'bg-turquesa border-turquesa text-white' : 'bg-bg-secondary border-border-main text-text-secondary'}`}
+                          >
+                            {d}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+ 
+                {localTask.recurrence.frequency === 'monthly' && (
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-text-secondary uppercase tracking-widest">Día del mes (1-31)</label>
+                    <input 
+                      type="number"
+                      min="1"
+                      max="31"
+                      className="w-full p-3 bg-bg-secondary border border-border-main rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
+                      value={localTask.recurrence.monthDay || parseLocalISO(localTask.recurrence.startDate || formatLocalISO(new Date())).getDate()}
+                      onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, monthDay: parseInt(e.target.value) || 1 } }))}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+ 
+          {/* Subtasks Section */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-white uppercase tracking-[0.1em]">Pasos / Subtareas</h3>
+              <button 
+                onClick={() => {
+                  const nid = onAddTask(localTask.id);
+                  if (nid) setFocusedSubtaskId(nid);
+                }}
+                className="flex items-center gap-2 p-3 bg-turquesa/10 hover:bg-turquesa/20 text-turquesa rounded-2xl transition-all font-black text-[10px] uppercase tracking-widest"
+              >
+                <Plus size={14} /> Añadir Paso
+              </button>
+            </div>
+ 
+            <div className="space-y-3">
+              {subtasks.map((st: Task) => (
+                <div key={st.id} className="flex gap-4 items-center bg-bg-main/40 p-4 rounded-2xl border border-border-main group">
+                  <div className="flex-1 space-y-2">
+                    <input 
+                      autoFocus={st.id === focusedSubtaskId}
+                      onFocus={() => { if(st.id === focusedSubtaskId) setFocusedSubtaskId(null); }}
+                      className="w-full bg-transparent text-sm font-bold text-white outline-none border-b border-border-main/20 focus:border-turquesa transition-all py-1"
+                      value={st.title}
+                      onChange={e => handleUpdateSubtask(st.id, { title: e.target.value })}
+                      placeholder="Título del paso..."
+                    />
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-text-secondary">
+                        <Clock size={10} />
+                        <input 
+                          type="number"
+                          className="w-8 bg-transparent outline-none text-white text-center"
+                          value={st.estimatedMinutes || 0}
+                          onChange={e => handleUpdateSubtask(st.id, { estimatedMinutes: parseInt(e.target.value) || 0 })}
+                        />
+                        <span>min</span>
+                      </div>
+                      {st.recurrence && (
+                        <div className="flex items-center gap-1 text-[9px] font-black text-morado uppercase">
+                          <RefreshCw size={10} />
+                          {st.recurrence.frequency === 'daily' ? 'Diaria' : 
+                           st.recurrence.frequency === 'weekdays' ? 'L-V' :
+                           st.recurrence.frequency === 'weekly' ? `Semanal` :
+                           `Mensual`}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                    <button 
+                      onClick={() => onEditTask(st.id)}
+                      className="p-2 text-text-secondary hover:text-turquesa"
+                      title="Editar"
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button 
+                      onClick={() => onDeleteTask(st.id)}
+                      className="p-2 text-text-secondary hover:text-rosa"
+                      title="Eliminar"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {subtasks.length === 0 && (
+                <div className="py-8 border-2 border-dashed border-border-main rounded-[2rem] flex flex-col items-center justify-center text-text-secondary italic">
+                  <p className="text-xs">Sin subtareas configuradas</p>
+                </div>
+              )}
+            </div>
+          </div>
+ 
+          <div className="space-y-3">
+            <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest pl-1">Notas y Detalles</label>
+            <textarea 
+              rows={4}
+              className="w-full p-4 bg-bg-main border border-border-main rounded-2xl text-sm font-bold text-white outline-none focus:ring-2 focus:ring-turquesa/20 resize-none placeholder:text-text-secondary/30"
+              placeholder="Anota cualquier detalle relevante..."
+              value={localTask.notes || ''}
+              onChange={e => setLocalTask(prev => ({ ...prev, notes: e.target.value }))}
+            />
+          </div>
+        </div>
+ 
+        <div className="p-8 bg-bg-main/50 border-t border-border-main flex gap-4">
+          <button 
+            onClick={onClose}
+            className="flex-1 py-5 rounded-3xl text-sm font-black uppercase tracking-widest text-text-secondary hover:text-white hover:bg-bg-secondary transition-all"
+          >
+            Cerrar
+          </button>
+          <button 
+            onClick={() => { onSave(localTask); onClose(); }}
+            className="flex-[2] py-5 bg-gradient-to-r from-turquesa to-azul rounded-3xl text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-turquesa/20 hover:scale-[1.02] active:scale-95 transition-all"
+          >
+            Guardar Cambios
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+ 
+// --- Subcomponents ---
+ 
+function NavItem({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
+  return (
+    <button 
+      onClick={onClick}
+      className={`
+        flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all group w-full relative
+        ${active 
+          ? 'bg-bg-card text-white shadow-xl border border-border-main' 
+          : 'text-text-secondary hover:text-text-main hover:bg-bg-card/50'}
+      `}
+    >
+      {active && (
+        <motion.div 
+          layoutId="activeNav"
+          className="absolute left-0 w-1.5 h-6 bg-turquesa rounded-r-full"
+        />
+      )}
+      <span className={`${active ? 'text-turquesa' : 'group-hover:scale-110 transition-transform'}`}>
+        {icon}
+      </span>
+      <span className="text-sm font-bold tracking-tight hidden lg:block tracking-wide">{label}</span>
+      {active && (
+        <ChevronRight size={14} className="ml-auto hidden lg:block text-turquesa" />
+      )}
+    </button>
+  );
+}
+ 
+
+const formatMinutes = (mins: number) => {
+  if (mins === 0) return '0m';
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+};
+
+function DashboardView({ 
+  tasks, 
+  allTasksMap, 
+  blocks, 
+  timeEntries, 
+  activeTimer, 
+  onStartTimer, 
+  onStopTimer, 
+  onToggle, 
+  onDelete, 
+  onAddTask, 
+  onUpdateTask, 
+  onEditTask,
+  editingTaskId,
+  inlineEditingTaskId,
+  setInlineEditingTaskId,
+  onOpenTimePanel,
+  activeDate, 
+  onSetDate,
+  onDayChange, 
+  onReorderTasks,
+  onReorderSubtasks,
+  onToggleExpand,
+  onPromote,
+  onDemote 
+}: any) {
+  const [hideCompleted, setHideCompleted] = useState(true);
+  const [showDashboardCalendar, setShowDashboardCalendar] = useState(false);
+ 
+  const dayTasks = useMemo(() => {
+    const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
+    return tasks.filter((t: Task) => {
+      if (!activeBlockIds.has(t.blockId)) return false;
+      if (t.parentTaskId) return false;
+      // Tareas normales: deben tener la fecha del día
+      if (t.dueDate === activeDate) return true;
+      // Contenedores sin fecha: mostrar si alguna subtarea tiene fecha de hoy
+      if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
+        return t.subtasks.some(subId => {
+          const sub = allTasksMap[subId];
+          return sub && sub.dueDate === activeDate;
+        });
+      }
+      return false;
+    }).sort((a: Task, b: Task) => (a.order || 0) - (b.order || 0));
+  }, [tasks, activeDate, blocks, allTasksMap]);
+ 
+  const filteredDayTasks = useMemo(() => {
+    return dayTasks.filter((t: Task) => !hideCompleted || !isTaskCompleted(t.id, allTasksMap));
+  }, [dayTasks, hideCompleted, allTasksMap]);
+ 
+  const stats = useMemo(() => {
+    const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
+    const dayTasksFiltered = dayTasks.filter((t: any) => activeBlockIds.has(t.blockId));
+    
+    // Excluir contenedores del cálculo (no tienen fecha/etiqueta/tiempo propio)
+    const nonContainers = dayTasksFiltered.filter((t: any) => {
+      const isContainer = !t.dueDate && t.subtasks && t.subtasks.length > 0 && (!t.tags || t.tags.length === 0);
+      return !isContainer;
+    });
+
+    const total = nonContainers.length;
+    const completedTasks = nonContainers.filter((t: any) => isTaskCompleted(t.id, allTasksMap));
+    const pendingTasks = nonContainers.filter((t: any) => !isTaskCompleted(t.id, allTasksMap));
+    const completed = completedTasks.length;
+    const pending = pendingTasks.length;
+
+    // Tiempo estimado: separar pendiente/completado/total
+    const estimatedPending = pendingTasks.reduce((acc: number, t: any) => {
+      return acc + getTaskEstimatedCombo(t.id, allTasksMap);
+    }, 0);
+    const estimatedCompleted = completedTasks.reduce((acc: number, t: any) => {
+      return acc + getTaskEstimatedCombo(t.id, allTasksMap);
+    }, 0);
+    const estimatedTotal = estimatedPending + estimatedCompleted;
+
+    // Tiempo registrado: todos los timeEntries del día actual (independiente de completado/pendiente)
+    const registered = timeEntries
+      .filter((e: any) => e && e.date === activeDate)
+      .reduce((acc: number, e: any) => acc + (e.duration || 0), 0);
+
+    return { 
+      total, 
+      completed, 
+      pending,
+      estimatedPending, 
+      estimatedCompleted, 
+      estimatedTotal,
+      registered 
+    };
+  }, [dayTasks, allTasksMap, blocks, timeEntries, activeDate]);
+ 
+  // groupedTasks: cada entrada es { task, subtasksForGroup }
+  // Los contenedores (sin etiqueta) se reparten por grupos según sus subtareas
+  const groupedTasks = useMemo(() => {
+    const tagOrder: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
+    const groups: Record<TagType, { task: Task, subtasksForGroup: string[] | null }[]> = {
+      con_hora: [], focus: [], dirección: [], espera: [], resto: []
+    };
+
+    filteredDayTasks.forEach((t: Task) => {
+      const isContainer = !t.dueDate && t.subtasks && t.subtasks.length > 0 && (!t.tags || t.tags.length === 0);
+
+      if (isContainer) {
+        // Repartir el contenedor en cada grupo donde tenga subtareas con esa etiqueta
+        const subtasksByTag: Record<string, string[]> = {};
+        (t.subtasks || []).forEach(subId => {
+          const sub = allTasksMap[subId];
+          if (!sub) return;
+          if (hideCompleted && sub.status === 'completed') return;
+          if (sub.dueDate !== activeDate) return;
+          const subTag = (sub.tags && sub.tags[0]) || 'resto';
+          if (!subtasksByTag[subTag]) subtasksByTag[subTag] = [];
+          subtasksByTag[subTag].push(subId);
+        });
+
+        Object.entries(subtasksByTag).forEach(([tag, subIds]) => {
+          if (groups[tag as TagType]) {
+            groups[tag as TagType].push({ task: t, subtasksForGroup: subIds });
+          } else {
+            groups.resto.push({ task: t, subtasksForGroup: subIds });
+          }
+        });
+      } else {
+        // Tarea normal: va a su grupo por etiqueta
+        const primaryTag = (t.tags && t.tags[0]) || 'resto';
+        const group = groups[primaryTag as TagType] || groups.resto;
+        group.push({ task: t, subtasksForGroup: null });
+      }
+    });
+
+    // Ordenar dentro de cada grupo
+    tagOrder.forEach(tag => {
+      groups[tag].sort((a, b) => (a.task.order || 0) - (b.task.order || 0));
+    });
+    groups.con_hora.sort((a, b) => (a.task.dueTime || '99:99').localeCompare(b.task.dueTime || '99:99'));
+
+    return groups;
+  }, [filteredDayTasks, hideCompleted, allTasksMap, activeDate]);
+ 
+  const formatDate = (dateStr: string) => {
+    const d = parseLocalISO(dateStr);
+    const dayName = new Intl.DateTimeFormat('es-ES', { weekday: 'long' }).format(d);
+    const dayNum = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long' }).format(d);
+    return { dayName, dayNum };
+  };
+ 
+  const { dayName, dayNum } = formatDate(activeDate);
+ 
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }} 
+      animate={{ opacity: 1, y: 0 }} 
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-10"
+    >
+      {/* Date Header */}
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between bg-bg-card p-4 rounded-[2rem] border border-border-main shadow-xl">
+          <div className="flex gap-2">
+            <button onClick={() => onDayChange(-1)} className="p-3 hover:bg-bg-main rounded-2xl transition-all text-text-secondary hover:text-white">
+              <ChevronRight size={20} className="rotate-180" />
+            </button>
+            <button 
+              onClick={() => {
+                const today = formatLocalISO(new Date());
+                onSetDate(today);
+              }}
+              className="px-6 py-2 bg-turquesa/10 text-turquesa rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-turquesa hover:text-white transition-all"
+            >
+              HOY
+            </button>
+            <button onClick={() => onDayChange(1)} className="p-3 hover:bg-bg-main rounded-2xl transition-all text-text-secondary hover:text-white">
+              <ChevronRight size={20} />
+            </button>
+          </div>
+          
+          <div className="text-center">
+             <div className="flex items-center justify-center gap-2 mb-0.5">
+               <CalendarIcon size={16} className="text-turquesa" />
+               <div className="relative">
+                 <button 
+                   onClick={() => setShowDashboardCalendar(!showDashboardCalendar)}
+                   className="text-xl font-black capitalize text-white flex items-center gap-2 hover:text-turquesa transition-all"
+                 >
+                   {dayName}, {dayNum}
+                   <ChevronDown size={14} className={`transition-transform duration-300 ${showDashboardCalendar ? 'rotate-180' : ''}`} />
+                 </button>
+                 
+                 <AnimatePresence>
+                   {showDashboardCalendar && (
+                     <>
+                       <div className="fixed inset-0 z-[150]" onClick={() => setShowDashboardCalendar(false)} />
+                       <motion.div 
+                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                         animate={{ opacity: 1, y: 0, scale: 1 }}
+                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                         className="absolute top-full left-1/2 -translate-x-1/2 mt-4 bg-bg-card border border-border-main rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] p-7 z-[160] min-w-[340px] backdrop-blur-2xl"
+                       >
+                          <div className="flex items-center justify-between mb-6 px-1">
+                             <div className="flex flex-col">
+                               <p className="text-[10px] font-black text-turquesa uppercase tracking-[0.2em]">Agenda</p>
+                               <p className="text-[14px] font-black text-white">Ir a fecha</p>
+                             </div>
+                             <button onClick={() => setShowDashboardCalendar(false)} className="w-9 h-9 flex items-center justify-center bg-bg-main hover:bg-turquesa/10 rounded-xl transition-all border border-border-main group">
+                               <X size={16} className="text-text-secondary group-hover:text-turquesa transition-colors" />
+                             </button>
+                          </div>
+                          
+                          <DashboardHarmonicCalendar 
+                            activeDate={activeDate} 
+                            onSetDate={onSetDate}
+                            onClose={() => setShowDashboardCalendar(false)}
+                          />
+                          
+                          <div className="mt-6 pt-6 border-t border-border-main/50 grid grid-cols-2 gap-3">
+                               <button 
+                                 onClick={() => {
+                                   const today = formatLocalISO(new Date());
+                                   onSetDate(today);
+                                   setShowDashboardCalendar(false);
+                                 }}
+                                 className="flex items-center gap-3 p-3.5 bg-bg-main border border-border-main rounded-2xl hover:border-turquesa transition-all group"
+                               >
+                                 <div className="w-8 h-8 rounded-xl bg-turquesa/10 flex items-center justify-center text-turquesa group-hover:bg-turquesa group-hover:text-white transition-all">
+                                   <Zap size={14} fill="currentColor" />
+                                 </div>
+                                 <span className="text-[10px] font-black text-white uppercase tracking-widest">Hoy</span>
+                               </button>
+                               
+                               <button 
+                                 onClick={() => {
+                                   const tomorrow = new Date();
+                                   tomorrow.setDate(tomorrow.getDate() + 1);
+                                   const tomStr = formatLocalISO(tomorrow);
+                                   onSetDate(tomStr);
+                                   setShowDashboardCalendar(false);
+                                 }}
+                                 className="flex items-center gap-3 p-3.5 bg-bg-main border border-border-main rounded-2xl hover:border-azul transition-all group"
+                               >
+                                 <div className="w-8 h-8 rounded-xl bg-azul/10 flex items-center justify-center text-azul group-hover:bg-azul group-hover:text-white transition-all">
+                                   <ArrowRight size={14} />
+                                 </div>
+                                 <span className="text-[10px] font-black text-white uppercase tracking-widest">Mañana</span>
+                               </button>
+                          </div>
+                       </motion.div>
+                     </>
+                   )}
+                 </AnimatePresence>
+               </div>
+             </div>
+             <p className="text-[9px] font-bold text-text-secondary uppercase tracking-[0.2em]">{stats.completed} de {stats.total} completadas</p>
+          </div>
+ 
+          <div className="flex items-center gap-4">
+             <button 
+              onClick={() => setHideCompleted(!hideCompleted)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all text-[9px] font-black uppercase tracking-widest ${hideCompleted ? 'bg-turquesa text-white border-turquesa' : 'border-border-main text-text-secondary hover:border-turquesa'}`}
+             >
+               {hideCompleted ? <Eye size={14} /> : <EyeOff size={14} />}
+               {hideCompleted ? 'Ver completadas' : 'Ocultar completadas'}
+             </button>
+             <button 
+              onClick={() => onAddTask()}
+              className="bg-azul hover:bg-azul/90 text-white p-3 rounded-2xl shadow-lg shadow-azul/20 transition-all"
+             >
+               <Plus size={20} />
+             </button>
+          </div>
+        </div>
+      </div>
+ 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <SummaryCard 
+          label="Tareas" 
+          value={`${stats.pending} pendientes`}
+          subValue={`${stats.completed} completadas • ${stats.total} totales`}
+          progress={(stats.completed / (stats.total || 1)) * 100}
+          color="turquesa"
+        />
+        <SummaryCard 
+          label="Estimado" 
+          value={`${formatMinutes(stats.estimatedPending)} pendiente`}
+          subValue={`${formatMinutes(stats.estimatedCompleted)} completado • ${formatMinutes(stats.estimatedTotal)} total`}
+          color="azul"
+        />
+        <SummaryCard 
+          label="Registrado" 
+          value={stats.registered > 0 ? `${formatMinutes(stats.registered)} trabajadas` : 'Sin registros'} 
+          subValue="Tiempo real de hoy"
+          color="morado"
+        />
+      </div>
+ 
+      <div className="h-px bg-border-main/50" />
+ 
+      {/* Task Groups */}
+      <div className="space-y-12 pb-32">
+        {(Object.entries(groupedTasks) as [TagType, { task: Task, subtasksForGroup: string[] | null }[]][]).map(([tag, tagEntries]) => {
+          if (tagEntries.length === 0) return null;
+          const tagTasks = tagEntries.map(e => e.task);
+          return (
+            <div key={tag} className="space-y-6">
+              <div className="flex items-center justify-between border-b border-border-main/50 pb-2">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-xl bg-bg-card border border-border-main flex items-center justify-center ${tag === 'resto' ? 'opacity-40 text-azul/60' : ''}`}>
+                    {TAG_LABELS[tag].icon || <CheckCircle2 size={16} className="text-lima" />}
+                  </div>
+                  <h3 className={`font-bold text-sm uppercase tracking-widest ${tag === 'resto' ? 'text-text-secondary/60' : 'text-text-main'}`}>
+                    {TAG_LABELS[tag].label}
+                  </h3>
+                </div>
+                <span className="text-[10px] font-bold bg-bg-card px-2.5 py-1 rounded-lg border border-border-main text-text-secondary uppercase">
+                  {tagEntries.length} Tareas
+                </span>
+              </div>
+
+              <Reorder.Group
+                axis="y"
+                values={tagTasks}
+                onReorder={onReorderTasks}
+                className="grid grid-cols-1 gap-4"
+              >
+                {tagEntries.map(({ task, subtasksForGroup }) => (
+                  <TaskCard
+                    key={`${task.id}-${tag}`}
+                    task={task}
+                    variant="DASHBOARD"
+                    allTasksMap={allTasksMap}
+                    blocks={blocks}
+                    timeEntries={timeEntries}
+                    activeTimer={activeTimer}
+                    onStartTimer={onStartTimer}
+                    onStopTimer={onStopTimer}
+                    onToggleStatus={onToggle}
+                    onUpdateTask={onUpdateTask}
+                    onEditTask={onEditTask}
+                    editingTaskId={editingTaskId}
+                    inlineEditingTaskId={inlineEditingTaskId}
+                    setInlineEditingTaskId={setInlineEditingTaskId}
+                    onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
+                    onAddTask={onAddTask}
+                    onDelete={onDelete}
+                    onPromote={onPromote}
+                    onDemote={onDemote}
+                    onReorderSubtasks={onReorderSubtasks}
+                    onToggleExpand={onToggleExpand}
+                    hideCompleted={hideCompleted}
+                    subtasksForGroup={subtasksForGroup}
+                  />
+                ))}
+              </Reorder.Group>
+            </div>
+          );
+        })}
+ 
+        {dayTasks.length === 0 && (
+          <div className="py-32 flex flex-col items-center justify-center text-text-secondary border-2 border-dashed border-border-main rounded-[2.5rem] bg-bg-card/30">
+            <div className="w-16 h-16 bg-bg-card rounded-3xl flex items-center justify-center mb-6 border border-border-main shadow-2xl">
+              <Zap size={32} className="text-turquesa opacity-40" />
+            </div>
+            <p className="font-bold text-lg mb-1">Día totalmente despejado</p>
+            <p className="text-sm opacity-50 mb-8">No tienes nada planificado para hoy</p>
+            <button 
+              onClick={() => onAddTask()}
+              className="bg-turquesa hover:bg-turquesa/90 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-turquesa/20 transition-all flex items-center gap-3"
+            >
+              <Plus size={20} />
+              + Tarea
+            </button>
+          </div>
+        )}
+ 
+        {dayTasks.length > 0 && (
+           <button 
+            onClick={() => onAddTask()}
+            className="w-full py-5 border-2 border-dashed border-border-main rounded-[1.5rem] flex items-center justify-center gap-3 font-bold text-turquesa hover:bg-bg-card/50 transition-all"
+           >
+             <Plus size={20} />
+             + Nueva tarea para hoy
+           </button>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+ 
+function SummaryCard({ label, value, subValue, progress, color }: any) {
+  return (
+    <div className="bg-bg-card border border-border-main rounded-[2rem] p-6 shadow-xl relative overflow-hidden group">
+      <div className="relative z-10">
+        <p className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em] mb-3">{label}</p>
+        <div className="flex items-baseline gap-2">
+          <h4 className="text-3xl font-black text-white">{value}</h4>
+          {subValue && <span className="text-[10px] font-bold text-text-secondary uppercase">{subValue}</span>}
+        </div>
+      </div>
+      
+      {progress !== undefined && (
+        <div className="mt-6">
+          <div className="h-2 bg-bg-main/50 rounded-full overflow-hidden">
+             <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              className={`h-full bg-${color}`} 
+             />
+          </div>
+          <p className="mt-2 text-[10px] font-bold text-text-secondary uppercase text-right">{Math.round(progress)}% Completado</p>
+        </div>
+      )}
+ 
+      {/* Decorative gradient */}
+      <div className={`absolute -bottom-10 -right-10 w-24 h-24 bg-${color} opacity-5 blur-[60px] group-hover:opacity-10 transition-opacity`} />
+    </div>
+  );
+}
+ 
+ 
+ 
+ 
+ 
+function BlocksManagerView({ blocks, tasks, allTasksMap, timeEntries, activeTimer, onStartTimer, onStopTimer, onAddTask, onAddRule, onToggleTask, onDelete, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, onEditRule, onToggleRule, onAddBlock, onEditBlock, onReorderBlocks, onToggleBlock, activeDate, onReorderSubtasks, onReorderTasks, onToggleExpand, onExpandAll, onPromote, onDemote }: any) {
+  const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
+  const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
+ 
+  const coreTasks = useMemo(() => {
+    if (!selectedBlock) return [];
+    return Object.values(allTasksMap).filter((t: any) => {
+      if (!t || t.blockId !== selectedBlock.id || t.parentTaskId || t.templateId) return false;
+      const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
+      return type === 'core';
+    }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+  }, [selectedBlock, allTasksMap]);
+ 
+  const adhocTasks = useMemo(() => {
+    if (!selectedBlock) return [];
+    return Object.values(allTasksMap).filter((t: any) => {
+      if (!t || t.blockId !== selectedBlock.id || t.parentTaskId || t.templateId) return false;
+      const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
+      return type === 'adhoc';
+    }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+  }, [selectedBlock, allTasksMap]);
+ 
+  const filteredBlocks = useMemo(() => {
+    if (filter === 'active') return blocks.filter(b => b.isActive);
+    if (filter === 'inactive') return blocks.filter(b => !b.isActive);
+    return blocks;
+  }, [blocks, filter]);
+ 
+  if (selectedBlock) {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32">
+        <div className="flex items-center justify-between bg-bg-card p-6 rounded-[2rem] border border-border-main shadow-xl">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSelectedBlock(null)} className="p-3 hover:bg-bg-main rounded-2xl transition-all">
+              <ChevronRight size={20} className="rotate-180" />
+            </button>
+            <div className="w-12 h-12 rounded-2xl bg-bg-main border border-border-main flex items-center justify-center text-3xl shadow-inner">
+               {selectedBlock.icon}
+            </div>
+            <div>
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-black text-white">{selectedBlock.name}</h2>
+                <button 
+                  onClick={() => onEditBlock(selectedBlock.id)}
+                  className="p-1.5 bg-turquesa/10 text-turquesa hover:bg-turquesa/20 rounded-lg transition-all"
+                >
+                  <Edit size={14} />
+                </button>
+              </div>
+              <p className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em]">Gestión de contexto</p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+              <div className="flex items-center bg-bg-main p-1 rounded-2xl border border-border-main shadow-inner gap-1">
+                <button 
+                  onClick={() => onExpandAll(selectedBlock.id, true)}
+                  className="flex items-center justify-center w-7 h-7 rounded-xl bg-gradient-to-br from-turquesa to-azul text-white transition-all shadow-md active:scale-90"
+                  title="Expandir todo"
+                >
+                  <Maximize2 size={13} strokeWidth={2.5} />
+                </button>
+                <button 
+                  onClick={() => onExpandAll(selectedBlock.id, false)}
+                  className="flex items-center justify-center w-7 h-7 rounded-xl bg-bg-secondary text-text-secondary hover:text-azul transition-all shadow-sm active:scale-90"
+                  title="Comprimir todo"
+                >
+                  <Minimize2 size={13} strokeWidth={2.5} />
+                </button>
+              </div>
+             <button 
+              onClick={() => onAddTask(null, selectedBlock.id)}
+              className="px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 bg-white/5 text-white border border-white/10 hover:bg-white/15 hover:scale-[1.02] active:scale-95 shadow-xl backdrop-blur-md"
+              style={{ borderColor: `${selectedBlock.color}44` }}
+             >
+               <Plus size={16} /> Tarea
+             </button>
+ 
+          </div>
+        </div>
+ 
+        <div className="space-y-12">
+          {/* Ad-hoc Tasks Section */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 px-4">
+              <div className="p-2 bg-rosa/10 rounded-xl text-rosa shadow-[0_0_15px_rgba(251,113,133,0.2)]">
+                <div className="w-3 h-3 bg-current rounded-full" />
+              </div>
+              <h3 className="font-black uppercase tracking-[0.25em] text-[11px] text-text-secondary">AD-HOC (PUNTUALES) ({adhocTasks.length})</h3>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <Reorder.Group axis="y" values={adhocTasks} onReorder={onReorderTasks} className="grid grid-cols-1 gap-4">
+                {adhocTasks.map((t: Task) => (
+                  <TaskCard 
+                    key={t.id} 
+                    task={t} 
+                    variant="FULL"
+                    allTasksMap={allTasksMap} 
+                    blocks={blocks}
+                    timeEntries={timeEntries}
+                    activeTimer={activeTimer}
+                    onStartTimer={onStartTimer}
+                    onStopTimer={onStopTimer}
+                    onToggleStatus={t.isTemplate ? onToggleRule : onToggleTask}
+                    onUpdateTask={onUpdateTask}
+                    onEditTask={t.isTemplate ? onEditRule : onEditTask}
+                    editingTaskId={editingTaskId}
+                    inlineEditingTaskId={inlineEditingTaskId}
+                    setInlineEditingTaskId={setInlineEditingTaskId}
+                    onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
+                    onAddTask={onAddTask}
+                    onDelete={onDelete}
+                    onPromote={onPromote}
+                    onDemote={onDemote}
+                    onReorderSubtasks={onReorderSubtasks}
+                    onToggleExpand={onToggleExpand}
+                  />
+                ))}
+              </Reorder.Group>
+              {adhocTasks.length === 0 && (
+                <div className="py-12 text-center text-text-secondary border-2 border-dashed border-border-main rounded-[2rem] bg-bg-card/20 opacity-50">
+                  <p className="font-bold uppercase tracking-widest text-[10px]">No hay tareas ad-hoc activas</p>
+                </div>
+              )}
+            </div>
+          </div>
+ 
+          <div className="h-px bg-border-main/50" />
+ 
+          {/* Core Tasks Section */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 px-4">
+              <div className="p-2 bg-turquesa/10 rounded-xl text-turquesa">
+                <Compass size={18} />
+              </div>
+              <h3 className="font-black uppercase tracking-[0.25em] text-[11px] text-text-secondary">PUESTO (CORE) ({coreTasks.length})</h3>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <Reorder.Group axis="y" values={coreTasks} onReorder={onReorderTasks} className="grid grid-cols-1 gap-4">
+                {coreTasks.map((t: Task) => (
+                  <TaskCard 
+                    key={t.id}
+                    task={t}
+                    variant="FULL"
+                    allTasksMap={allTasksMap}
+                    blocks={blocks}
+                    timeEntries={timeEntries}
+                    activeTimer={activeTimer}
+                    onStartTimer={onStartTimer}
+                    onStopTimer={onStopTimer}
+                    onToggleStatus={t.isTemplate ? onToggleRule : onToggleTask}
+                    onUpdateTask={onUpdateTask}
+                    onEditTask={t.isTemplate ? onEditRule : onEditTask}
+                    editingTaskId={editingTaskId}
+                    inlineEditingTaskId={inlineEditingTaskId}
+                    setInlineEditingTaskId={setInlineEditingTaskId}
+                    onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
+                    onAddTask={onAddTask}
+                    onDelete={onDelete}
+                    onPromote={onPromote}
+                    onDemote={onDemote}
+                    onReorderSubtasks={onReorderSubtasks}
+                    onToggleExpand={onToggleExpand}
+                  />
+                ))}
+              </Reorder.Group>
+              {coreTasks.length === 0 && (
+                <div className="py-12 text-center text-text-secondary border-2 border-dashed border-border-main rounded-[2rem] bg-bg-card/20 opacity-50">
+                  <p className="font-bold uppercase tracking-widest text-[10px]">Sin tareas Core configuradas</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+ 
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10 pb-32">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+           <div className="w-12 h-12 bg-bg-card rounded-2xl border border-border-main flex items-center justify-center text-turquesa shadow-xl">
+             <Grid2X2 size={24} />
+           </div>
+           <div>
+             <h2 className="text-3xl font-black text-white">Bloques</h2>
+             <p className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em]">Contextos de trabajo</p>
+           </div>
+        </div>
+        <button 
+          onClick={onAddBlock}
+          className="bg-azul hover:bg-azul/90 text-white px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-azul/20 transition-all flex items-center gap-2"
+        >
+          <Plus size={18} /> Nuevo Contexto
+        </button>
+      </div>
+ 
+      <div className="flex items-center gap-4 bg-bg-card/50 p-2 rounded-2xl border border-border-main w-fit">
+        {(['all', 'active', 'inactive'] as const).map(f => (
+          <button 
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${filter === f ? 'bg-turquesa text-white shadow-lg shadow-turquesa/20' : 'text-text-secondary hover:text-white'}`}
+          >
+            {f === 'all' ? 'Todos' : f === 'active' ? 'Activos' : 'Inactivos'}
+          </button>
+        ))}
+        <div className="w-px h-4 bg-border-main mx-2" />
+        <span className="text-[10px] font-bold text-text-secondary uppercase px-4">{filteredBlocks.length} Contextos</span>
+      </div>
+ 
+      <Reorder.Group 
+        axis="y" 
+        values={filteredBlocks} 
+        onReorder={(newOrder) => {
+          if (filter !== 'all') return;
+          onReorderBlocks(newOrder); 
+        }}
+        className="space-y-4"
+      >
+        {filteredBlocks.map(block => {
+          return (
+            <Reorder.Item 
+              key={block.id} 
+              value={block}
+              dragListener={filter === 'all'} // Only drag when viewing all to keep order consistent
+              className={`w-full group relative bg-bg-card border border-border-main rounded-[2rem] p-6 hover:border-turquesa/50 transition-all text-left flex items-center gap-6 shadow-xl overflow-hidden ${!block.isActive ? 'opacity-70' : ''}`}
+            >
+              <div 
+                onClick={() => setSelectedBlock(block)}
+                className="flex-1 flex items-center gap-6 cursor-pointer"
+              >
+                <div className="w-16 h-16 rounded-3xl bg-bg-main border border-border-main flex items-center justify-center text-3xl group-hover:scale-110 transition-transform shadow-inner">
+                  {block.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                   <div className="flex items-center gap-2 mb-0.5">
+                     <h3 className={`text-xl font-black transition-colors ${block.isActive ? 'text-white' : 'text-text-secondary italic'}`}>
+                       {block.name}
+                     </h3>
+                     {!block.isActive && (
+                       <span className="text-[8px] font-black uppercase bg-bg-main px-1.5 py-0.5 rounded border border-border-main text-text-secondary tracking-widest">Inactivo</span>
+                     )}
+                   </div>
+                   <div className="flex items-center gap-4">
+                     <p className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em]">
+                       {Object.values(allTasksMap).filter((t: any) => t && t.blockId === block.id && t.isTemplate && !t.parentTaskId).length} reglas · {Object.values(allTasksMap).filter((t: any) => t && t.blockId === block.id && !t.isTemplate && !t.templateId && !t.parentTaskId).length} manuales
+                     </p>
+                   </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                 {filter === 'all' && (
+                    <div className="p-3 bg-bg-main rounded-xl text-text-secondary cursor-grab active:cursor-grabbing mr-2">
+                       <GripVertical size={20} />
+                    </div>
+                 )}
+                 <button onClick={(e) => { e.stopPropagation(); onEditBlock(block.id); }} className="p-3 bg-bg-main rounded-xl text-turquesa border border-border-main">
+                    <Edit size={20} />
+                 </button>
+                 <button 
+                  onClick={(e) => { e.stopPropagation(); onToggleBlock(block.id); }}
+                  className={`p-3 rounded-xl border transition-all ${block.isActive ? 'bg-turquesa/10 border-turquesa text-turquesa' : 'bg-bg-main border-border-main text-text-secondary'}`}
+                 >
+                   {block.isActive ? <Play size={20} /> : <Pause size={20} />}
+                 </button>
+                 <ChevronRight size={24} className="text-text-secondary ml-2" />
+              </div>
+ 
+              <div className="absolute top-0 left-0 w-2 h-full" style={{ backgroundColor: block.color, opacity: block.isActive ? 1 : 0.3 }} />
+            </Reorder.Item>
+          );
+        })}
+      </Reorder.Group>
+    </motion.div>
+  );
+}
+ 
+function CalendarView({ tasks, allTasksMap, blocks, timeEntries, activeTimer, onStartTimer, onStopTimer, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, activeDate, onDateSelect, onAddTask, onToggleTask, onDelete, onReorderTasks, onReorderSubtasks, onToggleExpand, onPromote, onDemote }: any) {
+  const [viewDate, setViewDate] = useState(() => parseLocalISO(activeDate));
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+ 
+  const daysInMonth = useMemo(() => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const days = new Date(year, month + 1, 0).getDate();
+    
+    // Adjust for Monday start (0=Sun, 1=Mon -> 1=Mon, 0=Sun)
+    const padding = firstDay === 0 ? 6 : firstDay - 1;
+    const array = [];
+    for (let i = 0; i < padding; i++) array.push(null);
+    for (let i = 1; i <= days; i++) {
+       const d = new Date(year, month, i);
+       array.push(formatLocalISO(d));
+    }
+    return array;
+  }, [viewDate]);
+ 
+  const monthName = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(viewDate);
+ 
+  const activeBlockIds = useMemo(() => new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id)), [blocks]);
+ 
+  const getLoadColor = (dateStr: string) => {
+    const load = projectLoadForDay(dateStr, allTasksMap);
+    if (load === 0) return 'bg-bg-secondary opacity-20';
+    if (load < 180) return 'bg-lima shadow-[0_0_10px_rgba(132,204,22,0.3)]';
+    if (load < 300) return 'bg-naranja shadow-[0_0_10px_rgba(245,158,11,0.3)]';
+    if (load < 420) return 'bg-morado shadow-[0_0_10px_rgba(139,92,246,0.3)]';
+    return 'bg-rosa shadow-[0_0_10px_rgba(236,72,153,0.3)]';
+  };
+ 
+  const dayTasks = useMemo(() => {
+    if (!selectedDay) return [];
+    const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
+    const all = Object.values(allTasksMap).filter((t: any) => {
+      if (t.dueDate !== selectedDay) return false;
+      if (t.parentTaskId) return false;
+      if (t.isTemplate) return false;
+      if (!activeBlockIds.has(t.blockId)) return false;
+      if (t.isDeleted) return false;
+      // Siempre mostrar excepciones
+      if (t.isException) return true;
+      // Excluir plantillas con recurrencia
+      if (t.recurrence) return false;
+      // Excluir plantillas padre de recurrentes
+      if (t.subtasks && t.subtasks.length > 0 && !t.templateId) {
+        const hasRecurringChild = t.subtasks.some((subId: string) => {
+          const sub = allTasksMap[subId];
+          return sub && (sub.recurrence || sub.isTemplate);
+        });
+        if (hasRecurringChild) return false;
+      }
+      return true;
+    });
+    
+    // Grouping by tags similar to dashboard
+    const groups: any = {
+      con_hora: [],
+      focus: [],
+      dirección: [],
+      espera: [],
+      resto: []
+    };
+ 
+    all.forEach((t: any) => {
+      const primaryTag = t.tags[0] || 'resto';
+      if (groups[primaryTag]) groups[primaryTag].push(t);
+      else groups.resto.push(t);
+    });
+ 
+    return groups;
+  }, [selectedDay, tasks, allTasksMap, blocks]);
+ 
+  const totalGroups = useMemo(() => {
+    if (!selectedDay) return 0;
+    return Object.values(dayTasks as any).flat().length;
+  }, [dayTasks, selectedDay]);
+ 
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }} 
+      animate={{ opacity: 1 }} 
+      className="space-y-8 pb-32"
+    >
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-black text-white capitalize">{monthName}</h2>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
+            className="p-3 bg-bg-card border border-border-main rounded-2xl text-text-secondary hover:text-white transition-all shadow-xl"
+          >
+            <ChevronRight size={20} className="rotate-180" />
+          </button>
+          <button 
+            onClick={() => setViewDate(new Date())}
+            className="px-6 py-2 bg-bg-card border border-border-main text-text-secondary hover:text-white transition-all font-black uppercase text-[10px] tracking-widest rounded-2xl"
+          >
+            Hoy
+          </button>
+          <button 
+            onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}
+            className="p-3 bg-bg-card border border-border-main rounded-2xl text-text-secondary hover:text-white transition-all shadow-xl"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      </div>
+ 
+      <div className="bg-bg-card border border-border-main rounded-[2.5rem] p-8 shadow-2xl">
+        <div className="grid grid-cols-7 mb-6">
+          {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => (
+            <div key={d} className="text-center text-[10px] font-black text-text-secondary uppercase tracking-[0.2em]">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-3">
+          {daysInMonth.map((day, idx) => {
+            if (!day) return <div key={idx} className="aspect-square" />;
+            const isToday = day === formatLocalISO(new Date());
+            const isSelected = day === selectedDay;
+            const isPast = day < formatLocalISO(new Date());
+            const load = isPast ? 0 : projectLoadForDay(day, allTasksMap);
+            
+            return (
+              <button 
+                key={day}
+                onClick={() => setSelectedDay(day)}
+                className={`
+                  aspect-square rounded-2xl flex flex-col items-center justify-center relative transition-all group border-2
+                  ${isSelected ? 'border-turquesa scale-110 shadow-xl z-20 bg-bg-card' : 'border-transparent hover:border-white/10'}
+                  ${isToday ? 'bg-bg-main ring-2 ring-turquesa ring-offset-4 ring-offset-bg-card' : ''}
+                `}
+              >
+                <span className={`text-sm font-black ${isSelected ? 'text-white' : 'text-text-secondary group-hover:text-white'}`}>
+                  {parseLocalISO(day).getDate()}
+                </span>
+                
+                {load > 0 && (
+                   <div className="mt-1 flex flex-col items-center">
+                     <div className="text-[8px] font-black text-turquesa leading-none mb-1">
+                        {load >= 60 ? `${Math.floor(load/60)}h` : `${load}m`}
+                     </div>
+                     <div className={`w-8 h-1 rounded-full ${getLoadColor(day)} transition-all`} />
+                   </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+ 
+        <div className="mt-10 flex flex-wrap gap-6 justify-center">
+           {[
+             { label: '<3h', color: 'bg-lima' },
+             { label: '3-5h', color: 'bg-naranja' },
+             { label: '5-7h', color: 'bg-morado' },
+             { label: '>7h', color: 'bg-rosa' },
+           ].map(item => (
+             <div key={item.label} className="flex items-center gap-2">
+               <div className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
+               <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">{item.label}</span>
+             </div>
+           ))}
+        </div>
+      </div>
+ 
+      {/* Day Drawer Overlay - DASHBOARD STYLE */}
+      <AnimatePresence>
+        {selectedDay && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedDay(null)}
+              className="fixed inset-0 z-40 bg-bg-main/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-bg-card border-t border-border-main rounded-t-[3rem] p-8 max-h-[90vh] overflow-y-auto shadow-[0_-20px_50px_rgba(0,0,0,0.5)] custom-scrollbar"
+            >
+               <div className="flex items-center justify-between mb-8 sticky top-0 bg-bg-card/95 backdrop-blur py-2 z-10">
+                  <div className="flex items-center gap-4">
+                     <button onClick={() => setSelectedDay(null)} className="p-3 bg-bg-main rounded-2xl border border-border-main text-text-secondary hover:text-white transition-all shadow-xl">
+                        <ChevronRight size={20} className="rotate-180" />
+                     </button>
+                     <div>
+                        <h3 className="text-2xl font-black text-white capitalize">
+                          {new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).format(parseLocalISO(selectedDay))}
+                        </h3>
+                        <div className="flex items-center gap-3 mt-1">
+                          <p className="text-[9px] font-black text-turquesa uppercase tracking-[0.2em]">Carga: {projectLoadForDay(selectedDay, allTasksMap)}m</p>
+                          <span className="text-text-secondary opacity-30 text-[9px]">•</span>
+                          <p className="text-[9px] font-black text-text-secondary uppercase tracking-[0.2em]">{totalGroups} tareas proyectadas</p>
+                        </div>
+                     </div>
+                  </div>
+                  <div className="flex gap-3">
+                     <button 
+                      onClick={() => onDateSelect(selectedDay)}
+                      className="px-6 py-3 bg-turquesa text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-turquesa/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                     >
+                       <CalendarIcon size={16} /> Ver en Dashboard
+                     </button>
+                     <button 
+                      onClick={() => onAddTask(null, undefined, selectedDay)}
+                      className="px-6 py-3 bg-azul text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-azul/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                     >
+                       <Plus size={16} /> Añadir
+                     </button>
+                     <button onClick={() => setSelectedDay(null)} className="p-3 bg-bg-main rounded-2xl border border-border-main text-text-secondary hover:text-white transition-all shadow-xl">
+                        <X size={20} />
+                     </button>
+                  </div>
+               </div>
+ 
+                <div className="space-y-10">
+                  {Object.entries(TAG_LABELS).map(([tag, label]: [any, any]) => {
+                    const groupTasks = (dayTasks as any)[tag] || [];
+                    if (groupTasks.length === 0) return null;
+ 
+                    return (
+                      <div key={tag} className="space-y-4">
+                        <h4 className="text-[10px] font-black text-text-secondary uppercase tracking-[0.25em] pl-4 flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-turquesa" />
+                          {label.label} ({groupTasks.length})
+                        </h4>
+                        <div className="grid grid-cols-1 gap-4">
+                          <Reorder.Group axis="y" values={groupTasks} onReorder={onReorderTasks} className="grid grid-cols-1 gap-4">
+                            {groupTasks.map((t: any) => (
+                              <TaskCard 
+                                key={t.id} 
+                                task={t} 
+                                variant="COMPACT"
+                                allTasksMap={allTasksMap} 
+                                blocks={blocks}
+                                timeEntries={timeEntries}
+                                activeTimer={activeTimer}
+                                onStartTimer={onStartTimer}
+                                onStopTimer={onStopTimer}
+                                onToggleStatus={onToggleTask}
+                                onUpdateTask={onUpdateTask}
+                                onEditTask={onEditTask}
+                                editingTaskId={editingTaskId}
+                                inlineEditingTaskId={inlineEditingTaskId}
+                                setInlineEditingTaskId={setInlineEditingTaskId}
+                                onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
+                                onAddTask={onAddTask}
+                                onDelete={onDelete}
+                                onPromote={onPromote}
+                                onDemote={onDemote}
+                                onReorderSubtasks={onReorderSubtasks}
+                                onToggleExpand={onToggleExpand}
+                              />
+                            ))}
+                          </Reorder.Group>
+                        </div>
+                      </div>
+                    );
+                  })}
+ 
+                  {totalGroups === 0 && (
+                    <div className="py-20 text-center text-text-secondary border-2 border-dashed border-border-main rounded-[2.5rem] opacity-50 bg-bg-main/20">
+                       <LayoutDashboard size={48} className="mx-auto mb-4 opacity-20" />
+                       <p className="font-black uppercase tracking-[0.2em] text-xs">No hay tareas proyectadas para esta fecha</p>
+                    </div>
+                 )}
+               </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+ 
+// --- Recurrence Choice Modal ---
+function RecurrenceChoiceModal({ type, onClose, onConfirm }: { type: 'edit' | 'delete', onClose: () => void, onConfirm: (choice: 'instance' | 'series') => void }) {
+  return (
+    <div className="fixed inset-0 bg-bg-main/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-bg-card max-w-sm w-full rounded-[2.5rem] border border-border-main p-8 shadow-[0_30px_100px_rgba(0,0,0,0.6)] text-center"
+      >
+        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 ${type === 'edit' ? 'bg-azul/20 text-azul' : 'bg-rosa/20 text-rosa'}`}>
+          {type === 'edit' ? <Edit size={32} /> : <Trash2 size={32} />}
+        </div>
+        <h3 className="text-2xl font-black text-white mb-2">
+          {type === 'edit' ? '¿Qué quieres editar?' : '¿Qué quieres eliminar?'}
+        </h3>
+        <p className="text-sm font-bold text-text-secondary mb-8 leading-relaxed">
+          Esta tarea es parte de una rutina recurrente. Elige si quieres afectar solo a este día o a toda la serie.
+        </p>
+ 
+        <div className="space-y-3">
+          <button 
+            onClick={() => onConfirm('instance')}
+            className="w-full py-4 bg-bg-main hover:bg-bg-secondary rounded-2xl text-[10px] font-black uppercase tracking-widest text-white border border-border-main transition-all flex items-center justify-center gap-2"
+          >
+            {type === 'edit' ? 'Solo esta tarea' : 'Solo este día'}
+          </button>
+          <button 
+            onClick={() => onConfirm('series')}
+            className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2 shadow-xl ${type === 'edit' ? 'bg-azul shadow-azul/20' : 'bg-rosa shadow-rosa/20'}`}
+          >
+            {type === 'edit' ? 'Toda la serie (Futuro)' : 'Toda la serie (Futuro)'}
+          </button>
+          <button 
+            onClick={onClose}
+            className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-white transition-all"
+          >
+            Cancelar
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+ 
+ 
+ 
+// --- Block Modal ---
+function BlockModal({ block, onClose, onSave, onDelete }: { block: WorkBlock, onClose: () => void, onSave: (b: WorkBlock) => void, onDelete: (id: string) => void }) {
+  const [localBlock, setLocalBlock] = useState<WorkBlock>(block);
+  const [showAllIcons, setShowAllIcons] = useState(false);
+  const [showAllColors, setShowAllColors] = useState(false);
+  
+  const allIcons = [
+    '🏢', '💰', '🏦', '📜', '🏠', '👥', '⚙️', '🛡️', '🗓️', '✅', '🔥', '🚀', '🧠', '🛠️', '🛒', '📞',
+    '💼', '📊', '🌐', '📡', '🔒', '🔑', '🏷️', '📦', '📅', '📝', '🔔', '📢', '🔍', '📱', '💻', '🎥',
+    '🎨', '🎵', '⚽', '🏆', '🍕', '☕', '✈️', '⚡', '🌙', '☀️', '🌈', '🍀', '💎', '📍', '🎁', '💡'
+  ];
+  
+  const icons = showAllIcons ? allIcons : allIcons.slice(0, 16);
+  const allColorThemes = Object.values(COLORS);
+  const colorThemes = showAllColors ? allColorThemes : allColorThemes.slice(0, 7);
+ 
+  return (
+    <div className="fixed inset-0 bg-bg-main/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="w-full max-w-xl bg-bg-card border border-border-main rounded-[3rem] shadow-[0_30px_100px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col max-h-[90vh]"
+      >
+        <div className="p-8 border-b border-border-main flex items-center justify-between sticky top-0 bg-bg-card z-10">
+           <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-bg-main rounded-2xl flex items-center justify-center text-3xl border border-border-main" style={{ borderColor: localBlock.color }}>
+                {localBlock.icon}
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-white">{!localBlock.name ? 'Nuevo Bloque' : localBlock.name}</h3>
+                <p className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Configuración de contexto</p>
+              </div>
+           </div>
+           <button onClick={onClose} className="p-3 hover:bg-bg-main rounded-2xl transition-all text-text-secondary">
+              <X size={24} />
+           </button>
+        </div>
+ 
+        <div className="p-10 space-y-10 overflow-y-auto custom-scrollbar">
+           <div className="flex items-center justify-between bg-bg-main/30 p-6 rounded-3xl border border-border-main">
+              <div>
+                <h4 className="text-sm font-black text-white mb-1 uppercase tracking-widest">Estado del Bloque</h4>
+                <p className="text-[9px] font-bold text-text-secondary uppercase">Los bloques inactivos no aparecen en el dashboard</p>
+              </div>
+              <button 
+                onClick={() => setLocalBlock(prev => ({ ...prev, isActive: !prev.isActive }))}
+                className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all border-2 ${localBlock.isActive ? 'bg-turquesa/10 border-turquesa text-turquesa shadow-lg shadow-turquesa/10' : 'bg-bg-main border-border-main text-text-secondary'}`}
+              >
+                {localBlock.isActive ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                {localBlock.isActive ? 'ACTIVO' : 'INACTIVO'}
+              </button>
+           </div>
+ 
+           <div className="space-y-4">
+              <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary px-2">Nombre del Bloque</label>
+              <input 
+                type="text"
+                autoFocus
+                className="w-full bg-bg-main border border-border-main rounded-3xl p-6 text-xl font-bold text-white focus:ring-4 focus:ring-turquesa/20 outline-none transition-all placeholder:opacity-20"
+                placeholder="Ej: Contabilidad central"
+                value={localBlock.name}
+                onChange={e => setLocalBlock(prev => ({ ...prev, name: e.target.value }))}
+              />
+           </div>
+ 
+           <div className="space-y-4">
+              <div className="flex items-center justify-between px-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary">Icono Visual</label>
+                <button onClick={() => setShowAllIcons(!showAllIcons)} className="text-[9px] font-black text-turquesa uppercase tracking-widest hover:underline">
+                  {showAllIcons ? 'Ver menos' : 'Ver todos'}
+                </button>
+              </div>
+              <div className="grid grid-cols-8 gap-3">
+                 {icons.map(icon => (
+                   <button 
+                    key={icon}
+                    onClick={() => setLocalBlock(prev => ({ ...prev, icon }))}
+                    className={`aspect-square flex items-center justify-center text-2xl rounded-2xl border transition-all ${localBlock.icon === icon ? 'bg-turquesa/20 border-turquesa scale-110 shadow-lg' : 'bg-bg-main border-border-main hover:border-white/20'}`}
+                   >
+                     {icon}
+                   </button>
+                 ))}
+              </div>
+           </div>
+ 
+           <div className="space-y-4">
+              <div className="flex items-center justify-between px-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary">Color del Bloque</label>
+                <button onClick={() => setShowAllColors(!showAllColors)} className="text-[9px] font-black text-turquesa uppercase tracking-widest hover:underline">
+                  {showAllColors ? 'Ver menos' : 'Ver todos'}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-4">
+                 {colorThemes.map((theme, idx) => (
+                   <button 
+                    key={idx}
+                    onClick={() => setLocalBlock(prev => ({ ...prev, color: theme.main, pastelColor: theme.pastel }))}
+                    className={`w-10 h-10 rounded-full border-4 transition-all ${localBlock.color === theme.main ? 'border-white scale-125 shadow-xl' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                    style={{ backgroundColor: theme.main }}
+                   />
+                 ))}
+              </div>
+           </div>
+        </div>
+ 
+        <div className="p-8 bg-bg-main/50 border-t border-border-main flex items-center justify-between gap-4 sticky bottom-0 z-10 backdrop-blur-md">
+           {localBlock.id.startsWith('b-') ? (
+             <div />
+           ) : (
+             <button 
+              onClick={() => { onDelete(localBlock.id); onClose(); }}
+              className="px-6 py-4 rounded-2xl text-xs font-black uppercase tracking-widest text-rosa hover:bg-rosa/10 transition-all flex items-center gap-2"
+             >
+               <Trash2 size={16} /> Eliminar
+             </button>
+           )}
+           
+           <div className="flex gap-4">
+             <button onClick={onClose} className="px-6 py-4 rounded-2xl text-xs font-black uppercase tracking-widest text-text-secondary hover:text-white transition-all">Cancelar</button>
+             <button 
+                disabled={!localBlock.name}
+                onClick={() => onSave(localBlock)}
+                className="px-10 py-4 rounded-2xl text-xs font-black uppercase tracking-widest bg-turquesa text-white shadow-2xl shadow-turquesa/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50 disabled:scale-100"
+             >
+               <LayoutDashboard size={18} />
+               Guardar Bloque
+             </button>
+           </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+ 
+// --- Helpers ---
+function getTagColor(tag: TagType) {
+  switch (tag) {
+    case 'con_hora': return 'turquesa';
+    case 'focus': return 'azul';
+    case 'dirección': return 'morado';
+    case 'espera': return 'naranja';
+    case 'resto': return 'turquesa';
+    default: return 'text-secondary';
+  }
+}
+ 
+// --- NEW OVERHAUL COMPONENTS ---
+ 
+function TimerDisplay({ startTime, accumulatedSeconds }: { startTime: string, accumulatedSeconds: number }) {
+  const [now, setNow] = useState(new Date().getTime());
+ 
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date().getTime()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+ 
+  const totalSeconds = Math.floor((now - new Date(startTime).getTime()) / 1000) + (accumulatedSeconds || 0);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+ 
+  return (
+    <span className="font-mono text-xs font-black text-white">
+      {h > 0 ? `${h}h ` : ''}{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
+    </span>
+  );
+}
+ 
+function DashboardHarmonicCalendar({ activeDate, onSetDate, onClose }: any) {
+  const [currentMonth, setCurrentMonth] = useState(() => parseLocalISO(activeDate));
+  
+  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+  
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const totalDays = daysInMonth(year, month);
+  const startDay = (firstDayOfMonth(year, month) + 6) % 7; // 0=lun...6=dom
+  
+  const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+  const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+ 
+  const prevMonthDays = daysInMonth(year, month - 1);
+  
+  const days = [];
+  for (let i = startDay - 1; i >= 0; i--) {
+     days.push({ day: prevMonthDays - i, current: false, date: new Date(year, month - 1, prevMonthDays - i) });
+  }
+  for (let i = 1; i <= totalDays; i++) {
+     days.push({ day: i, current: true, date: new Date(year, month, i) });
+  }
+  const remaining = 42 - days.length;
+  for (let i = 1; i <= remaining; i++) {
+     days.push({ day: i, current: false, date: new Date(year, month + 1, i) });
+  }
+ 
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between px-1">
+        <button 
+          onClick={() => setCurrentMonth(new Date(year, month - 1))} 
+          className="w-8 h-8 flex items-center justify-center hover:bg-bg-main rounded-lg transition-all text-text-secondary hover:text-white"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <span className="font-black text-xs uppercase tracking-[0.2em] text-white">
+          {monthNames[month]} {year}
+        </span>
+        <button 
+          onClick={() => setCurrentMonth(new Date(year, month + 1))} 
+          className="w-8 h-8 flex items-center justify-center hover:bg-bg-main rounded-lg transition-all text-text-secondary hover:text-white"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+      
+      <div className="grid grid-cols-7 gap-1">
+        {dayNames.map(d => (
+          <div key={d} className="text-[10px] font-black text-text-secondary/40 text-center py-2 uppercase tracking-widest">{d}</div>
+        ))}
+        {days.map((d, i) => {
+          const dateStr = formatLocalISO(d.date);
+          const isSelected = dateStr === activeDate;
+          const isToday = dateStr === formatLocalISO(new Date());
+          
+          return (
+            <button 
+              key={i}
+              onClick={() => {
+                onSetDate(dateStr);
+                onClose();
+              }}
+              className={`
+                aspect-square flex flex-col items-center justify-center rounded-xl text-[11px] font-bold transition-all relative
+                ${isSelected ? 'bg-turquesa text-white shadow-lg shadow-turquesa/20 scale-105 z-10' : 'bg-bg-main/50'}
+                ${!isSelected && d.current ? 'text-text-main hover:bg-turquesa/10 hover:text-turquesa border border-border-main/30' : ''}
+                ${!d.current ? 'text-text-secondary/20 border-none bg-transparent' : ''}
+                ${isToday && !isSelected ? 'border-turquesa/50' : ''}
+              `}
+            >
+              <span className={!d.current ? 'opacity-20' : ''}>{d.day}</span>
+              {isToday && !isSelected && (
+                <div className="absolute bottom-1.5 w-1 h-1 bg-turquesa rounded-full" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+ 
+function TaskCard({ 
+  task, 
+  variant, 
+  allTasksMap, 
+  blocks, 
+  timeEntries, 
+  activeTimer,
+  onStartTimer,
+  onStopTimer,
+  onToggleStatus, 
+  onUpdateTask,
+  onEditTask,
+  editingTaskId,
+  inlineEditingTaskId,
+  setInlineEditingTaskId,
+  onOpenTimePanel,
+  // Navigation / Actions
+  onAddTask,
+  onDelete,
+  onPromote,
+  onDemote,
+  onReorderSubtasks,
+  onToggleExpand,
+  level = 1,
+  rootTaskId = null,
+  hideCompleted = false,
+  subtasksForGroup = null
+}: any) {
+  if (!task || task.isDeleted) return null;
+  const currentRootId = rootTaskId || task.id;
+  const block = blocks.find((b: any) => b.id === task.blockId) || blocks[0] || { color: '#14B8A6', icon: '📋', name: 'General' };
+  const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+  const isExpanded = task.isExpanded;
+  
+  const totalEstimated = getTaskEstimatedCombo(task.id, allTasksMap);
+  const totalRegistered = getTaskRegisteredCombo(task.id, allTasksMap, timeEntries);
+  
+  const isTimerRunning = activeTimer?.entityId === task.id;
+  const [dragX, setDragX] = useState(0);
+ 
+  if (variant === 'COMPACT') {
+    return (
+      <Reorder.Item
+        value={task}
+        className="relative"
+      >
+        <div 
+          onClick={(e) => { e.stopPropagation(); onOpenTimePanel(task.id, null); }}
+          className="flex items-center gap-2 p-2 bg-bg-card border border-border-main rounded-xl hover:border-turquesa/50 transition-all cursor-pointer group"
+        >
+          <div className="w-1.5 h-6 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
+          <span className="text-[11px] font-bold text-white truncate flex-1 uppercase tracking-tight">{task.title}</span>
+          {task.recurringId && <RefreshCw size={10} className="text-turquesa shrink-0" />}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] font-black text-text-secondary">
+              {totalEstimated >= 60 ? `${Math.floor(totalEstimated/60)}h ${totalEstimated%60}m` : `${totalEstimated}m`}
+            </span>
+            {isTimerRunning && <div className="w-2 h-2 bg-rosa rounded-full animate-pulse" />}
+          </div>
+        </div>
+      </Reorder.Item>
+    );
+  }
+ 
+  return (
+    <Reorder.Item 
+      value={task}
+      layout
+      className="group relative"
+    >
+      <div className="space-y-2">
+        <motion.div 
+          onPan={(_e, info) => {
+            setDragX(info.offset.x);
+          }}
+          onPanEnd={(_e, info) => {
+            if (info.offset.x > 80) onDemote(task.id);
+            else if (info.offset.x < -80) onPromote(task.id);
+            setDragX(0);
+          }}
+          animate={{ x: dragX * 0.4 }}
+          className={`bg-bg-card border border-border-main rounded-[2rem] p-5 shadow-xl relative transition-all hover:border-border-main/80 ${task.status === 'completed' ? 'opacity-60 bg-bg-main/30' : ''}`}
+        >
+          {/* Main Row */}
+          <div className="flex items-start gap-4">
+            <div className="flex flex-col items-center gap-3 pt-1">
+              <div className="text-text-secondary/20 cursor-grab active:cursor-grabbing hover:text-turquesa transition-colors">
+                <GripVertical size={18} />
+              </div>
+              <button 
+                onClick={() => onToggleStatus(task.id)}
+                className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all shadow-lg ${task.status === 'completed' ? 'bg-turquesa text-white' : 'bg-bg-main border-2 border-border-main text-transparent hover:border-turquesa'}`}
+              >
+                <CheckCircle2 size={16} />
+              </button>
+            </div>
+ 
+            <div className="flex-1 min-w-0">
+               <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <input 
+                      autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
+                      className="text-base font-black text-white bg-transparent outline-none flex-1 truncate placeholder:text-text-secondary/20 uppercase tracking-widest"
+                      value={task.title}
+                      onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
+                      onBlur={() => { 
+                        if(editingTaskId === task.id) onEditTask(null);
+                        if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
+                      }}
+                      onKeyDown={(e) => { 
+                        if(e.key === 'Enter') {
+                          if(editingTaskId === task.id) onEditTask(null);
+                          if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
+                        }
+                      }}
+                      placeholder="Título de la tarea..."
+                    />
+                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border tracking-tighter whitespace-nowrap shadow-sm bg-bg-main border-border-main flex items-center gap-1.5`} style={{ color: block.color }}>
+                      <span>{block.icon}</span>
+                      {block.name && <span>{block.name}</span>}
+                    </span>
+                  </div>
+ 
+                  {/* Secondary Row (Action Chips) */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <TaskTypeChip 
+                      value={task.taskType || (isTaskRepetitive(task.id, allTasksMap) ? 'core' : 'adhoc')} 
+                      onChange={(val: string) => onUpdateTask({ ...task, taskType: val })} 
+                      isCompact={true}
+                    />
+                    {/* Solo mostrar fecha si NO es instancia padre con subtareas */}
+                    {!(task.templateId && task.subtasks && task.subtasks.length > 0) && (
+                      <DatePickerChip 
+                        value={task.dueDate} 
+                        onChange={(date: string) => onUpdateTask({ ...task, dueDate: date })} 
+                      />
+                    )}
+ 
+                    <RecurrencePickerChip 
+                      value={task.recurrence}
+                      onChange={(rec: any) => onUpdateTask({ 
+                        ...task, 
+                        recurrence: rec || undefined,
+                        isTemplate: !!rec,
+                        dueDate: rec ? null : (task.dueDate || formatLocalISO(new Date()))
+                      })}
+                    />
+                    
+                    <TagPickerChip 
+                      selectedTags={task.tags} 
+                      onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} 
+                    />
+ 
+                    <EstimatedTimeChip 
+                      value={hasSubtasks ? totalEstimated : task.estimatedMinutes} 
+                      onChange={(val: number) => {
+                        if (hasSubtasks) {
+                           const diff = val - totalEstimated;
+                           onUpdateTask({ ...task, estimatedMinutes: Math.max(0, (task.estimatedMinutes || 0) + diff) });
+                        } else {
+                          onUpdateTask({ ...task, estimatedMinutes: val });
+                        }
+                      }} 
+                      variant={level > 1 ? 'mini' : 'default'}
+                    />
+ 
+                    <RegisteredTimeChip 
+                      value={totalRegistered} 
+                      estimated={totalEstimated}
+                      onClick={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)} 
+                    />
+ 
+                    <div className="flex items-center gap-1.5 ml-1">
+                      <button 
+                        onClick={() => isTimerRunning ? onStopTimer() : onStartTimer(currentRootId, level === 1 ? null : task.id)}
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${isTimerRunning ? 'bg-rosa text-white' : 'bg-bg-main border-border-main text-turquesa hover:bg-turquesa/10'}`}
+                      >
+                        {isTimerRunning ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                      </button>
+                      
+                      {hasSubtasks && (
+                        <button 
+                          onClick={() => onToggleExpand(task.id)}
+                          className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all ${isExpanded ? 'bg-bg-secondary text-white border-border-main' : 'bg-bg-main text-text-secondary border-border-main/50'}`}
+                        >
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+               </div>
+            </div>
+ 
+            <div className="flex flex-col gap-2 shrink-0">
+               <div className="flex items-center gap-1">
+                 <button 
+                   onClick={() => onEditTask(task.id)} 
+                   className="w-8 h-8 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-xl transition-all border border-turquesa/20"
+                   title="Editar detalles completos"
+                 >
+                   <Edit size={16} />
+                 </button>
+                 <button 
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     onDelete(task.id);
+                   }} 
+                   className="w-8 h-8 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/10 rounded-xl transition-all border border-rosa/20"
+                 >
+                   <Trash2 size={16} />
+                 </button>
+                 {level < 3 && <button onClick={() => onAddTask(task.id, task.blockId)} className="w-8 h-8 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-xl transition-all border border-turquesa/20" title="Añadir subtarea"><Plus size={18} /></button>}
+               </div>
+               <div className="flex items-center gap-1 mt-1">
+                 {task.parentTaskId && (
+                   <button 
+                     onClick={() => onPromote(task.id)} 
+                     title="Subir un nivel" 
+                     className="w-8 h-8 flex items-center justify-center text-text-secondary hover:text-turquesa bg-bg-main rounded-xl border border-border-main transition-all"
+                   >
+                     <ArrowUpLeft size={14} />
+                   </button>
+                 )}
+                 <button 
+                   onClick={() => onDemote(task.id)} 
+                   title="Bajar un nivel (hacerla subtarea de la anterior)" 
+                   className="w-8 h-8 flex items-center justify-center text-text-secondary hover:text-azul bg-bg-main rounded-xl border border-border-main transition-all"
+                 >
+                   <ArrowDownRight size={14} />
+                 </button>
+               </div>
+
+            </div>
+          </div>
+ 
+          <div className="absolute top-0 left-0 w-1.5 h-full opacity-30" style={{ backgroundColor: block.color }} />
+        </motion.div>
+ 
+        {/* Subtasks */}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className={`border-l-2 border-border-main/20 space-y-4 py-2 ${level === 1 ? "ml-6 pl-4" : "ml-8 pl-5"}`}
+            >
+              {hasSubtasks && (
+                <Reorder.Group 
+                  axis="y" 
+                  values={task.subtasks.map((sid: string) => allTasksMap[sid]).filter(Boolean)} 
+                  onReorder={(newSubtasks: any[]) => onReorderSubtasks(task.id, newSubtasks.map(t => t.id))}
+                  className="space-y-4"
+                >
+                  {(subtasksForGroup || task.subtasks)
+                    .filter((subId: string) => {
+                      if (!hideCompleted) return true;
+                      const sub = allTasksMap[subId];
+                      if (!sub) return true;
+                      return sub.status !== 'completed';
+                    })
+                    .map((subId: string) => (
+                    <TaskCard 
+                      key={subId}
+                      task={allTasksMap[subId]}
+                      variant={variant}
+                      allTasksMap={allTasksMap}
+                      blocks={blocks}
+                      timeEntries={timeEntries}
+                      activeTimer={activeTimer}
+                      onStartTimer={onStartTimer}
+                      onStopTimer={onStopTimer}
+                      onToggleStatus={onToggleStatus}
+                      onUpdateTask={onUpdateTask}
+                      onEditTask={onEditTask}
+                      editingTaskId={editingTaskId}
+                      inlineEditingTaskId={inlineEditingTaskId}
+                      setInlineEditingTaskId={setInlineEditingTaskId}
+                      onOpenTimePanel={onOpenTimePanel}
+                      onAddTask={onAddTask}
+                      onDelete={onDelete}
+                      onPromote={onPromote}
+                      onDemote={onDemote}
+                      onReorderSubtasks={onReorderSubtasks}
+                      onToggleExpand={onToggleExpand}
+                      level={level + 1}
+                      rootTaskId={currentRootId}
+                      hideCompleted={hideCompleted}
+                    />
+                  ))}
+                </Reorder.Group>
+              )}
+
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </Reorder.Item>
+  );
+}
+ 
+// --- Inline Editing Chips ---
+function TaskTypeChip({ value, onChange, isCompact = false }: any) {
+  const [show, setShow] = useState(false);
+  const isCore = value === 'core';
+  
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setShow(!show)}
+        className={`h-8 px-2.5 py-1.5 rounded-xl flex items-center justify-center gap-2 border transition-all ${
+          isCore 
+            ? 'bg-turquesa/10 border-turquesa/40 text-turquesa shadow-sm shadow-turquesa/20 hover:border-turquesa' 
+            : 'bg-rosa/10 border-rosa/30 text-rosa shadow-sm shadow-rosa/20 hover:border-rosa'
+        }`}
+        title={isCore ? 'Puesto de Trabajo (CORE)' : 'Tarea Puntual (Ad-hoc)'}
+      >
+        {isCore ? (
+          <>
+            <Compass size={12} strokeWidth={2.5} />
+            {!isCompact && <span className="text-[9px] font-black uppercase tracking-widest leading-none">Core</span>}
+          </>
+        ) : (
+          <>
+            <div className="w-2.5 h-2.5 rounded-full bg-current shadow-[0_0_8px_rgba(251,113,133,0.4)]" />
+            {!isCompact && <span className="text-[9px] font-black uppercase tracking-widest leading-none ml-1">Ad-hoc</span>}
+          </>
+        )}
+      </button>
+ 
+      <AnimatePresence>
+        {show && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShow(false)} />
+            <motion.div 
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute bottom-full left-0 mb-2 w-48 bg-bg-card border border-border-main rounded-2xl p-2 shadow-2xl z-50 backdrop-blur-xl"
+            >
+              <div className="text-[9px] font-black text-text-secondary uppercase tracking-widest px-2 mb-2">Tipo de Tarea</div>
+              <div className="space-y-1">
+                <button 
+                  onClick={() => { onChange('core'); setShow(false); }}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${isCore ? 'bg-turquesa text-white' : 'hover:bg-white/5 text-text-secondary hover:text-white'}`}
+                >
+                  <Compass size={14} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Puesto (CORE)</span>
+                </button>
+                <button 
+                  onClick={() => { onChange('adhoc'); setShow(false); }}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${!isCore ? 'bg-rosa text-white' : 'hover:bg-white/5 text-text-secondary hover:text-white'}`}
+                >
+                  <div className="w-2 h-2 bg-current rounded-full" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Puntual (AD-HOC)</span>
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+ 
+function DatePickerChip({ value, onChange }: any) {
+  const [show, setShow] = useState(false);
+  const [showFullCalendar, setShowFullCalendar] = useState(false);
+  const isSinFecha = !value;
+  const label = isSinFecha ? 'Sin fecha' : new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short' }).format(parseLocalISO(value));
+ 
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setShow(!show)}
+        className={`h-8 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${isSinFecha ? 'bg-bg-main border-border-main text-text-secondary' : 'bg-turquesa/10 border-turquesa text-turquesa shadow-sm'}`}
+      >
+        {label}
+      </button>
+ 
+      <AnimatePresence>
+        {show && (
+          <>
+            <div className="fixed inset-0 z-[210]" onClick={() => { setShow(false); setShowFullCalendar(false); }} />
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+              className="absolute top-full left-0 mt-2 bg-bg-card border border-border-main rounded-2xl shadow-2xl p-4 z-[220] min-w-[220px]"
+            >
+               {!showFullCalendar ? (
+                 <div className="space-y-2">
+                   <div className="grid grid-cols-2 gap-2">
+                     <button 
+                       onClick={() => { onChange(formatLocalISO(new Date())); setShow(false); }} 
+                       className="flex flex-col items-center gap-1 p-3 bg-bg-main rounded-xl border border-border-main hover:border-turquesa transition-all group"
+                     >
+                       <span className="text-[10px] font-black text-white uppercase tracking-widest group-hover:text-turquesa">Hoy</span>
+                       <span className="text-[8px] text-text-secondary">{new Date().getDate()}</span>
+                     </button>
+                     <button 
+                       onClick={() => { 
+                         const m = new Date(); m.setDate(m.getDate() + 1); 
+                         onChange(formatLocalISO(m)); setShow(false); 
+                       }} 
+                       className="flex flex-col items-center gap-1 p-3 bg-bg-main rounded-xl border border-border-main hover:border-turquesa transition-all group"
+                     >
+                       <span className="text-[10px] font-black text-white uppercase tracking-widest group-hover:text-turquesa">Mañana</span>
+                       <span className="text-[8px] text-text-secondary">{(() => { const d = new Date(); d.setDate(d.getDate()+1); return d.getDate(); })()}</span>
+                     </button>
+                   </div>
+                   
+                   <button 
+                     onClick={() => setShowFullCalendar(true)}
+                     className="w-full flex items-center justify-between p-3 bg-bg-main rounded-xl border border-border-main hover:border-turquesa transition-all group"
+                   >
+                     <span className="text-[10px] font-black text-white uppercase tracking-widest group-hover:text-turquesa">Calendario</span>
+                     <CalendarIcon size={14} className="text-text-secondary group-hover:text-turquesa" />
+                   </button>
+ 
+                   <div className="h-px bg-border-main/50 my-1" />
+ 
+                   <button 
+                     onClick={() => { onChange(''); setShow(false); }} 
+                     className="w-full flex items-center justify-center gap-2 p-3 bg-rosa/5 rounded-xl border border-rosa/20 text-rosa hover:bg-rosa/10 transition-all"
+                   >
+                     <Trash2 size={12} />
+                     <span className="text-[10px] font-black uppercase tracking-widest">Quitar Fecha</span>
+                   </button>
+                 </div>
+               ) : (
+                 <div className="space-y-4">
+                   <div className="flex items-center justify-between px-1">
+                     <button 
+                       onClick={() => setShowFullCalendar(false)}
+                       className="text-[10px] font-black text-turquesa uppercase tracking-widest hover:underline flex items-center gap-1"
+                     >
+                       <ChevronLeft size={12} /> Volver
+                     </button>
+                     <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Mensual</span>
+                   </div>
+                   <MonthDatePicker 
+                     value={value}
+                     onChange={(d) => {
+                       onChange(d);
+                       setShow(false);
+                       setShowFullCalendar(false);
+                     }}
+                   />
+                 </div>
+               )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+ 
+function RecurrencePickerChip({ value, onChange }: any) {
+  const [show, setShow] = useState(false);
+  const frequencies = [
+    { id: 'daily', label: 'Diaria' },
+    { id: 'weekdays', label: 'L-V' },
+    { id: 'weekly', label: 'Semanal' },
+    { id: 'monthly', label: 'Mensual' },
+  ];
+ 
+  const getLabel = () => {
+    if (!value) return null;
+    const { frequency, startDate, weekDays } = value;
+    switch (frequency) {
+      case 'daily': return 'Diaria';
+      case 'weekdays': return 'L-V';
+      case 'weekly': {
+        const daysShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+        if (!weekDays || weekDays.length === 0) {
+          const dStr = startDate || formatLocalISO(new Date());
+          const d = parseLocalISO(dStr);
+          const specDay = (d.getDay() + 6) % 7; // 0=Lunes...6=Domingo
+          return `Sem - ${daysShort[specDay]}`;
+        }
+        return `Sem - ${weekDays.map((d: number) => daysShort[d]).join(',')}`;
+      }
+      case 'monthly': {
+        const dayNum = value.monthDay || parseLocalISO(value.startDate || formatLocalISO(new Date())).getDate();
+        return `Mensual - Día ${dayNum}`;
+      }
+      default: return frequency;
+    }
+  };
+ 
+  const handleDayToggle = (day: number) => {
+    const current = value?.weekDays || [];
+    const next = current.includes(day) 
+      ? current.filter((d: number) => d !== day)
+      : [...current, day];
+    onChange({ ...(value || { frequency: 'weekly', startDate: formatLocalISO(new Date()) }), weekDays: next });
+  };
+ 
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setShow(!show)}
+        className={`flex items-center justify-center transition-all group/rec h-8 rounded-xl ${
+          value 
+            ? 'px-3 py-1.5 bg-morado/10 border border-morado/30 text-morado hover:bg-morado/20 whitespace-nowrap' 
+            : 'w-8 bg-bg-main border border-border-main text-text-secondary hover:border-morado hover:text-morado'
+        }`}
+        title={value ? "Cambiar Recurrencia" : "Activar Recurrencia"}
+      >
+        <RefreshCw size={12} className={value ? "" : "opacity-50"} />
+        {value && (
+          <span className="text-[10px] font-black uppercase tracking-widest ml-2">
+            {getLabel()}
+          </span>
+        )}
+      </button>
+ 
+      <AnimatePresence>
+        {show && (
+          <>
+            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="absolute top-full left-0 mt-2 bg-bg-card border border-border-main rounded-2xl shadow-2xl p-3 z-[220] min-w-[240px] space-y-3"
+            >
+              <div className="grid grid-cols-2 gap-2">
+                {frequencies.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      const today = new Date();
+                      const baseRec = value || { frequency: f.id, startDate: formatLocalISO(today) };
+                      const updates: any = { frequency: f.id };
+                      if (f.id === 'weekly' && (!baseRec.weekDays || baseRec.weekDays.length === 0)) {
+                        updates.weekDays = [(today.getDay() + 6) % 7];
+                      }
+                      if (f.id === 'monthly' && !baseRec.monthDay) {
+                        updates.monthDay = today.getDate();
+                      }
+                      onChange({ ...baseRec, ...updates });
+                    }}
+                    className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-center ${value?.frequency === f.id ? 'bg-morado text-white' : 'text-text-secondary bg-white/5 hover:text-white'}`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+ 
+              {value?.frequency === 'weekly' && (
+                <div className="pt-2 border-t border-border-main">
+                  <p className="text-[8px] font-black text-morado uppercase mb-2">Días de la semana:</p>
+                  <div className="flex gap-1 justify-between">
+                    {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d, i) => {
+                      const dayNum = i; // 0=Lunes...6=Domingo
+                      const isSelected = (value.weekDays || []).includes(dayNum);
+                      return (
+                        <button
+                          key={d}
+                          onClick={() => handleDayToggle(dayNum)}
+                          className={`w-7 h-7 rounded-lg text-[10px] font-black transition-all ${isSelected ? 'bg-morado text-white' : 'bg-bg-main text-text-secondary hover:text-white border border-border-main'}`}
+                        >
+                          {d}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+ 
+              {value?.frequency === 'monthly' && (
+                <div className="pt-2 border-t border-border-main">
+                  <p className="text-[8px] font-black text-morado uppercase mb-2">Día del mes (1-31):</p>
+                  <input 
+                    type="number"
+                    min="1"
+                    max="31"
+                    className="w-full bg-bg-main border border-border-main rounded-xl px-3 py-2 text-[12px] font-black text-morado outline-none text-center focus:ring-2 focus:ring-morado/20"
+                    value={value.monthDay || parseLocalISO(value.startDate || formatLocalISO(new Date())).getDate()}
+                    onChange={e => onChange({ ...value, monthDay: parseInt(e.target.value) || 1 })}
+                  />
+                </div>
+              )}
+ 
+              <div className="h-px bg-border-main" />
+              <button
+                onClick={() => {
+                  onChange(value ? null : { frequency: 'daily', startDate: formatLocalISO(new Date()) });
+                  if (value) setShow(false);
+                }}
+                className={`w-full text-center py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${value ? 'text-rosa border-rosa/20 hover:bg-rosa/10' : 'text-turquesa border-turquesa/20 hover:bg-turquesa/10'}`}
+              >
+                {value ? 'Quitar Recurrencia' : 'Activar Recurrencia'}
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+ 
+function TagPickerChip({ selectedTags = [], onChange }: any) {
+  const [show, setShow] = useState(false);
+  const tags: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
+ 
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setShow(!show)}
+        className="flex items-center gap-1 cursor-pointer"
+      >
+        {selectedTags.length > 0 ? (
+          <div className="flex -space-x-1.5 h-8 items-center">
+            {selectedTags.map((t: any) => (
+              <span key={t} className="w-7 h-7 rounded-lg bg-bg-card border border-border-main flex items-center justify-center text-sm shadow-sm ring-2 ring-bg-main">
+                {TAG_LABELS[t].icon}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="w-7 h-7 rounded-lg bg-bg-main border border-border-main/30 flex items-center justify-center text-sm opacity-30 hover:opacity-60 hover:border-border-main transition-all" title="Sin categoría">
+            <span className="text-[12px]">🏷️</span>
+          </div>
+        )}
+      </button>
+ 
+      <AnimatePresence>
+        {show && (
+          <>
+            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+              className="absolute top-full left-0 mt-2 bg-bg-card border border-border-main rounded-2xl shadow-2xl p-4 z-[220] min-w-[240px]"
+            >
+               <p className="text-[9px] font-black text-text-secondary uppercase tracking-widest mb-3 pl-1">Categorías</p>
+               <div className="grid grid-cols-5 gap-2">
+                 {tags.map(t => {
+                   const active = selectedTags.includes(t);
+                   return (
+                     <button
+                       key={t}
+                       onClick={() => {
+                         const next = active 
+                           ? selectedTags.filter((x: any) => x !== t)
+                           : [...selectedTags, t];
+                         onChange(next);
+                       }}
+                       className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all border ${active ? 'bg-turquesa border-turquesa shadow-lg shadow-turquesa/20 text-white' : 'bg-bg-main border-border-main text-text-secondary hover:border-turquesa'}`}
+                       title={TAG_LABELS[t].label}
+                     >
+                       {TAG_LABELS[t].icon}
+                     </button>
+                   );
+                 })}
+               </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+ 
+function EstimatedTimeChip({ value, onChange, variant = 'default' }: any) {
+  const [show, setShow] = useState(false);
+  const label = value >= 60 ? `${Math.floor(value/60)}h ${value%60}m` : `${value}m`;
+  const isMini = variant === 'mini';
+ 
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setShow(!show)}
+        className={`${isMini ? 'h-7 px-2 py-1 text-[9px]' : 'h-8 px-3 py-1.5 text-[10px]'} rounded-xl bg-azul/10 border border-azul/50 text-azul font-black uppercase tracking-widest hover:bg-azul/20 transition-all flex items-center gap-1.5 shadow-sm`}
+      >
+        <Clock size={isMini ? 10 : 12} />
+        {label}
+      </button>
+ 
+      <AnimatePresence>
+        {show && (
+          <>
+            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+              className="absolute top-full left-0 mt-2 bg-bg-card border border-border-main rounded-2xl shadow-2xl p-5 z-[220] min-w-[280px]"
+            >
+               <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-4 pl-1">Tiempo Estimado (min)</p>
+               <div className="flex gap-4 items-center mb-6">
+                 <Zap size={20} className="text-azul" />
+                 <input 
+                  type="number"
+                  className="w-full bg-bg-main p-4 rounded-2xl border border-border-main text-2xl font-black text-white outline-none focus:ring-4 focus:ring-azul/20 transition-all"
+                  value={value}
+                  onChange={(e) => onChange(parseInt(e.target.value) || 0)}
+                 />
+               </div>
+               <div className="grid grid-cols-4 gap-2">
+                 {[15, 30, 45, 60, 90, 120].map(v => (
+                   <button 
+                     key={v} 
+                     onClick={() => { onChange(v); setShow(false); }}
+                     className="p-2 bg-bg-main rounded-lg text-[10px] font-black text-white border border-border-main hover:border-azul transition-all"
+                   >
+                     {v}m
+                   </button>
+                 ))}
+               </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+ 
+function RegisteredTimeChip({ value, estimated, onClick }: any) {
+  const label = value >= 60 ? `${Math.floor(value/60)}h ${value%60}m` : `${value}m`;
+  let colorClass = "text-turquesa bg-turquesa/10 border-turquesa/50";
+  if (value > estimated) colorClass = "text-rosa bg-rosa/10 border-rosa/50 animate-pulse";
+  else if (value >= estimated * 0.9) colorClass = "text-naranja bg-naranja/10 border-naranja/50";
+ 
+  return (
+    <button 
+      onClick={onClick}
+      className={`h-8 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border shadow-sm flex items-center gap-1.5 ${colorClass}`}
+    >
+      <Target size={12} />
+      {label}
+    </button>
+  );
+}
+ 
+// --- Time Management Panel ---
+ 
+function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAddEntry, onDeleteEntry, onUpdateEntry, onClose }: any) {
+  const [activeTab, setActiveTab] = useState<'register' | 'history'>('register');
+  const task = subtaskId ? allTasksMap[subtaskId] : allTasksMap[taskId];
+  const parentTask = allTasksMap[taskId];
+  const hasSubtasks = parentTask.subtasks && parentTask.subtasks.length > 0;
+  
+  const entries = useMemo(() => {
+    return timeEntries.filter((e: TimeEntry) => {
+      if (subtaskId) return e.subtaskId === subtaskId;
+      if (e.taskId === taskId) return true;
+      const isSubtaskEntry = (Object.values(allTasksMap) as Task[]).some(t => t.id === e.taskId && t.parentTaskId === taskId);
+      return isSubtaskEntry;
+    }).sort((a: any, b: any) => parseLocalISO(b.date).getTime() - parseLocalISO(a.date).getTime());
+  }, [timeEntries, taskId, subtaskId, allTasksMap]);
+ 
+  const totalRegistered = getTaskRegisteredSelf(subtaskId || taskId, timeEntries);
+  const comboRegistered = subtaskId ? totalRegistered : getTaskRegisteredCombo(taskId, allTasksMap, timeEntries);
+  const estimated = subtaskId ? task.estimatedMinutes : getTaskEstimatedCombo(taskId, allTasksMap);
+ 
+  const [newMinutes, setNewMinutes] = useState(30);
+  const [newDate, setNewDate] = useState(formatLocalISO(new Date()));
+  const [newNote, setNewNote] = useState('');
+  
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [editMinutes, setEditMinutes] = useState(0);
+  const [editNote, setEditNote] = useState('');
+ 
+  const startEdit = (entry: any) => {
+    setEditingEntryId(entry.id);
+    setEditMinutes(entry.duration);
+    setEditNote(entry.note || '');
+  };
+ 
+  const saveEdit = () => {
+    if (editingEntryId) {
+      onUpdateEntry(editingEntryId, {
+        duration: editMinutes,
+        note: editNote
+      });
+      setEditingEntryId(null);
+    }
+  };
+ 
+  return (
+    <div className="fixed inset-0 bg-bg-main/80 backdrop-blur-md z-[300] flex items-end justify-center">
+      <motion.div 
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        className="w-full max-w-xl bg-bg-main border-t border-x border-border-main rounded-t-[40px] p-8 shadow-2xl flex flex-col max-h-[90vh]"
+      >
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h2 className="text-2xl font-black text-white uppercase tracking-tighter">
+              {task?.title || 'Gestionar Tiempo'}
+            </h2>
+            <p className="text-[10px] font-black text-text-secondary uppercase tracking-[0.2em]">Panel de Control de Horas</p>
+          </div>
+          <button onClick={onClose} className="p-3 bg-bg-card border border-border-main rounded-2xl hover:bg-bg-main transition-all">
+            <X size={20} className="text-text-secondary" />
+          </button>
+        </div>
+ 
+        {/* Tab Navigation */}
+        <div className="flex p-1 bg-bg-card border border-border-main rounded-2xl mb-8">
+          <button 
+            onClick={() => setActiveTab('register')}
+            className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'register' ? 'bg-turquesa text-bg-main' : 'text-text-secondary hover:text-white'}`}
+          >
+            <Plus size={14} /> Registro
+          </button>
+          <button 
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-turquesa text-bg-main' : 'text-text-secondary hover:text-white'}`}
+          >
+            <History size={14} /> Historial
+          </button>
+        </div>
+ 
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {activeTab === 'register' ? (
+            <div className="space-y-8 overflow-y-auto custom-scrollbar px-1">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-6 bg-bg-card border border-border-main rounded-[32px] relative overflow-hidden group">
+                  <div className="absolute top-4 right-4 opacity-20"><Zap size={20} className="text-turquesa" /></div>
+                  <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-2">Total Registrado</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-4xl font-black text-turquesa">{comboRegistered}</span>
+                    <span className="text-xs font-black text-text-secondary uppercase">min</span>
+                  </div>
+                  {!subtaskId && hasSubtasks && (
+                    <p className="text-[9px] font-bold text-text-secondary mt-1">Propio: {totalRegistered}m · Subtareas: {comboRegistered - totalRegistered}m</p>
+                  )}
+                </div>
+ 
+                <div className="p-6 bg-bg-card border border-border-main rounded-[32px]">
+                  <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-4 text-center">Plan v Realidad</p>
+                  <div className="flex items-center justify-center gap-4 mb-3">
+                    <span className="text-lg font-black text-text-secondary">{estimated}m</span>
+                    <ArrowRight size={16} className="text-text-secondary/30" />
+                    <span className="text-lg font-black text-white">{comboRegistered}m</span>
+                  </div>
+                  <div className="h-1.5 bg-bg-main border border-border-main rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-500 ${comboRegistered > estimated ? 'bg-rosa' : 'bg-turquesa'}`}
+                      style={{ width: `${Math.min(100, (comboRegistered / Math.max(1, estimated)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+ 
+              <div className="p-8 bg-bg-card border border-border-main rounded-[32px] space-y-6">
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest ml-1">¿Qué hiciste en esta sesión?</label>
+                    <textarea 
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder="Describe brevemente tu progreso..."
+                      className="w-full bg-bg-main border border-border-main rounded-2xl p-4 text-sm font-medium text-white placeholder:text-text-secondary/30 outline-none focus:border-turquesa/50 transition-all resize-none h-24"
+                    />
+                  </div>
+ 
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest ml-1">Minutos</label>
+                      <input 
+                        type="number"
+                        value={newMinutes}
+                        onChange={(e) => setNewMinutes(parseInt(e.target.value) || 0)}
+                        className="w-full bg-bg-main border border-border-main rounded-2xl p-4 text-xl font-black text-turquesa outline-none focus:border-turquesa/50 transition-all"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest ml-1">Fecha</label>
+                      <input 
+                        type="date"
+                        value={newDate}
+                        onChange={(e) => setNewDate(e.target.value)}
+                        className="w-full bg-bg-main border border-border-main rounded-2xl p-4 text-xs font-black text-white outline-none focus:border-turquesa/50 transition-all uppercase"
+                      />
+                    </div>
+                  </div>
+                </div>
+ 
+                <button 
+                  onClick={() => {
+                    onAddEntry(taskId, subtaskId, newMinutes, newDate, newNote);
+                    setNewNote('');
+                    // Removed setActiveTab('history') as per user request
+                  }}
+                  className="w-full py-5 bg-turquesa hover:bg-turquesa/90 text-bg-main font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-turquesa/20 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+                >
+                  <Plus size={20} strokeWidth={3} />
+                  Registrar Tiempo
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between px-2 mb-6">
+                 <div>
+                   <h3 className="text-xs font-black text-white uppercase tracking-widest">Listado de Sesiones</h3>
+                   <p className="text-[9px] font-black text-text-secondary uppercase mt-1">Total acumulado: {comboRegistered}m</p>
+                 </div>
+                 <div className="text-right">
+                    <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Ejecutado</span>
+                    <p className="text-lg font-black text-turquesa">{comboRegistered}m</p>
+                 </div>
+              </div>
+ 
+              <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar px-2 mb-4">
+                {entries.length === 0 && (
+                  <div className="py-20 text-center opacity-20">
+                    <Clock size={48} className="mx-auto mb-4" />
+                    <p className="font-bold uppercase tracking-widest text-xs">Sin registros aún</p>
+                  </div>
+                )}
+                {entries.map((entry: any) => {
+                  const isEditing = editingEntryId === entry.id;
+                  const isForeignEntry = entry.taskId !== (subtaskId || taskId);
+                  
+                  // Formato de fecha dd-mm-yyyy
+                  const displayDate = entry.date.split('-').reverse().join('-');
+ 
+                  return (
+                    <div key={entry.id} className="flex items-center justify-between p-4 bg-bg-card border border-border-main rounded-2xl group transition-all hover:border-turquesa/50">
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0 bg-turquesa/10 text-turquesa`}>
+                           {entry.source === 'timer' ? <Clock size={20} /> : <Zap size={20} />}
+                        </div>
+                        <div className="flex-1">
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <input 
+                                  type="number" 
+                                  value={editMinutes} 
+                                  onChange={(e) => setEditMinutes(parseInt(e.target.value) || 0)}
+                                  className="w-16 bg-bg-main border border-border-main rounded-md p-1 text-xs font-bold text-white outline-none focus:border-turquesa"
+                                />
+                                <span className="text-xs font-black text-text-secondary uppercase">min</span>
+                              </div>
+                              <input 
+                                type="text" 
+                                value={editNote} 
+                                onChange={(e) => setEditNote(e.target.value)}
+                                className="w-full bg-bg-main border border-border-main rounded-md p-1 text-xs font-medium text-white outline-none focus:border-turquesa"
+                                placeholder="Nota..."
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2 mb-1">
+                                 <span className="text-sm font-black text-white">{entry.duration}m</span>
+                                 <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">{displayDate}</span>
+                                  {isForeignEntry && (
+                                    <span className="text-[8px] font-black bg-bg-main border border-border-main px-1.5 py-0.5 rounded-md text-text-secondary uppercase tracking-tighter truncate max-w-[100px]">
+                                      {allTasksMap[entry.taskId]?.title || 'Subtarea'}
+                                    </span>
+                                  )}
+                              </div>
+                              {entry.note ? (
+                                <p className="text-[11px] font-bold text-text-secondary italic">"{entry.note}"</p>
+                              ) : (
+                                <p className="text-[9px] font-black text-text-secondary/30 uppercase tracking-widest">Sin nota</p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 ml-4">
+                        {isEditing ? (
+                          <>
+                            <button 
+                              onClick={saveEdit}
+                              className="p-2.5 text-turquesa hover:bg-turquesa/10 bg-bg-main rounded-xl border border-border-main transition-all"
+                              title="Guardar"
+                            >
+                              <Check size={14} />
+                            </button>
+                            <button 
+                              onClick={() => setEditingEntryId(null)}
+                              className="p-2.5 text-text-secondary hover:text-white bg-bg-main rounded-xl border border-border-main transition-all"
+                              title="Cancelar"
+                            >
+                              <X size={14} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button 
+                              onClick={() => startEdit(entry)}
+                              className="p-2.5 text-text-secondary hover:text-white bg-bg-main rounded-xl border border-border-main transition-all"
+                              title="Editar registro"
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteEntry(entry.id);
+                              }}
+                              className="p-2.5 text-text-secondary hover:text-rosa bg-bg-main rounded-xl border border-border-main transition-all"
+                              title="Eliminar registro"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+ 
+function MonthDatePicker({ value, onChange }: { value: string | null, onChange: (d: string | null) => void }) {
+  const [viewDate, setViewDate] = useState(() => parseLocalISO(value || formatLocalISO(new Date())));
+  
+  const daysInMonth = useMemo(() => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    
+    const days = [];
+    
+    // Previous month days to align Monday
+    const startDay = firstDay.getDay(); 
+    const prevDaysCount = startDay === 0 ? 6 : startDay - 1;
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    
+    for (let i = prevDaysCount - 1; i >= 0; i--) {
+      days.push({
+        date: new Date(year, month - 1, prevMonthLastDay - i),
+        isCurrentMonth: false
+      });
+    }
+    
+    // Current month days
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+      days.push({
+        date: new Date(year, month, i),
+        isCurrentMonth: true
+      });
+    }
+    
+    // Next month days to fill grid (6 weeks)
+    const totalDays = 42; 
+    const nextDaysCount = totalDays - days.length;
+    for (let i = 1; i <= nextDaysCount; i++) {
+      days.push({
+        date: new Date(year, month + 1, i),
+        isCurrentMonth: false
+      });
+    }
+    
+    return days.map(d => {
+      const dStr = formatLocalISO(d.date);
+      return {
+        ...d,
+        str: dStr,
+        isSelected: value === dStr,
+        isToday: formatLocalISO(new Date()) === dStr,
+        dayNum: d.date.getDate()
+      };
+    });
+  }, [viewDate, value]);
+ 
+  const weekHeaders = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+ 
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between px-1">
+         <button onClick={() => setViewDate(prev => { 
+           const n = new Date(prev); n.setMonth(n.getMonth() - 1); return n; 
+         })} className="p-2 hover:bg-white/5 rounded-xl text-turquesa transition-all"><ChevronLeft size={20}/></button>
+         <span className="text-[12px] font-black uppercase tracking-[0.2em] text-white">
+           {viewDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}
+         </span>
+         <button onClick={() => setViewDate(prev => { 
+           const n = new Date(prev); n.setMonth(n.getMonth() + 1); return n; 
+         })} className="p-2 hover:bg-white/5 rounded-xl text-turquesa transition-all"><ChevronRight size={20}/></button>
+      </div>
+      
+      <div className="grid grid-cols-7 gap-1">
+        {weekHeaders.map(h => (
+          <div key={h} className="text-[9px] font-black text-text-secondary text-center py-2 uppercase tracking-widest">{h}</div>
+        ))}
+        {daysInMonth.map((d, i) => (
+          <button
+            key={`${d.str}-${i}`}
+            onClick={() => onChange(d.str)}
+            className={`flex flex-col items-center justify-center h-10 rounded-xl transition-all border text-xs font-bold ${
+              d.isSelected 
+                ? 'bg-turquesa border-turquesa text-white shadow-lg shadow-turquesa/20 z-10' 
+                : d.isCurrentMonth
+                  ? 'bg-bg-card border-border-main text-white hover:border-turquesa/50'
+                  : 'bg-transparent border-transparent text-text-secondary/30 hover:text-text-secondary'
+            }`}
+          >
+            {d.dayNum}
+            {d.isToday && !d.isSelected && <div className="absolute top-1 right-1 w-1 h-1 rounded-full bg-turquesa" />}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
