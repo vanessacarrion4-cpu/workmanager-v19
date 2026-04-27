@@ -56,7 +56,7 @@ import {
   ChevronsUp,
   ChevronsDown
 } from 'lucide-react';
-import { motion, AnimatePresence, Reorder } from 'motion/react';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { WorkBlock, Task, ViewType, TagType, SubtaskTemplate, Priority, TimeEntry, Person, DelegationMeeting } from './types';
 import { INITIAL_BLOCKS, TAG_LABELS, MOCK_TASKS, COLORS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
