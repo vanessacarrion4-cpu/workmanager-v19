@@ -1,11 +1,10 @@
- {
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
   "functions": {
     "api/**/*.ts": {
-      "runtime": "@vercel/node@3.0.0"
+      "runtime": "@vercel/node@5.7.13"
     }
-  },
-  "env": {
-    "SUPABASE_URL": "https://yewfmfoijidvrxvbrsdv.supabase.co",
-    "SUPABASE_SERVICE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlld2ZtZm9samlkdnJ4dmJyc2R2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzIzMjgwOCwiZXhwIjoyMDkyODA4ODA4fQ.0HOS3kOsH0I3gFuiAaQnIHGQxlAumejrYRkBkeT409I"
   }
 }
