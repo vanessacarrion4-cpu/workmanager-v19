@@ -1,6 +1,9 @@
-@import "tailwindcss";
 
-@theme {
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
   --color-turquesa: #14B8A6;
   --color-turquesa-pastel: #CCFBF1;
   --color-azul: #0EA5E9;
