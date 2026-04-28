@@ -32,4 +32,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from('tasks')
       .insert({
         id: t.id,
-        block_id: t.block
+        block_id: t.blockId,
+        parent_task_id: t.parentTaskId || null,
+        title: t.title || '',
+        notes: t.notes || '',
+        priority: t.priority || 'media',
+        status: t.status || 'pending',
+        due_date: t.dueDate || null,
+        estimated_minutes: t.estimatedMinutes || 0,
+        is_template: t.isTemplate || false,
+        tags: t.tags || [],
+        task_type: t.taskType || null,
+      })
+      .select()
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(201).json({ task: data })
+  }
+
+  return res.status(405).json({ error: 'Method not allowed' })
+}
