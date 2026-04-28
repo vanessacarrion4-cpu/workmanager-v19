@@ -379,6 +379,25 @@ export default function App() {
       };
     }
     setTasks(updatedTasks);
+
+    // --- Sync to Supabase via API ---
+    fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: newTask.id,
+        title: newTask.title || '',
+        blockId: newTask.blockId,
+        priority: newTask.priority,
+        status: newTask.status,
+        dueDate: newTask.dueDate || null,
+        notes: newTask.notes || '',
+        estimatedMinutes: newTask.estimatedMinutes || 0,
+        parentTaskId: newTask.parentTaskId || null,
+        isTemplate: newTask.isTemplate || false,
+      })
+    }).catch(e => console.error('[API] Error creando tarea:', e));
+
     // Always open modal for root tasks, inline for subtasks
     if (!parentTaskId) {
       setTimeout(() => setEditingTaskId(id), 50);
@@ -489,6 +508,23 @@ export default function App() {
     });
     setEditingTaskId(null);
     setInlineEditingTaskId(null);
+
+    // --- Sync to Supabase via API ---
+    fetch(`/api/tasks/${updatedTask.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: updatedTask.title || '',
+        blockId: updatedTask.blockId,
+        priority: updatedTask.priority,
+        status: updatedTask.status,
+        dueDate: updatedTask.dueDate || null,
+        notes: updatedTask.notes || '',
+        estimatedMinutes: updatedTask.estimatedMinutes || 0,
+        parentTaskId: updatedTask.parentTaskId || null,
+        isTemplate: updatedTask.isTemplate || false,
+      })
+    }).catch(e => console.error('[API] Error actualizando tarea:', e));
   };
  
   // Subir nivel: la tarea sale de su padre y queda al mismo nivel que su padre
@@ -616,6 +652,11 @@ export default function App() {
  
     removeRecursive(taskId);
     setTasks(updatedTasks);
+
+    // --- Sync to Supabase via API ---
+    fetch(`/api/tasks/${taskId}`, {
+      method: 'DELETE',
+    }).catch(e => console.error('[API] Error eliminando tarea:', e));
   };
  
   const handleDayChange = (offset: number) => {
