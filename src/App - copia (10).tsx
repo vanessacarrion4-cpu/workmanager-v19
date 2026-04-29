@@ -892,7 +892,7 @@ export default function App() {
       // Subtareas: nunca aparecen solas en el Dashboard (se muestran bajo su padre)
       if (t.parentTaskId) return false;
 
-      // Tareas delegadas sin etiqueta o con solo 'resto': no mostrar en Dashboard
+      // Tareas delegadas sin etiqueta real o con solo 'resto': no mostrar en Dashboard
       if (t.delegation) {
         const tags = t.tags || [];
         const hasRealTag = tags.some((tag: string) => tag !== 'resto');
@@ -1671,7 +1671,7 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                 </div>
               </div>
               {localTask.dueDate && (
-                <div className="flex items-center gap-3 pt-1 border-t dark:border-border-main/30 border-border-main-light/30">
+                <div className="flex items-center gap-3 pt-2 border-t dark:border-border-main/30 border-border-main-light/30">
                   <Clock size={16} className="text-azul shrink-0" />
                   <span className="text-xs font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Hora</span>
                   <input
@@ -1684,7 +1684,6 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                     <button
                       onClick={() => setLocalTask(prev => ({ ...prev, dueTime: '' }))}
                       className="p-1.5 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
-                      title="Quitar hora"
                     >
                       <X size={14} />
                     </button>
@@ -2016,25 +2015,19 @@ function DashboardView({
   const [showDashboardCalendar, setShowDashboardCalendar] = useState(false);
   const [expandAll, setExpandAll] = useState(true);
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set(['con_hora', 'focus', 'dirección', 'espera', 'resto']));
-  const [frozenTaskIds, setFrozenTaskIds] = React.useState<Set<string>>(new Set());
-  const frozenOrderRef = React.useRef<string[]>([]);
-
-  const freezeTask = React.useCallback((taskId: string) => {
-    setFrozenTaskIds(prev => new Set([...prev, taskId]));
-  }, []);
-
-  const unfreezeTask = React.useCallback((taskId: string) => {
-    setFrozenTaskIds(prev => { const n = new Set(prev); n.delete(taskId); return n; });
-  }, []);
+  const [isFrozen, setIsFrozen] = useState(false);
+  const frozenSnapshotRef = React.useRef<typeof tasks>([]);
  
   const dayTasks = useMemo(() => {
+    // Si está congelado, devolver el snapshot guardado
+    if (isFrozen && frozenSnapshotRef.current.length > 0) {
+      return frozenSnapshotRef.current;
+    }
     const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
-    return tasks.filter((t: Task) => {
+    const result = tasks.filter((t: Task) => {
       if (!activeBlockIds.has(t.blockId)) return false;
       if (t.parentTaskId) return false;
-      // Tareas normales: deben tener la fecha del día
       if (t.dueDate === activeDate) return true;
-      // Contenedores sin fecha: mostrar si alguna subtarea tiene fecha de hoy
       if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
         return t.subtasks.some(subId => {
           const sub = allTasksMap[subId];
@@ -2043,7 +2036,10 @@ function DashboardView({
       }
       return false;
     }).sort((a: Task, b: Task) => (a.order || 0) - (b.order || 0));
-  }, [tasks, activeDate, blocks, allTasksMap]);
+    // Guardar snapshot cuando no está congelado
+    frozenSnapshotRef.current = result;
+    return result;
+  }, [tasks, activeDate, blocks, allTasksMap, isFrozen]);
  
   const filteredDayTasks = useMemo(() => {
     return dayTasks.filter((t: Task) => !hideCompleted || !isTaskCompleted(t.id, allTasksMap));
@@ -2111,16 +2107,6 @@ function DashboardView({
  
   // groupedTasks: cada entrada es { task, subtasksForGroup }
   // Los contenedores (sin etiqueta) se reparten por grupos según sus subtareas
-  // Filtrar tareas del día respetando las congeladas (no se mueven mientras el ratón está encima)
-  const stableDayTasks = useMemo(() => {
-    if (frozenTaskIds.size === 0) return filteredDayTasks;
-    // Mantener el orden de las tareas congeladas en su posición actual
-    return filteredDayTasks.map(t => ({
-      ...t,
-      _frozen: frozenTaskIds.has(t.id)
-    }));
-  }, [filteredDayTasks, frozenTaskIds]);
-
   const groupedTasks = useMemo(() => {
     const tagOrder: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
     const groups: Record<TagType, { task: Task, subtasksForGroup: string[] | null }[]> = {
@@ -2430,13 +2416,8 @@ function DashboardView({
                     >
                       {tagEntries.map(({ task, subtasksForGroup }) => (
                         <div
-                          key={`wrap-${task.id}-${tag}`}
-                          onMouseEnter={() => { if (!frozenTaskIds) setFrozenTaskIds(dayTasksBase.map((t: Task) => t.id)); }}
-                          onMouseLeave={() => setFrozenTaskIds(null)}
-                        >
-                        <div
-                          onMouseEnter={() => freezeTask(task.id)}
-                          onMouseLeave={() => unfreezeTask(task.id)}
+                          onMouseEnter={() => setIsFrozen(true)}
+                          onMouseLeave={() => setIsFrozen(false)}
                         >
                         <TaskCard
                           key={`${task.id}-${tag}`}
@@ -2470,7 +2451,6 @@ function DashboardView({
                           subtasksForGroup={subtasksForGroup}
                           forceExpanded={expandAll}
                         />
-                        </div>
                         </div>
                       ))}
                     </Reorder.Group>
@@ -4915,7 +4895,6 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
   const [allExpanded, setAllExpanded] = useState(true);
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [editingPersonName, setEditingPersonName] = useState('');
-  const [hideCompletedDelegadas, setHideCompletedDelegadas] = useState(false);
 
   const toggleTask = (id: string) => {
     setExpandedTasks(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -4940,9 +4919,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
 
   const tasksByPerson = people.map((p: any) => ({
     person: p,
-    tasks: delegatedTasks
-      .filter((t: any) => t.delegation?.personId === p.id)
-      .filter((t: any) => !hideCompletedDelegadas || t.status !== 'completed')
+    tasks: delegatedTasks.filter((t: any) => t.delegation?.personId === p.id)
   })).filter((g: any) => g.tasks.length > 0);
 
   const filteredByPerson = filterPersonId
@@ -5041,21 +5018,10 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
         <div className="flex items-center gap-2">
           <button
             onClick={toggleAllPersons}
-            className="w-10 h-10 flex items-center justify-center dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light hover:border-morado/50 transition-all"
-            title={allExpanded ? 'Contraer personas' : 'Expandir personas'}
+            className="w-10 h-10 flex items-center justify-center dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light hover:text-white hover:border-white/20 transition-all"
+            title={allExpanded ? 'Contraer todos' : 'Expandir todos'}
           >
             {allExpanded ? <ChevronsUp size={18} /> : <ChevronsDown size={18} />}
-          </button>
-          <button
-            onClick={() => setHideCompletedDelegadas(h => !h)}
-            className={`w-10 h-10 flex items-center justify-center rounded-2xl border transition-all ${
-              hideCompletedDelegadas
-                ? 'dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'
-                : 'bg-turquesa text-white border-turquesa shadow-lg shadow-turquesa/20'
-            }`}
-            title={hideCompletedDelegadas ? 'Ver completadas' : 'Ocultar completadas'}
-          >
-            {hideCompletedDelegadas ? <Eye size={16} /> : <EyeOff size={16} />}
           </button>
           <button
             onClick={() => { setShowNewMeeting(true); setNewMeeting({ personId: '', date: formatLocalISO(new Date()), notes: '', items: [] }); }}
@@ -5177,16 +5143,6 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                       exit={{ height: 0, opacity: 0 }}
                       className="border-t dark:border-border-main border-border-main-light/50"
                     >
-                      <Reorder.Group
-                        axis="y"
-                        values={personTasks}
-                        onReorder={(reordered: any[]) => {
-                          reordered.forEach((t: any, idx: number) => {
-                            if (t.order !== idx) onUpdateTask({ ...t, order: idx, modifiedAt: new Date().toISOString() });
-                          });
-                        }}
-                        className="divide-y dark:divide-border-main divide-border-main-light"
-                      >
                       {personTasks.map((task: any) => {
                         const block = getBlock(task.blockId);
                         const tag = task.tags?.[0];
@@ -5196,22 +5152,10 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                           ? (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted)
                           : [];
                         return (
-                          <Reorder.Item key={task.id} value={task} className={`border-b dark:border-border-main border-border-main-light/30 last:border-0 ${task.status === 'completed' ? 'opacity-50' : ''}`}>
+                          <div key={task.id} className="border-b dark:border-border-main border-border-main-light/30 last:border-0">
                             {/* Task row - same style as Dashboard */}
-                            <div className="flex items-center gap-3 px-4 py-3 hover:dark:bg-white/2 hover:bg-gray-50 transition-all group/trow">
-                              <GripVertical size={14} className="dark:text-text-secondary/30 text-text-secondary-light/30 hover:dark:text-text-secondary hover:text-text-secondary-light cursor-grab active:cursor-grabbing shrink-0" />
+                            <div className="flex items-center gap-3 px-4 py-3 hover:bg-white/2 transition-all group/trow">
                               <div className="w-1 h-full min-h-[2.5rem] rounded-full shrink-0" style={{ backgroundColor: block?.color || '#666' }} />
-                              {/* Botón completar */}
-                              <button
-                                onClick={() => onUpdateTask({ ...task, status: task.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
-                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                                  task.status === 'completed'
-                                    ? 'bg-turquesa border-turquesa text-white'
-                                    : 'dark:border-border-main border-border-main-light hover:border-turquesa'
-                                }`}
-                              >
-                                {task.status === 'completed' && <Check size={10} />}
-                              </button>
                               {hasSubtasks && (
                                 <button onClick={() => toggleTask(task.id)} className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-white transition-all shrink-0">
                                   {isTaskOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -5331,10 +5275,9 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                 </motion.div>
                               )}
                             </AnimatePresence>
-                          </Reorder.Item>
+                          </div>
                         );
                       })}
-                      </Reorder.Group>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -5634,7 +5577,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                 placeholder="¿Qué dijo sobre esta tarea?..."
                                 rows={1}
                                 onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                                className="w-full dark:bg-bg-card bg-gray-50 border dark:border-border-main/50 border-border-main-light rounded-lg px-3 py-2 text-sm dark:text-white text-text-main-light dark:placeholder:text-text-secondary/30 placeholder:text-text-secondary-light/40 outline-none focus:border-morado/40 resize-none overflow-hidden"
+                                className="w-full bg-bg-card border border-border-main/50 rounded-lg px-3 py-2 text-sm text-white placeholder:text-text-secondary/30 outline-none focus:border-morado/40 resize-none overflow-hidden"
                               />
                             </div>
                           </div>

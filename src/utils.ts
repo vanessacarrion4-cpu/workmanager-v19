@@ -28,6 +28,10 @@ export function isTaskCompleted(taskId: string, tasks: Record<string, Task>, ins
   return task.status === 'completed';
 }
 
+/**
+ * Comprueba si una recurrencia aplica para una fecha concreta.
+ * Soporta: daily, weekdays, weekly, monthly, yearly.
+ */
 function matchesRecurrence(recurrence: any, date: Date): boolean {
   if (!recurrence) return false;
   
@@ -38,6 +42,7 @@ function matchesRecurrence(recurrence: any, date: Date): boolean {
   const jsDay = date.getDay();
   const specDay = (jsDay + 6) % 7; // 0=lunes...6=domingo
   const dayOfMonth = date.getDate();
+  const month = date.getMonth() + 1; // 1-12
 
   switch (recurrence.frequency) {
     case 'daily':
@@ -48,24 +53,53 @@ function matchesRecurrence(recurrence: any, date: Date): boolean {
       return recurrence.weekDays?.includes(specDay) || false;
     case 'monthly':
       return recurrence.monthDay === dayOfMonth;
+    case 'yearly':
+      // yearMonth: 1-12, yearDay: 1-31
+      return recurrence.yearMonth === month && recurrence.yearDay === dayOfMonth;
     default:
       return false;
   }
 }
 
+/**
+ * Indica si una tarea es repetitiva (tiene recurrencia propia o alguna subtarea la tiene).
+ */
 export function isTaskRepetitive(taskId: string, allTasks: Record<string, Task>, visited = new Set<string>()): boolean {
   if (visited.has(taskId)) return false;
   visited.add(taskId);
   const task = allTasks[taskId];
   if (!task) return false;
   if (task.recurrence) return true;
-  if (task.isTemplate) return true;
   if (!task.subtasks || task.subtasks.length === 0) return false;
   return task.subtasks.some(id => isTaskRepetitive(id, allTasks, visited));
 }
 
 /**
- * Generates tasks for a given date range based on the new "Subtask Recurrence" architecture.
+ * ─────────────────────────────────────────────────────────────────
+ * GENERACIÓN DE INSTANCIAS — arquitectura correcta
+ * ─────────────────────────────────────────────────────────────────
+ *
+ * REGLAS:
+ *
+ * 1. Solo se procesan templates originales (isTemplate=true, sin templateId, sin parentTaskId).
+ *
+ * 2. TAREA RECURRENTE SOLA (isTemplate, recurrence propia, sin subtareas recurrentes):
+ *    → Genera una instancia por cada día en que su recurrencia aplica.
+ *    → La instancia tiene templateId = template.id, dueDate = dateStr.
+ *
+ * 3. CONTENEDOR CON SUBTAREAS (isTemplate, sin recurrencia propia, con subtareas):
+ *    → Aparece los días en que AL MENOS UNA subtarea recurrente aplica ese día.
+ *    → Ese día se generan instancias de:
+ *        a) Las subtareas recurrentes que aplican ese día.
+ *        b) Las subtareas NO recurrentes (siempre acompañan al padre cuando es visible).
+ *    → El padre instancia agrupa a todos ellos.
+ *
+ * 4. EXCEPCIONES: nunca se regenera una instancia si ya existe en allTasks
+ *    (sea instancia normal o excepción guardada). Esto preserva los cambios del usuario.
+ *
+ * 5. Las instancias viven en memoria. Solo se persisten en Supabase los templates
+ *    y las excepciones (isException=true).
+ * ─────────────────────────────────────────────────────────────────
  */
 export function generateInstances(
   allTasks: Record<string, Task> = {},
@@ -73,92 +107,167 @@ export function generateInstances(
   daysToProject: number
 ): Task[] {
   if (!allTasks) return [];
+
   const newInstances: Task[] = [];
-  // Solo templates originales: nunca instancias (templateId presente) ni excepciones
-  const templates = Object.values(allTasks).filter(t => t && !t.parentTaskId && !t.templateId && t.isActive !== false && isTaskRepetitive(t.id, allTasks));
-  
+  const timestamp = new Date().toISOString();
+
+  // Solo templates raíz originales
+  const rootTemplates = Object.values(allTasks).filter(t =>
+    t &&
+    t.isTemplate &&
+    !t.templateId &&
+    !t.parentTaskId &&
+    t.isActive !== false &&
+    !t.isDeleted &&
+    isTaskRepetitive(t.id, allTasks)
+  );
+
   const startDate = parseLocalISO(startDateStr);
-  
+
   for (let d = 0; d < daysToProject; d++) {
     const current = new Date(startDate);
     current.setDate(startDate.getDate() + d);
     const dateStr = formatLocalISO(current);
-    const timestamp = new Date().toISOString();
 
-    templates.forEach(parentTemplate => {
-      if (!parentTemplate) return;
-      const children = (parentTemplate.subtasks || [])
+    rootTemplates.forEach(template => {
+      if (!template) return;
+
+      const children = (template.subtasks || [])
         .map(id => allTasks[id])
-        .filter(Boolean);
+        .filter(Boolean) as Task[];
 
-      const recurringChildrenToday = children.filter(c => c.recurrence && matchesRecurrence(c.recurrence, current));
-      const parentMatchesToday = parentTemplate.recurrence && matchesRecurrence(parentTemplate.recurrence, current);
-      const nonRecurringForceToday = children.filter(c => !c.recurrence && c.dueDate === dateStr);
-      
-      const shouldAppear = parentMatchesToday || recurringChildrenToday.length > 0 || nonRecurringForceToday.length > 0;
-      
-      if (shouldAppear) {
-        const parentInstanceId = `inst-${parentTemplate.id}-${dateStr}`;
-        
-        // No regenerar si ya existe (incluyendo excepciones con fecha cambiada)
-        if (allTasks[parentInstanceId]) return;
-        
-        // No regenerar si ya hay una excepción para este template en este día
-        const hasException = Object.values(allTasks).some(t => 
-          t && t.templateId === parentTemplate.id && 
-          t.instanceDate === dateStr && 
-          t.isException
-        );
-        if (hasException) return;
+      // ── Determinar si el template debe aparecer este día ──────────
+      const isSoloRecurring = !!template.recurrence && children.filter(c => c.recurrence).length === 0;
 
-        const subtaskInstanceIds: string[] = [];
-        const subtasksToCreate: Task[] = [];
+      let shouldAppear = false;
 
-        children.forEach(childTemplate => {
-          if (childTemplate.recurrence && !matchesRecurrence(childTemplate.recurrence, current)) return;
-          if (!childTemplate.recurrence && childTemplate.dueDate && childTemplate.dueDate !== dateStr) return;
-          if (!childTemplate.recurrence && childTemplate.status === 'completed') return;
+      if (isSoloRecurring) {
+        // Tarea recurrente sola: aplica si su propia recurrencia coincide
+        shouldAppear = matchesRecurrence(template.recurrence, current);
+      } else {
+        // Contenedor: aplica si al menos una subtarea recurrente coincide
+        shouldAppear = children.some(c => c.recurrence && matchesRecurrence(c.recurrence, current));
+      }
 
-          const childInstanceId = `inst-${childTemplate.id}-${dateStr}`;
-          if (allTasks[childInstanceId]) {
-            subtaskInstanceIds.push(childInstanceId);
-            return;
-          }
+      if (!shouldAppear) return;
 
-          const childInstance: Task = {
-            ...childTemplate,
-            id: childInstanceId,
-            templateId: childTemplate.id,
-            parentTaskId: parentInstanceId,
-            dueDate: dateStr,
-            instanceDate: dateStr,
-            isTemplate: false,
-            createdAt: timestamp,
-            modifiedAt: timestamp,
-            status: 'pending',
-            subtasks: []
-          };
-          
-          subtasksToCreate.push(childInstance);
-          subtaskInstanceIds.push(childInstanceId);
-        });
+      const parentInstanceId = `inst-${template.id}-${dateStr}`;
 
-        const parentInstance: Task = {
-          ...parentTemplate,
+      // No regenerar si ya existe en estado (instancia normal o excepción)
+      if (allTasks[parentInstanceId]) return;
+
+      // No regenerar si existe una excepción para este template en este día
+      const hasException = Object.values(allTasks).some(t =>
+        t &&
+        t.templateId === template.id &&
+        t.instanceDate === dateStr &&
+        t.isException
+      );
+      if (hasException) return;
+
+      // ── Caso A: tarea recurrente sola ─────────────────────────────
+      if (isSoloRecurring) {
+        const instance: Task = {
+          ...template,
           id: parentInstanceId,
-          templateId: parentTemplate.id,
+          templateId: template.id,
           dueDate: dateStr,
           instanceDate: dateStr,
           isTemplate: false,
+          isException: false,
+          status: 'pending',
+          completedAt: undefined,
           createdAt: timestamp,
           modifiedAt: timestamp,
-          subtasks: subtaskInstanceIds,
+          subtasks: [],
+        };
+        newInstances.push(instance);
+        return;
+      }
+
+      // ── Caso B: contenedor con subtareas ──────────────────────────
+      const subtaskInstanceIds: string[] = [];
+      const subtasksToCreate: Task[] = [];
+
+      children.forEach(childTemplate => {
+        // Subtarea recurrente: solo si aplica hoy
+        if (childTemplate.recurrence) {
+          if (!matchesRecurrence(childTemplate.recurrence, current)) return;
+        }
+        // Subtarea NO recurrente: siempre acompaña al padre cuando es visible
+        // (a menos que tenga dueDate fijada en otro día concreto)
+        else if (childTemplate.dueDate && childTemplate.dueDate !== dateStr) {
+          return;
+        }
+
+        const childInstanceId = `inst-${childTemplate.id}-${dateStr}`;
+
+        // Si ya existe (excepción guardada), reutilizar su ID
+        if (allTasks[childInstanceId]) {
+          subtaskInstanceIds.push(childInstanceId);
+          return;
+        }
+
+        // Comprobar excepción para esta subtarea en este día
+        const childHasException = Object.values(allTasks).some(t =>
+          t &&
+          t.templateId === childTemplate.id &&
+          t.instanceDate === dateStr &&
+          t.isException
+        );
+        if (childHasException) {
+          // La excepción ya existe con otro ID — no crear duplicado
+          // pero sí incluirla en el padre si la encontramos
+          const exceptionTask = Object.values(allTasks).find(t =>
+            t &&
+            t.templateId === childTemplate.id &&
+            t.instanceDate === dateStr &&
+            t.isException
+          );
+          if (exceptionTask) subtaskInstanceIds.push(exceptionTask.id);
+          return;
+        }
+
+        const childInstance: Task = {
+          ...childTemplate,
+          id: childInstanceId,
+          templateId: childTemplate.id,
+          parentTaskId: parentInstanceId,
+          dueDate: dateStr,
+          instanceDate: dateStr,
+          isTemplate: false,
+          isException: false,
           status: 'pending',
-          tags: [] // El padre contenedor nunca tiene tags propias, las tags son de las subtareas
+          completedAt: undefined,
+          createdAt: timestamp,
+          modifiedAt: timestamp,
+          subtasks: [],
         };
 
-        newInstances.push(parentInstance, ...subtasksToCreate);
-      }
+        subtasksToCreate.push(childInstance);
+        subtaskInstanceIds.push(childInstanceId);
+      });
+
+      // El padre instancia agrupa todas las subtareas de este día
+      const parentInstance: Task = {
+        ...template,
+        id: parentInstanceId,
+        templateId: template.id,
+        dueDate: dateStr,
+        instanceDate: dateStr,
+        isTemplate: false,
+        isException: false,
+        status: 'pending',
+        completedAt: undefined,
+        createdAt: timestamp,
+        modifiedAt: timestamp,
+        subtasks: subtaskInstanceIds,
+        // El padre contenedor no hereda tags ni recurrencia — es solo agrupador
+        tags: [],
+        recurrence: undefined,
+      };
+
+      newInstances.push(parentInstance, ...subtasksToCreate);
     });
   }
 
@@ -166,13 +275,8 @@ export function generateInstances(
 }
 
 /**
- * Calcula la carga de un día usando las instancias ya en estado + recalculando
- * desde templates solo para tareas simples recurrentes (sin subtareas).
- * 
- * Estrategia:
- * - Instancias ya generadas en allTasks (templateId presente): usar directamente
- * - Tareas manuales del día (sin templateId, sin isTemplate): sumar directamente
- * - NO regenerar desde templates para evitar doble conteo
+ * Calcula el tiempo estimado total de un día sumando instancias raíz visibles.
+ * No regenera — trabaja sobre allTasks que ya tiene las instancias en memoria.
  */
 export function projectLoadForDay(
   dateStr: string,
@@ -181,22 +285,16 @@ export function projectLoadForDay(
   let totalTime = 0;
   const counted = new Set<string>();
 
-  const tasksArray = Object.values(allTasks);
-
-  for (const t of tasksArray) {
+  for (const t of Object.values(allTasks)) {
     if (!t || t.isDeleted) continue;
-    if (t.parentTaskId) continue;       // subtareas: se suman via su padre
-    if (t.dueDate !== dateStr) continue; // solo del día
-
-    // Templates originales nunca cuentan directamente (isTemplate=true o recurrence sin templateId)
-    if (t.isTemplate) continue;
-    if (!t.templateId && t.recurrence) continue; // template de recurrencia, no instancia
+    if (t.parentTaskId) continue;       // subtareas: se suman vía su padre
+    if (t.isTemplate) continue;         // nunca contar templates originales
+    if (t.dueDate !== dateStr) continue;
 
     const id = t.id;
     if (counted.has(id)) continue;
     counted.add(id);
 
-    // Instancia generada o tarea manual: sumar su tiempo estimado
     totalTime += getEstimatedForInstance(id, allTasks);
   }
 
@@ -204,8 +302,7 @@ export function projectLoadForDay(
 }
 
 /**
- * Calcula el tiempo estimado de una instancia (ya generada, no plantilla).
- * Solo suma subtareas instanciadas del mismo día.
+ * Tiempo estimado de una instancia (recursivo sobre subtareas).
  */
 function getEstimatedForInstance(
   taskId: string,
@@ -218,11 +315,8 @@ function getEstimatedForInstance(
   const task = allTasks[taskId];
   if (!task) return 0;
 
-  // Si tiene subtareas instanciadas, sumar solo las que existen en el mapa
   if (task.subtasks && task.subtasks.length > 0) {
-    return task.subtasks.reduce((acc, subId) => {
-      return acc + getEstimatedForInstance(subId, allTasks, visited);
-    }, 0);
+    return task.subtasks.reduce((acc, subId) => acc + getEstimatedForInstance(subId, allTasks, visited), 0);
   }
 
   return task.estimatedMinutes || 0;
@@ -242,13 +336,11 @@ export function projectLoad(
     const dateStr = formatLocalISO(current);
     const totalTime = projectLoadForDay(dateStr, allTasks);
 
-    // Contar tareas raíz visibles del día: instancias generadas + manuales, sin templates
     const totalTasks = Object.values(allTasks).filter(t =>
       t &&
       !t.isDeleted &&
       !t.parentTaskId &&
       !t.isTemplate &&
-      !((!t.templateId) && t.recurrence) && // excluir templates de recurrencia
       t.dueDate === dateStr
     ).length;
 
@@ -258,7 +350,7 @@ export function projectLoad(
   return projection;
 }
 
-// --- Time Combo Logic ---
+// ─── Time Combo Logic ────────────────────────────────────────────
 
 export function getTaskEstimatedCombo(taskId: string, tasks: Record<string, Task>, visited = new Set<string>()): number {
   if (visited.has(taskId)) return 0;

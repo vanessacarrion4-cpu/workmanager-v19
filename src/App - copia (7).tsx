@@ -56,8 +56,7 @@ import {
   ChevronsUp,
   ChevronsDown,
   Moon,
-  Sun,
-  Tag
+  Sun
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { WorkBlock, Task, ViewType, TagType, SubtaskTemplate, Priority, TimeEntry, Person, DelegationMeeting } from './types';
@@ -632,34 +631,35 @@ export default function App() {
       const task = prev[taskId];
       if (!task) return prev;
 
-      // No permitir bajar más de nivel 3
-      const currentLevel = task.parentTaskId
-        ? (prev[task.parentTaskId]?.parentTaskId ? 3 : 2)
-        : 1;
-      if (currentLevel >= 3) return prev;
-
-      // Buscar hermanos EN ORDEN DEL ARRAY (orden visual real)
-      let siblingIds: string[] = [];
+      // Buscar hermanos (mismo padre) en el orden correcto
+      let siblings: Task[] = [];
       if (task.parentTaskId && prev[task.parentTaskId]) {
-        siblingIds = prev[task.parentTaskId].subtasks || [];
+        // Tiene padre: obtener subtareas del padre en orden
+        const parentSubtasks = prev[task.parentTaskId].subtasks || [];
+        siblings = parentSubtasks
+          .map(id => prev[id])
+          .filter(Boolean)
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
       } else {
-        // Nivel raíz: usar el orden del campo order
-        siblingIds = (Object.values(prev) as Task[])
+        // Nivel raíz: buscar tareas del mismo bloque sin padre
+        siblings = (Object.values(prev) as Task[])
           .filter(t => !t.parentTaskId && t.blockId === task.blockId && !t.isTemplate && !t.isDeleted)
-          .sort((a, b) => (a.order || 0) - (b.order || 0))
-          .map(t => t.id);
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
       }
 
-      const idx = siblingIds.indexOf(taskId);
+      const idx = siblings.findIndex(t => t.id === taskId);
       if (idx <= 0) return prev; // Es la primera, no hay tarea arriba
 
-      const aboveTaskId = siblingIds[idx - 1];
-      const aboveTask = prev[aboveTaskId];
+      const aboveTask = siblings[idx - 1];
       if (!aboveTask) return prev;
+
+      // No permitir bajar más de nivel 3
+      const currentLevel = task.parentTaskId ? (prev[task.parentTaskId]?.parentTaskId ? 3 : 2) : 1;
+      if (currentLevel >= 3) return prev;
 
       const newTasks = { ...prev };
 
-      // 1. Quitar del padre actual (o de nivel raíz — no hace falta nada para raíz)
+      // 1. Quitar del padre actual
       if (task.parentTaskId && newTasks[task.parentTaskId]) {
         const parent = newTasks[task.parentTaskId];
         newTasks[task.parentTaskId] = {
@@ -670,17 +670,17 @@ export default function App() {
       }
 
       // 2. Añadir como última subtarea de la tarea de arriba
-      newTasks[aboveTaskId] = {
+      newTasks[aboveTask.id] = {
         ...aboveTask,
         subtasks: [...(aboveTask.subtasks || []), taskId],
         isExpanded: true,
         modifiedAt: new Date().toISOString()
       };
 
-      // 3. Actualizar la tarea con nuevo padre
+      // 3. Actualizar la tarea
       newTasks[taskId] = {
         ...task,
-        parentTaskId: aboveTaskId,
+        parentTaskId: aboveTask.id,
         modifiedAt: new Date().toISOString()
       };
 
@@ -892,12 +892,8 @@ export default function App() {
       // Subtareas: nunca aparecen solas en el Dashboard (se muestran bajo su padre)
       if (t.parentTaskId) return false;
 
-      // Tareas delegadas sin etiqueta o con solo 'resto': no mostrar en Dashboard
-      if (t.delegation) {
-        const tags = t.tags || [];
-        const hasRealTag = tags.some((tag: string) => tag !== 'resto');
-        if (!hasRealTag) return false;
-      }
+      // Tareas delegadas sin etiqueta: no mostrar en Dashboard
+      if (t.delegation && (!t.tags || t.tags.length === 0)) return false;
 
       // ── Instancias generadas en memoria (templateId presente) ──
       // Son las instancias de tareas recurrentes generadas por generateInstances.
@@ -1637,60 +1633,37 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
               <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Fecha de ejecución</label>
             </div>
             
-            <div className="dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <CalendarIcon size={18} className="text-turquesa" />
-                  <span className="text-sm font-bold dark:text-white text-text-main-light">
-                    {localTask.dueDate ? (() => {
-                      const d = parseLocalISO(localTask.dueDate);
-                      const dd = d.getDate().toString().padStart(2, '0');
-                      const mm = (d.getMonth() + 1).toString().padStart(2, '0');
-                      const yyyy = d.getFullYear();
-                      return `${dd}-${mm}-${yyyy}`;
-                    })() : 'Sin fecha asignada'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button 
-                    onClick={() => setShowDateSelector(!showDateSelector)}
-                    className={`p-2 rounded-lg transition-all ${showDateSelector ? 'bg-turquesa dark:text-white text-text-main-light' : 'text-turquesa hover:bg-turquesa/10'}`}
-                    title="Modificar fecha"
-                  >
-                    <CalendarIcon size={18} />
-                  </button>
-                  {localTask.dueDate && (
-                    <button 
-                      onClick={() => setLocalTask(prev => ({ ...prev, dueDate: null, dueTime: '' }))}
-                      className="p-2 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
-                      title="Eliminar fecha"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  )}
-                </div>
+            <div className="dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-4 flex items-center justify-between group/date">
+              <div className="flex items-center gap-3">
+                <CalendarIcon size={18} className="text-turquesa" />
+                <span className="text-sm font-bold dark:text-white text-text-main-light">
+                  {localTask.dueDate ? (() => {
+                    const d = parseLocalISO(localTask.dueDate);
+                    const dd = d.getDate().toString().padStart(2, '0');
+                    const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+                    const yyyy = d.getFullYear();
+                    return `${dd}-${mm}-${yyyy}`;
+                  })() : 'Sin fecha asignada'}
+                </span>
               </div>
-              {localTask.dueDate && (
-                <div className="flex items-center gap-3 pt-1 border-t dark:border-border-main/30 border-border-main-light/30">
-                  <Clock size={16} className="text-azul shrink-0" />
-                  <span className="text-xs font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Hora</span>
-                  <input
-                    type="time"
-                    value={localTask.dueTime || ''}
-                    onChange={e => setLocalTask(prev => ({ ...prev, dueTime: e.target.value }))}
-                    className="flex-1 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-1.5 text-sm font-bold text-azul outline-none focus:border-azul/50"
-                  />
-                  {localTask.dueTime && (
-                    <button
-                      onClick={() => setLocalTask(prev => ({ ...prev, dueTime: '' }))}
-                      className="p-1.5 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
-                      title="Quitar hora"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-              )}
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => setShowDateSelector(!showDateSelector)}
+                  className={`p-2 rounded-lg transition-all ${showDateSelector ? 'bg-turquesa dark:text-white text-text-main-light' : 'text-turquesa hover:bg-turquesa/10'}`}
+                  title="Modificar fecha"
+                >
+                  <CalendarIcon size={18} />
+                </button>
+                {localTask.dueDate && (
+                  <button 
+                    onClick={() => setLocalTask(prev => ({ ...prev, dueDate: null }))}
+                    className="p-2 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
+                    title="Eliminar fecha"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+              </div>
             </div>
  
             {showDateSelector && (
@@ -2016,16 +1989,6 @@ function DashboardView({
   const [showDashboardCalendar, setShowDashboardCalendar] = useState(false);
   const [expandAll, setExpandAll] = useState(true);
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set(['con_hora', 'focus', 'dirección', 'espera', 'resto']));
-  const [frozenTaskIds, setFrozenTaskIds] = React.useState<Set<string>>(new Set());
-  const frozenOrderRef = React.useRef<string[]>([]);
-
-  const freezeTask = React.useCallback((taskId: string) => {
-    setFrozenTaskIds(prev => new Set([...prev, taskId]));
-  }, []);
-
-  const unfreezeTask = React.useCallback((taskId: string) => {
-    setFrozenTaskIds(prev => { const n = new Set(prev); n.delete(taskId); return n; });
-  }, []);
  
   const dayTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
@@ -2111,16 +2074,6 @@ function DashboardView({
  
   // groupedTasks: cada entrada es { task, subtasksForGroup }
   // Los contenedores (sin etiqueta) se reparten por grupos según sus subtareas
-  // Filtrar tareas del día respetando las congeladas (no se mueven mientras el ratón está encima)
-  const stableDayTasks = useMemo(() => {
-    if (frozenTaskIds.size === 0) return filteredDayTasks;
-    // Mantener el orden de las tareas congeladas en su posición actual
-    return filteredDayTasks.map(t => ({
-      ...t,
-      _frozen: frozenTaskIds.has(t.id)
-    }));
-  }, [filteredDayTasks, frozenTaskIds]);
-
   const groupedTasks = useMemo(() => {
     const tagOrder: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
     const groups: Record<TagType, { task: Task, subtasksForGroup: string[] | null }[]> = {
@@ -2287,38 +2240,38 @@ function DashboardView({
           </div>
  
           <div className="flex items-center gap-2">
-             {/* Botón: Expandir/Contraer SUBTAREAS — flechas azul */}
+             {/* Botón: Expandir/Contraer SUBTAREAS */}
              <button 
               onClick={() => setExpandAll(!expandAll)}
-              className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-all relative group ${
+              className={`w-10 h-10 flex items-center justify-center rounded-2xl border transition-all relative group ${
                 expandAll 
-                  ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30' 
+                  ? 'bg-azul text-white border-azul' 
                   : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul dark:hover:bg-azul/10 hover:bg-azul/5'
               }`}
               title={expandAll ? 'Contraer subtareas' : 'Expandir subtareas'}
              >
-               {expandAll ? <ChevronsUp size={15} /> : <ChevronsDown size={15} />}
+               {expandAll ? <ChevronsUp size={16} /> : <ChevronsDown size={16} />}
                <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-xl text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
                  {expandAll ? 'Contraer subtareas' : 'Expandir subtareas'}
                </span>
              </button>
 
-             {/* Botón: Expandir/Contraer GRUPOS ETIQUETAS — tag icon turquesa */}
+             {/* Botón: Expandir/Contraer BLOQUES */}
              <button 
               onClick={() => {
                 const allBlocks = new Set(['con_hora', 'focus', 'dirección', 'espera', 'resto']);
                 setExpandedBlocks(expandedBlocks.size === 5 ? new Set() : allBlocks);
               }}
-              className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-all relative group ${
+              className={`w-10 h-10 flex items-center justify-center rounded-2xl border transition-all relative group ${
                 expandedBlocks.size === 5 
-                  ? 'bg-turquesa text-white border-turquesa shadow-lg shadow-turquesa/30' 
-                  : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa dark:hover:bg-turquesa/10 hover:bg-turquesa/5'
+                  ? 'bg-azul text-white border-azul' 
+                  : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul dark:hover:bg-azul/10 hover:bg-azul/5'
               }`}
-              title={expandedBlocks.size === 5 ? 'Contraer grupos' : 'Expandir grupos'}
+              title={expandedBlocks.size === 5 ? 'Contraer bloques' : 'Expandir bloques'}
              >
-               <Tag size={14} />
+               {expandedBlocks.size === 5 ? <ChevronsUp size={16} /> : <ChevronsDown size={16} />}
                <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-xl text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                 {expandedBlocks.size === 5 ? 'Contraer grupos' : 'Expandir grupos'}
+                 {expandedBlocks.size === 5 ? 'Contraer bloques' : 'Expandir bloques'}
                </span>
              </button>
 
@@ -2429,15 +2382,6 @@ function DashboardView({
                       className="grid grid-cols-1 gap-4"
                     >
                       {tagEntries.map(({ task, subtasksForGroup }) => (
-                        <div
-                          key={`wrap-${task.id}-${tag}`}
-                          onMouseEnter={() => { if (!frozenTaskIds) setFrozenTaskIds(dayTasksBase.map((t: Task) => t.id)); }}
-                          onMouseLeave={() => setFrozenTaskIds(null)}
-                        >
-                        <div
-                          onMouseEnter={() => freezeTask(task.id)}
-                          onMouseLeave={() => unfreezeTask(task.id)}
-                        >
                         <TaskCard
                           key={`${task.id}-${tag}`}
                           task={task}
@@ -2470,8 +2414,6 @@ function DashboardView({
                           subtasksForGroup={subtasksForGroup}
                           forceExpanded={expandAll}
                         />
-                        </div>
-                        </div>
                       ))}
                     </Reorder.Group>
                   </motion.div>
@@ -2549,31 +2491,6 @@ function SummaryCard({ label, value, total, progress, color }: any) {
  
  
  
-// Botón toggle único expandir/contraer para la vista de bloque
-function ToggleExpandButton({ blockId, onExpandAll }: { blockId: string, onExpandAll: (id: string, expand: boolean) => void }) {
-  const [expanded, setExpanded] = React.useState(true);
-  return (
-    <button
-      onClick={() => {
-        const next = !expanded;
-        setExpanded(next);
-        onExpandAll(blockId, next);
-      }}
-      className={`w-9 h-9 flex items-center justify-center rounded-full border-2 transition-all relative group ${
-        expanded
-          ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30'
-          : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul'
-      }`}
-      title={expanded ? 'Contraer todo' : 'Expandir todo'}
-    >
-      {expanded ? <ChevronsUp size={14} /> : <ChevronsDown size={14} />}
-      <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-lg text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-        {expanded ? 'Contraer' : 'Expandir'}
-      </span>
-    </button>
-  );
-}
-
 function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onAddTask, onAddRule, onToggleTask, onDelete, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, onEditRule, onToggleRule, onAddBlock, onEditBlock, onReorderBlocks, onToggleBlock, activeDate, onReorderSubtasks, onReorderTasks, onToggleExpand, onExpandAll, onPromote, onDemote, onRecurrenceDateChange = null }: any) {
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -2607,8 +2524,8 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32">
         <div className="flex items-center justify-between dark:bg-bg-card bg-bg-card-light p-6 rounded-[2rem] border dark:border-border-main border-border-main-light shadow-xl">
           <div className="flex items-center gap-4">
-            <button onClick={() => setSelectedBlock(null)} className="p-3 dark:hover:bg-bg-main hover:bg-gray-100 rounded-2xl transition-all">
-              <ChevronRight size={20} className="rotate-180 dark:text-white text-text-main-light" />
+            <button onClick={() => setSelectedBlock(null)} className="p-3 hover:dark:bg-bg-main bg-white rounded-2xl transition-all">
+              <ChevronRight size={20} className="rotate-180" />
             </button>
             <div className="w-12 h-12 rounded-2xl dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light flex items-center justify-center text-3xl shadow-inner">
                {selectedBlock.icon}
@@ -2627,7 +2544,22 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
             </div>
           </div>
           <div className="flex gap-3">
-              <ToggleExpandButton blockId={selectedBlock.id} onExpandAll={onExpandAll} />
+              <div className="flex items-center dark:bg-bg-main bg-white p-1 rounded-2xl border dark:border-border-main border-border-main-light shadow-inner gap-1">
+                <button 
+                  onClick={() => onExpandAll(selectedBlock.id, true)}
+                  className="flex items-center justify-center w-7 h-7 rounded-xl bg-gradient-to-br from-turquesa to-azul dark:text-white text-text-main-light transition-all shadow-md active:scale-90"
+                  title="Expandir todo"
+                >
+                  <Maximize2 size={13} strokeWidth={2.5} />
+                </button>
+                <button 
+                  onClick={() => onExpandAll(selectedBlock.id, false)}
+                  className="flex items-center justify-center w-7 h-7 rounded-xl bg-bg-secondary dark:text-text-secondary text-text-secondary-light hover:text-azul transition-all shadow-sm active:scale-90"
+                  title="Comprimir todo"
+                >
+                  <Minimize2 size={13} strokeWidth={2.5} />
+                </button>
+              </div>
              <button 
               onClick={() => onAddTask(null, selectedBlock.id)}
               className="px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 bg-white/5 dark:text-white text-text-main-light border border-white/10 hover:bg-white/15 hover:scale-[1.02] active:scale-95 shadow-xl backdrop-blur-md"
@@ -3945,28 +3877,16 @@ function TaskTypeChip({ value, onChange, isCompact = false }: any) {
   );
 }
  
-function DatePickerChip({ value, onChange, dropUp = false }: any) {
+function DatePickerChip({ value, onChange }: any) {
   const [show, setShow] = useState(false);
   const [showFullCalendar, setShowFullCalendar] = useState(false);
-  const chipRef = React.useRef<HTMLDivElement>(null);
   const isSinFecha = !value;
   const label = isSinFecha ? 'Sin fecha' : new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short' }).format(parseLocalISO(value));
-
-  // Auto-detectar si hay espacio abajo o hay que abrir hacia arriba
-  const [openUp, setOpenUp] = React.useState(false);
-  const handleToggle = () => {
-    if (chipRef.current) {
-      const rect = chipRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      setOpenUp(dropUp || spaceBelow < 320);
-    }
-    setShow(s => !s);
-  };
  
   return (
-    <div className="relative" ref={chipRef}>
+    <div className="relative">
       <button 
-        onClick={handleToggle}
+        onClick={() => setShow(!show)}
         className={`h-7 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all ${
           isSinFecha 
             ? 'dark:bg-bg-main bg-white dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light' 
@@ -3981,8 +3901,8 @@ function DatePickerChip({ value, onChange, dropUp = false }: any) {
           <>
             <div className="fixed inset-0 z-[210]" onClick={() => { setShow(false); setShowFullCalendar(false); }} />
             <motion.div 
-              initial={{ opacity: 0, y: openUp ? -10 : 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: openUp ? -10 : 10 }}
-              className={`absolute ${openUp ? 'bottom-full mb-2' : 'top-full mt-2'} left-0 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[220px]`}
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+              className="absolute top-full left-0 mt-2 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[220px]"
             >
                {!showFullCalendar ? (
                  <div className="space-y-2">
@@ -4761,27 +4681,20 @@ function MonthDatePicker({ value, onChange }: { value: string | null, onChange: 
 // ============================================================
 // DELEGATION CHIP
 // ============================================================
-function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRenamePerson, onDeletePerson, onOpen = null, onClose = null }: any) {
+function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRenamePerson, onDeletePerson }: any) {
   const [show, setShow] = useState(false);
   const [newName, setNewName] = useState('');
   const person = delegation ? people.find((p: any) => p.id === delegation.personId) : null;
 
-  const toggleShow = () => {
-    const next = !show;
-    setShow(next);
-    if (next) { onOpen && onOpen(); } else { onClose && onClose(); }
-  };
-
   const handleSelect = (personId: string) => {
     onChange({ personId, delegatedAt: formatLocalISO(new Date()) });
     setShow(false);
-    onClose && onClose();
   };
 
-  const handleRemove = () => {
+  const handleRemove = (e: React.MouseEvent) => {
+    e.stopPropagation();
     onChange(undefined);
     setShow(false);
-    onClose && onClose();
   };
 
   const handleAddPerson = () => {
@@ -4791,13 +4704,12 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
     setNewName('');
     onChange({ personId: newPerson.id, delegatedAt: formatLocalISO(new Date()) });
     setShow(false);
-    onClose && onClose();
   };
 
   return (
     <div className="relative">
       <button
-        onClick={toggleShow}
+        onClick={() => setShow(!show)}
         className={`h-7 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-1 ${
           person
             ? 'bg-morado/10 border-morado text-morado shadow-sm'
@@ -4812,11 +4724,10 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
       <AnimatePresence>
         {show && (
           <>
-            <div className="fixed inset-0 z-[210]" onClick={() => { setShow(false); onClose && onClose(); }} />
+            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
             <motion.div
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-              onClick={e => e.stopPropagation()}
-              className="absolute top-full left-0 mt-2 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[200px]"
+              className="absolute top-full left-0 mt-2 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220 min-w-[200px]"
             >
               <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">Delegar a</p>
               <div className="space-y-1 mb-3">
@@ -4828,8 +4739,8 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
                     <button
                       onClick={() => handleSelect(p.id)}
                       className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold transition-all ${
-                        delegation?.personId === p.id
-                          ? 'bg-morado text-white'
+                        delegation?.personId === p.id 
+                          ? 'bg-morado text-white' 
                           : 'dark:hover:bg-bg-main hover:bg-gray-100 dark:text-white text-text-main-light'
                       }`}
                     >
@@ -4865,9 +4776,7 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
                   type="text"
                   value={newName}
                   onChange={e => setNewName(e.target.value)}
-                  onClick={e => e.stopPropagation()}
-                  onFocus={e => e.stopPropagation()}
-                  onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') handleAddPerson(); }}
+                  onKeyDown={e => e.key === 'Enter' && handleAddPerson()}
                   placeholder="Nueva persona..."
                   className="flex-1 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[11px] dark:text-white text-text-main-light dark:placeholder:text-text-secondary/40 placeholder:text-text-secondary-light/40 outline-none focus:border-morado/50"
                 />
@@ -4915,7 +4824,6 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
   const [allExpanded, setAllExpanded] = useState(true);
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [editingPersonName, setEditingPersonName] = useState('');
-  const [hideCompletedDelegadas, setHideCompletedDelegadas] = useState(false);
 
   const toggleTask = (id: string) => {
     setExpandedTasks(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -4940,9 +4848,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
 
   const tasksByPerson = people.map((p: any) => ({
     person: p,
-    tasks: delegatedTasks
-      .filter((t: any) => t.delegation?.personId === p.id)
-      .filter((t: any) => !hideCompletedDelegadas || t.status !== 'completed')
+    tasks: delegatedTasks.filter((t: any) => t.delegation?.personId === p.id)
   })).filter((g: any) => g.tasks.length > 0);
 
   const filteredByPerson = filterPersonId
@@ -5041,21 +4947,10 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
         <div className="flex items-center gap-2">
           <button
             onClick={toggleAllPersons}
-            className="w-10 h-10 flex items-center justify-center dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light hover:border-morado/50 transition-all"
-            title={allExpanded ? 'Contraer personas' : 'Expandir personas'}
+            className="w-10 h-10 flex items-center justify-center dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light hover:text-white hover:border-white/20 transition-all"
+            title={allExpanded ? 'Contraer todos' : 'Expandir todos'}
           >
             {allExpanded ? <ChevronsUp size={18} /> : <ChevronsDown size={18} />}
-          </button>
-          <button
-            onClick={() => setHideCompletedDelegadas(h => !h)}
-            className={`w-10 h-10 flex items-center justify-center rounded-2xl border transition-all ${
-              hideCompletedDelegadas
-                ? 'dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'
-                : 'bg-turquesa text-white border-turquesa shadow-lg shadow-turquesa/20'
-            }`}
-            title={hideCompletedDelegadas ? 'Ver completadas' : 'Ocultar completadas'}
-          >
-            {hideCompletedDelegadas ? <Eye size={16} /> : <EyeOff size={16} />}
           </button>
           <button
             onClick={() => { setShowNewMeeting(true); setNewMeeting({ personId: '', date: formatLocalISO(new Date()), notes: '', items: [] }); }}
@@ -5134,7 +5029,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
           {filteredByPerson.map(({ person, tasks: personTasks }: any) => {
             const isOpen = expandedPersons.has(person.id);
             return (
-              <div key={person.id} className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
+              <div key={person.id} className="bg-bg-card border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
                 {/* Person header */}
                 <button
                   onClick={() => togglePerson(person.id)}
@@ -5177,16 +5072,6 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                       exit={{ height: 0, opacity: 0 }}
                       className="border-t dark:border-border-main border-border-main-light/50"
                     >
-                      <Reorder.Group
-                        axis="y"
-                        values={personTasks}
-                        onReorder={(reordered: any[]) => {
-                          reordered.forEach((t: any, idx: number) => {
-                            if (t.order !== idx) onUpdateTask({ ...t, order: idx, modifiedAt: new Date().toISOString() });
-                          });
-                        }}
-                        className="divide-y dark:divide-border-main divide-border-main-light"
-                      >
                       {personTasks.map((task: any) => {
                         const block = getBlock(task.blockId);
                         const tag = task.tags?.[0];
@@ -5196,22 +5081,10 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                           ? (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted)
                           : [];
                         return (
-                          <Reorder.Item key={task.id} value={task} className={`border-b dark:border-border-main border-border-main-light/30 last:border-0 ${task.status === 'completed' ? 'opacity-50' : ''}`}>
+                          <div key={task.id} className="border-b dark:border-border-main border-border-main-light/30 last:border-0">
                             {/* Task row - same style as Dashboard */}
-                            <div className="flex items-center gap-3 px-4 py-3 hover:dark:bg-white/2 hover:bg-gray-50 transition-all group/trow">
-                              <GripVertical size={14} className="dark:text-text-secondary/30 text-text-secondary-light/30 hover:dark:text-text-secondary hover:text-text-secondary-light cursor-grab active:cursor-grabbing shrink-0" />
+                            <div className="flex items-center gap-3 px-4 py-3 hover:bg-white/2 transition-all group/trow">
                               <div className="w-1 h-full min-h-[2.5rem] rounded-full shrink-0" style={{ backgroundColor: block?.color || '#666' }} />
-                              {/* Botón completar */}
-                              <button
-                                onClick={() => onUpdateTask({ ...task, status: task.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
-                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                                  task.status === 'completed'
-                                    ? 'bg-turquesa border-turquesa text-white'
-                                    : 'dark:border-border-main border-border-main-light hover:border-turquesa'
-                                }`}
-                              >
-                                {task.status === 'completed' && <Check size={10} />}
-                              </button>
                               {hasSubtasks && (
                                 <button onClick={() => toggleTask(task.id)} className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-white transition-all shrink-0">
                                   {isTaskOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -5224,7 +5097,13 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                   {!hasSubtasks && (
                                     <DatePickerChip
                                       value={task.dueDate}
-                                      onChange={(date: string) => onUpdateTask({ ...task, dueDate: date })}
+                                      onChange={(date: string) => {
+                                        if (task.templateId) {
+                                          onRecurrenceDateChange && onRecurrenceDateChange(task, date);
+                                        } else {
+                                          onUpdateTask({ ...task, dueDate: date });
+                                        }
+                                      }}
                                     />
                                   )}
                                   {!hasSubtasks && (
@@ -5241,6 +5120,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                       onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])}
                                       onRenamePerson={onRenamePerson}
                                       onDeletePerson={onDeletePerson}
+                onRecurrenceDateChange={onRecurrenceDateChange}
                                     />
                                   )}
                                   {!hasSubtasks && (
@@ -5331,10 +5211,9 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                 </motion.div>
                               )}
                             </AnimatePresence>
-                          </Reorder.Item>
+                          </div>
                         );
                       })}
-                      </Reorder.Group>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -5634,7 +5513,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                 placeholder="¿Qué dijo sobre esta tarea?..."
                                 rows={1}
                                 onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                                className="w-full dark:bg-bg-card bg-gray-50 border dark:border-border-main/50 border-border-main-light rounded-lg px-3 py-2 text-sm dark:text-white text-text-main-light dark:placeholder:text-text-secondary/30 placeholder:text-text-secondary-light/40 outline-none focus:border-morado/40 resize-none overflow-hidden"
+                                className="w-full bg-bg-card border border-border-main/50 rounded-lg px-3 py-2 text-sm text-white placeholder:text-text-secondary/30 outline-none focus:border-morado/40 resize-none overflow-hidden"
                               />
                             </div>
                           </div>
