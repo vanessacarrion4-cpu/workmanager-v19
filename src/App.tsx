@@ -204,8 +204,20 @@ export default function App() {
               delegation: t.delegation,
               createdAt: t.created_at,
               modifiedAt: t.modified_at,
-              deletedAt: t.deleted_at
+              deletedAt: t.deleted_at,
+              subtasks: [], // Inicializar subtasks como array vacío
+              attachments: [] // Inicializar attachments como array vacío
             };
+          });
+
+          // Reconstruir relaciones padre-hijo
+          Object.values(mappedTasks).forEach(task => {
+            if (task.parentTaskId && mappedTasks[task.parentTaskId]) {
+              if (!mappedTasks[task.parentTaskId].subtasks) {
+                mappedTasks[task.parentTaskId].subtasks = [];
+              }
+              mappedTasks[task.parentTaskId].subtasks.push(task.id);
+            }
           });
           setTasks(mappedTasks);
         }
