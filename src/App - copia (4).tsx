@@ -158,19 +158,7 @@ export default function App() {
           !t.templateId || t.isException
         )
       );
-      const payload = { blocks, tasks: tasksToSave, timeEntries, activeTimer, people, meetings };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-
-      // Sync al servidor (Supabase via API) con debounce de 1.5s
-      const syncTimer = setTimeout(() => {
-        fetch('/api/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }).catch(e => console.warn('[SYNC] Error sincronizando con servidor (localStorage OK):', e));
-      }, 1500);
-
-      return () => clearTimeout(syncTimer);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ blocks, tasks: tasksToSave, timeEntries, activeTimer, people, meetings }));
     } catch (e) {
       console.error("Error saving data", e);
     }
@@ -232,61 +220,12 @@ export default function App() {
       if (instantiated.length === 0) return prev;
       let changed = false;
       const updated = { ...prev };
-
       instantiated.forEach(t => {
         if (!updated[t.id]) {
           updated[t.id] = t;
           changed = true;
         }
       });
-
-      // Clonar subtareas de templates recurrentes en sus instancias generadas
-      // Para cada instancia recién añadida cuyo template tenga subtareas,
-      // crear instancias de esas subtareas vinculadas a esta instancia padre.
-      instantiated.forEach(parentInst => {
-        if (!parentInst.templateId) return; // solo instancias generadas
-        const template = prev[parentInst.templateId];
-        if (!template || !template.subtasks || template.subtasks.length === 0) return;
-
-        const instDate = parentInst.dueDate || parentInst.instanceDate;
-        if (!instDate) return;
-
-        const subtaskInstanceIds: string[] = [];
-
-        template.subtasks.forEach(subTemplateId => {
-          const subTemplate = prev[subTemplateId];
-          if (!subTemplate) return;
-
-          const subInstId = `inst-${subTemplateId}-${instDate}`;
-          // No sobreescribir si ya existe (podría ser una excepción del usuario)
-          if (!updated[subInstId]) {
-            updated[subInstId] = {
-              ...subTemplate,
-              id: subInstId,
-              templateId: subTemplateId,
-              parentTaskId: parentInst.id,
-              dueDate: instDate,
-              instanceDate: instDate,
-              isTemplate: false,
-              isException: false,
-              status: 'pending',
-              completedAt: undefined,
-              subtasks: [], // subtareas de tercer nivel no se clonan (evitar recursión)
-            };
-            changed = true;
-          }
-          subtaskInstanceIds.push(subInstId);
-        });
-
-        // Actualizar la instancia padre con los IDs de subtareas clonados
-        if (subtaskInstanceIds.length > 0 && updated[parentInst.id]) {
-          const existing = updated[parentInst.id];
-          // Mezclar con subtareas ya existentes (excepciones previas) sin duplicados
-          const merged = Array.from(new Set([...(existing.subtasks || []), ...subtaskInstanceIds]));
-          updated[parentInst.id] = { ...existing, subtasks: merged };
-        }
-      });
-
       console.log(`[GENERATION] Added ${Object.keys(updated).length - Object.keys(prev).length} new instances to state`);
       return changed ? updated : prev;
     });
@@ -2204,12 +2143,12 @@ function DashboardView({
               }}
               className={`w-10 h-10 flex items-center justify-center rounded-2xl border transition-all relative group ${
                 expandedBlocks.size === 5 
-                  ? 'bg-azul text-white border-azul' 
-                  : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul dark:hover:bg-azul/10 hover:bg-azul/5'
+                  ? 'bg-morado text-white border-morado' 
+                  : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-morado hover:text-morado dark:hover:bg-morado/10 hover:bg-morado/5'
               }`}
               title={expandedBlocks.size === 5 ? 'Contraer bloques' : 'Expandir bloques'}
              >
-               {expandedBlocks.size === 5 ? <ChevronsUp size={16} /> : <ChevronsDown size={16} />}
+               {expandedBlocks.size === 5 ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-xl text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
                  {expandedBlocks.size === 5 ? 'Contraer bloques' : 'Expandir bloques'}
                </span>
@@ -3069,32 +3008,32 @@ function BlockModal({ block, onClose, onSave, onDelete }: { block: WorkBlock, on
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-xl dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[3rem] shadow-[0_30px_100px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-xl bg-bg-card border border-border-main rounded-[3rem] shadow-[0_30px_100px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col max-h-[90vh]"
       >
-        <div className="p-8 border-b dark:border-border-main border-border-main-light flex items-center justify-between sticky top-0 dark:bg-bg-card bg-white z-10">
+        <div className="p-8 border-b border-border-main flex items-center justify-between sticky top-0 bg-bg-card z-10">
            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 dark:bg-bg-main bg-gray-100 rounded-2xl flex items-center justify-center text-3xl border dark:border-border-main border-border-main-light" style={{ borderColor: localBlock.color }}>
+              <div className="w-12 h-12 bg-bg-main rounded-2xl flex items-center justify-center text-3xl border border-border-main" style={{ borderColor: localBlock.color }}>
                 {localBlock.icon}
               </div>
               <div>
-                <h3 className="text-2xl font-black dark:text-white text-text-main-light">{!localBlock.name ? 'Nuevo Bloque' : localBlock.name}</h3>
-                <p className="text-[10px] font-black uppercase dark:text-text-secondary text-text-secondary-light tracking-widest">Configuración de contexto</p>
+                <h3 className="text-2xl font-black text-white">{!localBlock.name ? 'Nuevo Bloque' : localBlock.name}</h3>
+                <p className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Configuración de contexto</p>
               </div>
            </div>
-           <button onClick={onClose} className="p-3 dark:hover:bg-bg-main hover:bg-gray-100 rounded-2xl transition-all dark:text-text-secondary text-text-secondary-light">
+           <button onClick={onClose} className="p-3 hover:bg-bg-main rounded-2xl transition-all text-text-secondary">
               <X size={24} />
            </button>
         </div>
  
         <div className="p-10 space-y-10 overflow-y-auto custom-scrollbar">
-           <div className="flex items-center justify-between dark:bg-bg-main/20 bg-gray-100 p-6 rounded-3xl border dark:border-border-main border-border-main-light">
+           <div className="flex items-center justify-between bg-bg-main/30 p-6 rounded-3xl border border-border-main">
               <div>
-                <h4 className="text-sm font-black dark:text-white text-text-main-light mb-1 uppercase tracking-widest">Estado del Bloque</h4>
-                <p className="text-[9px] font-bold dark:text-text-secondary text-text-secondary-light uppercase">Los bloques inactivos no aparecen en el dashboard</p>
+                <h4 className="text-sm font-black text-white mb-1 uppercase tracking-widest">Estado del Bloque</h4>
+                <p className="text-[9px] font-bold text-text-secondary uppercase">Los bloques inactivos no aparecen en el dashboard</p>
               </div>
               <button 
                 onClick={() => setLocalBlock(prev => ({ ...prev, isActive: !prev.isActive }))}
-                className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all border-2 ${localBlock.isActive ? 'bg-turquesa/10 border-turquesa text-turquesa shadow-lg shadow-turquesa/10' : 'dark:bg-bg-main bg-white dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light'}`}
+                className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all border-2 ${localBlock.isActive ? 'bg-turquesa/10 border-turquesa text-turquesa shadow-lg shadow-turquesa/10' : 'bg-bg-main border-border-main text-text-secondary'}`}
               >
                 {localBlock.isActive ? <CheckCircle2 size={16} /> : <Circle size={16} />}
                 {localBlock.isActive ? 'ACTIVO' : 'INACTIVO'}
@@ -3102,11 +3041,11 @@ function BlockModal({ block, onClose, onSave, onDelete }: { block: WorkBlock, on
            </div>
  
            <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light px-2">Nombre del Bloque</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary px-2">Nombre del Bloque</label>
               <input 
                 type="text"
                 autoFocus
-                className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-3xl p-6 text-xl font-bold dark:text-white text-text-main-light focus:ring-4 focus:ring-turquesa/20 outline-none transition-all placeholder:opacity-20"
+                className="w-full bg-bg-main border border-border-main rounded-3xl p-6 text-xl font-bold text-white focus:ring-4 focus:ring-turquesa/20 outline-none transition-all placeholder:opacity-20"
                 placeholder="Ej: Contabilidad central"
                 value={localBlock.name}
                 onChange={e => setLocalBlock(prev => ({ ...prev, name: e.target.value }))}
@@ -3115,7 +3054,7 @@ function BlockModal({ block, onClose, onSave, onDelete }: { block: WorkBlock, on
  
            <div className="space-y-4">
               <div className="flex items-center justify-between px-2">
-                <label className="text-[10px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Icono Visual</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary">Icono Visual</label>
                 <button onClick={() => setShowAllIcons(!showAllIcons)} className="text-[9px] font-black text-turquesa uppercase tracking-widest hover:underline">
                   {showAllIcons ? 'Ver menos' : 'Ver todos'}
                 </button>
@@ -3125,7 +3064,7 @@ function BlockModal({ block, onClose, onSave, onDelete }: { block: WorkBlock, on
                    <button 
                     key={icon}
                     onClick={() => setLocalBlock(prev => ({ ...prev, icon }))}
-                    className={`aspect-square flex items-center justify-center text-2xl rounded-2xl border transition-all ${localBlock.icon === icon ? 'bg-turquesa/20 border-turquesa scale-110 shadow-lg' : 'dark:bg-bg-main bg-white dark:border-border-main border-border-main-light dark:hover:border-white/20 hover:border-gray-300'}`}
+                    className={`aspect-square flex items-center justify-center text-2xl rounded-2xl border transition-all ${localBlock.icon === icon ? 'bg-turquesa/20 border-turquesa scale-110 shadow-lg' : 'bg-bg-main border-border-main hover:border-white/20'}`}
                    >
                      {icon}
                    </button>
@@ -3135,7 +3074,7 @@ function BlockModal({ block, onClose, onSave, onDelete }: { block: WorkBlock, on
  
            <div className="space-y-4">
               <div className="flex items-center justify-between px-2">
-                <label className="text-[10px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Color del Bloque</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary">Color del Bloque</label>
                 <button onClick={() => setShowAllColors(!showAllColors)} className="text-[9px] font-black text-turquesa uppercase tracking-widest hover:underline">
                   {showAllColors ? 'Ver menos' : 'Ver todos'}
                 </button>
@@ -3153,7 +3092,7 @@ function BlockModal({ block, onClose, onSave, onDelete }: { block: WorkBlock, on
            </div>
         </div>
  
-        <div className="p-8 dark:bg-bg-main/20 bg-gray-100/50 border-t dark:border-border-main border-border-main-light flex items-center justify-between gap-4 sticky bottom-0 z-10 backdrop-blur-md">
+        <div className="p-8 bg-bg-main/50 border-t border-border-main flex items-center justify-between gap-4 sticky bottom-0 z-10 backdrop-blur-md">
            {localBlock.id.startsWith('b-') ? (
              <div />
            ) : (
@@ -3948,16 +3887,16 @@ function RecurrencePickerChip({ value, onChange }: any) {
     <div className="relative">
       <button 
         onClick={() => setShow(!show)}
-        className={`flex items-center justify-center transition-all group/rec h-7 rounded-lg ${
+        className={`flex items-center justify-center transition-all group/rec h-8 rounded-xl ${
           value 
-            ? 'px-2.5 py-1 bg-azul/10 border-2 border-azul text-azul hover:bg-azul/20 whitespace-nowrap shadow-sm' 
-            : 'w-7 dark:bg-bg-main bg-white dark:border-border-main border-gray-300 dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul border-2'
+            ? 'px-3 py-1.5 bg-morado/10 border-2 border-morado/30 text-morado hover:bg-morado/20 whitespace-nowrap shadow-sm' 
+            : 'w-8 dark:bg-bg-main bg-white dark:border-border-main border-gray-300 dark:text-text-secondary text-text-secondary-light hover:border-morado hover:text-morado border-2'
         }`}
         title={value ? "Cambiar Recurrencia" : "Activar Recurrencia"}
       >
-        <RefreshCw size={10} className={value ? "" : "opacity-50"} />
+        <RefreshCw size={12} className={value ? "" : "opacity-50"} />
         {value && (
-          <span className="text-[9px] font-black uppercase tracking-widest ml-1.5">
+          <span className="text-[10px] font-black uppercase tracking-widest ml-2">
             {getLabel()}
           </span>
         )}
@@ -4066,16 +4005,16 @@ function TagPickerChip({ selectedTags = [], onChange }: any) {
         className="flex items-center gap-1 cursor-pointer"
       >
         {selectedTags.length > 0 ? (
-          <div className="flex -space-x-1.5 h-7 items-center">
+          <div className="flex -space-x-1.5 h-8 items-center">
             {selectedTags.map((t: any) => (
-              <span key={t} className="w-6 h-6 rounded-lg dark:bg-bg-card bg-white border-2 border-naranja flex items-center justify-center shadow-md ring-2 dark:ring-bg-main ring-white">
-                <span className="text-[13px]">{TAG_LABELS[t].icon}</span>
+              <span key={t} className="w-7 h-7 rounded-lg dark:bg-bg-card bg-white border-2 dark:border-border-main border-gray-300 flex items-center justify-center text-sm shadow-md ring-2 dark:ring-bg-main ring-white">
+                {TAG_LABELS[t].icon}
               </span>
             ))}
           </div>
         ) : (
-          <div className="w-6 h-6 rounded-lg dark:bg-bg-main bg-white border-2 dark:border-border-main/30 border-naranja/50 flex items-center justify-center opacity-40 hover:opacity-70 dark:hover:border-border-main hover:border-naranja transition-all" title="Sin categoría">
-            <span className="text-[11px]">🏷️</span>
+          <div className="w-7 h-7 rounded-lg dark:bg-bg-main bg-white border-2 dark:border-border-main/30 border-gray-300 flex items-center justify-center text-sm opacity-30 hover:opacity-60 dark:hover:border-border-main hover:border-gray-400 transition-all" title="Sin categoría">
+            <span className="text-[12px]">🏷️</span>
           </div>
         )}
       </button>
@@ -4245,34 +4184,34 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
   };
  
   return (
-    <div className="fixed inset-0 dark:bg-bg-main/80 bg-white/80 backdrop-blur-md z-[300] flex items-end justify-center">
+    <div className="fixed inset-0 bg-bg-main/80 backdrop-blur-md z-[300] flex items-end justify-center">
       <motion.div 
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-        className="w-full max-w-xl dark:bg-bg-main bg-white border-t border-x dark:border-border-main border-border-main-light rounded-t-[40px] p-8 shadow-2xl flex flex-col max-h-[90vh]"
+        className="w-full max-w-xl bg-bg-main border-t border-x border-border-main rounded-t-[40px] p-8 shadow-2xl flex flex-col max-h-[90vh]"
       >
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-2xl font-black dark:text-white text-text-main-light uppercase tracking-tighter">
+            <h2 className="text-2xl font-black text-white uppercase tracking-tighter">
               {task?.title || 'Gestionar Tiempo'}
             </h2>
-            <p className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">Panel de Control de Horas</p>
+            <p className="text-[10px] font-black text-text-secondary uppercase tracking-[0.2em]">Panel de Control de Horas</p>
           </div>
-          <button onClick={onClose} className="p-3 dark:bg-bg-card bg-gray-100 border dark:border-border-main border-border-main-light rounded-2xl dark:hover:bg-bg-main hover:bg-gray-200 transition-all">
-            <X size={20} className="dark:text-text-secondary text-text-secondary-light" />
+          <button onClick={onClose} className="p-3 bg-bg-card border border-border-main rounded-2xl hover:bg-bg-main transition-all">
+            <X size={20} className="text-text-secondary" />
           </button>
         </div>
  
         {/* Tab Navigation */}
-        <div className="flex p-1 dark:bg-bg-card bg-gray-100 border dark:border-border-main border-border-main-light rounded-2xl mb-8">
+        <div className="flex p-1 bg-bg-card border border-border-main rounded-2xl mb-8">
           <button 
             onClick={() => setActiveTab('register')}
-            className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'register' ? 'bg-turquesa text-white' : 'dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light'}`}
+            className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'register' ? 'bg-turquesa text-bg-main' : 'text-text-secondary hover:text-white'}`}
           >
             <Plus size={14} /> Registro
           </button>
           <button 
             onClick={() => setActiveTab('history')}
-            className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-turquesa text-white' : 'dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light'}`}
+            className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-turquesa text-bg-main' : 'text-text-secondary hover:text-white'}`}
           >
             <History size={14} /> Historial
           </button>
@@ -4282,26 +4221,26 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
           {activeTab === 'register' ? (
             <div className="space-y-8 overflow-y-auto custom-scrollbar px-1">
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-6 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[32px] relative overflow-hidden group">
+                <div className="p-6 bg-bg-card border border-border-main rounded-[32px] relative overflow-hidden group">
                   <div className="absolute top-4 right-4 opacity-20"><Zap size={20} className="text-turquesa" /></div>
-                  <p className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-2">Total Registrado</p>
+                  <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-2">Total Registrado</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-4xl font-black text-turquesa">{comboRegistered}</span>
-                    <span className="text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase">min</span>
+                    <span className="text-xs font-black text-text-secondary uppercase">min</span>
                   </div>
                   {!subtaskId && hasSubtasks && (
-                    <p className="text-[9px] font-bold dark:text-text-secondary text-text-secondary-light mt-1">Propio: {totalRegistered}m · Subtareas: {comboRegistered - totalRegistered}m</p>
+                    <p className="text-[9px] font-bold text-text-secondary mt-1">Propio: {totalRegistered}m · Subtareas: {comboRegistered - totalRegistered}m</p>
                   )}
                 </div>
  
-                <div className="p-6 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[32px]">
-                  <p className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-4 text-center">Plan v Realidad</p>
+                <div className="p-6 bg-bg-card border border-border-main rounded-[32px]">
+                  <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-4 text-center">Plan v Realidad</p>
                   <div className="flex items-center justify-center gap-4 mb-3">
-                    <span className="text-lg font-black dark:text-text-secondary text-text-secondary-light">{estimated}m</span>
-                    <ArrowRight size={16} className="dark:text-text-secondary/30 text-text-secondary-light/30" />
-                    <span className="text-lg font-black dark:text-white text-text-main-light">{comboRegistered}m</span>
+                    <span className="text-lg font-black text-text-secondary">{estimated}m</span>
+                    <ArrowRight size={16} className="text-text-secondary/30" />
+                    <span className="text-lg font-black text-white">{comboRegistered}m</span>
                   </div>
-                  <div className="h-1.5 dark:bg-bg-main bg-gray-200 border dark:border-border-main border-border-main-light rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-bg-main border border-border-main rounded-full overflow-hidden">
                     <div 
                       className={`h-full transition-all duration-500 ${comboRegistered > estimated ? 'bg-rosa' : 'bg-turquesa'}`}
                       style={{ width: `${Math.min(100, (comboRegistered / Math.max(1, estimated)) * 100)}%` }}
@@ -4310,35 +4249,35 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
                 </div>
               </div>
  
-              <div className="p-8 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[32px] space-y-6">
+              <div className="p-8 bg-bg-card border border-border-main rounded-[32px] space-y-6">
                 <div className="space-y-4">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest ml-1">¿Qué hiciste en esta sesión?</label>
+                    <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest ml-1">¿Qué hiciste en esta sesión?</label>
                     <textarea 
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
                       placeholder="Describe brevemente tu progreso..."
-                      className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-4 text-sm font-medium dark:text-white text-text-main-light placeholder:text-text-secondary/30 outline-none focus:border-turquesa/50 transition-all resize-none h-24"
+                      className="w-full bg-bg-main border border-border-main rounded-2xl p-4 text-sm font-medium text-white placeholder:text-text-secondary/30 outline-none focus:border-turquesa/50 transition-all resize-none h-24"
                     />
                   </div>
  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest ml-1">Minutos</label>
+                      <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest ml-1">Minutos</label>
                       <input 
                         type="number"
                         value={newMinutes}
                         onChange={(e) => setNewMinutes(parseInt(e.target.value) || 0)}
-                        className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-4 text-xl font-black text-turquesa outline-none focus:border-turquesa/50 transition-all"
+                        className="w-full bg-bg-main border border-border-main rounded-2xl p-4 text-xl font-black text-turquesa outline-none focus:border-turquesa/50 transition-all"
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest ml-1">Fecha</label>
+                      <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest ml-1">Fecha</label>
                       <input 
                         type="date"
                         value={newDate}
                         onChange={(e) => setNewDate(e.target.value)}
-                        className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-4 text-xs font-black dark:text-white text-text-main-light outline-none focus:border-turquesa/50 transition-all uppercase"
+                        className="w-full bg-bg-main border border-border-main rounded-2xl p-4 text-xs font-black text-white outline-none focus:border-turquesa/50 transition-all uppercase"
                       />
                     </div>
                   </div>
@@ -4361,11 +4300,11 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
             <div className="flex-1 flex flex-col overflow-hidden">
               <div className="flex items-center justify-between px-2 mb-6">
                  <div>
-                   <h3 className="text-xs font-black dark:text-white text-text-main-light uppercase tracking-widest">Listado de Sesiones</h3>
-                   <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase mt-1">Total acumulado: {comboRegistered}m</p>
+                   <h3 className="text-xs font-black text-white uppercase tracking-widest">Listado de Sesiones</h3>
+                   <p className="text-[9px] font-black text-text-secondary uppercase mt-1">Total acumulado: {comboRegistered}m</p>
                  </div>
                  <div className="text-right">
-                    <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Ejecutado</span>
+                    <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Ejecutado</span>
                     <p className="text-lg font-black text-turquesa">{comboRegistered}m</p>
                  </div>
               </div>
@@ -4385,7 +4324,7 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
                   const displayDate = entry.date.split('-').reverse().join('-');
  
                   return (
-                    <div key={entry.id} className="flex items-center justify-between p-4 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl group transition-all hover:border-turquesa/50">
+                    <div key={entry.id} className="flex items-center justify-between p-4 bg-bg-card border border-border-main rounded-2xl group transition-all hover:border-turquesa/50">
                       <div className="flex items-center gap-4 flex-1">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0 bg-turquesa/10 text-turquesa`}>
                            {entry.source === 'timer' ? <Clock size={20} /> : <Zap size={20} />}
@@ -4398,33 +4337,33 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
                                   type="number" 
                                   value={editMinutes} 
                                   onChange={(e) => setEditMinutes(parseInt(e.target.value) || 0)}
-                                  className="w-16 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-md p-1 text-xs font-bold dark:text-white text-text-main-light outline-none focus:border-turquesa"
+                                  className="w-16 bg-bg-main border border-border-main rounded-md p-1 text-xs font-bold text-white outline-none focus:border-turquesa"
                                 />
-                                <span className="text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase">min</span>
+                                <span className="text-xs font-black text-text-secondary uppercase">min</span>
                               </div>
                               <input 
                                 type="text" 
                                 value={editNote} 
                                 onChange={(e) => setEditNote(e.target.value)}
-                                className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-md p-1 text-xs font-medium dark:text-white text-text-main-light outline-none focus:border-turquesa"
+                                className="w-full bg-bg-main border border-border-main rounded-md p-1 text-xs font-medium text-white outline-none focus:border-turquesa"
                                 placeholder="Nota..."
                               />
                             </div>
                           ) : (
                             <>
                               <div className="flex items-center gap-2 mb-1">
-                                 <span className="text-sm font-black dark:text-white text-text-main-light">{entry.duration}m</span>
-                                 <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">{displayDate}</span>
+                                 <span className="text-sm font-black text-white">{entry.duration}m</span>
+                                 <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">{displayDate}</span>
                                   {isForeignEntry && (
-                                    <span className="text-[8px] font-black dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light px-1.5 py-0.5 rounded-md dark:text-text-secondary text-text-secondary-light uppercase tracking-tighter truncate max-w-[100px]">
+                                    <span className="text-[8px] font-black bg-bg-main border border-border-main px-1.5 py-0.5 rounded-md text-text-secondary uppercase tracking-tighter truncate max-w-[100px]">
                                       {allTasksMap[entry.taskId]?.title || 'Subtarea'}
                                     </span>
                                   )}
                               </div>
                               {entry.note ? (
-                                <p className="text-[11px] font-bold dark:text-text-secondary text-text-secondary-light italic">"{entry.note}"</p>
+                                <p className="text-[11px] font-bold text-text-secondary italic">"{entry.note}"</p>
                               ) : (
-                                <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light/30 uppercase tracking-widest">Sin nota</p>
+                                <p className="text-[9px] font-black text-text-secondary/30 uppercase tracking-widest">Sin nota</p>
                               )}
                             </>
                           )}
@@ -4436,14 +4375,14 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
                           <>
                             <button 
                               onClick={saveEdit}
-                              className="p-2.5 text-turquesa hover:bg-turquesa/10 dark:bg-bg-main bg-white rounded-xl border dark:border-border-main border-border-main-light transition-all"
+                              className="p-2.5 text-turquesa hover:bg-turquesa/10 bg-bg-main rounded-xl border border-border-main transition-all"
                               title="Guardar"
                             >
                               <Check size={14} />
                             </button>
                             <button 
                               onClick={() => setEditingEntryId(null)}
-                              className="p-2.5 dark:text-text-secondary text-text-secondary-light hover:text-white dark:bg-bg-main bg-white rounded-xl border dark:border-border-main border-border-main-light transition-all"
+                              className="p-2.5 text-text-secondary hover:text-white bg-bg-main rounded-xl border border-border-main transition-all"
                               title="Cancelar"
                             >
                               <X size={14} />
@@ -4453,7 +4392,7 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
                           <>
                             <button 
                               onClick={() => startEdit(entry)}
-                              className="p-2.5 dark:text-text-secondary text-text-secondary-light hover:text-white dark:bg-bg-main bg-white rounded-xl border dark:border-border-main border-border-main-light transition-all"
+                              className="p-2.5 text-text-secondary hover:text-white bg-bg-main rounded-xl border border-border-main transition-all"
                               title="Editar registro"
                             >
                               <Edit size={14} />
@@ -4463,7 +4402,7 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
                                 e.stopPropagation();
                                 onDeleteEntry(entry.id);
                               }}
-                              className="p-2.5 dark:text-text-secondary text-text-secondary-light hover:text-rosa dark:bg-bg-main bg-white rounded-xl border dark:border-border-main border-border-main-light transition-all"
+                              className="p-2.5 text-text-secondary hover:text-rosa bg-bg-main rounded-xl border border-border-main transition-all"
                               title="Eliminar registro"
                             >
                               <Trash2 size={14} />
@@ -4609,14 +4548,14 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
     <div className="relative">
       <button
         onClick={() => setShow(!show)}
-        className={`h-7 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-1 ${
+        className={`h-8 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-1.5 ${
           person
-            ? 'bg-morado/10 border-morado text-morado shadow-sm'
-            : 'dark:bg-bg-main bg-white dark:border-border-main/30 border-morado/50 dark:text-text-secondary/40 text-text-secondary-light/40 dark:hover:text-text-secondary hover:text-text-secondary-light dark:hover:border-border-main hover:border-morado transition-all'
+            ? 'bg-morado/10 border-morado/50 text-morado shadow-sm'
+            : 'dark:bg-bg-main bg-white dark:border-border-main/30 border-gray-300 dark:text-text-secondary/40 text-text-secondary-light/40 dark:hover:text-text-secondary hover:text-text-secondary-light dark:hover:border-border-main hover:border-gray-400 transition-all'
         }`}
         title={person ? `Delegado a ${person.name}` : 'Delegar tarea'}
       >
-        <User size={10} />
+        <User size={11} />
         {person && <span>{person.name}</span>}
       </button>
 
@@ -4626,21 +4565,19 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
             <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
             <motion.div
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-              className="absolute top-full left-0 mt-2 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[200px]"
+              className="absolute top-full left-0 mt-2 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220 min-w-[200px]"
             >
-              <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">Delegar a</p>
+              <p className="text-[9px] font-black text-text-secondary uppercase tracking-widest mb-3">Delegar a</p>
               <div className="space-y-1 mb-3">
                 {people.length === 0 && (
-                  <p className="text-[10px] dark:text-text-secondary/50 text-text-secondary-light/50 text-center py-2">Sin personas en el equipo</p>
+                  <p className="text-[10px] text-text-secondary/50 text-center py-2">Sin personas en el equipo</p>
                 )}
                 {people.map((p: any) => (
                   <div key={p.id} className="flex items-center gap-1 group/dp">
                     <button
                       onClick={() => handleSelect(p.id)}
                       className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold transition-all ${
-                        delegation?.personId === p.id 
-                          ? 'bg-morado text-white' 
-                          : 'dark:hover:bg-bg-main hover:bg-gray-100 dark:text-white text-text-main-light'
+                        delegation?.personId === p.id ? 'bg-morado text-white' : 'hover:bg-bg-main text-text-main'
                       }`}
                     >
                       <div className="w-6 h-6 rounded-lg bg-morado/20 flex items-center justify-center text-morado text-[10px] font-black shrink-0">
@@ -4669,7 +4606,7 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
                   </div>
                 ))}
               </div>
-              <div className="h-px dark:bg-border-main/50 bg-border-main-light/50 mb-3" />
+              <div className="h-px bg-border-main/50 mb-3" />
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -4677,7 +4614,7 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
                   onChange={e => setNewName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleAddPerson()}
                   placeholder="Nueva persona..."
-                  className="flex-1 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[11px] dark:text-white text-text-main-light dark:placeholder:text-text-secondary/40 placeholder:text-text-secondary-light/40 outline-none focus:border-morado/50"
+                  className="flex-1 bg-bg-main border border-border-main rounded-xl px-3 py-2 text-[11px] text-white placeholder:text-text-secondary/40 outline-none focus:border-morado/50"
                 />
                 <button
                   onClick={handleAddPerson}
@@ -4688,7 +4625,7 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
               </div>
               {delegation && (
                 <>
-                  <div className="h-px dark:bg-border-main/50 bg-border-main-light/50 my-3" />
+                  <div className="h-px bg-border-main/50 my-3" />
                   <button
                     onClick={handleRemove}
                     className="w-full flex items-center justify-center gap-2 p-2 bg-rosa/5 rounded-xl border border-rosa/20 text-rosa hover:bg-rosa/10 transition-all"
@@ -4896,7 +4833,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
           <button
             onClick={() => setFilterPersonId(null)}
             className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
-              !filterPersonId ? 'bg-morado/10 border-morado/50 text-morado' : 'dark:bg-bg-card bg-gray-100 dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light'
+              !filterPersonId ? 'bg-morado/10 border-morado/50 text-morado' : 'bg-bg-card dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:text-white'
             }`}
           >
             Todos
@@ -4906,7 +4843,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
               key={p.id}
               onClick={() => setFilterPersonId(filterPersonId === p.id ? null : p.id)}
               className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
-                filterPersonId === p.id ? 'bg-morado/10 border-morado/50 text-morado' : 'dark:bg-bg-card bg-gray-100 dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light'
+                filterPersonId === p.id ? 'bg-morado/10 border-morado/50 text-morado' : 'bg-bg-card dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:text-white'
               }`}
             >
               {p.name}
@@ -5215,20 +5152,20 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-3xl p-6 shadow-2xl w-full max-w-sm z-10"
+              className="relative bg-bg-card border border-border-main rounded-3xl p-6 shadow-2xl w-full max-w-sm z-10"
             >
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-black dark:text-white text-text-main-light uppercase tracking-widest">Equipo</h3>
-                <button onClick={() => setShowManageTeam(false)} className="w-8 h-8 flex items-center justify-center dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light dark:bg-bg-main bg-gray-100 rounded-xl border dark:border-border-main border-border-main-light">
+                <h3 className="text-lg font-black text-white uppercase tracking-widest">Equipo</h3>
+                <button onClick={() => setShowManageTeam(false)} className="w-8 h-8 flex items-center justify-center text-text-secondary hover:text-white bg-bg-main rounded-xl border border-border-main">
                   <X size={16} />
                 </button>
               </div>
               <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
                 {people.length === 0 && (
-                  <p className="dark:text-text-secondary text-text-secondary-light text-sm text-center py-4">Sin personas. Añade la primera.</p>
+                  <p className="text-text-secondary text-sm text-center py-4">Sin personas. Añade la primera.</p>
                 )}
                 {people.map((p: any) => (
-                  <div key={p.id} className="flex items-center gap-2 p-3 dark:bg-bg-main bg-gray-100 rounded-xl border dark:border-border-main border-border-main-light group/mgr">
+                  <div key={p.id} className="flex items-center gap-2 p-3 bg-bg-main rounded-xl border border-border-main group/mgr">
                     <div className="w-8 h-8 rounded-xl bg-morado/20 flex items-center justify-center text-morado font-black text-sm shrink-0">
                       {p.name.charAt(0).toUpperCase()}
                     </div>
@@ -5242,10 +5179,10 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                           if (e.key === 'Escape') setEditingPersonId(null);
                         }}
                         onBlur={() => handleRenamePersonLocal(p.id, editingPersonName)}
-                        className="flex-1 dark:bg-bg-card bg-white border border-morado/50 rounded-lg px-2 py-1 text-sm dark:text-white text-text-main-light outline-none"
+                        className="flex-1 bg-bg-card border border-morado/50 rounded-lg px-2 py-1 text-sm text-white outline-none"
                       />
                     ) : (
-                      <span className="flex-1 font-bold dark:text-white text-text-main-light text-sm">{p.name}</span>
+                      <span className="flex-1 font-bold text-white text-sm">{p.name}</span>
                     )}
                     <button
                       onClick={() => { setEditingPersonId(p.id); setEditingPersonName(p.name); }}
@@ -5271,7 +5208,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                   onChange={e => setNewPersonName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleAddPerson()}
                   placeholder="Nombre..."
-                  className="flex-1 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2.5 text-sm dark:text-white text-text-main-light dark:placeholder:text-text-secondary/40 placeholder:text-text-secondary-light/40 outline-none focus:border-morado/50"
+                  className="flex-1 bg-bg-main border border-border-main rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-secondary/40 outline-none focus:border-morado/50"
                 />
                 <button
                   onClick={handleAddPerson}
@@ -5294,21 +5231,21 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-3xl p-6 shadow-2xl w-full max-w-lg z-10 max-h-[85vh] overflow-y-auto"
+              className="relative bg-bg-card border border-border-main rounded-3xl p-6 shadow-2xl w-full max-w-lg z-10 max-h-[85vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h3 className="text-lg font-black dark:text-white text-text-main-light uppercase tracking-widest">Nueva Reunión</h3>
+                  <h3 className="text-lg font-black text-white uppercase tracking-widest">Nueva Reunión</h3>
                   {newMeeting.personId && <p className="text-[11px] text-morado font-black mt-0.5">{getPersonName(newMeeting.personId)}</p>}
                 </div>
-                <button onClick={() => { setShowNewMeeting(false); setNewMeeting(null); }} className="w-8 h-8 flex items-center justify-center dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light dark:bg-bg-main bg-gray-100 rounded-xl border dark:border-border-main border-border-main-light">
+                <button onClick={() => { setShowNewMeeting(false); setNewMeeting(null); }} className="w-8 h-8 flex items-center justify-center text-text-secondary hover:text-white bg-bg-main rounded-xl border border-border-main">
                   <X size={16} />
                 </button>
               </div>
               {/* Person selector - only show if no person preselected */}
               {!newMeeting.personId && (
                 <div className="mb-4 space-y-2">
-                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block">Persona</label>
+                  <label className="text-[9px] font-black text-text-secondary uppercase tracking-widest block">Persona</label>
                   <div className="flex flex-wrap gap-2">
                     {people.map((p: any) => (
                       <button
@@ -5325,7 +5262,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                           });
                           setNewMeeting({ ...newMeeting, personId: p.id, items: allItems });
                         }}
-                        className="flex items-center gap-2 px-3 py-2 dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-[11px] font-bold dark:text-white text-text-main-light hover:border-morado/50 transition-all"
+                        className="flex items-center gap-2 px-3 py-2 bg-bg-main border border-border-main rounded-xl text-[11px] font-bold text-text-main hover:border-morado/50 transition-all"
                       >
                         <div className="w-6 h-6 rounded-lg bg-morado/20 flex items-center justify-center text-morado text-[10px] font-black">
                           {p.name.charAt(0).toUpperCase()}
@@ -5339,29 +5276,29 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block mb-2">Fecha</label>
+                  <label className="text-[9px] font-black text-text-secondary uppercase tracking-widest block mb-2">Fecha</label>
                   <input
                     type="date"
                     value={newMeeting.date}
                     onChange={e => setNewMeeting({ ...newMeeting, date: e.target.value })}
-                    className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2.5 text-sm dark:text-white text-text-main-light outline-none focus:border-morado/50"
+                    className="w-full bg-bg-main border border-border-main rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-morado/50"
                   />
                 </div>
                 <div>
-                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block mb-2">Nota general</label>
+                  <label className="text-[9px] font-black text-text-secondary uppercase tracking-widest block mb-2">Nota general</label>
                   <textarea
                     value={newMeeting.notes}
                     onChange={e => setNewMeeting({ ...newMeeting, notes: e.target.value })}
                     placeholder="Resumen de la reunión..."
                     rows={1}
                     onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                    className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2.5 text-sm dark:text-white text-text-main-light dark:placeholder:text-text-secondary/40 placeholder:text-text-secondary-light/40 outline-none focus:border-morado/50 resize-none overflow-hidden"
+                    className="w-full bg-bg-main border border-border-main rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-secondary/40 outline-none focus:border-morado/50 resize-none overflow-hidden"
                   />
                 </div>
 
                 {newMeeting.items.length > 0 && (
                   <div>
-                    <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block mb-2">Seguimiento por tarea</label>
+                    <label className="text-[9px] font-black text-text-secondary uppercase tracking-widest block mb-2">Seguimiento por tarea</label>
                     <div className="space-y-2">
                       {newMeeting.items.map((item: any, idx: number) => {
                         const task = allTasksMap[item.taskId];
@@ -5369,14 +5306,14 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                         const block = getBlock(task.blockId);
                         const tag = task.tags?.[0];
                         return (
-                          <div key={item.taskId} className={`border dark:border-border-main border-border-main-light rounded-xl overflow-hidden ${item.isSubtask ? 'ml-4 dark:bg-bg-main/50 bg-gray-50' : 'dark:bg-bg-main bg-white'}`}>
+                          <div key={item.taskId} className={`border border-border-main rounded-xl overflow-hidden ${item.isSubtask ? 'ml-4 bg-bg-main/50' : 'bg-bg-main'}`}>
                             {/* Task header with chips */}
-                            <div className="flex items-center gap-2 px-3 py-2 border-b dark:border-border-main/30 border-border-main-light/30">
+                            <div className="flex items-center gap-2 px-3 py-2 border-b border-border-main/30">
                               <div className="w-1 h-6 rounded-full shrink-0" style={{ backgroundColor: block?.color || '#666' }} />
                               <div className="flex-1 min-w-0">
-                                <p className="text-[10px] font-black dark:text-white text-text-main-light uppercase tracking-wider truncate">{task.title}</p>
+                                <p className="text-[10px] font-black text-white uppercase tracking-wider truncate">{task.title}</p>
                                 <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                                  {block && <span className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light">{block.icon} {block.name}</span>}
+                                  {block && <span className="text-[8px] font-black text-text-secondary">{block.icon} {block.name}</span>}
                                   {task.dueDate && (
                                     <span className="text-[8px] font-black text-turquesa px-1 py-0.5 bg-turquesa/10 rounded-md">
                                       {new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(parseLocalISO(task.dueDate))}

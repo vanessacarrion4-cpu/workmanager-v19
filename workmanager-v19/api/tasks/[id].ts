@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+ import { createClient } from '@supabase/supabase-js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 const supabase = createClient(
@@ -6,38 +6,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 )
 
-function toSnakeCase(task: any) {
-  return {
-    block_id: task.blockId ?? task.block_id ?? null,
-    parent_task_id: task.parentTaskId ?? task.parent_task_id ?? null,
-    template_id: task.templateId ?? task.template_id ?? null,
-    instance_date: task.instanceDate ?? task.instance_date ?? null,
-    title: task.title ?? '',
-    notes: task.notes ?? '',
-    priority: task.priority ?? 'media',
-    status: task.status ?? 'pending',
-    due_date: task.dueDate ?? task.due_date ?? null,
-    due_time: task.dueTime ?? task.due_time ?? null,
-    estimated_minutes: task.estimatedMinutes ?? task.estimated_minutes ?? 0,
-    tags: task.tags ?? [],
-    task_type: task.taskType ?? task.task_type ?? null,
-    is_template: task.isTemplate ?? task.is_template ?? false,
-    is_exception: task.isException ?? task.is_exception ?? false,
-    is_deleted: task.isDeleted ?? task.is_deleted ?? false,
-    is_expanded: task.isExpanded ?? task.is_expanded ?? false,
-    order: task.order ?? 0,
-    delegation: task.delegation ?? null,
-    recurrence: task.recurrence ?? null,
-    modified_at: new Date().toISOString(),
-  }
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, DELETE, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
-  if (req.method === 'OPTIONS') return res.status(200).end()
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
 
   const { id } = req.query
 
@@ -53,13 +29,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'PUT') {
-    const row = toSnakeCase(req.body)
+    const updates = req.body
 
     const { data, error } = await supabase
       .from('tasks')
-      .update(row)
+      .update(updates)
       .eq('id', id)
       .select()
+      
 
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ task: data })
