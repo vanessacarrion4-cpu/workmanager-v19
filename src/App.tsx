@@ -62,6 +62,7 @@ import {
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { WorkBlock, Task, ViewType, TagType, SubtaskTemplate, Priority, TimeEntry, Person, DelegationMeeting } from './types';
 import { INITIAL_BLOCKS, TAG_LABELS, MOCK_TASKS, COLORS } from './constants';
+import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { 
   getTaskLevel, 
@@ -85,8 +86,8 @@ export default function App() {
     const saved = localStorage.getItem('workmanager-theme');
     return saved !== 'light'; // Por defecto dark mode
   });
-  const [blocks, setBlocks] = useState<WorkBlock[]>(INITIAL_BLOCKS);
-  const [tasks, setTasks] = useState<Record<string, Task>>(MOCK_TASKS);
+  const [blocks, setBlocks] = useState<WorkBlock[]>([]);
+  const [tasks, setTasks] = useState<Record<string, Task>>({});
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,39 +133,101 @@ export default function App() {
  
   // --- Initialization & Sync ---
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const data = JSON.parse(saved);
-        if (data.blocks) setBlocks(data.blocks);
-        if (data.tasks) setTasks(data.tasks);
-        if (data.timeEntries) setTimeEntries(data.timeEntries);
-        if (data.activeTimer) setActiveTimer(data.activeTimer);
-        if (data.people) setPeople(data.people);
-        if (data.meetings) setMeetings(data.meetings);
-      } else {
-        setTasks(MOCK_TASKS);
+    const loadFromSupabase = async () => {
+      try {
+        console.log('[SUPABASE] Loading initial data...');
+        
+        // Cargar bloques
+        const { data: blocksData, error: blocksError } = await supabase
+          .from('work_blocks')
+          .select('*')
+          .order('order', { ascending: true });
+
+        if (blocksError) throw blocksError;
+
+        // Cargar tareas (excluyendo eliminadas y sin templateId para evitar instancias duplicadas)
+        const { data: tasksData, error: tasksError } = await supabase
+          .from('tasks')
+          .select('*')
+          .or('is_deleted.is.null,is_deleted.eq.false')
+          .is('template_id', null) // Solo cargar templates y tareas manuales, no instancias
+          .order('order', { ascending: true });
+
+        if (tasksError) throw tasksError;
+
+        console.log('[SUPABASE] Loaded:', { blocks: blocksData?.length, tasks: tasksData?.length });
+
+        // Mapear bloques
+        if (blocksData && blocksData.length > 0) {
+          const mappedBlocks = blocksData.map((b: any) => ({
+            id: b.id,
+            name: b.name,
+            color: b.color,
+            icon: b.icon,
+            order: b.order || 0
+          }));
+          setBlocks(mappedBlocks);
+        } else {
+          setBlocks(INITIAL_BLOCKS); // Fallback
+        }
+
+        // Mapear tareas
+        if (tasksData && tasksData.length > 0) {
+          const mappedTasks: Record<string, Task> = {};
+          tasksData.forEach((t: any) => {
+            mappedTasks[t.id] = {
+              id: t.id,
+              blockId: t.block_id,
+              title: t.title,
+              notes: t.notes,
+              priority: t.priority,
+              status: t.status,
+              dueDate: t.due_date,
+              dueTime: t.due_time,
+              completedAt: t.completed_at,
+              estimatedMinutes: t.estimated_minutes,
+              actualMinutes: t.actual_minutes,
+              totalEstimatedCombo: t.total_estimated_combo,
+              totalRegisteredCombo: t.total_registered_combo,
+              tags: t.tags || [],
+              order: t.order,
+              isTemplate: t.is_template,
+              isActive: t.is_active !== false, // Default true
+              isException: t.is_exception,
+              isDeleted: t.is_deleted,
+              isExpanded: t.is_expanded,
+              taskType: t.task_type,
+              parentTaskId: t.parent_task_id,
+              templateId: t.template_id,
+              instanceDate: t.instance_date,
+              recurrence: t.recurrence,
+              delegation: t.delegation,
+              createdAt: t.created_at,
+              modifiedAt: t.modified_at,
+              deletedAt: t.deleted_at
+            };
+          });
+          setTasks(mappedTasks);
+        }
+
+        setIsDataLoaded(true);
+        console.log('[SUPABASE] Data loaded successfully');
+      } catch (e) {
+        console.error("[SUPABASE] Error loading data:", e);
+        // Fallback a datos iniciales si falla
+        setBlocks(INITIAL_BLOCKS);
+        setIsDataLoaded(true);
       }
-    } catch (e) {
-      console.error("Error loading data", e);
-    }
-    setIsDataLoaded(true);
+    };
+
+    loadFromSupabase();
   }, []);
  
-  useEffect(() => {
-    if (!isDataLoaded) return;
-    try {
-      // Guardar plantillas/manuales + instancias que son excepciones (fecha cambiada)
-      const tasksToSave = Object.fromEntries(
-        Object.entries(tasks).filter(([, t]) => 
-          !t.templateId || t.isException
-        )
-      );
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ blocks, tasks: tasksToSave, timeEntries, activeTimer, people, meetings }));
-    } catch (e) {
-      console.error("Error saving data", e);
-    }
-  }, [blocks, tasks, timeEntries, activeTimer, people, meetings, isDataLoaded]);
+  // Guardado automático desactivado - ahora se guarda directamente en Supabase en cada operación
+  // useEffect(() => {
+  //   if (!isDataLoaded) return;
+  //   localStorage.setItem(STORAGE_KEY, JSON.stringify({ blocks, tasks: tasksToSave, timeEntries, activeTimer, people, meetings }));
+  // }, [blocks, tasks, timeEntries, activeTimer, people, meetings, isDataLoaded]);
  
   const handleRenamePerson = (id: string, name: string) => {
     setPeople((prev: any[]) => prev.map((p: any) => p.id === id ? { ...p, name } : p));
@@ -422,23 +485,41 @@ export default function App() {
     }
     setTasks(updatedTasks);
 
-    // --- Sync to Supabase via API ---
-    fetch('/api/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: newTask.id,
-        title: newTask.title || '',
-        blockId: newTask.blockId,
-        priority: newTask.priority,
-        status: newTask.status,
-        dueDate: newTask.dueDate || null,
-        notes: newTask.notes || '',
-        estimatedMinutes: newTask.estimatedMinutes || 0,
-        parentTaskId: newTask.parentTaskId || null,
-        isTemplate: newTask.isTemplate || false,
-      })
-    }).catch(e => console.error('[API] Error creando tarea:', e));
+    // --- Sync to Supabase ---
+    (async () => {
+      try {
+        const dbTask = {
+          id: newTask.id,
+          block_id: newTask.blockId,
+          title: newTask.title || '',
+          notes: newTask.notes || '',
+          priority: newTask.priority,
+          status: newTask.status,
+          due_date: newTask.dueDate || null,
+          due_time: newTask.dueTime || null,
+          estimated_minutes: newTask.estimatedMinutes || 0,
+          actual_minutes: newTask.actualMinutes || 0,
+          tags: newTask.tags || [],
+          order: newTask.order || 0,
+          is_template: newTask.isTemplate || false,
+          is_active: true,
+          is_deleted: false,
+          parent_task_id: newTask.parentTaskId || null,
+          template_id: newTask.templateId || null,
+          instance_date: newTask.instanceDate || null,
+          recurrence: newTask.recurrence || null,
+          delegation: newTask.delegation || null,
+          created_at: newTask.createdAt,
+          modified_at: newTask.modifiedAt
+        };
+        
+        const { error } = await supabase.from('tasks').insert([dbTask]);
+        if (error) throw error;
+        console.log('[SUPABASE] Task created:', newTask.id);
+      } catch (e) {
+        console.error('[SUPABASE] Error creating task:', e);
+      }
+    })();
 
     // Always open modal for root tasks, inline for subtasks
     if (!parentTaskId) {
@@ -551,35 +632,47 @@ export default function App() {
     setEditingTaskId(null);
     setInlineEditingTaskId(null);
 
-    // --- Sync to Supabase via API ---
-    // Si es una instancia generada en memoria (templateId presente) y el usuario la ha modificado,
-    // guardarla como excepción para que sobreviva recargas.
-    const isGeneratedInstance = !!updatedTask.templateId && !updatedTask.isException;
-    const method = isGeneratedInstance ? 'POST' : 'PUT';
-    const url = isGeneratedInstance ? '/api/tasks' : `/api/tasks/${updatedTask.id}`;
+    // --- Sync to Supabase ---
+    (async () => {
+      try {
+        const dbTask = {
+          id: updatedTask.id,
+          block_id: updatedTask.blockId,
+          title: updatedTask.title || '',
+          notes: updatedTask.notes || '',
+          priority: updatedTask.priority,
+          status: updatedTask.status,
+          due_date: updatedTask.dueDate || null,
+          due_time: updatedTask.dueTime || null,
+          completed_at: updatedTask.completedAt || null,
+          estimated_minutes: updatedTask.estimatedMinutes || 0,
+          actual_minutes: updatedTask.actualMinutes || 0,
+          total_estimated_combo: updatedTask.totalEstimatedCombo || 0,
+          total_registered_combo: updatedTask.totalRegisteredCombo || 0,
+          tags: updatedTask.tags || [],
+          order: updatedTask.order || 0,
+          is_template: updatedTask.isTemplate || false,
+          is_active: updatedTask.isActive !== false,
+          is_exception: updatedTask.isException || false,
+          is_deleted: updatedTask.isDeleted || false,
+          is_expanded: updatedTask.isExpanded,
+          task_type: updatedTask.taskType,
+          parent_task_id: updatedTask.parentTaskId || null,
+          template_id: updatedTask.templateId || null,
+          instance_date: updatedTask.instanceDate || null,
+          recurrence: updatedTask.recurrence || null,
+          delegation: updatedTask.delegation || null,
+          created_at: updatedTask.createdAt,
+          modified_at: new Date().toISOString()
+        };
 
-    fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: updatedTask.id,
-        title: updatedTask.title || '',
-        blockId: updatedTask.blockId,
-        priority: updatedTask.priority,
-        status: updatedTask.status,
-        dueDate: updatedTask.dueDate || null,
-        notes: updatedTask.notes || '',
-        estimatedMinutes: updatedTask.estimatedMinutes || 0,
-        parentTaskId: updatedTask.parentTaskId || null,
-        isTemplate: false,
-        isException: true,
-        templateId: updatedTask.templateId || null,
-        instanceDate: updatedTask.instanceDate || null,
-        tags: updatedTask.tags || [],
-        delegation: updatedTask.delegation || null,
-        recurrence: updatedTask.recurrence || null,
-      })
-    }).catch(e => console.error('[API] Error actualizando tarea:', e));
+        const { error } = await supabase.from('tasks').upsert([dbTask]);
+        if (error) throw error;
+        console.log('[SUPABASE] Task updated:', updatedTask.id);
+      } catch (e) {
+        console.error('[SUPABASE] Error updating task:', e);
+      }
+    })();
   };
  
   // Subir nivel: la tarea sale de su padre y queda al mismo nivel que su padre
@@ -710,10 +803,20 @@ export default function App() {
     removeRecursive(taskId);
     setTasks(updatedTasks);
 
-    // --- Sync to Supabase via API ---
-    fetch(`/api/tasks/${taskId}`, {
-      method: 'DELETE',
-    }).catch(e => console.error('[API] Error eliminando tarea:', e));
+    // --- Soft delete in Supabase ---
+    (async () => {
+      try {
+        const { error } = await supabase
+          .from('tasks')
+          .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+          .eq('id', taskId);
+        
+        if (error) throw error;
+        console.log('[SUPABASE] Task deleted (soft):', taskId);
+      } catch (e) {
+        console.error('[SUPABASE] Error deleting task:', e);
+      }
+    })();
   };
  
   const handleDayChange = (offset: number) => {
@@ -937,6 +1040,20 @@ export default function App() {
     return map;
   }, [tasks, dashboardTasks]);
  
+  // Loading state mientras carga desde Supabase
+  if (!isDataLoaded) {
+    return (
+      <div className="min-h-screen bg-bg-main flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-turquesa border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-text-secondary font-black uppercase tracking-widest text-sm">
+            Cargando datos desde Supabase...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-bg-main text-text-main flex flex-col md:flex-row font-sans relative">
       {/* Global Timer Bar */}
@@ -5474,9 +5591,10 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                               </div>
                               <p className="text-sm text-text-secondary mt-1">{item.note}</p>
                             </div>
-                          </div>
+                          </Reorder.Item>
                         );
                       })}
+                      </Reorder.Group>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -5714,77 +5832,6 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
           </div>
         )}
       </AnimatePresence>
-
-      {/* Sistema de Backup */}
-      <BackupManager />
     </motion.div>
-  );
-}
-
-// SISTEMA DE BACKUP
-function BackupManager() {
-  const exportData = () => {
-    const backup = {
-      version: '1.0.0',
-      exportDate: new Date().toISOString(),
-      blocks: JSON.parse(localStorage.getItem('blocks') || '[]'),
-      tasks: JSON.parse(localStorage.getItem('tasks') || '{}'),
-      people: JSON.parse(localStorage.getItem('people') || '[]'),
-      meetings: JSON.parse(localStorage.getItem('meetings') || '[]'),
-      timeEntries: JSON.parse(localStorage.getItem('timeEntries') || '[]'),
-    };
-    
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `workmanager-backup-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const importData = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const backup = JSON.parse(event.target?.result as string);
-        
-        if (confirm('⚠️ Esto reemplazará todos tus datos actuales. ¿Continuar?')) {
-          localStorage.setItem('blocks', JSON.stringify(backup.blocks));
-          localStorage.setItem('tasks', JSON.stringify(backup.tasks));
-          localStorage.setItem('people', JSON.stringify(backup.people));
-          localStorage.setItem('meetings', JSON.stringify(backup.meetings));
-          localStorage.setItem('timeEntries', JSON.stringify(backup.timeEntries));
-          window.location.reload();
-        }
-      } catch (error) {
-        alert('❌ Error al importar: ' + error);
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  return (
-    <div className="fixed bottom-4 right-4 flex gap-2 z-50">
-      <button
-        onClick={exportData}
-        className="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg hover:bg-blue-600 transition-all"
-        title="Descargar backup de todos los datos"
-      >
-        💾 Exportar
-      </button>
-      <label className="bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg hover:bg-green-600 cursor-pointer transition-all">
-        📂 Importar
-        <input
-          type="file"
-          accept=".json"
-          onChange={importData}
-          className="hidden"
-        />
-      </label>
-    </div>
   );
 }
