@@ -5474,10 +5474,9 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                               </div>
                               <p className="text-sm text-text-secondary mt-1">{item.note}</p>
                             </div>
-                          </Reorder.Item>
+                          </div>
                         );
                       })}
-                      </Reorder.Group>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -5789,4 +5788,3 @@ function BackupManager() {
     </div>
   );
 }
- 
