@@ -5461,20 +5461,28 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
   };
 
   const handleStartMeeting = (personId: string) => {
-    const personTasks = delegatedTasks.filter((t: any) => t.delegation?.personId === personId);
-    const allDelegatedForPerson: any[] = [];
-    personTasks.forEach((t: any) => {
-      allDelegatedForPerson.push(t);
-      if (t.subtasks && t.subtasks.length > 0) {
-        t.subtasks.forEach((sid: string) => {
-          const sub = allTasksMap[sid];
-          if (sub && !sub.isDeleted) allDelegatedForPerson.push(sub);
-        });
-      }
-    });
+    // Solo tareas padre — misma lógica que el selector
+    const seen = new Set<string>();
+    const parentIds: string[] = [];
+
+    delegatedRootTasks
+      .filter((t: any) => t.delegation?.personId === personId)
+      .forEach((t: any) => { if (!seen.has(t.id)) { seen.add(t.id); parentIds.push(t.id); } });
+
+    delegatedSubtasks
+      .filter((t: any) => t.delegation?.personId === personId)
+      .forEach((sub: any) => {
+        const parentId = sub.parentTaskId;
+        const parent = allTasksMap[parentId];
+        if (parent && !parent.isDeleted && !seen.has(parentId)) {
+          seen.add(parentId);
+          parentIds.push(parentId);
+        }
+      });
+
     // Pre-seleccionar solo las pendientes
     const pendingIds = new Set<string>(
-      allDelegatedForPerson.filter((t: any) => t.status !== 'completed').map((t: any) => t.id)
+      parentIds.filter(id => allTasksMap[id]?.status !== 'completed')
     );
     setSelectorPersonId(personId);
     setSelectedTaskIds(pendingIds);
@@ -6113,18 +6121,36 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
               <p className="text-[11px] dark:text-text-secondary text-text-secondary-light mb-4">Selecciona las tareas que quieres tratar:</p>
               <div className="space-y-2 mb-6">
                 {(() => {
-                  const personTasks = delegatedTasks.filter((t: any) => t.delegation?.personId === selectorPersonId);
-                  const allForPerson: any[] = [];
-                  personTasks.forEach((t: any) => {
-                    allForPerson.push(t);
-                    if (t.subtasks?.length > 0) t.subtasks.forEach((sid: string) => {
-                      const sub = allTasksMap[sid];
-                      if (sub && !sub.isDeleted) allForPerson.push(sub);
+                  // Solo mostrar tareas padre para esta persona — sin subtareas individuales
+                  // Incluye: raíces delegadas directamente + contenedores padre de subtareas delegadas
+                  const seen = new Set<string>();
+                  const items: any[] = [];
+
+                  // 1) Tareas raíz delegadas directamente a esta persona
+                  delegatedRootTasks
+                    .filter((t: any) => t.delegation?.personId === selectorPersonId)
+                    .forEach((t: any) => { if (!seen.has(t.id)) { seen.add(t.id); items.push({ task: t, subtitleIds: [] }); } });
+
+                  // 2) Contenedores padre de subtareas delegadas a esta persona
+                  delegatedSubtasks
+                    .filter((t: any) => t.delegation?.personId === selectorPersonId)
+                    .forEach((sub: any) => {
+                      const parent = allTasksMap[sub.parentTaskId];
+                      if (!parent || parent.isDeleted) return;
+                      if (seen.has(parent.id)) {
+                        // añadir subtarea al grupo existente
+                        const entry = items.find((e: any) => e.task.id === parent.id);
+                        if (entry) entry.subtitleIds.push(sub.id);
+                      } else {
+                        seen.add(parent.id);
+                        items.push({ task: parent, subtitleIds: [sub.id] });
+                      }
                     });
-                  });
-                  return allForPerson.map((task: any) => {
+
+                  return items.map(({ task, subtitleIds }: any) => {
                     const isSelected = selectedTaskIds.has(task.id);
                     const isCompleted = task.status === 'completed';
+                    const subNames = subtitleIds.map((sid: string) => allTasksMap[sid]?.title).filter(Boolean);
                     return (
                       <button
                         key={task.id}
@@ -6136,6 +6162,9 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm font-bold dark:text-white text-text-main-light truncate ${isCompleted ? 'line-through' : ''}`}>{task.title}</p>
+                          {subNames.length > 0 && (
+                            <p className="text-[9px] dark:text-text-secondary text-text-secondary-light truncate mt-0.5">{subNames.join(' · ')}</p>
+                          )}
                           {isCompleted && <span className="text-[9px] text-turquesa font-black uppercase tracking-wider">Completada</span>}
                         </div>
                       </button>
