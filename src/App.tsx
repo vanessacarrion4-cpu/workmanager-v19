@@ -2656,19 +2656,10 @@ function DashboardView({
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <Reorder.Group
-                      axis="y"
-                      values={tagTasks}
-                      onReorder={onReorderTasks}
-                      className="grid grid-cols-1 gap-4"
-                    >
-                      {tagEntries.map(({ task, subtasksForGroup }) => (
-                        <div
-                          onMouseEnter={() => setIsFrozen(true)}
-                          onMouseLeave={() => setIsFrozen(false)}
-                        >
+                    <div className="grid grid-cols-1 gap-4">
+                      {tagEntries.map(({ task, subtasksForGroup }, idx) => (
+                        <div key={`${task.id}-${tag}`}>
                         <TaskCard
-                          key={`${task.id}-${tag}`}
                           task={task}
                           variant="DASHBOARD"
                           allTasksMap={allTasksMap}
@@ -2698,10 +2689,28 @@ function DashboardView({
                           hideCompleted={hideCompleted}
                           subtasksForGroup={subtasksForGroup}
                           forceExpanded={expandAll}
+                          taskIndex={idx}
+                          taskCount={tagEntries.length}
+                          onMoveUp={() => {
+                            if (idx === 0) return;
+                            const arr = [...tagEntries];
+                            const prev = arr[idx - 1].task;
+                            const curr = arr[idx].task;
+                            onUpdateTask({ ...curr, order: prev.order ?? (idx - 1), modifiedAt: new Date().toISOString() });
+                            onUpdateTask({ ...prev, order: curr.order ?? idx, modifiedAt: new Date().toISOString() });
+                          }}
+                          onMoveDown={() => {
+                            if (idx === tagEntries.length - 1) return;
+                            const arr = [...tagEntries];
+                            const next = arr[idx + 1].task;
+                            const curr = arr[idx].task;
+                            onUpdateTask({ ...curr, order: next.order ?? (idx + 1), modifiedAt: new Date().toISOString() });
+                            onUpdateTask({ ...next, order: curr.order ?? idx, modifiedAt: new Date().toISOString() });
+                          }}
                         />
                         </div>
                       ))}
-                    </Reorder.Group>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -3711,7 +3720,11 @@ function TaskCard({
   onAddPerson = null,
   onRenamePerson = null,
   onDeletePerson = null,
-  onRecurrenceDateChange = null
+  onRecurrenceDateChange = null,
+  taskIndex = null,
+  taskCount = null,
+  onMoveUp = null,
+  onMoveDown = null,
 }: any) {
   if (!task || task.isDeleted) return null;
   const currentRootId = rootTaskId || task.id;
@@ -3863,11 +3876,7 @@ function TaskCard({
   }
  
   return (
-    <Reorder.Item 
-      value={task}
-      layout
-      className="group relative"
-    >
+    <div className="group relative">
       <div className="space-y-2">
         <motion.div 
           onPan={(_e, info) => {
@@ -3883,9 +3892,25 @@ function TaskCard({
         >
           {/* Main Row */}
           <div className={`flex items-start ${task.status === 'completed' ? 'gap-1.5' : 'gap-3'}`}>
-            <div className="flex flex-col items-center gap-2 pt-0.5">
-              <div className="dark:text-text-secondary/20 text-text-secondary-light/20 cursor-grab active:cursor-grabbing hover:text-turquesa transition-colors">
-                <GripVertical size={16} />
+            <div className="flex flex-col items-center gap-1 pt-0.5">
+              {/* Flechitas reordenar - visibles al hover */}
+              <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => onMoveUp && onMoveUp()}
+                  disabled={taskIndex === 0}
+                  className={`w-5 h-5 flex items-center justify-center rounded-md transition-all ${taskIndex === 0 ? 'text-text-secondary/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
+                  title="Subir"
+                >
+                  <ChevronUp size={12} />
+                </button>
+                <button
+                  onClick={() => onMoveDown && onMoveDown()}
+                  disabled={taskIndex === taskCount - 1}
+                  className={`w-5 h-5 flex items-center justify-center rounded-md transition-all ${taskIndex === taskCount - 1 ? 'text-text-secondary/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
+                  title="Bajar"
+                >
+                  <ChevronDown size={12} />
+                </button>
               </div>
               <button 
                 onClick={() => onToggleStatus(task.id)}
@@ -4125,7 +4150,7 @@ function TaskCard({
           )}
         </AnimatePresence>
       </div>
-    </Reorder.Item>
+    </div>
   );
 }
  
@@ -5578,18 +5603,8 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
 
                 {/* Tasks list */}
                 {isOpen && (
-                  <div className="border-t dark:border-border-main border-border-main-light/50">
-                      <Reorder.Group
-                        axis="y"
-                        values={personTasks}
-                        onReorder={(reordered: any[]) => {
-                          reordered.forEach((t: any, idx: number) => {
-                            if (t.order !== idx) onUpdateTask({ ...t, order: idx, modifiedAt: new Date().toISOString() });
-                          });
-                        }}
-                        className="divide-y dark:divide-border-main divide-border-main-light"
-                      >
-                      {personTasks.map((task: any) => {
+                  <div className="border-t dark:border-border-main border-border-main-light/50 divide-y dark:divide-border-main divide-border-main-light">
+                      {personTasks.map((task: any, taskIdx: number) => {
                         const block = getBlock(task.blockId);
                         const tag = task.tags?.[0];
                         const hasSubtasks = task.subtasks && task.subtasks.length > 0;
@@ -5597,11 +5612,45 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                         const subtaskList = hasSubtasks
                           ? (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted)
                           : [];
+
+                        const handleMoveUp = () => {
+                          if (taskIdx === 0) return;
+                          const prev = personTasks[taskIdx - 1];
+                          const curr = task;
+                          onUpdateTask({ ...curr, order: prev.order ?? (taskIdx - 1), modifiedAt: new Date().toISOString() });
+                          onUpdateTask({ ...prev, order: curr.order ?? taskIdx, modifiedAt: new Date().toISOString() });
+                        };
+                        const handleMoveDown = () => {
+                          if (taskIdx === personTasks.length - 1) return;
+                          const next = personTasks[taskIdx + 1];
+                          const curr = task;
+                          onUpdateTask({ ...curr, order: next.order ?? (taskIdx + 1), modifiedAt: new Date().toISOString() });
+                          onUpdateTask({ ...next, order: curr.order ?? taskIdx, modifiedAt: new Date().toISOString() });
+                        };
+
                         return (
-                          <Reorder.Item key={task.id} value={task} className={`border-b dark:border-border-main border-border-main-light/30 last:border-0 ${task.status === 'completed' ? 'opacity-50' : ''}`}>
+                          <div key={task.id} className={`border-b dark:border-border-main border-border-main-light/30 last:border-0 ${task.status === 'completed' ? 'opacity-50' : ''}`}>
                             {/* Task row */}
                             <div className="flex items-center gap-3 px-4 py-3 hover:dark:bg-white/2 hover:bg-gray-50 transition-all group/trow">
-                              <GripVertical size={14} className="dark:text-text-secondary/30 text-text-secondary-light/30 hover:dark:text-text-secondary hover:text-text-secondary-light cursor-grab active:cursor-grabbing shrink-0" />
+                              {/* Flechitas reordenar */}
+                              <div className="flex flex-col gap-0.5 opacity-0 group-hover/trow:opacity-100 transition-opacity shrink-0">
+                                <button
+                                  onClick={handleMoveUp}
+                                  disabled={taskIdx === 0}
+                                  className={`w-5 h-5 flex items-center justify-center rounded transition-all ${taskIdx === 0 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
+                                  title="Subir"
+                                >
+                                  <ChevronUp size={12} />
+                                </button>
+                                <button
+                                  onClick={handleMoveDown}
+                                  disabled={taskIdx === personTasks.length - 1}
+                                  className={`w-5 h-5 flex items-center justify-center rounded transition-all ${taskIdx === personTasks.length - 1 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
+                                  title="Bajar"
+                                >
+                                  <ChevronDown size={12} />
+                                </button>
+                              </div>
                               <div className="w-1 h-full min-h-[2.5rem] rounded-full shrink-0" style={{ backgroundColor: block?.color || '#666' }} />
                               <button
                                 onClick={() => onUpdateTask({ ...task, status: task.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
@@ -5732,10 +5781,9 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                 </motion.div>
                               )}
                             </AnimatePresence>
-                          </Reorder.Item>
+                          </div>
                         );
                       })}
-                      </Reorder.Group>
                   </div>
                 )}
               </div>
