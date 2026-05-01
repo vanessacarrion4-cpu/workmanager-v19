@@ -2613,13 +2613,13 @@ function DashboardView({
       <div className="h-px dark:bg-border-main/50 bg-border-main-light/50" />
  
       {/* Task Groups */}
-      <div className="space-y-4 pb-32">
+      <div className="space-y-3 pb-32">
         {(Object.entries(groupedTasks) as [TagType, { task: Task, subtasksForGroup: string[] | null }[]][]).map(([tag, tagEntries]) => {
           if (tagEntries.length === 0) return null;
           const isBlockExpanded = expandedBlocks.has(tag);
           const tagTasks = tagEntries.map(e => e.task);
           return (
-            <div key={tag} className="space-y-3">
+            <div key={tag} className="space-y-2">
               <div className="flex items-center justify-between dark:border-border-main/50 border-border-main-light/50 border-b pb-2">
                 <button 
                   onClick={() => {
@@ -4050,7 +4050,7 @@ function TaskCard({
               </div>
             </div>
 
-            {/* Botones acción - siempre visibles, columna derecha */}
+            {/* Botones acción - una sola fila */}
             <div className="flex flex-col gap-1 shrink-0">
               <div className="flex items-center gap-1">
                 <button 
@@ -4077,7 +4077,7 @@ function TaskCard({
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 {task.parentTaskId && (
                   <button 
                     onClick={() => onPromote(task.id)} 
