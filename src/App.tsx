@@ -5734,12 +5734,9 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                               </div>
                               <div className="w-1 h-full min-h-[2.5rem] rounded-full shrink-0" style={{ backgroundColor: block?.color || '#666' }} />
                               <button
-                                onClick={() => !isContainerWithDelegatedSubs && onUpdateTask({ ...task, status: task.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
-                                disabled={isContainerWithDelegatedSubs}
+                                onClick={() => onUpdateTask({ ...task, status: task.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
                                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                                  isContainerWithDelegatedSubs
-                                    ? 'border-border-main opacity-20 cursor-default'
-                                    : task.status === 'completed'
+                                  task.status === 'completed'
                                     ? 'bg-turquesa border-turquesa text-white'
                                     : 'dark:border-border-main border-border-main-light hover:border-turquesa'
                                 }`}
@@ -5834,32 +5831,58 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                   className="border-t dark:border-border-main border-border-main-light/20"
                                 >
                                   {subtaskList.map((sub: any) => {
-                                    const subPerson = sub.delegation ? people.find((p: any) => p.id === sub.delegation.personId) : null;
                                     return (
-                                      <div key={sub.id} className="flex items-center gap-3 pl-12 pr-4 py-2.5 hover:bg-white/1 transition-all border-b dark:border-border-main border-border-main-light/10 last:border-0 group/subrow">
-                                        <div className="w-0.5 h-5 rounded-full bg-border-main shrink-0" />
+                                      <div key={sub.id} className={`flex items-center gap-3 pl-8 pr-4 py-3 hover:dark:bg-white/2 hover:bg-gray-50 transition-all border-b dark:border-border-main border-border-main-light/10 last:border-0 group/subrow ${sub.status === 'completed' ? 'opacity-50' : ''}`}>
+                                        <div className="w-0.5 h-full min-h-[2rem] rounded-full bg-border-main shrink-0" />
+                                        {/* Checkbox completar subtarea */}
+                                        <button
+                                          onClick={() => onUpdateTask({ ...sub, status: sub.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
+                                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                                            sub.status === 'completed'
+                                              ? 'bg-turquesa border-turquesa text-white'
+                                              : 'dark:border-border-main border-border-main-light hover:border-turquesa'
+                                          }`}
+                                        >
+                                          {sub.status === 'completed' && <Check size={10} />}
+                                        </button>
                                         <div className="flex-1 min-w-0">
-                                          <p className="font-bold dark:text-text-secondary text-text-secondary-light text-xs truncate uppercase tracking-tight">{sub.title}</p>
-                                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                                            {sub.taskType && (
-                                              <span className={`text-[8px] font-black uppercase px-1 py-0.5 rounded-full border ${sub.taskType === 'core' ? 'bg-turquesa/10 border-turquesa/20 text-turquesa' : 'bg-rosa/10 border-rosa/20 text-rosa'}`}>
-                                                {sub.taskType === 'core' ? 'Core' : 'Ad-hoc'}
-                                              </span>
-                                            )}
-                                            {sub.tags?.[0] && <span className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/60">{TAG_LABELS[sub.tags[0] as TagType]?.icon} {TAG_LABELS[sub.tags[0] as TagType]?.label}</span>}
-                                            {sub.estimatedMinutes > 0 && (
-                                              <span className="text-[8px] font-black text-azul/70 flex items-center gap-0.5"><Clock size={8} />{sub.estimatedMinutes}m</span>
-                                            )}
+                                          <p className={`font-bold dark:text-white text-text-main-light text-xs truncate uppercase tracking-tight mb-1 ${sub.status === 'completed' ? 'line-through' : ''}`}>{sub.title}</p>
+                                          <div className="flex flex-wrap items-center gap-1.5">
+                                            <DatePickerChip
+                                              value={sub.dueDate}
+                                              onChange={(date: string) => onUpdateTask({ ...sub, dueDate: date })}
+                                            />
+                                            <TagPickerChip
+                                              selectedTags={sub.tags}
+                                              onChange={(tags: TagType[]) => onUpdateTask({ ...sub, tags })}
+                                            />
+                                            <DelegationChip
+                                              delegation={sub.delegation}
+                                              people={people || []}
+                                              onChange={(delegation: any) => onUpdateTask({ ...sub, delegation })}
+                                              onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])}
+                                              onRenamePerson={onRenamePerson}
+                                              onDeletePerson={onDeletePerson}
+                                            />
+                                            <EstimatedTimeChip
+                                              value={sub.estimatedMinutes}
+                                              onChange={(val: number) => onUpdateTask({ ...sub, estimatedMinutes: val })}
+                                              variant="mini"
+                                            />
                                           </div>
                                         </div>
-                                        {subPerson ? (
-                                          <span className="text-[9px] font-black text-morado flex items-center gap-1 shrink-0"><User size={10} />{subPerson.name}</span>
-                                        ) : (
-                                          <span className="text-[9px] dark:text-text-secondary text-text-secondary-light/30 font-black shrink-0">Sin delegar</span>
+                                        {/* Fecha delegación subtarea */}
+                                        {sub.delegation?.delegatedAt && (
+                                          <div className="text-right shrink-0">
+                                            <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Deleg.</p>
+                                            <p className="text-[10px] font-bold text-morado">
+                                              {new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(parseLocalISO(sub.delegation.delegatedAt))}
+                                            </p>
+                                          </div>
                                         )}
                                         <div className="flex items-center gap-1 opacity-0 group-hover/subrow:opacity-100 transition-all">
-                                          <button onClick={() => onEditTask && onEditTask(sub.id)} className="w-6 h-6 flex items-center justify-center text-turquesa/70 hover:text-turquesa rounded-lg transition-all"><Edit size={10} /></button>
-                                          <button onClick={() => onDeleteTask && onDeleteTask(sub.id)} className="w-6 h-6 flex items-center justify-center text-rosa/70 hover:text-rosa rounded-lg transition-all"><Trash2 size={10} /></button>
+                                          <button onClick={() => onEditTask && onEditTask(sub.id)} className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/15 rounded-lg border border-turquesa/20 transition-all"><Edit size={12} /></button>
+                                          <button onClick={() => onDeleteTask && onDeleteTask(sub.id)} className="w-7 h-7 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/15 rounded-lg border border-rosa/20 transition-all"><Trash2 size={12} /></button>
                                         </div>
                                       </div>
                                     );
