@@ -5744,9 +5744,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                 {task.status === 'completed' && <Check size={10} />}
                               </button>
                               {hasSubtasks && (
-                                <button onClick={() => toggleTask(task.id)} className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-white transition-all shrink-0">
-                                  {isTaskOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                                </button>
+                                <button onClick={() => toggleTask(task.id)} className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-white transition-all shrink-0 opacity-0 pointer-events-none select-none" aria-hidden />
                               )}
                               <div className="flex-1 min-w-0">
                                 <p className={`font-black dark:text-white text-text-main-light text-sm truncate uppercase tracking-tight mb-1 ${task.status === 'completed' ? 'line-through' : ''}`}>{task.title}</p>
@@ -5803,7 +5801,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                 </div>
                                 )}
                               </div>
-                              {/* Edit/Delete buttons - same as Dashboard */}
+                              {/* Edit/Delete + chevron al final */}
                               <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/trow:opacity-100 transition-all">
                                 <button
                                   onClick={() => onEditTask && onEditTask(task.id)}
@@ -5820,6 +5818,11 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                   <Trash2 size={12} />
                                 </button>
                               </div>
+                              {hasSubtasks && (
+                                <button onClick={() => toggleTask(task.id)} className="w-7 h-7 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all shrink-0">
+                                  {isTaskOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                                </button>
+                              )}
                             </div>
                             {/* Subtasks expandable */}
                             <AnimatePresence>
@@ -5828,7 +5831,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                   initial={{ height: 0, opacity: 0 }}
                                   animate={{ height: 'auto', opacity: 1 }}
                                   exit={{ height: 0, opacity: 0 }}
-                                  className="border-t dark:border-border-main border-border-main-light/20 ml-16 border-l dark:border-l-border-main/30 border-l-border-main-light/30"
+                                  className="border-t dark:border-border-main border-border-main-light/20 ml-20 border-l dark:border-l-border-main/30 border-l-border-main-light/30"
                                 >
                                   {subtaskList.map((sub: any) => {
                                     return (
