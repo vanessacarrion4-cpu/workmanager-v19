@@ -2281,11 +2281,25 @@ function DashboardView({
   const stats = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
     
-    // Contar solo tareas HOJA (sin subtareas) del día actual
-    const leafTasks = dayTasks.filter((t: any) => {
-      if (!activeBlockIds.has(t.blockId)) return false;
-      // Es hoja si NO tiene subtareas o tiene array vacío
-      return !t.subtasks || t.subtasks.length === 0;
+    // Recoger todas las tareas hoja del día:
+    // 1) Tareas raíz sin subtareas con dueDate === activeDate
+    // 2) Subtareas de contenedores con dueDate === activeDate
+    const leafTasks: any[] = [];
+
+    dayTasks.forEach((t: any) => {
+      if (!activeBlockIds.has(t.blockId)) return;
+      if (!t.subtasks || t.subtasks.length === 0) {
+        // Tarea hoja raíz
+        leafTasks.push(t);
+      } else {
+        // Contenedor — contar sus subtareas del día
+        (t.subtasks || []).forEach((subId: string) => {
+          const sub = allTasksMap[subId];
+          if (sub && !sub.isDeleted && sub.dueDate === activeDate) {
+            leafTasks.push(sub);
+          }
+        });
+      }
     });
 
     const total = leafTasks.length;
@@ -2294,35 +2308,12 @@ function DashboardView({
     const completed = completedTasks.length;
     const pending = pendingTasks.length;
 
-    // Helper: calcular tiempo estimado filtrando subtareas por día en Dashboard
-    const getEstimatedForDay = (taskId: string) => {
-      const task = allTasksMap[taskId];
-      if (!task) return 0;
-      
-      // Si es contenedor (sin fecha, con subtareas), sumar solo subtareas del día
-      const isContainer = !task.dueDate && task.subtasks && task.subtasks.length > 0;
-      if (isContainer) {
-        return (task.subtasks || []).reduce((acc: number, subId: string) => {
-          const sub = allTasksMap[subId];
-          if (!sub || sub.dueDate !== activeDate) return acc;
-          return acc + getTaskEstimatedCombo(subId, allTasksMap);
-        }, 0);
-      }
-      
-      // Tarea normal: usar getTaskEstimatedCombo
-      return getTaskEstimatedCombo(taskId, allTasksMap);
-    };
+    // Tiempo estimado
+    const estimatedTotal = leafTasks.reduce((acc: number, t: any) => acc + getTaskEstimatedCombo(t.id, allTasksMap), 0);
+    const estimatedCompleted = completedTasks.reduce((acc: number, t: any) => acc + getTaskEstimatedCombo(t.id, allTasksMap), 0);
+    const estimatedPending = pendingTasks.reduce((acc: number, t: any) => acc + getTaskEstimatedCombo(t.id, allTasksMap), 0);
 
-    // Tiempo estimado: filtrar subtareas por día para contenedores
-    const estimatedPending = pendingTasks.reduce((acc: number, t: any) => {
-      return acc + getEstimatedForDay(t.id);
-    }, 0);
-    const estimatedCompleted = completedTasks.reduce((acc: number, t: any) => {
-      return acc + getEstimatedForDay(t.id);
-    }, 0);
-    const estimatedTotal = estimatedPending + estimatedCompleted;
-
-    // Tiempo registrado: todos los timeEntries del día actual (independiente de completado/pendiente)
+    // Tiempo registrado del día
     const registered = timeEntries
       .filter((e: any) => e && e.date === activeDate)
       .reduce((acc: number, e: any) => acc + (e.duration || 0), 0);
