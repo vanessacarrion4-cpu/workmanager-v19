@@ -59,4 +59,4 @@ body.light {
 .light ::-webkit-scrollbar { width: 8px; height: 8px; }
 .light ::-webkit-scrollbar-track { background: #F1F5F9; }
 .light ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
-.light ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }"/* Clean deployment */" 
+.light ::-webkit-scrollbar-thumb:hover { background: #94A3B8; } 
