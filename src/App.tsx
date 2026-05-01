@@ -164,7 +164,8 @@ export default function App() {
             name: b.name,
             color: b.color,
             icon: b.icon,
-            order: b.order || 0
+            order: b.order || 0,
+            isActive: b.is_active !== false // Default true
           }));
           setBlocks(mappedBlocks);
         } else {
