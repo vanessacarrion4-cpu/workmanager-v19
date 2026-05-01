@@ -5828,7 +5828,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                   initial={{ height: 0, opacity: 0 }}
                                   animate={{ height: 'auto', opacity: 1 }}
                                   exit={{ height: 0, opacity: 0 }}
-                                  className="border-t dark:border-border-main border-border-main-light/20 ml-10 border-l dark:border-l-border-main/30 border-l-border-main-light/30"
+                                  className="border-t dark:border-border-main border-border-main-light/20 ml-16 border-l dark:border-l-border-main/30 border-l-border-main-light/30"
                                 >
                                   {subtaskList.map((sub: any) => {
                                     return (
