@@ -5713,116 +5713,80 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                           <div key={task.id} className={`border-b dark:border-border-main border-border-main-light/30 last:border-0 ${task.status === 'completed' ? 'opacity-50' : ''}`}>
                             {/* Task row */}
                             <div className="flex items-center gap-3 px-4 py-3 hover:dark:bg-white/2 hover:bg-gray-50 transition-all group/trow">
-                              {/* Flechitas reordenar */}
+
+                              {/* Flechitas reordenar - hover */}
                               <div className="flex flex-col gap-0.5 opacity-0 group-hover/trow:opacity-100 transition-opacity shrink-0">
-                                <button
-                                  onClick={handleMoveUp}
-                                  disabled={taskIdx === 0}
-                                  className={`w-5 h-5 flex items-center justify-center rounded transition-all ${taskIdx === 0 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
-                                  title="Subir"
-                                >
-                                  <ChevronUp size={12} />
-                                </button>
-                                <button
-                                  onClick={handleMoveDown}
-                                  disabled={taskIdx === personTasks.length - 1}
-                                  className={`w-5 h-5 flex items-center justify-center rounded transition-all ${taskIdx === totalEntries - 1 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
-                                  title="Bajar"
-                                >
-                                  <ChevronDown size={12} />
-                                </button>
+                                <button onClick={handleMoveUp} disabled={taskIdx === 0} className={`w-5 h-5 flex items-center justify-center rounded transition-all ${taskIdx === 0 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`} title="Subir"><ChevronUp size={12} /></button>
+                                <button onClick={handleMoveDown} disabled={taskIdx === totalEntries - 1} className={`w-5 h-5 flex items-center justify-center rounded transition-all ${taskIdx === totalEntries - 1 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`} title="Bajar"><ChevronDown size={12} /></button>
                               </div>
+
+                              {/* Barra color bloque */}
                               <div className="w-1 h-full min-h-[2.5rem] rounded-full shrink-0" style={{ backgroundColor: block?.color || '#666' }} />
+
+                              {/* Checkbox */}
                               <button
                                 onClick={() => onUpdateTask({ ...task, status: task.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
-                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                                  task.status === 'completed'
-                                    ? 'bg-turquesa border-turquesa text-white'
-                                    : 'dark:border-border-main border-border-main-light hover:border-turquesa'
-                                }`}
+                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${task.status === 'completed' ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light hover:border-turquesa'}`}
                               >
                                 {task.status === 'completed' && <Check size={10} />}
                               </button>
-                              {hasSubtasks && (
-                                <button onClick={() => toggleTask(task.id)} className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-white transition-all shrink-0 opacity-0 pointer-events-none select-none" aria-hidden />
-                              )}
+
+                              {/* Título + info */}
                               <div className="flex-1 min-w-0">
-                                <p className={`font-black dark:text-white text-text-main-light text-sm truncate uppercase tracking-tight mb-1 ${task.status === 'completed' ? 'line-through' : ''}`}>{task.title}</p>
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
-                                  {!hasSubtasks && (
-                                    <DatePickerChip
-                                      value={task.dueDate}
-                                      onChange={(date: string) => onUpdateTask({ ...task, dueDate: date })}
-                                    />
+                                <p className={`font-black dark:text-white text-text-main-light text-sm truncate uppercase tracking-tight ${task.status === 'completed' ? 'line-through' : ''}`}>{task.title}</p>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                  {/* Contenedor: solo bloque + badge subtareas */}
+                                  {isContainerWithDelegatedSubs ? (
+                                    <>
+                                      {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
+                                      <span className="text-[8px] dark:text-text-secondary text-text-secondary-light/40 font-black">{subtaskList.length} subtarea{subtaskList.length !== 1 ? 's' : ''} delegada{subtaskList.length !== 1 ? 's' : ''}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
+                                      <DatePickerChip value={task.dueDate} onChange={(date: string) => onUpdateTask({ ...task, dueDate: date })} />
+                                      <TagPickerChip selectedTags={task.tags} onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} />
+                                      <DelegationChip delegation={task.delegation} people={people || []} onChange={(delegation: any) => onUpdateTask({ ...task, delegation })} onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])} onRenamePerson={onRenamePerson} onDeletePerson={onDeletePerson} />
+                                      <EstimatedTimeChip value={task.estimatedMinutes} onChange={(val: number) => onUpdateTask({ ...task, estimatedMinutes: val })} variant="mini" />
+                                      {hasSubtasks && <span className="text-[8px] dark:text-text-secondary text-text-secondary-light/40 font-black">{subtaskList.length} pasos</span>}
+                                    </>
                                   )}
-                                  {!hasSubtasks && (
-                                    <TagPickerChip
-                                      selectedTags={task.tags}
-                                      onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })}
-                                    />
-                                  )}
-                                  {!hasSubtasks && (
-                                    <DelegationChip
-                                      delegation={task.delegation}
-                                      people={people || []}
-                                      onChange={(delegation: any) => onUpdateTask({ ...task, delegation })}
-                                      onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])}
-                                      onRenamePerson={onRenamePerson}
-                                      onDeletePerson={onDeletePerson}
-                                    />
-                                  )}
-                                  {!hasSubtasks && (
-                                    <EstimatedTimeChip
-                                      value={task.estimatedMinutes}
-                                      onChange={(val: number) => onUpdateTask({ ...task, estimatedMinutes: val })}
-                                      variant="mini"
-                                    />
-                                  )}
-                                  {hasSubtasks && <span className="text-[8px] dark:text-text-secondary text-text-secondary-light/40 font-black">{isContainerWithDelegatedSubs ? `${subtaskList.length} subtarea${subtaskList.length !== 1 ? 's' : ''} delegada${subtaskList.length !== 1 ? 's' : ''}` : `${subtaskList.length} pasos`}</span>}
                                 </div>
                               </div>
-                              {/* Dates */}
-                              <div className="flex items-center gap-3 shrink-0">
-                                {task.dueDate && (
-                                  <div className="text-right">
-                                    <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Ejec.</p>
-                                    <p className="text-[10px] font-bold text-turquesa">
-                                      {new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(parseLocalISO(task.dueDate))}
-                                    </p>
-                                  </div>
-                                )}
-                                {task.delegation?.delegatedAt && (
-                                <div className="text-right">
-                                  <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Deleg.</p>
-                                  <p className="text-[10px] font-bold text-morado">
-                                    {new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(parseLocalISO(task.delegation.delegatedAt))}
-                                  </p>
+
+                              {/* Fechas - solo para tareas huérfanas */}
+                              {!isContainerWithDelegatedSubs && (
+                                <div className="flex items-center gap-3 shrink-0">
+                                  {task.dueDate && (
+                                    <div className="text-right">
+                                      <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Ejec.</p>
+                                      <p className="text-[10px] font-bold text-turquesa">{new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(parseLocalISO(task.dueDate))}</p>
+                                    </div>
+                                  )}
+                                  {task.delegation?.delegatedAt && (
+                                    <div className="text-right">
+                                      <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Deleg.</p>
+                                      <p className="text-[10px] font-bold text-morado">{new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(parseLocalISO(task.delegation.delegatedAt))}</p>
+                                    </div>
+                                  )}
                                 </div>
-                                )}
-                              </div>
-                              {/* Edit/Delete + chevron al final */}
-                              <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/trow:opacity-100 transition-all">
-                                <button
-                                  onClick={() => onEditTask && onEditTask(task.id)}
-                                  className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/15 rounded-lg border border-turquesa/20 transition-all"
-                                  title="Editar"
-                                >
-                                  <Edit size={12} />
-                                </button>
-                                <button
-                                  onClick={() => onDeleteTask && onDeleteTask(task.id)}
-                                  className="w-7 h-7 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/15 rounded-lg border border-rosa/20 transition-all"
-                                  title="Eliminar"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              </div>
+                              )}
+
+                              {/* Edit/Delete - hover, solo huérfanas */}
+                              {!isContainerWithDelegatedSubs && (
+                                <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/trow:opacity-100 transition-all">
+                                  <button onClick={() => onEditTask && onEditTask(task.id)} className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/15 rounded-lg border border-turquesa/20 transition-all" title="Editar"><Edit size={12} /></button>
+                                  <button onClick={() => onDeleteTask && onDeleteTask(task.id)} className="w-7 h-7 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/15 rounded-lg border border-rosa/20 transition-all" title="Eliminar"><Trash2 size={12} /></button>
+                                </div>
+                              )}
+
+                              {/* Chevron expandir - siempre visible, solo contenedores */}
                               {hasSubtasks && (
                                 <button onClick={() => toggleTask(task.id)} className="w-7 h-7 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all shrink-0">
                                   {isTaskOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                                 </button>
                               )}
+
                             </div>
                             {/* Subtasks expandable */}
                             <AnimatePresence>
