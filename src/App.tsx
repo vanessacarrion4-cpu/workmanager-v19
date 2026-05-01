@@ -220,6 +220,30 @@ export default function App() {
               mappedTasks[task.parentTaskId].subtasks.push(task.id);
             }
           });
+          
+          // DEBUG: Log de tarea Aragón
+          const aragon = Object.values(mappedTasks).find((t: any) => t.title && t.title.includes('Arag'));
+          if (aragon) {
+            console.log('[DEBUG] Aragón found:', {
+              id: aragon.id,
+              title: aragon.title,
+              dueDate: aragon.dueDate,
+              subtasks: aragon.subtasks,
+              subtaskCount: aragon.subtasks?.length
+            });
+            
+            // Log de cada subtarea
+            aragon.subtasks?.forEach((subId: string) => {
+              const sub = mappedTasks[subId];
+              console.log('[DEBUG] Subtask:', {
+                id: sub.id,
+                title: sub.title,
+                dueDate: sub.dueDate,
+                parentTaskId: sub.parentTaskId
+              });
+            });
+          }
+          
           setTasks(mappedTasks);
         }
 
