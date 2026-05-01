@@ -3951,7 +3951,7 @@ function TaskCard({
                     }}
                     placeholder="Título de la tarea..."
                   />
-                  {/* Chevron expandir subtareas - junto al título */}
+                  {/* Chevron expandir - justo al lado del título */}
                   {hasSubtasks && (
                     <button 
                       onClick={() => onToggleExpand(task.id)}
@@ -3960,15 +3960,15 @@ function TaskCard({
                       {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                     </button>
                   )}
+                </div>
+
+                {/* Fila chips - incluye badge bloque al inicio */}
+                <div className="flex flex-wrap items-center gap-1">
                   {/* Badge bloque */}
                   <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border tracking-tighter whitespace-nowrap shadow-sm dark:bg-bg-main bg-white dark:border-border-main border-border-main-light flex items-center gap-1.5 shrink-0" style={{ color: block.color }}>
                     <span>{block.icon}</span>
                     {block.name && <span>{block.name}</span>}
                   </span>
-                </div>
-
-                {/* Fila chips */}
-                <div className="flex flex-wrap items-center gap-1">
                   <TaskTypeChip 
                     value={task.taskType || (isTaskRepetitive(task.id, allTasksMap) ? 'core' : 'adhoc')} 
                     onChange={(val: string) => onUpdateTask({ ...task, taskType: val })} 
