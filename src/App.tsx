@@ -2613,13 +2613,13 @@ function DashboardView({
       <div className="h-px dark:bg-border-main/50 bg-border-main-light/50" />
  
       {/* Task Groups */}
-      <div className="space-y-8 pb-32">
+      <div className="space-y-4 pb-32">
         {(Object.entries(groupedTasks) as [TagType, { task: Task, subtasksForGroup: string[] | null }[]][]).map(([tag, tagEntries]) => {
           if (tagEntries.length === 0) return null;
           const isBlockExpanded = expandedBlocks.has(tag);
           const tagTasks = tagEntries.map(e => e.task);
           return (
-            <div key={tag} className="space-y-6">
+            <div key={tag} className="space-y-3">
               <div className="flex items-center justify-between dark:border-border-main/50 border-border-main-light/50 border-b pb-2">
                 <button 
                   onClick={() => {
@@ -2659,7 +2659,7 @@ function DashboardView({
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 gap-2">
                       {(() => {
                         // Aplicar orden local si existe
                         const localOrder = localTagOrders[tag];
@@ -4107,14 +4107,14 @@ function TaskCard({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className={`border-l-2 dark:border-border-main/20 border-border-main-light/20 space-y-2.5 py-1.5 ${level === 1 ? "ml-4 pl-3" : "ml-6 pl-4"}`}
+              className={`border-l-2 dark:border-border-main/20 border-border-main-light/20 space-y-1.5 py-1.5 ${level === 1 ? "ml-4 pl-3" : "ml-6 pl-4"}`}
             >
               {hasSubtasks && (
                 <Reorder.Group 
                   axis="y" 
                   values={task.subtasks.map((sid: string) => allTasksMap[sid]).filter(Boolean)} 
                   onReorder={(newSubtasks: any[]) => onReorderSubtasks(task.id, newSubtasks.map(t => t.id))}
-                  className="space-y-2.5"
+                  className="space-y-1.5"
                 >
                   {(subtasksForGroup || task.subtasks)
                     .filter((subId: string) => {
