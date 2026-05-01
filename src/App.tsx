@@ -2659,7 +2659,7 @@ function DashboardView({
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <div className="grid grid-cols-1 gap-2">
+                    <div className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] shadow-xl overflow-hidden divide-y dark:divide-border-main divide-border-main-light">
                       {(() => {
                         // Aplicar orden local si existe
                         const localOrder = localTagOrders[tag];
@@ -3891,24 +3891,15 @@ function TaskCard({
  
   return (
     <div className="group relative">
-      <div className="space-y-2">
-        <motion.div 
-          onPan={(_e, info) => {
-            setDragX(info.offset.x);
-          }}
-          onPanEnd={(_e, info) => {
-            if (info.offset.x > 80) onDemote(task.id);
-            else if (info.offset.x < -80) onPromote(task.id);
-            setDragX(0);
-          }}
-          animate={{ x: dragX * 0.4 }}
-          className={`dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-[2rem] shadow-xl relative transition-all dark:hover:border-border-main/80 hover:border-border-main-light/80 ${task.status === 'completed' ? 'opacity-50' : ''} p-1.5`}
+      <div>
+        <div
+          className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''}`}
         >
           {/* Barra color bloque - lado izquierdo */}
-          <div className="absolute top-0 left-0 w-1 h-full rounded-l-[2rem]" style={{ backgroundColor: block.color }} />
+          <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: block.color }} />
 
           {/* Main Row */}
-          <div className="flex items-center gap-2 pl-2">
+          <div className="flex items-center gap-2 px-4 py-2.5 pl-5">
 
             {/* Flechitas reordenar - hover */}
             <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -4098,8 +4089,8 @@ function TaskCard({
             </div>
 
           </div>
-        </motion.div>
- 
+        </div>
+
         {/* Subtasks */}
         <AnimatePresence>
           {isExpanded && (
@@ -4107,14 +4098,14 @@ function TaskCard({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className={`border-l-2 dark:border-border-main/20 border-border-main-light/20 space-y-1.5 py-1.5 ${level === 1 ? "ml-4 pl-3" : "ml-6 pl-4"}`}
+              className={`border-l-2 dark:border-border-main/20 border-border-main-light/20 space-y-0 ${level === 1 ? "ml-5 pl-3" : "ml-7 pl-4"}`}
             >
               {hasSubtasks && (
                 <Reorder.Group 
                   axis="y" 
                   values={task.subtasks.map((sid: string) => allTasksMap[sid]).filter(Boolean)} 
                   onReorder={(newSubtasks: any[]) => onReorderSubtasks(task.id, newSubtasks.map(t => t.id))}
-                  className="space-y-1.5"
+                  className="space-y-0 divide-y dark:divide-border-main/20 divide-border-main-light/20"
                 >
                   {(subtasksForGroup || task.subtasks)
                     .filter((subId: string) => {
