@@ -3933,33 +3933,35 @@ function TaskCard({
             <div className="flex-1 min-w-0">
               <div className="flex flex-col gap-1">
                 {/* Fila título */}
-                <div className="flex items-center gap-2">
-                  <input 
-                    autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
-                    className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none flex-1 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
-                    value={task.title}
-                    onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
-                    onBlur={() => { 
-                      if(editingTaskId === task.id) onEditTask(null);
-                      if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
-                    }}
-                    onKeyDown={(e) => { 
-                      if(e.key === 'Enter') {
+                <div className="flex items-center gap-2 min-w-0">
+                  {/* Título + chevron pegados */}
+                  <div className="flex items-center gap-1 min-w-0 flex-1">
+                    <input 
+                      autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
+                      className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none min-w-0 flex-1 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
+                      value={task.title}
+                      onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
+                      onBlur={() => { 
                         if(editingTaskId === task.id) onEditTask(null);
                         if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
-                      }
-                    }}
-                    placeholder="Título de la tarea..."
-                  />
-                  {/* Chevron expandir - justo al lado del título */}
-                  {hasSubtasks && (
-                    <button 
-                      onClick={() => onToggleExpand(task.id)}
-                      className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all shrink-0"
-                    >
-                      {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                    </button>
-                  )}
+                      }}
+                      onKeyDown={(e) => { 
+                        if(e.key === 'Enter') {
+                          if(editingTaskId === task.id) onEditTask(null);
+                          if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
+                        }
+                      }}
+                      placeholder="Título de la tarea..."
+                    />
+                    {hasSubtasks && (
+                      <button 
+                        onClick={() => onToggleExpand(task.id)}
+                        className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all shrink-0"
+                      >
+                        {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Fila chips - incluye badge bloque al inicio */}
