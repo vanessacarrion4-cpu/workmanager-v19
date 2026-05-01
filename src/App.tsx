@@ -1437,6 +1437,7 @@ export default function App() {
                 blocks={blocks}
                 people={people}
                 meetings={meetings}
+                timeEntries={timeEntries}
                 onUpdateTask={handleUpdateTask}
                 onUpdatePeople={setPeople}
                 onUpdateMeetings={setMeetings}
@@ -5300,7 +5301,7 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
 // ============================================================
 // DELEGADAS VIEW
 // ============================================================
-function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson }: any) {
+function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson }: any) {
   const [activeTab, setActiveTab] = useState<'tareas' | 'reuniones'>('tareas');
   const [filterPersonId, setFilterPersonId] = useState<string | null>(null);
   const [expandedPersons, setExpandedPersons] = useState<Set<string>>(new Set());
@@ -5315,6 +5316,21 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [editingPersonName, setEditingPersonName] = useState('');
   const [hideCompletedDelegadas, setHideCompletedDelegadas] = useState(false);
+  // Expandir/contraer todos los contenedores de una persona
+  const [allContainersExpanded, setAllContainersExpanded] = useState<Record<string, boolean>>({});
+
+  const toggleAllContainersForPerson = (personId: string, containerIds: string[]) => {
+    const currentlyExpanded = allContainersExpanded[personId] !== false; // default true
+    if (currentlyExpanded) {
+      // contraer todos
+      setExpandedTasks(prev => { const n = new Set(prev); containerIds.forEach(id => n.delete(id)); return n; });
+      setAllContainersExpanded(prev => ({ ...prev, [personId]: false }));
+    } else {
+      // expandir todos
+      setExpandedTasks(prev => { const n = new Set(prev); containerIds.forEach(id => n.add(id)); return n; });
+      setAllContainersExpanded(prev => ({ ...prev, [personId]: true }));
+    }
+  };
 
   // Modal selector de tareas para reunión
   const [showTaskSelector, setShowTaskSelector] = useState(false);
@@ -5634,6 +5650,9 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
           )}
           {filteredByPerson.map(({ person, tasks: personTasks, entries: personEntries }: any) => {
             const isOpen = expandedPersons.has(person.id);
+            // IDs de contenedores con subtareas delegadas en esta persona
+            const containerIds = (personEntries || []).filter((e: any) => e.subtasksForGroup && e.subtasksForGroup.length > 0).map((e: any) => e.task.id);
+            const allContainersExp = allContainersExpanded[person.id] !== false;
             return (
               <div key={person.id} className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
                 {/* Person header */}
@@ -5651,6 +5670,16 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* Botón expandir/contraer todos los contenedores de esta persona */}
+                    {containerIds.length > 0 && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleAllContainersForPerson(person.id, containerIds); }}
+                        className="flex items-center gap-1.5 px-3 py-2 dark:bg-bg-main bg-gray-100 hover:bg-turquesa/10 border dark:border-border-main border-border-main-light hover:border-turquesa/30 text-turquesa rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                        title={allContainersExp ? 'Contraer contenedores' : 'Expandir contenedores'}
+                      >
+                        {allContainersExp ? <ChevronsUp size={12} /> : <ChevronsDown size={12} />}
+                      </button>
+                    )}
                     <button
                       onClick={(e) => { e.stopPropagation(); onAddTask && onAddTask(null, undefined, undefined, person.id); }}
                       className="w-8 h-8 flex items-center justify-center bg-morado dark:text-white text-text-main-light rounded-xl hover:bg-morado/80 transition-all shadow-lg shadow-morado/20"
@@ -5733,7 +5762,15 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
 
                               {/* Título + info */}
                               <div className="flex-1 min-w-0">
-                                <p className={`font-black dark:text-white text-text-main-light text-sm truncate uppercase tracking-tight ${task.status === 'completed' ? 'line-through' : ''}`}>{task.title}</p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className={`font-black dark:text-white text-text-main-light text-sm truncate uppercase tracking-tight ${task.status === 'completed' ? 'line-through' : ''}`}>{task.title}</p>
+                                  {/* Chevron junto al título */}
+                                  {hasSubtasks && (
+                                    <button onClick={() => toggleTask(task.id)} className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all shrink-0">
+                                      {isTaskOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                    </button>
+                                  )}
+                                </div>
                                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                   {/* Contenedor: solo bloque + badge subtareas */}
                                   {isContainerWithDelegatedSubs ? (
@@ -5744,10 +5781,12 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                   ) : (
                                     <>
                                       {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
+                                      <TimePickerChip value={task.dueTime || ''} onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })} />
                                       <DatePickerChip value={task.dueDate} onChange={(date: string) => onUpdateTask({ ...task, dueDate: date })} />
                                       <TagPickerChip selectedTags={task.tags} onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} />
                                       <DelegationChip delegation={task.delegation} people={people || []} onChange={(delegation: any) => onUpdateTask({ ...task, delegation })} onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])} onRenamePerson={onRenamePerson} onDeletePerson={onDeletePerson} />
                                       <EstimatedTimeChip value={task.estimatedMinutes} onChange={(val: number) => onUpdateTask({ ...task, estimatedMinutes: val })} variant="mini" />
+                                      {(() => { const reg = getTaskRegisteredSelf(task.id, timeEntries || []); return reg > 0 ? <RegisteredTimeChip value={reg} estimated={task.estimatedMinutes || 0} onClick={() => {}} /> : null; })()}
                                       {hasSubtasks && <span className="text-[8px] dark:text-text-secondary text-text-secondary-light/40 font-black">{subtaskList.length} pasos</span>}
                                     </>
                                   )}
@@ -5778,13 +5817,6 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                   <button onClick={() => onEditTask && onEditTask(task.id)} className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/15 rounded-lg border border-turquesa/20 transition-all" title="Editar"><Edit size={12} /></button>
                                   <button onClick={() => onDeleteTask && onDeleteTask(task.id)} className="w-7 h-7 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/15 rounded-lg border border-rosa/20 transition-all" title="Eliminar"><Trash2 size={12} /></button>
                                 </div>
-                              )}
-
-                              {/* Chevron expandir - siempre visible, solo contenedores */}
-                              {hasSubtasks && (
-                                <button onClick={() => toggleTask(task.id)} className="w-7 h-7 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all shrink-0">
-                                  {isTaskOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                                </button>
                               )}
 
                             </div>
@@ -5835,6 +5867,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                               onChange={(val: number) => onUpdateTask({ ...sub, estimatedMinutes: val })}
                                               variant="mini"
                                             />
+                                            {(() => { const reg = getTaskRegisteredSelf(sub.id, timeEntries || []); return reg > 0 ? <RegisteredTimeChip value={reg} estimated={sub.estimatedMinutes || 0} onClick={() => {}} /> : null; })()}
                                           </div>
                                         </div>
                                         {/* Fecha delegación subtarea */}
