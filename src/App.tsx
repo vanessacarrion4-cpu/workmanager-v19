@@ -154,8 +154,22 @@ export default function App() {
           .order('order', { ascending: true });
 
         if (tasksError) throw tasksError;
+        
+        // Cargar personas
+        const { data: personsData, error: personsError } = await supabase
+          .from('persons')
+          .select('*')
+          .order('created_at', { ascending: true });
 
-        console.log('[SUPABASE] Loaded:', { blocks: blocksData?.length, tasks: tasksData?.length });
+        if (personsError) {
+          console.warn('[SUPABASE] Error loading persons:', personsError);
+        }
+
+        console.log('[SUPABASE] Loaded:', { 
+          blocks: blocksData?.length, 
+          tasks: tasksData?.length,
+          persons: personsData?.length 
+        });
 
         // Mapear bloques
         if (blocksData && blocksData.length > 0) {
@@ -170,6 +184,17 @@ export default function App() {
           setBlocks(mappedBlocks);
         } else {
           setBlocks(INITIAL_BLOCKS); // Fallback
+        }
+        
+        // Mapear personas
+        if (personsData && personsData.length > 0) {
+          const mappedPersons = personsData.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            createdAt: p.created_at
+          }));
+          setPeople(mappedPersons);
+          console.log('[SUPABASE] Loaded persons:', mappedPersons.map(p => p.name).join(', '));
         }
 
         // Mapear tareas
@@ -243,19 +268,100 @@ export default function App() {
   //   localStorage.setItem(STORAGE_KEY, JSON.stringify({ blocks, tasks: tasksToSave, timeEntries, activeTimer, people, meetings }));
   // }, [blocks, tasks, timeEntries, activeTimer, people, meetings, isDataLoaded]);
  
-  const handleRenamePerson = (id: string, name: string) => {
-    setPeople((prev: any[]) => prev.map((p: any) => p.id === id ? { ...p, name } : p));
+  const handleAddPerson = async (person: Person) => {
+    try {
+      // Verificar si ya existe (por nombre, case-insensitive)
+      const existing = people.find(p => p.name.toLowerCase() === person.name.toLowerCase());
+      if (existing) {
+        console.log('[SUPABASE] Person already exists:', person.name);
+        return; // No crear duplicado
+      }
+      
+      // Insertar en Supabase
+      const { data, error } = await supabase
+        .from('persons')
+        .insert({
+          id: person.id,
+          name: person.name,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Actualizar estado local
+      setPeople((prev: Person[]) => [...prev, person]);
+      console.log('[SUPABASE] Person created:', person.name);
+    } catch (e) {
+      console.error('[SUPABASE] Error creating person:', e);
+      // Aún así actualizar estado local para no bloquear UX (solo si no existe)
+      const existing = people.find(p => p.name.toLowerCase() === person.name.toLowerCase());
+      if (!existing) {
+        setPeople((prev: Person[]) => [...prev, person]);
+      }
+    }
   };
 
-  const handleDeletePerson = (id: string) => {
-    setPeople((prev: any[]) => prev.filter((p: any) => p.id !== id));
-    setTasks(prev => {
-      const updated = { ...prev };
-      Object.values(updated).forEach((t: any) => {
-        if (t.delegation?.personId === id) updated[t.id] = { ...t, delegation: undefined };
+  const handleRenamePerson = async (id: string, name: string) => {
+    try {
+      // Actualizar en Supabase
+      const { error } = await supabase
+        .from('persons')
+        .update({ name })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Actualizar estado local
+      setPeople((prev: Person[]) => prev.map((p: Person) => p.id === id ? { ...p, name } : p));
+      console.log('[SUPABASE] Person renamed:', name);
+    } catch (e) {
+      console.error('[SUPABASE] Error renaming person:', e);
+      // Aún así actualizar estado local
+      setPeople((prev: Person[]) => prev.map((p: Person) => p.id === id ? { ...p, name } : p));
+    }
+  };
+
+  const handleDeletePerson = async (id: string) => {
+    try {
+      // Eliminar en Supabase
+      const { error } = await supabase
+        .from('persons')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Actualizar estado local
+      setPeople((prev: Person[]) => prev.filter((p: Person) => p.id !== id));
+      
+      // Limpiar delegaciones de tareas
+      setTasks(prev => {
+        const updated = { ...prev };
+        Object.values(updated).forEach((t: Task) => {
+          if (t.delegation?.personId === id) {
+            updated[t.id] = { ...t, delegation: undefined };
+          }
+        });
+        return updated;
       });
-      return updated;
-    });
+      
+      console.log('[SUPABASE] Person deleted');
+    } catch (e) {
+      console.error('[SUPABASE] Error deleting person:', e);
+      // Aún así actualizar estado local
+      setPeople((prev: Person[]) => prev.filter((p: Person) => p.id !== id));
+      setTasks(prev => {
+        const updated = { ...prev };
+        Object.values(updated).forEach((t: Task) => {
+          if (t.delegation?.personId === id) {
+            updated[t.id] = { ...t, delegation: undefined };
+          }
+        });
+        return updated;
+      });
+    }
   };
 
   const handleResetData = () => {
@@ -1223,7 +1329,7 @@ export default function App() {
                 allTasksMap={dashboardTasksMap}
                 blocks={blocks}
                 people={people}
-                onAddPerson={(p: any) => setPeople((prev: any[]) => [...prev, p])}
+                onAddPerson={handleAddPerson}
                 onRenamePerson={handleRenamePerson}
                 onDeletePerson={handleDeletePerson}
                 onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
@@ -1256,7 +1362,7 @@ export default function App() {
                 tasks={allActiveTasks}
                 allTasksMap={tasks}
                 people={people}
-                onAddPerson={(p: any) => setPeople((prev: any[]) => [...prev, p])}
+                onAddPerson={handleAddPerson}
                 onRenamePerson={handleRenamePerson}
                 onDeletePerson={handleDeletePerson}
                 onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
@@ -1298,7 +1404,7 @@ export default function App() {
                 allTasksMap={tasks}
                 blocks={blocks}
                 people={people}
-                onAddPerson={(p: any) => setPeople((prev: any[]) => [...prev, p])}
+                onAddPerson={handleAddPerson}
                 onRenamePerson={handleRenamePerson}
                 onDeletePerson={handleDeletePerson}
                 onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
@@ -1352,7 +1458,7 @@ export default function App() {
           task={tasks[editingTaskId]}
           allTasksMap={tasks}
           people={people}
-          onAddPerson={(p: any) => setPeople((prev: any[]) => [...prev, p])}
+          onAddPerson={handleAddPerson}
           onRenamePerson={handleRenamePerson}
           onDeletePerson={handleDeletePerson}
                 onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
@@ -1371,7 +1477,7 @@ export default function App() {
           task={tasks[editingRuleId]}
           allTasksMap={tasks}
           people={people}
-          onAddPerson={(p: any) => setPeople((prev: any[]) => [...prev, p])}
+          onAddPerson={handleAddPerson}
           onRenamePerson={handleRenamePerson}
           onDeletePerson={handleDeletePerson}
                 onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
