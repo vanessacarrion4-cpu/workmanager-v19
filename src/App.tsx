@@ -3902,205 +3902,202 @@ function TaskCard({
             setDragX(0);
           }}
           animate={{ x: dragX * 0.4 }}
-          className={`dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-[2rem] shadow-xl relative transition-all dark:hover:border-border-main/80 hover:border-border-main-light/80 ${task.status === 'completed' ? 'opacity-50 dark:bg-bg-main/30 bg-bg-main-light/30 p-1 scale-[0.85]' : 'p-1.5'}`}
+          className={`dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-[2rem] shadow-xl relative transition-all dark:hover:border-border-main/80 hover:border-border-main-light/80 ${task.status === 'completed' ? 'opacity-50' : ''} p-1.5`}
         >
+          {/* Barra color bloque - lado izquierdo */}
+          <div className="absolute top-0 left-0 w-1 h-full rounded-l-[2rem]" style={{ backgroundColor: block.color }} />
+
           {/* Main Row */}
-          <div className={`flex items-start ${task.status === 'completed' ? 'gap-1.5' : 'gap-3'}`}>
-            <div className="flex flex-col items-center gap-1 pt-0.5">
-              {/* Flechitas reordenar - visibles al hover */}
-              <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => onMoveUp && onMoveUp()}
-                  disabled={taskIndex === 0}
-                  className={`w-5 h-5 flex items-center justify-center rounded-md transition-all ${taskIndex === 0 ? 'text-text-secondary/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
-                  title="Subir"
-                >
-                  <ChevronUp size={12} />
-                </button>
-                <button
-                  onClick={() => onMoveDown && onMoveDown()}
-                  disabled={taskIndex === taskCount - 1}
-                  className={`w-5 h-5 flex items-center justify-center rounded-md transition-all ${taskIndex === taskCount - 1 ? 'text-text-secondary/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
-                  title="Bajar"
-                >
-                  <ChevronDown size={12} />
-                </button>
-              </div>
-              <button 
-                onClick={() => onToggleStatus(task.id)}
-                className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all shadow-lg ${task.status === 'completed' ? 'bg-turquesa text-white' : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-turquesa'}`}
+          <div className="flex items-center gap-2 pl-2">
+
+            {/* Flechitas reordenar - hover */}
+            <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <button
+                onClick={() => onMoveUp && onMoveUp()}
+                disabled={taskIndex === 0}
+                className={`w-5 h-5 flex items-center justify-center rounded-md transition-all ${taskIndex === 0 ? 'text-text-secondary/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
+                title="Subir"
               >
-                <CheckCircle2 size={14} />
+                <ChevronUp size={12} />
+              </button>
+              <button
+                onClick={() => onMoveDown && onMoveDown()}
+                disabled={taskIndex === taskCount - 1}
+                className={`w-5 h-5 flex items-center justify-center rounded-md transition-all ${taskIndex === taskCount - 1 ? 'text-text-secondary/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
+                title="Bajar"
+              >
+                <ChevronDown size={12} />
               </button>
             </div>
- 
+
+            {/* Checkbox */}
+            <button 
+              onClick={() => onToggleStatus(task.id)}
+              className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all shadow-lg shrink-0 ${task.status === 'completed' ? 'bg-turquesa text-white' : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-turquesa'}`}
+            >
+              <CheckCircle2 size={12} />
+            </button>
+
+            {/* Contenido: título + chips */}
             <div className="flex-1 min-w-0">
-               <div className={`flex flex-col ${task.status === 'completed' ? 'gap-0.5' : 'gap-1'}`}>
-                  <div className="flex items-center gap-2">
-                    <input 
-                      autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
-                      className="text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none flex-1 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal"
-                      value={task.title}
-                      onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
-                      onBlur={() => { 
+              <div className="flex flex-col gap-1">
+                {/* Fila título */}
+                <div className="flex items-center gap-2">
+                  <input 
+                    autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
+                    className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none flex-1 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
+                    value={task.title}
+                    onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
+                    onBlur={() => { 
+                      if(editingTaskId === task.id) onEditTask(null);
+                      if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
+                    }}
+                    onKeyDown={(e) => { 
+                      if(e.key === 'Enter') {
                         if(editingTaskId === task.id) onEditTask(null);
                         if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
-                      }}
-                      onKeyDown={(e) => { 
-                        if(e.key === 'Enter') {
-                          if(editingTaskId === task.id) onEditTask(null);
-                          if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
-                        }
-                      }}
-                      placeholder="Título de la tarea..."
-                    />
-                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border tracking-tighter whitespace-nowrap shadow-sm dark:bg-bg-main bg-white dark:border-border-main border-border-main-light flex items-center gap-1.5`} style={{ color: block.color }}>
-                      <span>{block.icon}</span>
-                      {block.name && <span>{block.name}</span>}
-                    </span>
-                  </div>
- 
-                  {/* Secondary Row (Action Chips) */}
-                  <div className="flex flex-wrap items-center gap-1">
-                    <TaskTypeChip 
-                      value={task.taskType || (isTaskRepetitive(task.id, allTasksMap) ? 'core' : 'adhoc')} 
-                      onChange={(val: string) => onUpdateTask({ ...task, taskType: val })} 
-                      isCompact={true}
-                    />
-                    {/* Contenedor (hasSubtasks): sin fecha, sin recurrencia, sin etiqueta propia */}
-                    {!hasSubtasks && (
-                      <DatePickerChip 
-                        value={task.dueDate} 
-                        onChange={(date: string) => {
-                          if (task.templateId) {
-                            onRecurrenceDateChange && onRecurrenceDateChange(task, date);
-                          } else {
-                            onUpdateTask({ ...task, dueDate: date });
-                          }
-                        }} 
-                      />
-                    )}
+                      }
+                    }}
+                    placeholder="Título de la tarea..."
+                  />
+                  {/* Chevron expandir subtareas - junto al título */}
+                  {hasSubtasks && (
+                    <button 
+                      onClick={() => onToggleExpand(task.id)}
+                      className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all shrink-0"
+                    >
+                      {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    </button>
+                  )}
+                  {/* Badge bloque */}
+                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border tracking-tighter whitespace-nowrap shadow-sm dark:bg-bg-main bg-white dark:border-border-main border-border-main-light flex items-center gap-1.5 shrink-0" style={{ color: block.color }}>
+                    <span>{block.icon}</span>
+                    {block.name && <span>{block.name}</span>}
+                  </span>
+                </div>
 
-                    {!hasSubtasks && task.dueDate && (
-                      <TimePickerChip
-                        value={task.dueTime || ''}
-                        onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })}
-                      />
-                    )}
-
-                    {!hasSubtasks && (
-                      <RecurrencePickerChip 
-                        value={task.recurrence}
-                        onChange={(rec: any) => onUpdateTask({ 
-                          ...task, 
-                          recurrence: rec || undefined,
-                          isTemplate: !!rec,
-                          dueDate: rec ? null : (task.dueDate || formatLocalISO(new Date()))
-                        })}
-                      />
-                    )}
-
-                    {!hasSubtasks && (
-                      <TagPickerChip 
-                        selectedTags={task.tags} 
-                        onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} 
-                      />
-                    )}
-
-                    {!hasSubtasks && (
-                      <DelegationChip
-                        delegation={task.delegation}
-                        people={people || []}
-                        onChange={(delegation: any) => onUpdateTask({ ...task, delegation })}
-                        onAddPerson={onAddPerson}
-                        onRenamePerson={onRenamePerson}
-                        onDeletePerson={onDeletePerson}
-                onRecurrenceDateChange={onRecurrenceDateChange}
-                      />
-                    )}
-
-                    {/* Estimado: solo lectura si es contenedor (suma de hijos), editable si tarea simple */}
-                    <EstimatedTimeChip 
-                      value={hasSubtasks ? totalEstimated : task.estimatedMinutes} 
-                      onChange={(val: number) => {
-                        if (!hasSubtasks) {
-                          onUpdateTask({ ...task, estimatedMinutes: val });
+                {/* Fila chips */}
+                <div className="flex flex-wrap items-center gap-1">
+                  <TaskTypeChip 
+                    value={task.taskType || (isTaskRepetitive(task.id, allTasksMap) ? 'core' : 'adhoc')} 
+                    onChange={(val: string) => onUpdateTask({ ...task, taskType: val })} 
+                    isCompact={true}
+                  />
+                  {!hasSubtasks && (
+                    <DatePickerChip 
+                      value={task.dueDate} 
+                      onChange={(date: string) => {
+                        if (task.templateId) {
+                          onRecurrenceDateChange && onRecurrenceDateChange(task, date);
+                        } else {
+                          onUpdateTask({ ...task, dueDate: date });
                         }
                       }} 
-                      readonly={hasSubtasks}
-                      variant={level > 1 ? 'mini' : 'default'}
                     />
- 
-                    <RegisteredTimeChip 
-                      value={totalRegistered} 
-                      estimated={totalEstimated}
-                      onClick={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)} 
+                  )}
+                  {!hasSubtasks && task.dueDate && (
+                    <TimePickerChip
+                      value={task.dueTime || ''}
+                      onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })}
                     />
- 
-                    <div className="flex items-center gap-1 ml-1">
-                      <button 
-                        onClick={() => isTimerRunning ? onStopTimer() : onStartTimer(currentRootId, level === 1 ? null : task.id)}
-                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isTimerRunning ? 'bg-rosa text-white' : 'dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light text-turquesa hover:bg-turquesa/10'}`}
-                      >
-                        {isTimerRunning ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
-                      </button>
-                      
-                      {hasSubtasks && (
-                        <button 
-                          onClick={() => onToggleExpand(task.id)}
-                          className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${isExpanded ? 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-white text-text-main-light dark:border-border-main border-border-main-light' : 'dark:bg-bg-main bg-white dark:text-text-secondary text-text-secondary-light dark:border-border-main/50 border-border-main-light/50'}`}
-                        >
-                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-               </div>
+                  )}
+                  {!hasSubtasks && (
+                    <RecurrencePickerChip 
+                      value={task.recurrence}
+                      onChange={(rec: any) => onUpdateTask({ 
+                        ...task, 
+                        recurrence: rec || undefined,
+                        isTemplate: !!rec,
+                        dueDate: rec ? null : (task.dueDate || formatLocalISO(new Date()))
+                      })}
+                    />
+                  )}
+                  {!hasSubtasks && (
+                    <TagPickerChip 
+                      selectedTags={task.tags} 
+                      onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} 
+                    />
+                  )}
+                  {!hasSubtasks && (
+                    <DelegationChip
+                      delegation={task.delegation}
+                      people={people || []}
+                      onChange={(delegation: any) => onUpdateTask({ ...task, delegation })}
+                      onAddPerson={onAddPerson}
+                      onRenamePerson={onRenamePerson}
+                      onDeletePerson={onDeletePerson}
+                      onRecurrenceDateChange={onRecurrenceDateChange}
+                    />
+                  )}
+                  <EstimatedTimeChip 
+                    value={hasSubtasks ? totalEstimated : task.estimatedMinutes} 
+                    onChange={(val: number) => { if (!hasSubtasks) onUpdateTask({ ...task, estimatedMinutes: val }); }} 
+                    readonly={hasSubtasks}
+                    variant={level > 1 ? 'mini' : 'default'}
+                  />
+                  <RegisteredTimeChip 
+                    value={totalRegistered} 
+                    estimated={totalEstimated}
+                    onClick={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)} 
+                  />
+                  <button 
+                    onClick={() => isTimerRunning ? onStopTimer() : onStartTimer(currentRootId, level === 1 ? null : task.id)}
+                    className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isTimerRunning ? 'bg-rosa text-white' : 'dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light text-turquesa hover:bg-turquesa/10'}`}
+                  >
+                    {isTimerRunning ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+                  </button>
+                </div>
+              </div>
             </div>
- 
-            <div className="flex flex-col gap-1.5 shrink-0">
-               <div className="flex items-center gap-1">
-                 <button 
-                   onClick={() => onEditTask(task.id)} 
-                   className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-lg transition-all border border-turquesa/20"
-                   title="Editar detalles completos"
-                 >
-                   <Edit size={14} />
-                 </button>
-                 <button 
-                   onClick={(e) => {
-                     e.stopPropagation();
-                     onDelete(task.id);
-                   }} 
-                   className="w-6 h-6 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/10 rounded-lg transition-all border border-rosa/20"
-                 >
-                   <Trash2 size={14} />
-                 </button>
-                 {level < 3 && <button onClick={() => onAddTask(task.id, task.blockId)} className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-lg transition-all border border-turquesa/20" title="Añadir subtarea"><Plus size={16} /></button>}
-               </div>
-               <div className="flex items-center gap-1">
-                 {task.parentTaskId && (
-                   <button 
-                     onClick={() => onPromote(task.id)} 
-                     title="Subir un nivel" 
-                     className="w-6 h-6 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-turquesa dark:bg-bg-main bg-white rounded-lg border dark:border-border-main border-border-main-light transition-all"
-                   >
-                     <ArrowUpLeft size={13} />
-                   </button>
-                 )}
-                 <button 
-                   onClick={() => onDemote(task.id)} 
-                   title="Bajar un nivel (hacerla subtarea de la anterior)" 
-                   className="w-6 h-6 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-azul dark:bg-bg-main bg-white rounded-lg border dark:border-border-main border-border-main-light transition-all"
-                 >
-                   <ArrowDownRight size={13} />
-                 </button>
-               </div>
 
+            {/* Botones acción - siempre visibles, columna derecha */}
+            <div className="flex flex-col gap-1 shrink-0">
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => onEditTask(task.id)} 
+                  className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-lg transition-all border border-turquesa/20"
+                  title="Editar"
+                >
+                  <Edit size={12} />
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onDelete(task.id); }} 
+                  className="w-6 h-6 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/10 rounded-lg transition-all border border-rosa/20"
+                  title="Eliminar"
+                >
+                  <Trash2 size={12} />
+                </button>
+                {level < 3 && (
+                  <button 
+                    onClick={() => onAddTask(task.id, task.blockId)} 
+                    className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-lg transition-all border border-turquesa/20" 
+                    title="Añadir subtarea"
+                  >
+                    <Plus size={14} />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                {task.parentTaskId && (
+                  <button 
+                    onClick={() => onPromote(task.id)} 
+                    title="Subir un nivel" 
+                    className="w-6 h-6 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-turquesa dark:bg-bg-main bg-white rounded-lg border dark:border-border-main border-border-main-light transition-all"
+                  >
+                    <ArrowUpLeft size={12} />
+                  </button>
+                )}
+                <button 
+                  onClick={() => onDemote(task.id)} 
+                  title="Bajar un nivel" 
+                  className="w-6 h-6 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-azul dark:bg-bg-main bg-white rounded-lg border dark:border-border-main border-border-main-light transition-all"
+                >
+                  <ArrowDownRight size={12} />
+                </button>
+              </div>
             </div>
+
           </div>
- 
-          <div className="absolute top-0 left-0 w-1 h-full opacity-30 rounded-l-[2rem]" style={{ backgroundColor: block.color }} />
         </motion.div>
  
         {/* Subtasks */}
@@ -5779,7 +5776,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                               {/* Título + info */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5">
-                                  <p className={`font-black dark:text-white text-text-main-light text-sm truncate uppercase tracking-tight ${task.status === 'completed' ? 'line-through' : ''}`}>{task.title}</p>
+                                  <p className={`font-black dark:text-white text-text-main-light text-[13px] truncate capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}>{task.title}</p>
                                   {/* Chevron junto al título */}
                                   {hasSubtasks && (
                                     <button onClick={() => toggleTask(task.id)} className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all shrink-0">
@@ -5872,7 +5869,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                           {sub.status === 'completed' && <Check size={10} />}
                                         </button>
                                         <div className="flex-1 min-w-0">
-                                          <p className={`font-bold dark:text-white text-text-main-light text-xs truncate uppercase tracking-tight mb-1 ${sub.status === 'completed' ? 'line-through' : ''}`}>{sub.title}</p>
+                                          <p className={`font-bold dark:text-white text-text-main-light text-xs truncate capitalize tracking-normal mb-1 ${sub.status === 'completed' ? 'line-through' : ''}`}>{sub.title}</p>
                                           <div className="flex flex-wrap items-center gap-1.5">
                                             <DatePickerChip
                                               value={sub.dueDate}
