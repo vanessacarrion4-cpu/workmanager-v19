@@ -5340,30 +5340,69 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
     setEditingPersonId(null);
   };
 
-  const delegatedTasks = Object.values(allTasksMap).filter((t: any) => t && t.delegation && !t.isDeleted && !t.isTemplate && !t.parentTaskId);
+  // Tareas raíz delegadas directamente
+  const delegatedRootTasks = Object.values(allTasksMap).filter((t: any) => t && t.delegation && !t.isDeleted && !t.isTemplate && !t.parentTaskId);
+  // Subtareas delegadas directamente
+  const delegatedSubtasks = Object.values(allTasksMap).filter((t: any) => t && t.delegation && !t.isDeleted && !t.isTemplate && t.parentTaskId);
+  // Unión para uso en modal de reunión etc.
+  const delegatedTasks = [...delegatedRootTasks, ...delegatedSubtasks];
 
   // Estado local para mantener el orden visual mientras se persiste
   const [localTaskOrders, setLocalTaskOrders] = useState<Record<string, string[]>>({});
 
+  // Tipo de entrada en la lista: tarea raíz O contenedor-con-subtareas
+  // { task: Task, subtasksForGroup: string[] | null }
   const tasksByPerson = people.map((p: any) => {
-    const raw = delegatedTasks
+    // 1) Tareas raíz delegadas a esta persona
+    const rootTasks = delegatedRootTasks
       .filter((t: any) => t.delegation?.personId === p.id)
       .filter((t: any) => !hideCompletedDelegadas || t.status !== 'completed');
-    
-    // Usar orden local si existe, si no ordenar por campo order
+
+    // 2) Subtareas delegadas a esta persona → agrupar bajo su padre
+    const subtasksForPerson = delegatedSubtasks.filter((t: any) => t.delegation?.personId === p.id);
+    const containerMap: Record<string, string[]> = {};
+    subtasksForPerson.forEach((sub: any) => {
+      if (!hideCompletedDelegadas || sub.status !== 'completed') {
+        if (!containerMap[sub.parentTaskId]) containerMap[sub.parentTaskId] = [];
+        containerMap[sub.parentTaskId].push(sub.id);
+      }
+    });
+
+    // Construir entradas: { task, subtasksForGroup }
+    // Para tareas raíz: subtasksForGroup = null
+    // Para contenedores con subtareas delegadas: subtasksForGroup = [ids de subtareas delegadas a esta persona]
+    const entries: { task: any; subtasksForGroup: string[] | null }[] = [];
+
+    // Raíces directas
+    rootTasks.forEach((t: any) => {
+      entries.push({ task: t, subtasksForGroup: null });
+    });
+
+    // Contenedores con subtareas delegadas (que no estén ya como raíz directa)
+    Object.entries(containerMap).forEach(([parentId, subIds]) => {
+      const parentTask = allTasksMap[parentId];
+      if (!parentTask || parentTask.isDeleted) return;
+      // Evitar duplicado si el propio contenedor ya está delegado a esta persona
+      if (entries.some(e => e.task.id === parentId)) return;
+      entries.push({ task: parentTask, subtasksForGroup: subIds as string[] });
+    });
+
+    // Ordenar por campo order
     const localOrder = localTaskOrders[p.id];
     let sorted;
     if (localOrder) {
       const idMap: Record<string, any> = {};
-      raw.forEach((t: any) => { idMap[t.id] = t; });
+      entries.forEach((e: any) => { idMap[e.task.id] = e; });
       sorted = localOrder.map((id: string) => idMap[id]).filter(Boolean);
-      // añadir tareas nuevas que no estén en el orden local
-      raw.forEach((t: any) => { if (!localOrder.includes(t.id)) sorted.push(t); });
+      entries.forEach((e: any) => { if (!localOrder.includes(e.task.id)) sorted.push(e); });
     } else {
-      sorted = [...raw].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+      sorted = [...entries].sort((a: any, b: any) => (a.task.order ?? 0) - (b.task.order ?? 0));
     }
-    return { person: p, tasks: sorted };
-  }).filter((g: any) => g.tasks.length > 0);
+
+    // Para compatibilidad con el render existente, extraemos .tasks como array de tareas
+    // pero también exponemos subtasksForGroup por entrada
+    return { person: p, tasks: sorted.map((e: any) => e.task), entries: sorted };
+  }).filter((g: any) => g.entries.length > 0);
 
   const filteredByPerson = filterPersonId
     ? tasksByPerson.filter((g: any) => g.person.id === filterPersonId)
@@ -5593,7 +5632,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
               <p className="text-xs mt-2 opacity-60">Delega tareas desde el Dashboard usando el chip 👤</p>
             </div>
           )}
-          {filteredByPerson.map(({ person, tasks: personTasks }: any) => {
+          {filteredByPerson.map(({ person, tasks: personTasks, entries: personEntries }: any) => {
             const isOpen = expandedPersons.has(person.id);
             return (
               <div key={person.id} className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
@@ -5608,7 +5647,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                     </div>
                     <div className="text-left">
                       <p className="font-black dark:text-white text-text-main-light uppercase tracking-widest text-sm">{person.name}</p>
-                      <p className="text-[10px] dark:text-text-secondary text-text-secondary-light">{personTasks.length} tareas delegadas</p>
+                      <p className="text-[10px] dark:text-text-secondary text-text-secondary-light">{(personEntries || personTasks).length} elemento{(personEntries || personTasks).length !== 1 ? 's' : ''} delegado{(personEntries || personTasks).length !== 1 ? 's' : ''}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -5633,37 +5672,42 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                 {/* Tasks list */}
                 {isOpen && (
                   <div className="border-t dark:border-border-main border-border-main-light/50 divide-y dark:divide-border-main divide-border-main-light">
-                      {personTasks.map((task: any, taskIdx: number) => {
+                      {(personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }))).map(({ task, subtasksForGroup: delegatedSubIds }: any, taskIdx: number) => {
                         const block = getBlock(task.blockId);
                         const tag = task.tags?.[0];
-                        const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+                        // Si hay subtasksForGroup (contenedor con subtareas delegadas), mostrar solo esas subtareas
+                        const isContainerWithDelegatedSubs = delegatedSubIds && delegatedSubIds.length > 0;
+                        const hasSubtasks = isContainerWithDelegatedSubs || (task.subtasks && task.subtasks.length > 0);
                         const isTaskOpen = expandedTasks.has(task.id);
-                        const subtaskList = hasSubtasks
-                          ? (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted)
-                          : [];
+                        const subtaskList = isContainerWithDelegatedSubs
+                          ? delegatedSubIds.map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted)
+                          : hasSubtasks
+                            ? (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted)
+                            : [];
 
                         const handleMoveUp = () => {
                           if (taskIdx === 0) return;
-                          const newOrder = [...personTasks.map((t: any) => t.id)];
+                          const allEntries = personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }));
+                          const newOrder = allEntries.map((e: any) => e.task.id);
                           [newOrder[taskIdx - 1], newOrder[taskIdx]] = [newOrder[taskIdx], newOrder[taskIdx - 1]];
                           setLocalTaskOrders(prev => ({ ...prev, [person.id]: newOrder }));
-                          // Persistir en Supabase
-                          const prev = personTasks[taskIdx - 1];
+                          const prevEntry = allEntries[taskIdx - 1];
                           const curr = task;
                           onUpdateTask({ ...curr, order: taskIdx - 1, modifiedAt: new Date().toISOString() });
-                          onUpdateTask({ ...prev, order: taskIdx, modifiedAt: new Date().toISOString() });
+                          onUpdateTask({ ...prevEntry.task, order: taskIdx, modifiedAt: new Date().toISOString() });
                         };
                         const handleMoveDown = () => {
-                          if (taskIdx === personTasks.length - 1) return;
-                          const newOrder = [...personTasks.map((t: any) => t.id)];
+                          const allEntries = personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }));
+                          if (taskIdx === allEntries.length - 1) return;
+                          const newOrder = allEntries.map((e: any) => e.task.id);
                           [newOrder[taskIdx], newOrder[taskIdx + 1]] = [newOrder[taskIdx + 1], newOrder[taskIdx]];
                           setLocalTaskOrders(prev => ({ ...prev, [person.id]: newOrder }));
-                          // Persistir en Supabase
-                          const next = personTasks[taskIdx + 1];
+                          const nextEntry = allEntries[taskIdx + 1];
                           const curr = task;
                           onUpdateTask({ ...curr, order: taskIdx + 1, modifiedAt: new Date().toISOString() });
-                          onUpdateTask({ ...next, order: taskIdx, modifiedAt: new Date().toISOString() });
+                          onUpdateTask({ ...nextEntry.task, order: taskIdx, modifiedAt: new Date().toISOString() });
                         };
+                        const totalEntries = (personEntries || personTasks).length;
 
                         return (
                           <div key={task.id} className={`border-b dark:border-border-main border-border-main-light/30 last:border-0 ${task.status === 'completed' ? 'opacity-50' : ''}`}>
@@ -5682,7 +5726,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                 <button
                                   onClick={handleMoveDown}
                                   disabled={taskIdx === personTasks.length - 1}
-                                  className={`w-5 h-5 flex items-center justify-center rounded transition-all ${taskIdx === personTasks.length - 1 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
+                                  className={`w-5 h-5 flex items-center justify-center rounded transition-all ${taskIdx === totalEntries - 1 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
                                   title="Bajar"
                                 >
                                   <ChevronDown size={12} />
@@ -5690,9 +5734,12 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                               </div>
                               <div className="w-1 h-full min-h-[2.5rem] rounded-full shrink-0" style={{ backgroundColor: block?.color || '#666' }} />
                               <button
-                                onClick={() => onUpdateTask({ ...task, status: task.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
+                                onClick={() => !isContainerWithDelegatedSubs && onUpdateTask({ ...task, status: task.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
+                                disabled={isContainerWithDelegatedSubs}
                                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                                  task.status === 'completed'
+                                  isContainerWithDelegatedSubs
+                                    ? 'border-border-main opacity-20 cursor-default'
+                                    : task.status === 'completed'
                                     ? 'bg-turquesa border-turquesa text-white'
                                     : 'dark:border-border-main border-border-main-light hover:border-turquesa'
                                 }`}
@@ -5737,7 +5784,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                       variant="mini"
                                     />
                                   )}
-                                  {hasSubtasks && <span className="text-[8px] dark:text-text-secondary text-text-secondary-light/40 font-black">{subtaskList.length} pasos</span>}
+                                  {hasSubtasks && <span className="text-[8px] dark:text-text-secondary text-text-secondary-light/40 font-black">{isContainerWithDelegatedSubs ? `${subtaskList.length} subtarea${subtaskList.length !== 1 ? 's' : ''} delegada${subtaskList.length !== 1 ? 's' : ''}` : `${subtaskList.length} pasos`}</span>}
                                 </div>
                               </div>
                               {/* Dates */}
@@ -5750,12 +5797,14 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                     </p>
                                   </div>
                                 )}
+                                {task.delegation?.delegatedAt && (
                                 <div className="text-right">
                                   <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Deleg.</p>
                                   <p className="text-[10px] font-bold text-morado">
                                     {new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(parseLocalISO(task.delegation.delegatedAt))}
                                   </p>
                                 </div>
+                                )}
                               </div>
                               {/* Edit/Delete buttons - same as Dashboard */}
                               <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/trow:opacity-100 transition-all">
