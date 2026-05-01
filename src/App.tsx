@@ -3895,11 +3895,8 @@ function TaskCard({
         <div
           className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''}`}
         >
-          {/* Barra color bloque - lado izquierdo */}
-          <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: block.color }} />
-
           {/* Main Row */}
-          <div className="flex items-center gap-2 px-4 py-2.5 pl-5">
+          <div className="flex items-center gap-2 px-4 py-2.5 pl-3">
 
             {/* Flechitas reordenar - hover */}
             <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -3920,6 +3917,9 @@ function TaskCard({
                 <ChevronDown size={12} />
               </button>
             </div>
+
+            {/* Barra color bloque - inline entre flechas y checkbox */}
+            <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: block.color }} />
 
             {/* Checkbox */}
             <button 
