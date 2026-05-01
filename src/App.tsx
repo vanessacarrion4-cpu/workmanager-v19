@@ -2633,10 +2633,10 @@ function DashboardView({
                   }}
                   className="flex items-center gap-3 hover:opacity-70 transition-opacity"
                 >
-                  <div className={`w-8 h-8 rounded-xl dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light flex items-center justify-center ${tag === 'resto' ? 'opacity-40 text-azul/60' : ''}`}>
+                  <div className="w-8 h-8 rounded-xl dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light flex items-center justify-center">
                     {TAG_LABELS[tag].icon || <CheckCircle2 size={16} className="text-lima" />}
                   </div>
-                  <h3 className={`font-bold text-sm uppercase tracking-widest ${tag === 'resto' ? 'dark:text-text-secondary/60 text-text-secondary-light/60' : 'dark:text-text-main text-text-main-light'}`}>
+                  <h3 className="font-bold text-sm uppercase tracking-widest dark:text-text-main text-text-main-light">
                     {TAG_LABELS[tag].label}
                   </h3>
                   <motion.div
@@ -3743,7 +3743,7 @@ function TaskCard({
   if (!task || task.isDeleted) return null;
   const currentRootId = rootTaskId || task.id;
   const block = blocks.find((b: any) => b.id === task.blockId) || blocks[0] || { color: '#14B8A6', icon: '📋', name: 'General' };
-  const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+  const hasSubtasks = (task.subtasks && task.subtasks.length > 0) || (subtasksForGroup && subtasksForGroup.length > 0);
   // If forceExpanded is null (Bloques), use task.isExpanded
   // If forceExpanded is true/false (Dashboard global toggle), still respect individual task.isExpanded if set
   const isExpanded = task.isExpanded ?? (forceExpanded ?? true);
