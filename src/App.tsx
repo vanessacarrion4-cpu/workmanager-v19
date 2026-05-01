@@ -5403,9 +5403,14 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
       const task = allTasksMap[item.taskId];
       if (task && item.note.trim()) {
         const now = new Date();
-        const timestamp = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(now);
+        const dd = String(now.getDate()).padStart(2, '0');
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const yyyy = now.getFullYear();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const timestamp = `${dd}/${mm}/${yyyy}, ${hh}:${min}`;
         const existingNotes = task.notes || '';
-        const newNote = `[${timestamp}] ${item.note}`;
+        const newNote = `[${timestamp}] Reunión ${personName} ${dd}/${mm}/${yyyy} - ${item.note}`;
         onUpdateTask({ ...task, notes: existingNotes ? `${existingNotes}\n${newNote}` : newNote });
       }
     });
@@ -5578,6 +5583,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
+                      style={{ overflow: 'visible' }}
                       className="border-t dark:border-border-main border-border-main-light/50"
                     >
                       <Reorder.Group
