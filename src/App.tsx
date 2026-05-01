@@ -5072,9 +5072,11 @@ function MonthDatePicker({ value, onChange }: { value: string | null, onChange: 
 // ============================================================
 // DELEGATION CHIP
 // ============================================================
-function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRenamePerson, onDeletePerson, onOpen = null, onClose = null }: any) {
+function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRenamePerson, onDeletePerson, onOpen = null, onClose = null, allTasksMap = {} }: any) {
   const [show, setShow] = useState(false);
   const [newName, setNewName] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
   const person = delegation ? people.find((p: any) => p.id === delegation.personId) : null;
 
   const toggleShow = () => {
@@ -5105,6 +5107,31 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
     onClose && onClose();
   };
 
+  const handleStartEdit = (p: any) => {
+    setEditingId(p.id);
+    setEditingName(p.name);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingName.trim() && onRenamePerson) onRenamePerson(editingId, editingName.trim());
+    setEditingId(null);
+    setEditingName('');
+  };
+
+  const handleDeletePerson = (personId: string) => {
+    const tasksAssigned = Object.values(allTasksMap).filter((t: any) =>
+      t && !t.isDeleted && t.delegation?.personId === personId
+    );
+    if (tasksAssigned.length > 0) {
+      alert(`Esta persona tiene ${tasksAssigned.length} tarea${tasksAssigned.length > 1 ? 's' : ''} asignada${tasksAssigned.length > 1 ? 's' : ''}. Reasígnalas primero antes de eliminarla.`);
+      return;
+    }
+    if (confirm('¿Eliminar esta persona del equipo?')) {
+      if (delegation?.personId === personId) onChange(undefined);
+      if (onDeletePerson) onDeletePerson(personId);
+    }
+  };
+
   return (
     <div className="relative">
       <button
@@ -5127,7 +5154,7 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
             <motion.div
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
               onClick={e => e.stopPropagation()}
-              className="absolute top-full left-0 mt-2 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[200px]"
+              className="absolute top-full left-0 mt-2 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[220px]"
             >
               <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">Delegar a</p>
               <div className="space-y-1 mb-3">
@@ -5136,36 +5163,59 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
                 )}
                 {people.map((p: any) => (
                   <div key={p.id} className="flex items-center gap-1 group/dp">
-                    <button
-                      onClick={() => handleSelect(p.id)}
-                      className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold transition-all ${
-                        delegation?.personId === p.id
-                          ? 'bg-morado text-white'
-                          : 'dark:hover:bg-bg-main hover:bg-gray-100 dark:text-white text-text-main-light'
-                      }`}
-                    >
-                      <div className="w-6 h-6 rounded-lg bg-morado/20 flex items-center justify-center text-morado text-[10px] font-black shrink-0">
-                        {p.name.charAt(0).toUpperCase()}
+                    {editingId === p.id ? (
+                      <div className="flex-1 flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={editingName}
+                          onChange={e => setEditingName(e.target.value)}
+                          onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') { setEditingId(null); setEditingName(''); } }}
+                          onClick={e => e.stopPropagation()}
+                          onFocus={e => e.stopPropagation()}
+                          autoFocus
+                          className="flex-1 dark:bg-bg-main bg-white border border-turquesa rounded-lg px-2 py-1.5 text-[11px] dark:text-white text-text-main-light outline-none"
+                        />
+                        <button onClick={handleSaveEdit} className="w-6 h-6 flex items-center justify-center text-turquesa hover:bg-turquesa/10 rounded-lg transition-all" title="Guardar">
+                          <Check size={12} />
+                        </button>
+                        <button onClick={() => { setEditingId(null); setEditingName(''); }} className="w-6 h-6 flex items-center justify-center text-rosa hover:bg-rosa/10 rounded-lg transition-all" title="Cancelar">
+                          <X size={12} />
+                        </button>
                       </div>
-                      {p.name}
-                    </button>
-                    {onRenamePerson && (
-                      <button
-                        onClick={e => { e.stopPropagation(); const n = prompt('Nuevo nombre:', p.name); if (n?.trim()) onRenamePerson(p.id, n.trim()); }}
-                        className="w-6 h-6 flex items-center justify-center text-turquesa/40 hover:text-turquesa hover:bg-turquesa/10 rounded-lg transition-all opacity-0 group-hover/dp:opacity-100"
-                        title="Renombrar"
-                      >
-                        <Edit size={10} />
-                      </button>
-                    )}
-                    {onDeletePerson && (
-                      <button
-                        onClick={e => { e.stopPropagation(); if (delegation?.personId === p.id) onChange(undefined); onDeletePerson(p.id); }}
-                        className="w-6 h-6 flex items-center justify-center text-rosa/40 hover:text-rosa hover:bg-rosa/10 rounded-lg transition-all opacity-0 group-hover/dp:opacity-100"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={10} />
-                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleSelect(p.id)}
+                          className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold transition-all ${
+                            delegation?.personId === p.id
+                              ? 'bg-morado text-white'
+                              : 'dark:hover:bg-bg-main hover:bg-gray-100 dark:text-white text-text-main-light'
+                          }`}
+                        >
+                          <div className="w-6 h-6 rounded-lg bg-morado/20 flex items-center justify-center text-morado text-[10px] font-black shrink-0">
+                            {p.name.charAt(0).toUpperCase()}
+                          </div>
+                          {p.name}
+                        </button>
+                        {onRenamePerson && (
+                          <button
+                            onClick={e => { e.stopPropagation(); handleStartEdit(p); }}
+                            className="w-6 h-6 flex items-center justify-center text-turquesa/40 hover:text-turquesa hover:bg-turquesa/10 rounded-lg transition-all opacity-0 group-hover/dp:opacity-100"
+                            title="Editar"
+                          >
+                            <Edit size={10} />
+                          </button>
+                        )}
+                        {onDeletePerson && (
+                          <button
+                            onClick={e => { e.stopPropagation(); handleDeletePerson(p.id); }}
+                            className="w-6 h-6 flex items-center justify-center text-rosa/40 hover:text-rosa hover:bg-rosa/10 rounded-lg transition-all opacity-0 group-hover/dp:opacity-100"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 ))}
@@ -5227,6 +5277,11 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [editingPersonName, setEditingPersonName] = useState('');
   const [hideCompletedDelegadas, setHideCompletedDelegadas] = useState(false);
+
+  // Modal selector de tareas para reunión
+  const [showTaskSelector, setShowTaskSelector] = useState(false);
+  const [selectorPersonId, setSelectorPersonId] = useState<string | null>(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
 
   const toggleTask = (id: string) => {
     setExpandedTasks(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -5290,7 +5345,6 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
 
   const handleStartMeeting = (personId: string) => {
     const personTasks = delegatedTasks.filter((t: any) => t.delegation?.personId === personId);
-    // Also include delegated subtasks of containers
     const allDelegatedForPerson: any[] = [];
     personTasks.forEach((t: any) => {
       allDelegatedForPerson.push(t);
@@ -5301,31 +5355,57 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
         });
       }
     });
+    // Pre-seleccionar solo las pendientes
+    const pendingIds = new Set<string>(
+      allDelegatedForPerson.filter((t: any) => t.status !== 'completed').map((t: any) => t.id)
+    );
+    setSelectorPersonId(personId);
+    setSelectedTaskIds(pendingIds);
+    setShowTaskSelector(true);
+  };
+
+  const handleConfirmTaskSelection = () => {
+    if (!selectorPersonId || selectedTaskIds.size === 0) return;
+    const selectedTasks = Array.from(selectedTaskIds).map(id => allTasksMap[id]).filter(Boolean);
     setNewMeeting({
-      personId,
+      personId: selectorPersonId,
       date: formatLocalISO(new Date()),
       notes: '',
-      items: allDelegatedForPerson.map((t: any) => ({ taskId: t.id, note: '', isSubtask: !!t.parentTaskId }))
+      items: selectedTasks.map((t: any) => ({ taskId: t.id, note: '', isSubtask: !!t.parentTaskId }))
     });
+    setShowTaskSelector(false);
     setShowNewMeeting(true);
   };
 
   const handleSaveMeeting = () => {
     if (!newMeeting) return;
+    const person = people.find((p: any) => p.id === newMeeting.personId);
+    const personName = person?.name || 'Desconocido';
+    const meetingDate = parseLocalISO(newMeeting.date);
+    const dayName = new Intl.DateTimeFormat('es-ES', { weekday: 'long' }).format(meetingDate);
+    const dateStr = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }).format(meetingDate);
+    const dayNameCap = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+    const tasksStr = newMeeting.items
+      .map((item: any) => { const task = allTasksMap[item.taskId]; return task ? `- ${task.title}` : ''; })
+      .filter(Boolean).join('\n');
+    const formattedNotes = `Reunión con ${personName} - ${dayNameCap}, ${dateStr}\n\nTareas tratadas:\n${tasksStr}`;
+
     const meeting: DelegationMeeting = {
       id: `m-${Date.now()}`,
       personId: newMeeting.personId,
       date: newMeeting.date,
-      notes: newMeeting.notes,
+      notes: formattedNotes,
       items: newMeeting.items.filter((i: any) => i.note.trim()),
       createdAt: new Date().toISOString()
     };
-    // Add notes to each task
+    // Añadir notas a cada tarea con timestamp día+hora
     meeting.items.forEach((item: any) => {
       const task = allTasksMap[item.taskId];
-      if (task) {
+      if (task && item.note.trim()) {
+        const now = new Date();
+        const timestamp = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(now);
         const existingNotes = task.notes || '';
-        const newNote = `[${meeting.date}] ${item.note}`;
+        const newNote = `[${timestamp}] ${item.note}`;
         onUpdateTask({ ...task, notes: existingNotes ? `${existingNotes}\n${newNote}` : newNote });
       }
     });
@@ -5350,23 +5430,35 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
           <p className="text-text-secondary text-sm mt-1">{delegatedTasks.length} tareas · {people.length} personas</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Expandir/Contraer - igual que Dashboard */}
           <button
             onClick={toggleAllPersons}
-            className="w-10 h-10 flex items-center justify-center dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light hover:border-morado/50 transition-all"
+            className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-all relative group ${
+              allExpanded
+                ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30'
+                : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul dark:hover:bg-azul/10 hover:bg-azul/5'
+            }`}
             title={allExpanded ? 'Contraer personas' : 'Expandir personas'}
           >
-            {allExpanded ? <ChevronsUp size={18} /> : <ChevronsDown size={18} />}
+            {allExpanded ? <ChevronsUp size={15} /> : <ChevronsDown size={15} />}
+            <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-xl text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+              {allExpanded ? 'Contraer personas' : 'Expandir personas'}
+            </span>
           </button>
+          {/* Ver/Ocultar completadas - igual que Dashboard */}
           <button
-            onClick={() => setHideCompletedDelegadas(h => !h)}
-            className={`w-10 h-10 flex items-center justify-center rounded-2xl border-2 transition-all ${
+            onClick={() => setHideCompletedDelegadas(!hideCompletedDelegadas)}
+            className={`w-10 h-10 flex items-center justify-center rounded-2xl border transition-all relative group ${
               hideCompletedDelegadas
-                ? 'dark:bg-bg-card bg-bg-card-light dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'
-                : 'bg-turquesa text-white border-turquesa shadow-lg shadow-turquesa/20'
+                ? 'bg-turquesa text-white border-turquesa'
+                : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa dark:hover:bg-turquesa/10 hover:bg-turquesa/5'
             }`}
-            title={hideCompletedDelegadas ? 'Mostrar completadas' : 'Ocultar completadas'}
+            title={hideCompletedDelegadas ? 'Ver completadas' : 'Ocultar completadas'}
           >
             {hideCompletedDelegadas ? <Eye size={16} /> : <EyeOff size={16} />}
+            <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-xl text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+              {hideCompletedDelegadas ? 'Ver completadas' : 'Ocultar completadas'}
+            </span>
           </button>
           <button
             onClick={() => { setShowNewMeeting(true); setNewMeeting({ personId: '', date: formatLocalISO(new Date()), notes: '', items: [] }); }}
@@ -5528,7 +5620,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                 </button>
                               )}
                               <div className="flex-1 min-w-0">
-                                <p className="font-black dark:text-white text-text-main-light text-sm truncate uppercase tracking-tight mb-1">{task.title}</p>
+                                <p className={`font-black dark:text-white text-text-main-light text-sm truncate uppercase tracking-tight mb-1 ${task.status === 'completed' ? 'line-through' : ''}`}>{task.title}</p>
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
                                   {!hasSubtasks && (
@@ -5817,6 +5909,79 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                   className="px-4 py-2.5 bg-morado text-white rounded-xl font-black text-sm hover:bg-morado/80 transition-all"
                 >
                   <Plus size={16} />
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL SELECTOR DE TAREAS PARA REUNIÓN */}
+      <AnimatePresence>
+        {showTaskSelector && selectorPersonId && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowTaskSelector(false)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-3xl p-6 shadow-2xl w-full max-w-lg z-10 max-h-[85vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-lg font-black dark:text-white text-text-main-light uppercase tracking-widest">Nueva Reunión</h3>
+                  <p className="text-[11px] text-morado font-black mt-0.5">{getPersonName(selectorPersonId)}</p>
+                </div>
+                <button onClick={() => setShowTaskSelector(false)} className="w-8 h-8 flex items-center justify-center dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light dark:bg-bg-main bg-gray-100 rounded-xl border dark:border-border-main border-border-main-light">
+                  <X size={16} />
+                </button>
+              </div>
+              <p className="text-[11px] dark:text-text-secondary text-text-secondary-light mb-4">Selecciona las tareas que quieres tratar:</p>
+              <div className="space-y-2 mb-6">
+                {(() => {
+                  const personTasks = delegatedTasks.filter((t: any) => t.delegation?.personId === selectorPersonId);
+                  const allForPerson: any[] = [];
+                  personTasks.forEach((t: any) => {
+                    allForPerson.push(t);
+                    if (t.subtasks?.length > 0) t.subtasks.forEach((sid: string) => {
+                      const sub = allTasksMap[sid];
+                      if (sub && !sub.isDeleted) allForPerson.push(sub);
+                    });
+                  });
+                  return allForPerson.map((task: any) => {
+                    const isSelected = selectedTaskIds.has(task.id);
+                    const isCompleted = task.status === 'completed';
+                    return (
+                      <button
+                        key={task.id}
+                        onClick={() => setSelectedTaskIds(prev => { const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n; })}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${isSelected ? 'dark:bg-morado/10 bg-morado/5 border-morado' : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light hover:border-morado/30'} ${isCompleted ? 'opacity-50' : ''}`}
+                      >
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${isSelected ? 'bg-morado border-morado text-white' : 'dark:border-border-main border-border-main-light'}`}>
+                          {isSelected && <Check size={12} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-bold dark:text-white text-text-main-light truncate ${isCompleted ? 'line-through' : ''}`}>{task.title}</p>
+                          {isCompleted && <span className="text-[9px] text-turquesa font-black uppercase tracking-wider">Completada</span>}
+                        </div>
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowTaskSelector(false)}
+                  className="flex-1 px-4 py-3 dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light rounded-2xl text-[11px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmTaskSelection}
+                  disabled={selectedTaskIds.size === 0}
+                  className={`flex-1 px-4 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${selectedTaskIds.size === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-azul text-white hover:bg-azul/90 shadow-lg shadow-azul/20'}`}
+                >
+                  Crear reunión ({selectedTaskIds.size})
                 </button>
               </div>
             </motion.div>
