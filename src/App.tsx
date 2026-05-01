@@ -5357,9 +5357,17 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
   };
 
   // Tareas raíz delegadas directamente
-  const delegatedRootTasks = Object.values(allTasksMap).filter((t: any) => t && t.delegation && !t.isDeleted && !t.isTemplate && !t.parentTaskId);
-  // Subtareas delegadas directamente
-  const delegatedSubtasks = Object.values(allTasksMap).filter((t: any) => t && t.delegation && !t.isDeleted && !t.isTemplate && t.parentTaskId);
+  // Incluye: tareas normales, excepciones, Y templates con delegación (recurrentes delegadas)
+  // Excluye: instancias generadas en memoria (templateId && !isException)
+  const delegatedRootTasks = Object.values(allTasksMap).filter((t: any) =>
+    t && t.delegation && !t.isDeleted && !t.parentTaskId &&
+    (t.isTemplate || (!t.templateId || t.isException))
+  );
+  // Subtareas delegadas directamente (misma lógica)
+  const delegatedSubtasks = Object.values(allTasksMap).filter((t: any) =>
+    t && t.delegation && !t.isDeleted && t.parentTaskId &&
+    (t.isTemplate || (!t.templateId || t.isException))
+  );
   // Unión para uso en modal de reunión etc.
   const delegatedTasks = [...delegatedRootTasks, ...delegatedSubtasks];
 
@@ -5776,13 +5784,25 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                   {isContainerWithDelegatedSubs ? (
                                     <>
                                       {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
+                                      {task.recurrence && (
+                                        <span className="flex items-center gap-1 text-[8px] font-black text-morado uppercase">
+                                          <RefreshCw size={9} />
+                                          {task.recurrence.frequency === 'daily' ? 'Diaria' : task.recurrence.frequency === 'weekdays' ? 'L-V' : task.recurrence.frequency === 'weekly' ? 'Semanal' : task.recurrence.frequency === 'monthly' ? 'Mensual' : 'Anual'}
+                                        </span>
+                                      )}
                                       <span className="text-[8px] dark:text-text-secondary text-text-secondary-light/40 font-black">{subtaskList.length} subtarea{subtaskList.length !== 1 ? 's' : ''} delegada{subtaskList.length !== 1 ? 's' : ''}</span>
                                     </>
                                   ) : (
                                     <>
                                       {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
-                                      <TimePickerChip value={task.dueTime || ''} onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })} />
-                                      <DatePickerChip value={task.dueDate} onChange={(date: string) => onUpdateTask({ ...task, dueDate: date })} />
+                                      {task.recurrence && (
+                                        <span className="flex items-center gap-1 text-[8px] font-black text-morado uppercase">
+                                          <RefreshCw size={9} />
+                                          {task.recurrence.frequency === 'daily' ? 'Diaria' : task.recurrence.frequency === 'weekdays' ? 'L-V' : task.recurrence.frequency === 'weekly' ? 'Semanal' : task.recurrence.frequency === 'monthly' ? 'Mensual' : 'Anual'}
+                                        </span>
+                                      )}
+                                      {!task.isTemplate && <TimePickerChip value={task.dueTime || ''} onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })} />}
+                                      {!task.isTemplate && <DatePickerChip value={task.dueDate} onChange={(date: string) => onUpdateTask({ ...task, dueDate: date })} />}
                                       <TagPickerChip selectedTags={task.tags} onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} />
                                       <DelegationChip delegation={task.delegation} people={people || []} onChange={(delegation: any) => onUpdateTask({ ...task, delegation })} onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])} onRenamePerson={onRenamePerson} onDeletePerson={onDeletePerson} />
                                       <EstimatedTimeChip value={task.estimatedMinutes} onChange={(val: number) => onUpdateTask({ ...task, estimatedMinutes: val })} variant="mini" />
