@@ -221,29 +221,6 @@ export default function App() {
             }
           });
           
-          // DEBUG: Log de tarea Aragón
-          const aragon = Object.values(mappedTasks).find((t: any) => t.title && t.title.includes('Arag'));
-          if (aragon) {
-            console.log('[DEBUG] Aragón found:', {
-              id: aragon.id,
-              title: aragon.title,
-              dueDate: aragon.dueDate,
-              subtasks: aragon.subtasks,
-              subtaskCount: aragon.subtasks?.length
-            });
-            
-            // Log de cada subtarea
-            aragon.subtasks?.forEach((subId: string) => {
-              const sub = mappedTasks[subId];
-              console.log('[DEBUG] Subtask:', {
-                id: sub.id,
-                title: sub.title,
-                dueDate: sub.dueDate,
-                parentTaskId: sub.parentTaskId
-              });
-            });
-          }
-          
           setTasks(mappedTasks);
         }
 
@@ -3029,17 +3006,35 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
     if (!selectedDay) return [];
     const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
     const all = Object.values(allTasksMap).filter((t: any) => {
-      if (t.dueDate !== selectedDay) return false;
-      if (t.parentTaskId) return false;
-      if (t.isTemplate) return false;
       if (!activeBlockIds.has(t.blockId)) return false;
+      if (t.isTemplate) return false;
       if (t.isDeleted) return false;
-      // Instancias generadas (tienen templateId): siempre mostrar si tienen la fecha correcta
-      if (t.templateId) return true;
-      // Siempre mostrar excepciones
-      if (t.isException) return true;
+      
+      // Subtareas: no aparecen solas (se muestran bajo su padre)
+      if (t.parentTaskId) return false;
+      
+      // Instancias generadas (tienen templateId): mostrar si tienen la fecha correcta
+      if (t.templateId) {
+        return t.dueDate === selectedDay;
+      }
+      
+      // Excepciones guardadas
+      if (t.isException) {
+        return t.dueDate === selectedDay;
+      }
+      
+      // ── Contenedor padre sin dueDate propio ──
+      // El padre aparece si alguna subtarea tiene dueDate = selectedDay
+      if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
+        return t.subtasks.some((subId: string) => {
+          const sub = allTasksMap[subId];
+          return sub && sub.dueDate === selectedDay;
+        });
+      }
+      
       // Excluir templates originales con recurrencia (solo los que NO son instancias)
       if (t.recurrence) return false;
+      
       // Excluir contenedores padre de tareas recurrentes
       if (t.subtasks && t.subtasks.length > 0) {
         const hasRecurringChild = t.subtasks.some((subId: string) => {
@@ -3048,6 +3043,10 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
         });
         if (hasRecurringChild) return false;
       }
+      
+      // Tareas manuales normales: solo si tienen la fecha correcta
+      if (t.dueDate !== selectedDay) return false;
+      
       return true;
     });
     
