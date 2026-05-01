@@ -3902,7 +3902,7 @@ function TaskCard({
             setDragX(0);
           }}
           animate={{ x: dragX * 0.4 }}
-          className={`dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-[2rem] shadow-xl relative transition-all dark:hover:border-border-main/80 hover:border-border-main-light/80 ${task.status === 'completed' ? 'opacity-50 dark:bg-bg-main/30 bg-bg-main-light/30 p-1 scale-[0.85]' : 'p-2.5'}`}
+          className={`dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-[2rem] shadow-xl relative transition-all dark:hover:border-border-main/80 hover:border-border-main-light/80 ${task.status === 'completed' ? 'opacity-50 dark:bg-bg-main/30 bg-bg-main-light/30 p-1 scale-[0.85]' : 'p-1.5'}`}
         >
           {/* Main Row */}
           <div className={`flex items-start ${task.status === 'completed' ? 'gap-1.5' : 'gap-3'}`}>
@@ -3928,18 +3928,18 @@ function TaskCard({
               </div>
               <button 
                 onClick={() => onToggleStatus(task.id)}
-                className={`w-6 h-6 rounded-xl flex items-center justify-center transition-all shadow-lg ${task.status === 'completed' ? 'bg-turquesa text-white' : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-turquesa'}`}
+                className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all shadow-lg ${task.status === 'completed' ? 'bg-turquesa text-white' : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-turquesa'}`}
               >
                 <CheckCircle2 size={14} />
               </button>
             </div>
  
             <div className="flex-1 min-w-0">
-               <div className={`flex flex-col ${task.status === 'completed' ? 'gap-0.5' : 'gap-1.5'}`}>
+               <div className={`flex flex-col ${task.status === 'completed' ? 'gap-0.5' : 'gap-1'}`}>
                   <div className="flex items-center gap-2">
                     <input 
                       autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
-                      className="text-sm font-black dark:text-white text-text-main-light bg-transparent outline-none flex-1 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 uppercase tracking-widest"
+                      className="text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none flex-1 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal"
                       value={task.title}
                       onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
                       onBlur={() => { 
@@ -3961,7 +3961,7 @@ function TaskCard({
                   </div>
  
                   {/* Secondary Row (Action Chips) */}
-                  <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1">
                     <TaskTypeChip 
                       value={task.taskType || (isTaskRepetitive(task.id, allTasksMap) ? 'core' : 'adhoc')} 
                       onChange={(val: string) => onUpdateTask({ ...task, taskType: val })} 
@@ -4040,7 +4040,7 @@ function TaskCard({
                     <div className="flex items-center gap-1 ml-1">
                       <button 
                         onClick={() => isTimerRunning ? onStopTimer() : onStartTimer(currentRootId, level === 1 ? null : task.id)}
-                        className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all ${isTimerRunning ? 'bg-rosa text-white' : 'dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light text-turquesa hover:bg-turquesa/10'}`}
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isTimerRunning ? 'bg-rosa text-white' : 'dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light text-turquesa hover:bg-turquesa/10'}`}
                       >
                         {isTimerRunning ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
                       </button>
@@ -4048,7 +4048,7 @@ function TaskCard({
                       {hasSubtasks && (
                         <button 
                           onClick={() => onToggleExpand(task.id)}
-                          className={`w-7 h-7 rounded-xl flex items-center justify-center border transition-all ${isExpanded ? 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-white text-text-main-light dark:border-border-main border-border-main-light' : 'dark:bg-bg-main bg-white dark:text-text-secondary text-text-secondary-light dark:border-border-main/50 border-border-main-light/50'}`}
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${isExpanded ? 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-white text-text-main-light dark:border-border-main border-border-main-light' : 'dark:bg-bg-main bg-white dark:text-text-secondary text-text-secondary-light dark:border-border-main/50 border-border-main-light/50'}`}
                         >
                           {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                         </button>
@@ -4062,7 +4062,7 @@ function TaskCard({
                <div className="flex items-center gap-1">
                  <button 
                    onClick={() => onEditTask(task.id)} 
-                   className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-xl transition-all border border-turquesa/20"
+                   className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-lg transition-all border border-turquesa/20"
                    title="Editar detalles completos"
                  >
                    <Edit size={14} />
@@ -4072,18 +4072,18 @@ function TaskCard({
                      e.stopPropagation();
                      onDelete(task.id);
                    }} 
-                   className="w-7 h-7 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/10 rounded-xl transition-all border border-rosa/20"
+                   className="w-6 h-6 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/10 rounded-lg transition-all border border-rosa/20"
                  >
                    <Trash2 size={14} />
                  </button>
-                 {level < 3 && <button onClick={() => onAddTask(task.id, task.blockId)} className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-xl transition-all border border-turquesa/20" title="Añadir subtarea"><Plus size={16} /></button>}
+                 {level < 3 && <button onClick={() => onAddTask(task.id, task.blockId)} className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-lg transition-all border border-turquesa/20" title="Añadir subtarea"><Plus size={16} /></button>}
                </div>
                <div className="flex items-center gap-1">
                  {task.parentTaskId && (
                    <button 
                      onClick={() => onPromote(task.id)} 
                      title="Subir un nivel" 
-                     className="w-7 h-7 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-turquesa dark:bg-bg-main bg-white rounded-xl border dark:border-border-main border-border-main-light transition-all"
+                     className="w-6 h-6 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-turquesa dark:bg-bg-main bg-white rounded-lg border dark:border-border-main border-border-main-light transition-all"
                    >
                      <ArrowUpLeft size={13} />
                    </button>
@@ -4091,7 +4091,7 @@ function TaskCard({
                  <button 
                    onClick={() => onDemote(task.id)} 
                    title="Bajar un nivel (hacerla subtarea de la anterior)" 
-                   className="w-7 h-7 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-azul dark:bg-bg-main bg-white rounded-xl border dark:border-border-main border-border-main-light transition-all"
+                   className="w-6 h-6 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-azul dark:bg-bg-main bg-white rounded-lg border dark:border-border-main border-border-main-light transition-all"
                  >
                    <ArrowDownRight size={13} />
                  </button>
@@ -4177,7 +4177,7 @@ function TaskTypeChip({ value, onChange, isCompact = false }: any) {
     <div className="relative">
       <button 
         onClick={() => setShow(!show)}
-        className={`h-7 px-2 py-1 rounded-lg flex items-center justify-center gap-1.5 border transition-all ${
+        className={`h-6 px-2 py-0.5 rounded-lg flex items-center justify-center gap-1 border transition-all ${
           isCore 
             ? 'bg-turquesa/10 border-turquesa/40 text-turquesa shadow-sm shadow-turquesa/20 hover:border-turquesa' 
             : 'bg-rosa/10 border-rosa/30 text-rosa shadow-sm shadow-rosa/20 hover:border-rosa'
@@ -4254,7 +4254,7 @@ function TimePickerChip({ value, onChange }: any) {
     <div className="relative">
       <button
         onClick={() => setShow(s => !s)}
-        className={`h-7 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-1 ${
+        className={`h-6 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-1 ${
           value
             ? 'bg-azul/10 border-azul text-azul shadow-sm'
             : 'dark:bg-bg-main bg-white dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul'
@@ -4317,7 +4317,7 @@ function DatePickerChip({ value, onChange, dropUp = false }: any) {
     <div className="relative" ref={chipRef}>
       <button 
         onClick={handleToggle}
-        className={`h-7 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all ${
+        className={`h-6 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all ${
           isSinFecha 
             ? 'dark:bg-bg-main bg-white dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light' 
             : 'bg-turquesa/10 border-turquesa text-turquesa shadow-sm'
@@ -4449,10 +4449,10 @@ function RecurrencePickerChip({ value, onChange }: any) {
     <div className="relative">
       <button 
         onClick={() => setShow(!show)}
-        className={`flex items-center justify-center transition-all group/rec h-7 rounded-lg ${
+        className={`flex items-center justify-center transition-all group/rec h-6 rounded-lg ${
           value 
-            ? 'px-2.5 py-1 bg-azul/10 border-2 border-azul text-azul hover:bg-azul/20 whitespace-nowrap shadow-sm' 
-            : 'w-7 dark:bg-bg-main bg-white dark:border-border-main border-gray-300 dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul border-2'
+            ? 'px-2 py-0.5 bg-azul/10 border-2 border-azul text-azul hover:bg-azul/20 whitespace-nowrap shadow-sm' 
+            : 'w-6 dark:bg-bg-main bg-white dark:border-border-main border-gray-300 dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul border-2'
         }`}
         title={value ? "Cambiar Recurrencia" : "Activar Recurrencia"}
       >
@@ -4597,10 +4597,10 @@ function TagPickerChip({ selectedTags = [], onChange }: any) {
         className="flex items-center gap-1 cursor-pointer"
       >
         {selectedTags.length > 0 ? (
-          <div className="flex -space-x-1.5 h-7 items-center">
+          <div className="flex -space-x-1.5 h-6 items-center">
             {selectedTags.map((t: any) => (
-              <span key={t} className="w-6 h-6 rounded-lg dark:bg-bg-card bg-white border-2 border-naranja flex items-center justify-center shadow-md ring-2 dark:ring-bg-main ring-white">
-                <span className="text-[13px]">{TAG_LABELS[t].icon}</span>
+              <span key={t} className="w-5 h-5 rounded-md dark:bg-bg-card bg-white border-2 border-naranja flex items-center justify-center shadow-md ring-2 dark:ring-bg-main ring-white">
+                <span className="text-[11px]">{TAG_LABELS[t].icon}</span>
               </span>
             ))}
           </div>
@@ -4669,7 +4669,7 @@ function EstimatedTimeChip({ value, onChange, variant = 'default', readonly = fa
     <div className="relative">
       <button 
         onClick={() => { if (!readonly) setShow(!show); }}
-        className={`${isMini ? 'h-6 px-1.5 py-0.5' : 'h-7 px-2 py-1'} rounded-lg bg-azul/10 border-2 border-azul/50 text-azul font-black uppercase tracking-widest transition-all flex items-center gap-1 shadow-sm ${readonly ? 'opacity-60 cursor-default' : 'hover:bg-azul/20'}`}
+        className={`${isMini ? 'h-6 px-1.5 py-0.5' : 'h-6 px-2 py-0.5'} rounded-lg bg-azul/10 border-2 border-azul/50 text-azul font-black uppercase tracking-widest transition-all flex items-center gap-1 shadow-sm ${readonly ? 'opacity-60 cursor-default' : 'hover:bg-azul/20'}`}
         title={readonly ? 'Suma de subtareas' : 'Editar tiempo estimado'}
       >
         <Clock size={9} />
@@ -4722,7 +4722,7 @@ function RegisteredTimeChip({ value, estimated, onClick }: any) {
   return (
     <button 
       onClick={onClick}
-      className={`h-7 px-2 py-1 rounded-lg font-black uppercase tracking-widest transition-all border-2 shadow-sm flex items-center gap-1 ${colorClass}`}
+      className={`h-6 px-2 py-0.5 rounded-lg font-black uppercase tracking-widest transition-all border-2 shadow-sm flex items-center gap-1 ${colorClass}`}
     >
       <Target size={9} />
       <span className="text-[11px]">{label}</span>
