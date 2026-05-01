@@ -5577,15 +5577,8 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                 </button>
 
                 {/* Tasks list */}
-                <AnimatePresence>
-                  {isOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      style={{ overflow: 'visible' }}
-                      className="border-t dark:border-border-main border-border-main-light/50"
-                    >
+                {isOpen && (
+                  <div className="border-t dark:border-border-main border-border-main-light/50">
                       <Reorder.Group
                         axis="y"
                         values={personTasks}
@@ -5743,9 +5736,8 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                         );
                       })}
                       </Reorder.Group>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                  </div>
+                )}
               </div>
             );
           })}
