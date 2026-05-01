@@ -5743,7 +5743,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                               >
                                 {task.status === 'completed' && <Check size={10} />}
                               </button>
-                              {hasSubtasks && !isContainerWithDelegatedSubs && (
+                              {hasSubtasks && (
                                 <button onClick={() => toggleTask(task.id)} className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-white transition-all shrink-0">
                                   {isTaskOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                                 </button>
