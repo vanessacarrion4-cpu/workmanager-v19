@@ -3934,8 +3934,7 @@ function TaskCard({
               <div className="flex flex-col gap-1">
                 {/* Fila título */}
                 <div className="flex items-center gap-2 min-w-0">
-                  {/* Título + chevron pegados */}
-                  <div className="flex items-center gap-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
                     <input 
                       autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
                       className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none min-w-0 flex-1 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
@@ -3953,14 +3952,23 @@ function TaskCard({
                       }}
                       placeholder="Título de la tarea..."
                     />
-                    {hasSubtasks && (
-                      <button 
-                        onClick={() => onToggleExpand(task.id)}
-                        className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all shrink-0"
-                      >
-                        {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                      </button>
-                    )}
+                    {/* Badge circular subtareas pendientes */}
+                    {hasSubtasks && (() => {
+                      const subIds: string[] = subtasksForGroup || task.subtasks || [];
+                      const pendingCount = subIds.filter((sid: string) => {
+                        const s = allTasksMap[sid];
+                        return s && !s.isDeleted && s.status !== 'completed';
+                      }).length;
+                      if (pendingCount === 0) return null;
+                      return (
+                        <button
+                          onClick={() => onToggleExpand(task.id)}
+                          className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30"
+                        >
+                          {String(pendingCount)}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
 
