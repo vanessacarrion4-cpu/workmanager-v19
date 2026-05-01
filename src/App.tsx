@@ -2254,6 +2254,8 @@ function DashboardView({
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set(['con_hora', 'focus', 'dirección', 'espera', 'resto']));
   const [isFrozen, setIsFrozen] = useState(false);
   const frozenOrderRef = React.useRef<string[]>([]);
+  // Estado local para reordenar con flechitas
+  const [localTagOrders, setLocalTagOrders] = useState<Record<string, string[]>>({});
  
   const dayTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
@@ -2657,7 +2659,17 @@ function DashboardView({
                     transition={{ duration: 0.2 }}
                   >
                     <div className="grid grid-cols-1 gap-4">
-                      {tagEntries.map(({ task, subtasksForGroup }, idx) => (
+                      {(() => {
+                        // Aplicar orden local si existe
+                        const localOrder = localTagOrders[tag];
+                        let orderedEntries = tagEntries;
+                        if (localOrder) {
+                          const idMap: Record<string, any> = {};
+                          tagEntries.forEach((e: any) => { idMap[e.task.id] = e; });
+                          orderedEntries = localOrder.map((id: string) => idMap[id]).filter(Boolean);
+                          tagEntries.forEach((e: any) => { if (!localOrder.includes(e.task.id)) orderedEntries.push(e); });
+                        }
+                        return orderedEntries.map(({ task, subtasksForGroup }: any, idx: number) => (
                         <div key={`${task.id}-${tag}`}>
                         <TaskCard
                           task={task}
@@ -2690,26 +2702,27 @@ function DashboardView({
                           subtasksForGroup={subtasksForGroup}
                           forceExpanded={expandAll}
                           taskIndex={idx}
-                          taskCount={tagEntries.length}
+                          taskCount={orderedEntries.length}
                           onMoveUp={() => {
                             if (idx === 0) return;
-                            const arr = [...tagEntries];
-                            const prev = arr[idx - 1].task;
-                            const curr = arr[idx].task;
-                            onUpdateTask({ ...curr, order: prev.order ?? (idx - 1), modifiedAt: new Date().toISOString() });
-                            onUpdateTask({ ...prev, order: curr.order ?? idx, modifiedAt: new Date().toISOString() });
+                            const newOrder = orderedEntries.map((e: any) => e.task.id);
+                            [newOrder[idx - 1], newOrder[idx]] = [newOrder[idx], newOrder[idx - 1]];
+                            setLocalTagOrders(prev => ({ ...prev, [tag]: newOrder }));
+                            onUpdateTask({ ...task, order: idx - 1, modifiedAt: new Date().toISOString() });
+                            onUpdateTask({ ...orderedEntries[idx - 1].task, order: idx, modifiedAt: new Date().toISOString() });
                           }}
                           onMoveDown={() => {
-                            if (idx === tagEntries.length - 1) return;
-                            const arr = [...tagEntries];
-                            const next = arr[idx + 1].task;
-                            const curr = arr[idx].task;
-                            onUpdateTask({ ...curr, order: next.order ?? (idx + 1), modifiedAt: new Date().toISOString() });
-                            onUpdateTask({ ...next, order: curr.order ?? idx, modifiedAt: new Date().toISOString() });
+                            if (idx === orderedEntries.length - 1) return;
+                            const newOrder = orderedEntries.map((e: any) => e.task.id);
+                            [newOrder[idx], newOrder[idx + 1]] = [newOrder[idx + 1], newOrder[idx]];
+                            setLocalTagOrders(prev => ({ ...prev, [tag]: newOrder }));
+                            onUpdateTask({ ...task, order: idx + 1, modifiedAt: new Date().toISOString() });
+                            onUpdateTask({ ...orderedEntries[idx + 1].task, order: idx, modifiedAt: new Date().toISOString() });
                           }}
                         />
                         </div>
-                      ))}
+                        ));
+                      })()}
                     </div>
                   </motion.div>
                 )}
@@ -5329,12 +5342,28 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
 
   const delegatedTasks = Object.values(allTasksMap).filter((t: any) => t && t.delegation && !t.isDeleted && !t.isTemplate && !t.parentTaskId);
 
-  const tasksByPerson = people.map((p: any) => ({
-    person: p,
-    tasks: delegatedTasks
+  // Estado local para mantener el orden visual mientras se persiste
+  const [localTaskOrders, setLocalTaskOrders] = useState<Record<string, string[]>>({});
+
+  const tasksByPerson = people.map((p: any) => {
+    const raw = delegatedTasks
       .filter((t: any) => t.delegation?.personId === p.id)
-      .filter((t: any) => !hideCompletedDelegadas || t.status !== 'completed')
-  })).filter((g: any) => g.tasks.length > 0);
+      .filter((t: any) => !hideCompletedDelegadas || t.status !== 'completed');
+    
+    // Usar orden local si existe, si no ordenar por campo order
+    const localOrder = localTaskOrders[p.id];
+    let sorted;
+    if (localOrder) {
+      const idMap: Record<string, any> = {};
+      raw.forEach((t: any) => { idMap[t.id] = t; });
+      sorted = localOrder.map((id: string) => idMap[id]).filter(Boolean);
+      // añadir tareas nuevas que no estén en el orden local
+      raw.forEach((t: any) => { if (!localOrder.includes(t.id)) sorted.push(t); });
+    } else {
+      sorted = [...raw].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+    }
+    return { person: p, tasks: sorted };
+  }).filter((g: any) => g.tasks.length > 0);
 
   const filteredByPerson = filterPersonId
     ? tasksByPerson.filter((g: any) => g.person.id === filterPersonId)
@@ -5615,17 +5644,25 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
 
                         const handleMoveUp = () => {
                           if (taskIdx === 0) return;
+                          const newOrder = [...personTasks.map((t: any) => t.id)];
+                          [newOrder[taskIdx - 1], newOrder[taskIdx]] = [newOrder[taskIdx], newOrder[taskIdx - 1]];
+                          setLocalTaskOrders(prev => ({ ...prev, [person.id]: newOrder }));
+                          // Persistir en Supabase
                           const prev = personTasks[taskIdx - 1];
                           const curr = task;
-                          onUpdateTask({ ...curr, order: prev.order ?? (taskIdx - 1), modifiedAt: new Date().toISOString() });
-                          onUpdateTask({ ...prev, order: curr.order ?? taskIdx, modifiedAt: new Date().toISOString() });
+                          onUpdateTask({ ...curr, order: taskIdx - 1, modifiedAt: new Date().toISOString() });
+                          onUpdateTask({ ...prev, order: taskIdx, modifiedAt: new Date().toISOString() });
                         };
                         const handleMoveDown = () => {
                           if (taskIdx === personTasks.length - 1) return;
+                          const newOrder = [...personTasks.map((t: any) => t.id)];
+                          [newOrder[taskIdx], newOrder[taskIdx + 1]] = [newOrder[taskIdx + 1], newOrder[taskIdx]];
+                          setLocalTaskOrders(prev => ({ ...prev, [person.id]: newOrder }));
+                          // Persistir en Supabase
                           const next = personTasks[taskIdx + 1];
                           const curr = task;
-                          onUpdateTask({ ...curr, order: next.order ?? (taskIdx + 1), modifiedAt: new Date().toISOString() });
-                          onUpdateTask({ ...next, order: curr.order ?? taskIdx, modifiedAt: new Date().toISOString() });
+                          onUpdateTask({ ...curr, order: taskIdx + 1, modifiedAt: new Date().toISOString() });
+                          onUpdateTask({ ...next, order: taskIdx, modifiedAt: new Date().toISOString() });
                         };
 
                         return (
