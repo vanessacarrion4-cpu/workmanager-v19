@@ -5828,14 +5828,11 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, onUpdateT
                                   initial={{ height: 0, opacity: 0 }}
                                   animate={{ height: 'auto', opacity: 1 }}
                                   exit={{ height: 0, opacity: 0 }}
-                                  className="border-t dark:border-border-main border-border-main-light/20"
+                                  className="border-t dark:border-border-main border-border-main-light/20 ml-10 border-l dark:border-l-border-main/30 border-l-border-main-light/30"
                                 >
                                   {subtaskList.map((sub: any) => {
                                     return (
-                                      <div key={sub.id} className={`flex items-center gap-3 pl-10 pr-4 py-3 hover:dark:bg-white/2 hover:bg-gray-50 transition-all border-b dark:border-border-main border-border-main-light/10 last:border-0 group/subrow relative ${sub.status === 'completed' ? 'opacity-50' : ''}`}>
-                                        {/* Línea vertical de conexión - estilo Dashboard */}
-                                        <div className="absolute left-5 top-0 bottom-0 w-0.5 dark:bg-border-main/30 bg-border-main-light/30" />
-                                        <div className="absolute left-5 top-1/2 w-3 h-px dark:bg-border-main/30 bg-border-main-light/30" />
+                                      <div key={sub.id} className={`flex items-center gap-3 pl-4 pr-4 py-3 hover:dark:bg-white/2 hover:bg-gray-50 transition-all border-b dark:border-border-main border-border-main-light/10 last:border-0 group/subrow ${sub.status === 'completed' ? 'opacity-50' : ''}`}>
                                         {/* Checkbox completar subtarea */}
                                         <button
                                           onClick={() => onUpdateTask({ ...sub, status: sub.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
