@@ -2069,6 +2069,60 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                     </div>
                   </div>
                 )}
+
+                {/* Termina */}
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Termina:</label>
+                  <div className="space-y-2">
+                    {/* Nunca */}
+                    <button
+                      onClick={() => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: undefined } }))}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        !localTask.recurrence.endDate
+                          ? 'bg-morado text-white'
+                          : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light border dark:border-border-main border-border-main-light'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        !localTask.recurrence.endDate ? 'border-white' : 'dark:border-border-main border-border-main-light'
+                      }`}>
+                        {!localTask.recurrence.endDate && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                      Nunca
+                    </button>
+
+                    {/* El [fecha] */}
+                    <button
+                      onClick={() => {
+                        if (!localTask.recurrence.endDate) {
+                          const sixMonthsLater = new Date();
+                          sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+                          setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: formatLocalISO(sixMonthsLater) } }));
+                        }
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        localTask.recurrence.endDate
+                          ? 'bg-morado text-white'
+                          : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light border dark:border-border-main border-border-main-light'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        localTask.recurrence.endDate ? 'border-white' : 'dark:border-border-main border-border-main-light'
+                      }`}>
+                        {localTask.recurrence.endDate && <div className="w-2 h-2 rounded-full bg-white" />}
+                      </div>
+                      El
+                    </button>
+                    {localTask.recurrence.endDate && (
+                      <input
+                        type="date"
+                        value={localTask.recurrence.endDate}
+                        onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: e.target.value } }))}
+                        className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-morado outline-none text-center focus:ring-2 focus:ring-morado/20"
+                      />
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -4599,35 +4653,26 @@ function RecurrencePickerChip({ value, onChange }: any) {
                     Nunca
                   </button>
 
-                  {/* El [fecha] */}
+                  {/* Fecha concreta - directamente el input */}
                   <div className="space-y-1">
-                    <button
+                    <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light uppercase px-1">Hasta el:</p>
+                    <input
+                      type="date"
+                      value={value.endDate || ''}
+                      onChange={e => onChange({ ...value, endDate: e.target.value || null })}
                       onClick={() => {
-                        const sixMonthsLater = new Date();
-                        sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
-                        onChange({ ...value, endDate: formatLocalISO(sixMonthsLater) });
+                        if (!value.endDate) {
+                          const sixMonthsLater = new Date();
+                          sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+                          onChange({ ...value, endDate: formatLocalISO(sixMonthsLater) });
+                        }
                       }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                        value.endDate
-                          ? 'bg-morado text-white'
-                          : 'dark:bg-bg-main bg-white dark:text-text-secondary text-text-secondary-light border dark:border-border-main border-border-main-light'
+                      className={`w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[11px] font-black outline-none text-center transition-all ${
+                        value.endDate 
+                          ? 'text-morado focus:ring-2 focus:ring-morado/20' 
+                          : 'dark:text-text-secondary/40 text-text-secondary-light/40'
                       }`}
-                    >
-                      <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
-                        value.endDate ? 'border-white' : 'dark:border-border-main border-border-main-light'
-                      }`}>
-                        {value.endDate && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                      </div>
-                      El
-                    </button>
-                    {value.endDate && (
-                      <input
-                        type="date"
-                        value={value.endDate}
-                        onChange={e => onChange({ ...value, endDate: e.target.value })}
-                        className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[11px] font-black text-morado outline-none text-center focus:ring-2 focus:ring-morado/20"
-                      />
-                    )}
+                    />
                   </div>
                 </div>
               )}
