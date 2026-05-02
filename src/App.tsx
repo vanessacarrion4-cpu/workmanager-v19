@@ -2922,7 +2922,7 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
             </div>
             <div>
               <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-black text-white">{selectedBlock.name}</h2>
+                <h2 className="text-2xl font-black dark:text-white text-text-main-light">{selectedBlock.name}</h2>
                 <button 
                   onClick={() => onEditBlock(selectedBlock.id)}
                   className="p-1.5 bg-turquesa/10 text-turquesa hover:bg-turquesa/20 rounded-lg transition-all"
@@ -4100,12 +4100,21 @@ function TaskCard({
                     {isTimerRunning ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
                   </button>
 
-                  {/* Badge bloque - only show in Dashboard, not in BlocksManagerView */}
-                  {variant !== 'FULL' && (
-                    <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border tracking-tighter whitespace-nowrap shadow-sm dark:bg-bg-main bg-white dark:border-border-main border-border-main-light flex items-center gap-1.5 shrink-0" style={{ color: block.color }}>
-                      <span>{block.icon}</span>
-                      {block.name && <span>{block.name}</span>}
-                    </span>
+                  {/* Block picker - clickable chip to change context */}
+                  {variant === 'FULL' ? (
+                    // In Bloques: small discrete chip
+                    <BlockPickerChip 
+                      value={task.blockId}
+                      blocks={blocks}
+                      onChange={(blockId: string) => onUpdateTask({ ...task, blockId })}
+                    />
+                  ) : (
+                    // In Dashboard: full chip with icon and name
+                    <BlockPickerChip 
+                      value={task.blockId}
+                      blocks={blocks}
+                      onChange={(blockId: string) => onUpdateTask({ ...task, blockId })}
+                    />
                   )}
                 </div>
               </div>
@@ -5318,6 +5327,95 @@ function MonthDatePicker({ value, onChange }: { value: string | null, onChange: 
 // ============================================================
 // DELEGATION CHIP
 // ============================================================
+// --- Block Picker Chip ---
+
+function BlockPickerChip({ value, blocks = [], onChange }: any) {
+  const [show, setShow] = useState(false);
+  const [modalPos, setModalPos] = useState({ top: 0, left: 0, maxHeight: 500 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const selectedBlock = blocks.find((b: any) => b.id === value);
+
+  const toggleShow = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom - 20;
+      setModalPos({ 
+        top: rect.bottom + 8, 
+        left: rect.left,
+        maxHeight: spaceBelow > 400 ? spaceBelow : 400
+      });
+    }
+    setShow(!show);
+  };
+
+  const handleSelect = (blockId: string) => {
+    onChange(blockId);
+    setShow(false);
+  };
+
+  return (
+    <div className="relative">
+      <button
+        ref={buttonRef}
+        onClick={toggleShow}
+        className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border tracking-tighter whitespace-nowrap shadow-sm dark:bg-bg-main bg-white dark:border-border-main border-border-main-light flex items-center gap-1.5 shrink-0 hover:shadow-md transition-all"
+        style={{ color: selectedBlock?.color || '#64748b' }}
+        title="Cambiar contexto"
+      >
+        <span>{selectedBlock?.icon || '📁'}</span>
+        {selectedBlock?.name && <span>{selectedBlock.name}</span>}
+        <ChevronDown size={10} />
+      </button>
+
+      <AnimatePresence>
+        {show && (
+          <>
+            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: -10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0, y: -10 }}
+              onClick={e => e.stopPropagation()}
+              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[240px] overflow-y-auto"
+              style={{ 
+                top: `${modalPos.top}px`, 
+                left: `${modalPos.left}px`,
+                maxHeight: `${modalPos.maxHeight}px`
+              }}
+            >
+              <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">Cambiar Contexto</p>
+              <div className="space-y-1">
+                {blocks.map((block: any) => (
+                  <button
+                    key={block.id}
+                    onClick={() => handleSelect(block.id)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold transition-all ${
+                      value === block.id
+                        ? 'bg-turquesa text-white'
+                        : 'dark:hover:bg-bg-main hover:bg-gray-100 dark:text-white text-text-main-light'
+                    }`}
+                  >
+                    <div 
+                      className="w-6 h-6 rounded-lg flex items-center justify-center text-lg shrink-0"
+                      style={{ backgroundColor: `${block.color}20`, color: block.color }}
+                    >
+                      {block.icon}
+                    </div>
+                    {block.name}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// --- Delegation Chip ---
+
 function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRenamePerson, onDeletePerson, onOpen = null, onClose = null, allTasksMap = {} }: any) {
   const [show, setShow] = useState(false);
   const [newName, setNewName] = useState('');
