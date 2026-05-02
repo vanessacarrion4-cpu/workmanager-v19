@@ -2046,17 +2046,6 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                 {localTask.recurrence.frequency === 'yearly' && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Mes (1-12)</label>
-                      <input 
-                        type="number"
-                        min="1"
-                        max="12"
-                        className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
-                        value={localTask.recurrence.yearMonth || new Date().getMonth() + 1}
-                        onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, yearMonth: parseInt(e.target.value) || 1 } }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
                       <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Día (1-31)</label>
                       <input 
                         type="number"
@@ -2067,27 +2056,33 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                         onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, yearDay: parseInt(e.target.value) || 1 } }))}
                       />
                     </div>
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Mes (1-12)</label>
+                      <input 
+                        type="number"
+                        min="1"
+                        max="12"
+                        className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
+                        value={localTask.recurrence.yearMonth || new Date().getMonth() + 1}
+                        onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, yearMonth: parseInt(e.target.value) || 1 } }))}
+                      />
+                    </div>
                   </div>
                 )}
 
                 {/* Termina */}
                 <div className="space-y-2">
                   <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Termina:</label>
-                  <div className="space-y-2">
+                  <div className="flex gap-2">
                     {/* Nunca */}
                     <button
                       onClick={() => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: undefined } }))}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                      className={`flex-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                         !localTask.recurrence.endDate
-                          ? 'bg-morado text-white'
-                          : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light border dark:border-border-main border-border-main-light'
+                          ? 'bg-turquesa text-white'
+                          : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light'
                       }`}
                     >
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                        !localTask.recurrence.endDate ? 'border-white' : 'dark:border-border-main border-border-main-light'
-                      }`}>
-                        {!localTask.recurrence.endDate && <div className="w-2 h-2 rounded-full bg-white" />}
-                      </div>
                       Nunca
                     </button>
 
@@ -2100,28 +2095,23 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                           setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: formatLocalISO(sixMonthsLater) } }));
                         }
                       }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                      className={`flex-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                         localTask.recurrence.endDate
-                          ? 'bg-morado text-white'
-                          : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light border dark:border-border-main border-border-main-light'
+                          ? 'bg-turquesa text-white'
+                          : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light'
                       }`}
                     >
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                        localTask.recurrence.endDate ? 'border-white' : 'dark:border-border-main border-border-main-light'
-                      }`}>
-                        {localTask.recurrence.endDate && <div className="w-2 h-2 rounded-full bg-white" />}
-                      </div>
                       El
                     </button>
-                    {localTask.recurrence.endDate && (
-                      <input
-                        type="date"
-                        value={localTask.recurrence.endDate}
-                        onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: e.target.value } }))}
-                        className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-morado outline-none text-center focus:ring-2 focus:ring-morado/20"
-                      />
-                    )}
                   </div>
+                  {localTask.recurrence.endDate && (
+                    <input
+                      type="date"
+                      value={localTask.recurrence.endDate}
+                      onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: e.target.value } }))}
+                      className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -4533,7 +4523,13 @@ function RecurrencePickerChip({ value, onChange }: any) {
             <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="absolute top-full left-0 mt-2 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-3 z-[220] min-w-[240px] space-y-3"
+              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-3 z-[220] min-w-[240px] space-y-3"
+              style={{
+                top: 'auto',
+                left: '50%',
+                bottom: '20px',
+                transform: 'translateX(-50%)'
+              }}
             >
               <div className="grid grid-cols-2 gap-2">
                 {frequencies.map(f => (
