@@ -4511,7 +4511,7 @@ function RecurrencePickerChip({ value, onChange }: any) {
   return (
     <div className="relative">
       <button 
-        onClick={() => setShow(!show)}
+        onClick={(e) => { e.stopPropagation(); setShow(!show); }}
         className={`flex items-center justify-center transition-all group/rec h-6 rounded-lg ${
           value 
             ? 'px-2 py-0.5 bg-azul/10 border-2 border-azul text-azul hover:bg-azul/20 whitespace-nowrap shadow-sm' 
