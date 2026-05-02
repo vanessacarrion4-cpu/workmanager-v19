@@ -4232,7 +4232,8 @@ function TaskTypeChip({ value, onChange, isCompact = false }: any) {
     e.stopPropagation();
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setModalPos({ top: rect.bottom + 8, left: rect.left });
+      const spaceBelow = window.innerHeight - rect.bottom - 20;
+      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
     }
     setShow(!show);
   };
@@ -4270,8 +4271,12 @@ function TaskTypeChip({ value, onChange, isCompact = false }: any) {
               initial={{ opacity: 0, y: -10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl p-2 shadow-2xl z-[220] backdrop-blur-xl w-48"
-              style={{ top: `${modalPos.top}px`, left: `${modalPos.left}px` }}
+              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl p-2 shadow-2xl z-[220] backdrop-blur-xl w-48 overflow-y-auto"
+              style={{ 
+                top: `${modalPos.top}px`, 
+                left: `${modalPos.left}px`,
+                maxHeight: `${modalPos.maxHeight || 500}px`
+              }}
             >
               <div className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest px-2 mb-2">Tipo de Tarea</div>
               <div className="space-y-1">
@@ -4322,7 +4327,8 @@ function TimePickerChip({ value, onChange }: any) {
     e.stopPropagation();
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setModalPos({ top: rect.bottom + 8, left: rect.left });
+      const spaceBelow = window.innerHeight - rect.bottom - 20;
+      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
     }
     setShow(s => !s);
   };
@@ -4349,8 +4355,12 @@ function TimePickerChip({ value, onChange }: any) {
             <motion.div
               initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
               onClick={e => e.stopPropagation()}
-              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[160px]"
-              style={{ top: `${modalPos.top}px`, left: `${modalPos.left}px` }}
+              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[160px] overflow-y-auto"
+              style={{ 
+                top: `${modalPos.top}px`, 
+                left: `${modalPos.left}px`,
+                maxHeight: `${modalPos.maxHeight || 500}px`
+              }}
             >
               <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">Hora ejecución</p>
               <input
@@ -4386,7 +4396,8 @@ function DatePickerChip({ value, onChange, dropUp = false }: any) {
     e.stopPropagation();
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setModalPos({ top: rect.bottom + 8, left: rect.left });
+      const spaceBelow = window.innerHeight - rect.bottom - 20;
+      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
     }
     setShow(s => !s);
   };
@@ -4411,8 +4422,12 @@ function DatePickerChip({ value, onChange, dropUp = false }: any) {
             <div className="fixed inset-0 z-[210]" onClick={() => { setShow(false); setShowFullCalendar(false); }} />
             <motion.div 
               initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[220px]"
-              style={{ top: `${modalPos.top}px`, left: `${modalPos.left}px` }}
+              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[220px] overflow-y-auto"
+              style={{ 
+                top: `${modalPos.top}px`, 
+                left: `${modalPos.left}px`,
+                maxHeight: `${modalPos.maxHeight || 500}px`
+              }}
             >
                {!showFullCalendar ? (
                  <div className="space-y-2">
@@ -4500,9 +4515,11 @@ function RecurrencePickerChip({ value, onChange }: any) {
     e.stopPropagation();
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom - 20;
       setModalPos({
         top: rect.bottom + 8,
-        left: rect.left
+        left: rect.left,
+        maxHeight: spaceBelow
       });
     }
     setShow(!show);
@@ -4568,10 +4585,11 @@ function RecurrencePickerChip({ value, onChange }: any) {
               initial={{ opacity: 0, scale: 0.95, y: -10 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-3 z-[220] min-w-[240px] space-y-3"
+              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-3 z-[220] min-w-[240px] space-y-3 overflow-y-auto"
               style={{
                 top: `${modalPos.top}px`,
-                left: `${modalPos.left}px`
+                left: `${modalPos.left}px`,
+                maxHeight: `${modalPos.maxHeight || 500}px`
               }}
             >
               <div className="grid grid-cols-2 gap-2">
@@ -4744,7 +4762,8 @@ function TagPickerChip({ selectedTags = [], onChange }: any) {
     e.stopPropagation();
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setModalPos({ top: rect.bottom + 8, left: rect.left });
+      const spaceBelow = window.innerHeight - rect.bottom - 20;
+      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
     }
     setShow(!show);
   };
@@ -4777,8 +4796,12 @@ function TagPickerChip({ selectedTags = [], onChange }: any) {
             <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
             <motion.div 
               initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[240px]"
-              style={{ top: `${modalPos.top}px`, left: `${modalPos.left}px` }}
+              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[240px] overflow-y-auto"
+              style={{ 
+                top: `${modalPos.top}px`, 
+                left: `${modalPos.left}px`,
+                maxHeight: `${modalPos.maxHeight || 500}px`
+              }}
             >
                <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3 pl-1">Categorías</p>
                <div className="grid grid-cols-5 gap-2">
@@ -4832,7 +4855,8 @@ function EstimatedTimeChip({ value, onChange, variant = 'default', readonly = fa
     e.stopPropagation();
     if (!readonly && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setModalPos({ top: rect.bottom + 8, left: rect.left });
+      const spaceBelow = window.innerHeight - rect.bottom - 20;
+      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
     }
     if (!readonly) setShow(!show);
   };
@@ -4855,8 +4879,12 @@ function EstimatedTimeChip({ value, onChange, variant = 'default', readonly = fa
             <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
             <motion.div 
               initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              className="fixed bg-bg-card border border-border-main rounded-2xl shadow-2xl p-5 z-[220] min-w-[280px]"
-              style={{ top: `${modalPos.top}px`, left: `${modalPos.left}px` }}
+              className="fixed bg-bg-card border border-border-main rounded-2xl shadow-2xl p-5 z-[220] min-w-[280px] overflow-y-auto"
+              style={{ 
+                top: `${modalPos.top}px`, 
+                left: `${modalPos.left}px`,
+                maxHeight: `${modalPos.maxHeight || 500}px`
+              }}
             >
                <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-4 pl-1">Tiempo Estimado (min)</p>
                <div className="flex gap-4 items-center mb-6">
@@ -5298,7 +5326,12 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
     e.stopPropagation();
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setModalPos({ top: rect.bottom + 8, left: rect.left });
+      const spaceBelow = window.innerHeight - rect.bottom - 20; // 20px margin
+      setModalPos({ 
+        top: rect.bottom + 8, 
+        left: rect.left,
+        maxHeight: spaceBelow
+      });
     }
     const next = !show;
     setShow(next);
@@ -5375,8 +5408,12 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
             <motion.div
               initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               onClick={e => e.stopPropagation()}
-              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[220px]"
-              style={{ top: `${modalPos.top}px`, left: `${modalPos.left}px` }}
+              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[220px] overflow-y-auto"
+              style={{ 
+                top: `${modalPos.top}px`, 
+                left: `${modalPos.left}px`,
+                maxHeight: `${modalPos.maxHeight || 500}px`
+              }}
             >
               <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">Delegar a</p>
               <div className="space-y-1 mb-3">
