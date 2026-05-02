@@ -3950,7 +3950,6 @@ function TaskCard({
                         const s = allTasksMap[sid];
                         return s && !s.isDeleted && s.status !== 'completed';
                       }).length;
-                      if (pendingCount === 0) return null;
                       return (
                         <button
                           onClick={() => onToggleExpand(task.id)}
