@@ -31,12 +31,15 @@ export function isTaskCompleted(taskId: string, tasks: Record<string, Task>, ins
 /**
  * Comprueba si una recurrencia aplica para una fecha concreta.
  * Soporta: daily, weekdays, weekly, monthly, yearly.
+ * Respeta endDate.
  */
 function matchesRecurrence(recurrence: any, date: Date): boolean {
   if (!recurrence) return false;
   
   const dateStr = formatLocalISO(date);
   if (dateStr < (recurrence.startDate || '')) return false;
+  
+  // Respetar endDate
   if (recurrence.endDate && dateStr > recurrence.endDate) return false;
 
   const jsDay = date.getDay();

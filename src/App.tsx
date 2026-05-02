@@ -3326,9 +3326,11 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
                           {new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).format(parseLocalISO(selectedDay))}
                         </h3>
                         <div className="flex items-center gap-3 mt-1">
-                          <p className="text-[9px] font-black text-turquesa uppercase tracking-[0.2em]">Carga: {projectLoadForDay(selectedDay, allTasksMap)}m</p>
-                          <span className="dark:text-text-secondary text-text-secondary-light opacity-30 text-[9px]">•</span>
-                          <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">{totalGroups} tareas proyectadas</p>
+                          {selectedDay >= formatLocalISO(new Date()) && (
+                            <p className="text-[9px] font-black text-turquesa uppercase tracking-[0.2em]">Carga: {projectLoadForDay(selectedDay, allTasksMap)}m</p>
+                          )}
+                          {selectedDay >= formatLocalISO(new Date()) && <span className="dark:text-text-secondary text-text-secondary-light opacity-30 text-[9px]">•</span>}
+                          <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">{totalGroups} tareas</p>
                         </div>
                      </div>
                   </div>
@@ -4575,6 +4577,61 @@ function RecurrencePickerChip({ value, onChange }: any) {
                 </div>
               )}
  
+              {/* Sección Termina */}
+              {value && (
+                <div className="pt-2 border-t dark:border-border-main border-border-main-light space-y-2">
+                  <p className="text-[8px] font-black text-morado uppercase mb-2">Termina:</p>
+                  
+                  {/* Nunca */}
+                  <button
+                    onClick={() => onChange({ ...value, endDate: null })}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                      !value.endDate
+                        ? 'bg-morado text-white'
+                        : 'dark:bg-bg-main bg-white dark:text-text-secondary text-text-secondary-light border dark:border-border-main border-border-main-light'
+                    }`}
+                  >
+                    <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
+                      !value.endDate ? 'border-white' : 'dark:border-border-main border-border-main-light'
+                    }`}>
+                      {!value.endDate && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </div>
+                    Nunca
+                  </button>
+
+                  {/* El [fecha] */}
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => {
+                        const sixMonthsLater = new Date();
+                        sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+                        onChange({ ...value, endDate: formatLocalISO(sixMonthsLater) });
+                      }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        value.endDate
+                          ? 'bg-morado text-white'
+                          : 'dark:bg-bg-main bg-white dark:text-text-secondary text-text-secondary-light border dark:border-border-main border-border-main-light'
+                      }`}
+                    >
+                      <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
+                        value.endDate ? 'border-white' : 'dark:border-border-main border-border-main-light'
+                      }`}>
+                        {value.endDate && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                      El
+                    </button>
+                    {value.endDate && (
+                      <input
+                        type="date"
+                        value={value.endDate}
+                        onChange={e => onChange({ ...value, endDate: e.target.value })}
+                        className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[11px] font-black text-morado outline-none text-center focus:ring-2 focus:ring-morado/20"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="h-px dark:bg-border-main bg-border-main-light" />
               <button
                 onClick={() => {
