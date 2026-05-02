@@ -4031,11 +4031,6 @@ function TaskCard({
 
                 {/* Fila chips - incluye badge bloque al inicio */}
                 <div className="flex flex-wrap items-center gap-1">
-                  {/* Badge bloque */}
-                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border tracking-tighter whitespace-nowrap shadow-sm dark:bg-bg-main bg-white dark:border-border-main border-border-main-light flex items-center gap-1.5 shrink-0" style={{ color: block.color }}>
-                    <span>{block.icon}</span>
-                    {block.name && <span>{block.name}</span>}
-                  </span>
                   <TaskTypeChip 
                     value={task.taskType || (isTaskRepetitive(task.id, allTasksMap) ? 'core' : 'adhoc')} 
                     onChange={(val: string) => onUpdateTask({ ...task, taskType: val })} 
@@ -4104,6 +4099,14 @@ function TaskCard({
                   >
                     {isTimerRunning ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
                   </button>
+
+                  {/* Badge bloque - only show in Dashboard, not in BlocksManagerView */}
+                  {variant !== 'FULL' && (
+                    <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border tracking-tighter whitespace-nowrap shadow-sm dark:bg-bg-main bg-white dark:border-border-main border-border-main-light flex items-center gap-1.5 shrink-0" style={{ color: block.color }}>
+                      <span>{block.icon}</span>
+                      {block.name && <span>{block.name}</span>}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
