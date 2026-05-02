@@ -4983,31 +4983,31 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
     <div className="fixed inset-0 dark:bg-bg-main/80 bg-white/80 backdrop-blur-md z-[300] flex items-end justify-center">
       <motion.div 
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-        className="w-full max-w-xl dark:bg-bg-main bg-white border-t border-x dark:border-border-main border-border-main-light rounded-t-[40px] p-8 shadow-2xl flex flex-col max-h-[90vh]"
+        className="w-full max-w-xl dark:bg-bg-main bg-white border-t border-x dark:border-border-main border-border-main-light rounded-t-[40px] p-4 shadow-2xl flex flex-col max-h-[90vh]"
       >
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-2xl font-black dark:text-white text-text-main-light uppercase tracking-tighter">
+            <h2 className="text-xl font-black dark:text-white text-text-main-light uppercase tracking-tighter">
               {task?.title || 'Gestionar Tiempo'}
             </h2>
-            <p className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">Panel de Control de Horas</p>
+            <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">Panel de Control de Horas</p>
           </div>
-          <button onClick={onClose} className="p-3 dark:bg-bg-card bg-gray-100 border dark:border-border-main border-border-main-light rounded-2xl dark:hover:bg-bg-main hover:bg-gray-200 transition-all">
-            <X size={20} className="dark:text-text-secondary text-text-secondary-light" />
+          <button onClick={onClose} className="p-2 dark:bg-bg-card bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl dark:hover:bg-bg-main hover:bg-gray-200 transition-all">
+            <X size={18} className="dark:text-text-secondary text-text-secondary-light" />
           </button>
         </div>
  
         {/* Tab Navigation */}
-        <div className="flex p-1 dark:bg-bg-card bg-gray-100 border dark:border-border-main border-border-main-light rounded-2xl mb-8">
+        <div className="flex p-1 dark:bg-bg-card bg-gray-100 border dark:border-border-main border-border-main-light rounded-2xl mb-4">
           <button 
             onClick={() => setActiveTab('register')}
-            className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'register' ? 'bg-turquesa text-white' : 'dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light'}`}
+            className={`flex-1 py-2 px-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'register' ? 'bg-turquesa text-white' : 'dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light'}`}
           >
             <Plus size={14} /> Registro
           </button>
           <button 
             onClick={() => setActiveTab('history')}
-            className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-turquesa text-white' : 'dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light'}`}
+            className={`flex-1 py-2 px-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-turquesa text-white' : 'dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light'}`}
           >
             <History size={14} /> Historial
           </button>
@@ -5015,22 +5015,22 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
  
         <div className="flex-1 overflow-hidden flex flex-col">
           {activeTab === 'register' ? (
-            <div className="space-y-8 overflow-y-auto custom-scrollbar px-1">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-6 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[32px] relative overflow-hidden group">
-                  <div className="absolute top-4 right-4 opacity-20"><Zap size={20} className="text-turquesa" /></div>
-                  <p className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-2">Total Registrado</p>
+            <div className="space-y-4 overflow-y-auto custom-scrollbar px-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-4 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[24px] relative overflow-hidden group">
+                  <div className="absolute top-3 right-3 opacity-20"><Zap size={18} className="text-turquesa" /></div>
+                  <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-1">Total Registrado</p>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-black text-turquesa">{comboRegistered}</span>
+                    <span className="text-3xl font-black text-turquesa">{comboRegistered}</span>
                     <span className="text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase">min</span>
                   </div>
                   {!subtaskId && hasSubtasks && (
-                    <p className="text-[9px] font-bold dark:text-text-secondary text-text-secondary-light mt-1">Propio: {totalRegistered}m · Subtareas: {comboRegistered - totalRegistered}m</p>
+                    <p className="text-[8px] font-bold dark:text-text-secondary text-text-secondary-light mt-1">Propio: {totalRegistered}m · Subtareas: {comboRegistered - totalRegistered}m</p>
                   )}
                 </div>
  
-                <div className="p-6 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[32px]">
-                  <p className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-4 text-center">Plan v Realidad</p>
+                <div className="p-4 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[24px]">
+                  <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3 text-center">Plan v Realidad</p>
                   <div className="flex items-center justify-center gap-4 mb-3">
                     <span className="text-lg font-black dark:text-text-secondary text-text-secondary-light">{estimated}m</span>
                     <ArrowRight size={16} className="dark:text-text-secondary/30 text-text-secondary-light/30" />
@@ -5045,35 +5045,35 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
                 </div>
               </div>
  
-              <div className="p-8 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[32px] space-y-6">
-                <div className="space-y-4">
+              <div className="p-4 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[24px] space-y-4">
+                <div className="space-y-3">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest ml-1">¿Qué hiciste en esta sesión?</label>
                     <textarea 
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
                       placeholder="Describe brevemente tu progreso..."
-                      className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-4 text-sm font-medium dark:text-white text-text-main-light placeholder:text-text-secondary/30 outline-none focus:border-turquesa/50 transition-all resize-none h-24"
+                      className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-3 text-sm font-medium dark:text-white text-text-main-light placeholder:text-text-secondary/30 outline-none focus:border-turquesa/50 transition-all resize-none h-20"
                     />
                   </div>
  
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest ml-1">Minutos</label>
+                      <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest ml-1">Minutos</label>
                       <input 
                         type="number"
                         value={newMinutes}
                         onChange={(e) => setNewMinutes(parseInt(e.target.value) || 0)}
-                        className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-4 text-xl font-black text-turquesa outline-none focus:border-turquesa/50 transition-all"
+                        className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-3 text-xl font-black text-turquesa outline-none focus:border-turquesa/50 transition-all"
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest ml-1">Fecha</label>
+                      <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest ml-1">Fecha</label>
                       <input 
                         type="date"
                         value={newDate}
                         onChange={(e) => setNewDate(e.target.value)}
-                        className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-4 text-xs font-black dark:text-white text-text-main-light outline-none focus:border-turquesa/50 transition-all uppercase"
+                        className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-3 text-xs font-black dark:text-white text-text-main-light outline-none focus:border-turquesa/50 transition-all uppercase"
                       />
                     </div>
                   </div>
@@ -5085,7 +5085,7 @@ function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAd
                     setNewNote('');
                     // Removed setActiveTab('history') as per user request
                   }}
-                  className="w-full py-5 bg-turquesa hover:bg-turquesa/90 text-bg-main font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-turquesa/20 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+                  className="w-full py-3 bg-turquesa hover:bg-turquesa/90 text-bg-main font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-turquesa/20 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
                 >
                   <Plus size={20} strokeWidth={3} />
                   Registrar Tiempo
