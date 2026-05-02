@@ -4258,7 +4258,13 @@ function TaskTypeChip({ value, onChange, isCompact = false }: any) {
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute bottom-full left-0 mb-2 w-48 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl p-2 shadow-2xl z-50 backdrop-blur-xl"
+              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl p-2 shadow-2xl z-50 backdrop-blur-xl w-48"
+              style={{
+                top: 'auto',
+                left: '50%',
+                bottom: '20px',
+                transform: 'translateX(-50%)'
+              }}
             >
               <div className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest px-2 mb-2">Tipo de Tarea</div>
               <div className="space-y-1">
@@ -4324,7 +4330,13 @@ function TimePickerChip({ value, onChange }: any) {
             <motion.div
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
               onClick={e => e.stopPropagation()}
-              className="absolute top-full left-0 mt-2 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[160px]"
+              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[160px]"
+              style={{
+                top: 'auto',
+                left: '50%',
+                bottom: '20px',
+                transform: 'translateX(-50%)'
+              }}
             >
               <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">Hora ejecución</p>
               <input
@@ -4385,7 +4397,13 @@ function DatePickerChip({ value, onChange, dropUp = false }: any) {
             <div className="fixed inset-0 z-[210]" onClick={() => { setShow(false); setShowFullCalendar(false); }} />
             <motion.div 
               initial={{ opacity: 0, y: openUp ? -10 : 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: openUp ? -10 : 10 }}
-              className={`absolute ${openUp ? 'bottom-full mb-2' : 'top-full mt-2'} left-0 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[220px]`}
+              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[220px]"
+              style={{
+                top: 'auto',
+                left: '50%',
+                bottom: '20px',
+                transform: 'translateX(-50%)'
+              }}
             >
                {!showFullCalendar ? (
                  <div className="space-y-2">
@@ -4630,14 +4648,14 @@ function RecurrencePickerChip({ value, onChange }: any) {
               {/* Sección Termina */}
               {value && (
                 <div className="pt-2 border-t dark:border-border-main border-border-main-light space-y-2">
-                  <p className="text-[8px] font-black text-morado uppercase mb-2">Termina:</p>
+                  <p className="text-[8px] font-black text-azul uppercase mb-2">Termina:</p>
                   
                   {/* Nunca */}
                   <button
                     onClick={() => onChange({ ...value, endDate: null })}
                     className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                       !value.endDate
-                        ? 'bg-morado text-white'
+                        ? 'bg-azul text-white'
                         : 'dark:bg-bg-main bg-white dark:text-text-secondary text-text-secondary-light border dark:border-border-main border-border-main-light'
                     }`}
                   >
@@ -4651,7 +4669,7 @@ function RecurrencePickerChip({ value, onChange }: any) {
 
                   {/* Fecha concreta - directamente el input */}
                   <div className="space-y-1">
-                    <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light uppercase px-1">Hasta el:</p>
+                    <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light uppercase px-1">Fecha fin:</p>
                     <input
                       type="date"
                       value={value.endDate || ''}
@@ -4665,7 +4683,7 @@ function RecurrencePickerChip({ value, onChange }: any) {
                       }}
                       className={`w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[11px] font-black outline-none text-center transition-all ${
                         value.endDate 
-                          ? 'text-morado focus:ring-2 focus:ring-morado/20' 
+                          ? 'text-azul focus:ring-2 focus:ring-azul/20' 
                           : 'dark:text-text-secondary/40 text-text-secondary-light/40'
                       }`}
                     />
@@ -4722,7 +4740,13 @@ function TagPickerChip({ selectedTags = [], onChange }: any) {
             <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
             <motion.div 
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-              className="absolute top-full left-0 mt-2 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[240px]"
+              className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[240px]"
+              style={{
+                top: 'auto',
+                left: '50%',
+                bottom: '20px',
+                transform: 'translateX(-50%)'
+              }}
             >
                <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3 pl-1">Categorías</p>
                <div className="grid grid-cols-5 gap-2">
@@ -4787,7 +4811,13 @@ function EstimatedTimeChip({ value, onChange, variant = 'default', readonly = fa
             <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
             <motion.div 
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-              className="absolute top-full left-0 mt-2 bg-bg-card border border-border-main rounded-2xl shadow-2xl p-5 z-[220] min-w-[280px]"
+              className="fixed bg-bg-card border border-border-main rounded-2xl shadow-2xl p-5 z-[220] min-w-[280px]"
+              style={{
+                top: 'auto',
+                left: '50%',
+                bottom: '20px',
+                transform: 'translateX(-50%)'
+              }}
             >
                <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-4 pl-1">Tiempo Estimado (min)</p>
                <div className="flex gap-4 items-center mb-6">
