@@ -2682,24 +2682,26 @@ function DashboardView({
                   </motion.div>
                 </button>
                 <div className="flex items-center gap-1.5 text-[10px] font-black">
-                  <span className="dark:bg-bg-card bg-bg-card-light px-2.5 py-1 rounded-lg border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light uppercase">{tagEntries.length} Tareas</span>
                   {(() => {
                     const groupTaskIds: string[] = [];
+                    const pendingTaskIds: string[] = [];
                     tagEntries.forEach(({ task, subtasksForGroup: stfg }: any) => {
                       if (stfg && stfg.length > 0) {
-                        stfg.forEach((sid: string) => groupTaskIds.push(sid));
+                        stfg.forEach((sid: string) => {
+                          groupTaskIds.push(sid);
+                          const st = allTasksMap[sid];
+                          if (st && st.status !== 'completed') pendingTaskIds.push(sid);
+                        });
                       } else if (!task.subtasks || task.subtasks.length === 0) {
                         groupTaskIds.push(task.id);
+                        if (task.status !== 'completed') pendingTaskIds.push(task.id);
                       }
                     });
-                    const estimated = groupTaskIds.reduce((acc: number, id: string) => acc + getTaskEstimatedCombo(id, allTasksMap), 0);
-                    const registered = timeEntries
-                      .filter((e: any) => groupTaskIds.includes(e.taskId) || groupTaskIds.includes(e.subtaskId))
-                      .reduce((acc: number, e: any) => acc + (e.duration || 0), 0);
+                    const estimated = pendingTaskIds.reduce((acc: number, id: string) => acc + getTaskEstimatedCombo(id, allTasksMap), 0);
                     const fmt = (m: number) => m >= 60 ? `${Math.floor(m/60)}h${m%60 > 0 ? `${m%60}m` : ''}` : `${m}m`;
                     return <>
+                      <span className="dark:bg-bg-card bg-bg-card-light px-2.5 py-1 rounded-lg border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light uppercase">{pendingTaskIds.length} Tareas</span>
                       <span className="text-azul dark:bg-bg-card bg-bg-card-light px-2 py-1 rounded-lg border dark:border-border-main border-border-main-light flex items-center gap-1"><Clock size={10} />{fmt(estimated)}</span>
-                      <span className="text-turquesa dark:bg-bg-card bg-bg-card-light px-2 py-1 rounded-lg border dark:border-border-main border-border-main-light flex items-center gap-1"><Target size={10} />{fmt(registered)}</span>
                     </>;
                   })()}
                 </div>
