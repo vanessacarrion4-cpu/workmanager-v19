@@ -2462,7 +2462,7 @@ function BulkActionBar({
             className="px-3 py-2 rounded-xl bg-turquesa/10 border border-turquesa/30 text-turquesa hover:bg-turquesa/20 transition-all flex items-center gap-1.5 text-xs font-bold"
             title="Cambiar fecha"
           >
-            <Calendar size={14} />
+            <CalendarIcon size={14} />
             {!isMobile && <span>Fecha</span>}
           </button>
           
@@ -2850,6 +2850,20 @@ function DashboardView({
           </div>
  
           <div className="flex items-center gap-2">
+             {/* Botón: Seleccionar (modo selección múltiple) */}
+             <button 
+               onClick={() => onToggleSelectionMode && onToggleSelectionMode()}
+               className={`flex items-center gap-1.5 px-3 h-10 rounded-2xl border-2 transition-all text-[10px] font-black uppercase tracking-widest ${
+                 selectionMode 
+                   ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30' 
+                   : 'bg-azul/10 border-azul text-azul hover:bg-azul hover:text-white'
+               }`}
+               title={selectionMode ? 'Salir de selección' : 'Seleccionar múltiple'}
+             >
+               <CheckCircle2 size={14} />
+               <span className="hidden sm:inline">{selectionMode ? 'Cancelar' : 'Seleccionar'}</span>
+             </button>
+
              {/* Botón: Expandir/Contraer SUBTAREAS — flechas azul */}
              <button 
               onClick={() => setExpandAll(!expandAll)}
@@ -2898,22 +2912,6 @@ function DashboardView({
                {hideCompleted ? <Eye size={16} /> : <EyeOff size={16} />}
                <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-xl text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
                  {hideCompleted ? 'Ver completadas' : 'Ocultar completadas'}
-               </span>
-             </button>
-
-             {/* Botón: Seleccionar (modo selección múltiple) */}
-             <button 
-               onClick={() => onToggleSelectionMode && onToggleSelectionMode()}
-               className={`w-10 h-10 flex items-center justify-center rounded-2xl border transition-all relative group ${
-                 selectionMode 
-                   ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30' 
-                   : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul dark:hover:bg-azul/10 hover:bg-azul/5'
-               }`}
-               title={selectionMode ? 'Salir de selección' : 'Seleccionar múltiple'}
-             >
-               <CheckCircle2 size={16} />
-               <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-xl text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                 {selectionMode ? 'Cancelar selección' : 'Seleccionar'}
                </span>
              </button>
 
@@ -4300,7 +4298,8 @@ function TaskCard({
             {/* Checkbox de selección (azul) */}
             {selectionMode && onToggleTaskSelection && (
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   const isContainer = task.subtasks && task.subtasks.length > 0;
                   onToggleTaskSelection(task.id, isContainer);
                 }}
@@ -7020,4 +7019,3 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
     </motion.div>
   );
 }
-"// v2-selection" 
