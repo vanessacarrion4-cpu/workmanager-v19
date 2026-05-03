@@ -285,6 +285,7 @@ export function generateInstances(
 /**
  * Calcula el tiempo estimado total de un día sumando instancias raíz visibles.
  * No regenera — trabaja sobre allTasks que ya tiene las instancias en memoria.
+ * SOLO suma tareas pendientes (excluye completadas).
  */
 export function projectLoadForDay(
   dateStr: string,
@@ -297,6 +298,7 @@ export function projectLoadForDay(
     if (!t || t.isDeleted) continue;
     if (t.parentTaskId) continue;       // subtareas: se suman vía su padre
     if (t.isTemplate) continue;         // nunca contar templates originales
+    if (t.status === 'completed') continue; // ← EXCLUIR COMPLETADAS
 
     // Caso 1: Tarea con dueDate = dateStr
     if (t.dueDate === dateStr) {
@@ -309,10 +311,10 @@ export function projectLoadForDay(
 
     // Caso 2: Contenedor SIN dueDate pero con subtareas del día
     if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
-      // Sumar SOLO las subtareas que tienen dueDate = dateStr
+      // Sumar SOLO las subtareas que tienen dueDate = dateStr Y que NO están completadas
       t.subtasks.forEach(subId => {
         const sub = allTasks[subId];
-        if (sub && !sub.isDeleted && sub.dueDate === dateStr) {
+        if (sub && !sub.isDeleted && sub.status !== 'completed' && sub.dueDate === dateStr) {
           if (!counted.has(subId)) {
             counted.add(subId);
             totalTime += getEstimatedForInstance(subId, allTasks);
