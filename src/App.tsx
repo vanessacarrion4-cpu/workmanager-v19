@@ -3867,7 +3867,7 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
       return true;
     });
     
-    // Grouping by tags similar to dashboard
+    // Opción B: contenedores se expanden — sus subtareas del día aparecen por su propio tag
     const groups: any = {
       con_hora: [],
       focus: [],
@@ -3875,13 +3875,32 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
       espera: [],
       resto: []
     };
- 
+
     all.forEach((t: any) => {
-      const primaryTag = t.tags[0] || 'resto';
-      if (groups[primaryTag]) groups[primaryTag].push(t);
-      else groups.resto.push(t);
+      const hasSubtasksToday = t.subtasks && t.subtasks.length > 0 && t.subtasks.some((subId: string) => {
+        const sub = allTasksMap[subId];
+        return sub && !sub.isDeleted && sub.dueDate === selectedDay;
+      });
+
+      if (hasSubtasksToday) {
+        // Es un contenedor: en vez de añadirlo, añadir sus subtareas del día directamente
+        t.subtasks.forEach((subId: string) => {
+          const sub = allTasksMap[subId];
+          if (!sub || sub.isDeleted || sub.dueDate !== selectedDay) return;
+          // Añadir info del contenedor padre para mostrarlo en UI
+          const subWithParent = { ...sub, _parentTitle: t.title };
+          const primaryTag = (sub.tags && sub.tags[0]) || 'resto';
+          if (groups[primaryTag]) groups[primaryTag].push(subWithParent);
+          else groups.resto.push(subWithParent);
+        });
+      } else {
+        // Tarea huérfana normal
+        const primaryTag = (t.tags && t.tags[0]) || 'resto';
+        if (groups[primaryTag]) groups[primaryTag].push(t);
+        else groups.resto.push(t);
+      }
     });
- 
+
     return groups;
   }, [selectedDay, tasks, allTasksMap, blocks]);
  
@@ -3921,45 +3940,92 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
       </div>
  
       <div className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2.5rem] p-8 shadow-2xl">
-        <div className="grid grid-cols-7 mb-6">
-          {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => (
-            <div key={d} className="text-center text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">{d}</div>
+        <div className="grid grid-cols-8 mb-6">
+          {['L', 'M', 'X', 'J', 'V', 'S', 'D', ''].map((d, i) => (
+            <div key={i} className="text-center text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">{d}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-3">
-          {daysInMonth.map((day, idx) => {
-            if (!day) return <div key={idx} className="aspect-square" />;
-            const isToday = day === formatLocalISO(new Date());
-            const isSelected = day === selectedDay;
-            const isPast = day < formatLocalISO(new Date());
-            const load = projectLoadForDay(day, allTasksMap);
-            
+        {/* Agrupar días por semanas para añadir columna de resumen */}
+        {(() => {
+          // Construir filas de 7 días
+          const rows: (string | null)[][] = [];
+          for (let i = 0; i < daysInMonth.length; i += 7) {
+            rows.push(daysInMonth.slice(i, i + 7));
+          }
+          // Rellenar última fila si no tiene 7
+          while (rows[rows.length - 1]?.length < 7) rows[rows.length - 1].push(null);
+
+          // Horas de jornada diaria (L-V)
+          const WORKDAY_HOURS = 8 * 60; // 8h en minutos
+          const WEEK_CAPACITY = WORKDAY_HOURS * 5; // L-V
+
+          return rows.map((week, weekIdx) => {
+            // Calcular carga total de la semana (solo días con datos)
+            const weekDays = week.filter(Boolean) as string[];
+            const weekLoad = weekDays.reduce((acc, day) => acc + projectLoadForDay(day, allTasksMap), 0);
+            const pct = Math.min(100, Math.round((weekLoad / WEEK_CAPACITY) * 100));
+            const freePct = 100 - pct;
+            const barColor = pct < 40 ? '#14B8A6' : pct < 70 ? '#F97316' : pct < 90 ? '#A855F7' : '#EC4899';
+            const hasAnyLoad = weekLoad > 0;
+
             return (
-              <button 
-                key={day}
-                onClick={() => setSelectedDay(day)}
-                className={`
-                  aspect-square rounded-2xl flex flex-col items-center justify-center relative transition-all group border-2
-                  ${isSelected ? 'border-turquesa scale-110 shadow-xl z-20 dark:bg-bg-card bg-white' : 'border-transparent dark:hover:border-white/10 hover:border-gray-300'}
-                  ${isToday ? 'dark:bg-bg-main bg-gray-100 ring-2 ring-turquesa ring-offset-4 dark:ring-offset-bg-card ring-offset-white' : ''}
-                `}
-              >
-                <span className={`text-sm font-black ${isSelected ? 'dark:text-white text-text-main-light' : 'dark:text-text-secondary text-text-secondary-light dark:group-hover:text-white group-hover:text-text-main-light'}`}>
-                  {parseLocalISO(day).getDate()}
-                </span>
-                
-                {load > 0 && (
-                   <div className="mt-1 flex flex-col items-center">
-                     <div className="text-[8px] font-black text-turquesa leading-none mb-1">
-                        {formatMinutes(load)}
-                     </div>
-                     <div className={`w-8 h-1 rounded-full ${getLoadColor(day)} transition-all`} />
-                   </div>
-                )}
-              </button>
+              <div key={weekIdx} className="grid grid-cols-8 gap-3 mb-3">
+                {week.map((day, dIdx) => {
+                  if (!day) return <div key={dIdx} className="aspect-square" />;
+                  const isToday = day === formatLocalISO(new Date());
+                  const isSelected = day === selectedDay;
+                  const load = projectLoadForDay(day, allTasksMap);
+                  return (
+                    <button 
+                      key={day}
+                      onClick={() => setSelectedDay(day)}
+                      className={`
+                        aspect-square rounded-2xl flex flex-col items-center justify-center relative transition-all group border-2
+                        ${isSelected ? 'border-turquesa scale-110 shadow-xl z-20 dark:bg-bg-card bg-white' : 'border-transparent dark:hover:border-white/10 hover:border-gray-300'}
+                        ${isToday ? 'dark:bg-bg-main bg-gray-100 ring-2 ring-turquesa ring-offset-4 dark:ring-offset-bg-card ring-offset-white' : ''}
+                      `}
+                    >
+                      <span className={`text-sm font-black ${isSelected ? 'dark:text-white text-text-main-light' : 'dark:text-text-secondary text-text-secondary-light dark:group-hover:text-white group-hover:text-text-main-light'}`}>
+                        {parseLocalISO(day).getDate()}
+                      </span>
+                      {load > 0 && (
+                        <div className="mt-1 flex flex-col items-center">
+                          <div className="text-[8px] font-black text-turquesa leading-none mb-1">
+                            {formatMinutes(load)}
+                          </div>
+                          <div className={`w-8 h-1 rounded-full ${getLoadColor(day)} transition-all`} />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+
+                {/* Columna resumen semanal */}
+                <div className={`flex flex-col items-center justify-center rounded-2xl border-2 px-1 py-2 gap-1 ${
+                  hasAnyLoad 
+                    ? 'dark:bg-bg-main/60 bg-gray-50 dark:border-border-main/50 border-gray-200' 
+                    : 'border-transparent opacity-30'
+                }`}>
+                  {hasAnyLoad ? (
+                    <>
+                      {/* Barra circular / vertical */}
+                      <div className="relative w-6 h-10 dark:bg-bg-main bg-gray-200 rounded-full overflow-hidden flex flex-col justify-end">
+                        <div 
+                          className="w-full rounded-full transition-all duration-500"
+                          style={{ height: `${pct}%`, backgroundColor: barColor }}
+                        />
+                      </div>
+                      <span className="text-[8px] font-black leading-none" style={{ color: barColor }}>{pct}%</span>
+                      <span className="text-[7px] font-bold dark:text-text-secondary/50 text-text-secondary-light/50 leading-none">+{freePct}%</span>
+                    </>
+                  ) : (
+                    <div className="w-1 h-6 dark:bg-bg-main bg-gray-200 rounded-full" />
+                  )}
+                </div>
+              </div>
             );
-          })}
-        </div>
+          });
+        })()}
  
         <div className="mt-10 flex flex-wrap gap-6 justify-center">
            {[
@@ -4045,32 +4111,39 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
                         <div className="grid grid-cols-1 gap-4">
                           <Reorder.Group axis="y" values={groupTasks} onReorder={onReorderTasks} className="grid grid-cols-1 gap-4">
                             {groupTasks.map((t: any) => (
-                              <TaskCard 
-                                key={t.id} 
-                                task={t} 
-                                variant="COMPACT"
-                                allTasksMap={allTasksMap}
-                                people={people}
-                                onAddPerson={onAddPerson}
-                                blocks={blocks}
-                                timeEntries={timeEntries}
-                                activeTimer={activeTimer}
-                                onStartTimer={onStartTimer}
-                                onStopTimer={onStopTimer}
-                                onToggleStatus={onToggleTask}
-                                onUpdateTask={onUpdateTask}
-                                onEditTask={onEditTask}
-                                editingTaskId={editingTaskId}
-                                inlineEditingTaskId={inlineEditingTaskId}
-                                setInlineEditingTaskId={setInlineEditingTaskId}
-                                onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
-                                onAddTask={onAddTask}
-                                onDelete={onDelete}
-                                onPromote={onPromote}
-                                onDemote={onDemote}
-                                onReorderSubtasks={onReorderSubtasks}
-                                onToggleExpand={onToggleExpand}
-                              />
+                              <div key={t.id}>
+                                {t._parentTitle && (
+                                  <div className="flex items-center gap-1.5 mb-1 ml-2">
+                                    <Layers size={10} className="text-turquesa/60" />
+                                    <span className="text-[9px] font-black text-turquesa/60 uppercase tracking-widest">{t._parentTitle}</span>
+                                  </div>
+                                )}
+                                <TaskCard 
+                                  task={t} 
+                                  variant="COMPACT"
+                                  allTasksMap={allTasksMap}
+                                  people={people}
+                                  onAddPerson={onAddPerson}
+                                  blocks={blocks}
+                                  timeEntries={timeEntries}
+                                  activeTimer={activeTimer}
+                                  onStartTimer={onStartTimer}
+                                  onStopTimer={onStopTimer}
+                                  onToggleStatus={onToggleTask}
+                                  onUpdateTask={onUpdateTask}
+                                  onEditTask={onEditTask}
+                                  editingTaskId={editingTaskId}
+                                  inlineEditingTaskId={inlineEditingTaskId}
+                                  setInlineEditingTaskId={setInlineEditingTaskId}
+                                  onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
+                                  onAddTask={onAddTask}
+                                  onDelete={onDelete}
+                                  onPromote={onPromote}
+                                  onDemote={onDemote}
+                                  onReorderSubtasks={onReorderSubtasks}
+                                  onToggleExpand={onToggleExpand}
+                                />
+                              </div>
                             ))}
                           </Reorder.Group>
                         </div>
