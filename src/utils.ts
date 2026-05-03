@@ -408,3 +408,31 @@ export function getTaskEstimatedComboForDay(
 
   return task.estimatedMinutes || 0;
 }
+
+/**
+ * Formatea minutos a formato humano: "2h 30m" o "45m"
+ */
+export function formatMinutes(minutes: number | undefined): string {
+  if (!minutes || minutes === 0) return '0m';
+  if (minutes < 60) return `${minutes}m`;
+  
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+/**
+ * Chequea si una tarea es visible (existe, no eliminada)
+ * Safety check incluido para proteger contra undefined
+ */
+export function isTaskVisible(task: Task | undefined): boolean {
+  return !!task && !task.isDeleted;
+}
+
+/**
+ * Chequea si es una instancia visible (no template)
+ * Para vistas y stats - NO cuenta templates originales
+ */
+export function isTaskInstance(task: Task | undefined): boolean {
+  return isTaskVisible(task) && !task.isTemplate;
+}

@@ -73,7 +73,10 @@ import {
   projectLoadForDay,
   getTaskEstimatedCombo,
   getTaskRegisteredSelf,
-  getTaskRegisteredCombo
+  getTaskRegisteredCombo,
+  formatMinutes,
+  isTaskVisible,
+  isTaskInstance
 } from './utils';
  
 // --- Storage Key ---
@@ -1090,7 +1093,7 @@ export default function App() {
   };
  
   // --- Computed ---
-  const allActiveTasks = useMemo(() => Object.values(tasks).filter((t: Task) => !t.isDeleted), [tasks]);
+  const allActiveTasks = useMemo(() => Object.values(tasks).filter((t: Task) => !t.isDeleted && !t.isTemplate), [tasks]);
  
   const filteredTasks = useMemo(() => {
     let result = allActiveTasks;
@@ -1818,7 +1821,7 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                 value={localTask.blockId}
                 onChange={e => setLocalTask(prev => ({ ...prev, blockId: e.target.value }))}
               >
-                {blocks.map((b: any) => (
+                {blocks.filter((b: any) => b.isActive).map((b: any) => (
                   <option key={b.id} value={b.id}>{b.icon} {b.name}</option>
                 ))}
               </select>
@@ -2698,10 +2701,9 @@ function DashboardView({
                       }
                     });
                     const estimated = pendingTaskIds.reduce((acc: number, id: string) => acc + getTaskEstimatedCombo(id, allTasksMap), 0);
-                    const fmt = (m: number) => m >= 60 ? `${Math.floor(m/60)}h${m%60 > 0 ? `${m%60}m` : ''}` : `${m}m`;
                     return <>
                       <span className="dark:bg-bg-card bg-bg-card-light px-2.5 py-1 rounded-lg border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light uppercase">{pendingTaskIds.length} Tareas</span>
-                      <span className="text-azul dark:bg-bg-card bg-bg-card-light px-2 py-1 rounded-lg border dark:border-border-main border-border-main-light flex items-center gap-1"><Clock size={10} />{fmt(estimated)}</span>
+                      <span className="text-azul dark:bg-bg-card bg-bg-card-light px-2 py-1 rounded-lg border dark:border-border-main border-border-main-light flex items-center gap-1"><Clock size={10} />{formatMinutes(estimated)}</span>
                     </>;
                   })()}
                 </div>
@@ -3319,7 +3321,7 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
                 {load > 0 && (
                    <div className="mt-1 flex flex-col items-center">
                      <div className="text-[8px] font-black text-turquesa leading-none mb-1">
-                        {load >= 60 ? `${Math.floor(load/60)}h${load%60 > 0 ? ` ${load%60}m` : ""}` : `${load}m`}
+                        {formatMinutes(load)}
                      </div>
                      <div className={`w-8 h-1 rounded-full ${getLoadColor(day)} transition-all`} />
                    </div>
@@ -3860,7 +3862,7 @@ function TaskCard({
           <span className="text-[11px] font-bold dark:text-white text-text-main-light truncate flex-1 uppercase tracking-tight">{task.title}</span>
           {(task.templateId || task.recurrence) && <RefreshCw size={10} className="text-turquesa shrink-0" />}
           <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">
-            {totalEstimated >= 60 ? `${Math.floor(totalEstimated/60)}h${totalEstimated%60 > 0 ? ` ${totalEstimated%60}m` : ''}` : `${totalEstimated}m`}
+            {formatMinutes(totalEstimated)}
           </span>
           {/* Botones de acción */}
           <div className="flex items-center gap-1 shrink-0">
@@ -4862,7 +4864,7 @@ function EstimatedTimeChip({ value, onChange, variant = 'default', readonly = fa
   const [show, setShow] = useState(false);
   const [modalPos, setModalPos] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const label = value >= 60 ? `${Math.floor(value/60)}h ${value%60 > 0 ? ` ${value%60}m` : ''}`.trim() : `${value}m`;
+  const label = formatMinutes(value);
   const isMini = variant === 'mini';
 
   const handleOpen = (e: React.MouseEvent) => {
@@ -4930,7 +4932,7 @@ function EstimatedTimeChip({ value, onChange, variant = 'default', readonly = fa
 }
  
 function RegisteredTimeChip({ value, estimated, onClick }: any) {
-  const label = value >= 60 ? `${Math.floor(value/60)}h ${value%60}m` : `${value}m`;
+  const label = formatMinutes(value);
   let colorClass = "text-turquesa bg-turquesa/10 border-turquesa/50";
   if (value > estimated) colorClass = "text-rosa bg-rosa/10 border-rosa/50 animate-pulse";
   else if (value >= estimated * 0.9) colorClass = "text-naranja bg-naranja/10 border-naranja/50";
@@ -5386,7 +5388,7 @@ function BlockPickerChip({ value, blocks = [], onChange }: any) {
             >
               <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">Cambiar Contexto</p>
               <div className="space-y-1">
-                {blocks.map((block: any) => (
+                {blocks.filter((b: any) => b.isActive).map((block: any) => (
                   <button
                     key={block.id}
                     onClick={() => handleSelect(block.id)}
@@ -6137,7 +6139,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                       <TagPickerChip selectedTags={task.tags} onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} />
                                       <DelegationChip delegation={task.delegation} people={people || []} onChange={(delegation: any) => onUpdateTask({ ...task, delegation })} onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])} onRenamePerson={onRenamePerson} onDeletePerson={onDeletePerson} />
                                       <EstimatedTimeChip value={task.estimatedMinutes} onChange={(val: number) => onUpdateTask({ ...task, estimatedMinutes: val })} variant="mini" />
-                                      {(() => { const reg = getTaskRegisteredSelf(task.id, timeEntries || []); return reg > 0 ? <RegisteredTimeChip value={reg} estimated={task.estimatedMinutes || 0} onClick={() => {}} /> : null; })()}
+                                      {(() => { const reg = getTaskRegisteredCombo(task.id, allTasksMap, timeEntries || []); return reg > 0 ? <RegisteredTimeChip value={reg} estimated={task.estimatedMinutes || 0} onClick={() => {}} /> : null; })()}
                                       {hasSubtasks && <span className="text-[8px] dark:text-text-secondary text-text-secondary-light/40 font-black">{subtaskList.length} pasos</span>}
                                     </>
                                   )}
@@ -6218,7 +6220,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                               onChange={(val: number) => onUpdateTask({ ...sub, estimatedMinutes: val })}
                                               variant="mini"
                                             />
-                                            {(() => { const reg = getTaskRegisteredSelf(sub.id, timeEntries || []); return reg > 0 ? <RegisteredTimeChip value={reg} estimated={sub.estimatedMinutes || 0} onClick={() => {}} /> : null; })()}
+                                            {(() => { const reg = getTaskRegisteredCombo(sub.id, allTasksMap, timeEntries || []); return reg > 0 ? <RegisteredTimeChip value={reg} estimated={sub.estimatedMinutes || 0} onClick={() => {}} /> : null; })()}
                                           </div>
                                         </div>
                                         {/* Fecha delegación subtarea */}
@@ -6619,7 +6621,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                   )}
                                   {tag && <span className="text-[8px] font-black text-text-secondary">{TAG_LABELS[tag as TagType]?.icon} {TAG_LABELS[tag as TagType]?.label}</span>}
                                   {task.estimatedMinutes > 0 && (
-                                    <span className="text-[8px] font-black text-azul flex items-center gap-0.5"><Clock size={8} />{task.estimatedMinutes >= 60 ? `${Math.floor(task.estimatedMinutes/60)}h${task.estimatedMinutes%60>0?` ${task.estimatedMinutes%60}m`:''}` : `${task.estimatedMinutes}m`}</span>
+                                    <span className="text-[8px] font-black text-azul flex items-center gap-0.5"><Clock size={8} />{formatMinutes(task.estimatedMinutes)}</span>
                                   )}
                                 </div>
                               </div>
