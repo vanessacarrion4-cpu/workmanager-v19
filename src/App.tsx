@@ -1082,7 +1082,7 @@ export default function App() {
     setEditingRuleId(id);
   };
  
-  const handleAddBlock = () => {
+  const handleAddBlock = async () => {
     const id = `b-${Date.now()}`;
     const newBlock: WorkBlock = {
       id,
@@ -1093,21 +1093,101 @@ export default function App() {
       isActive: true,
       order: blocks.length
     };
-    setBlocks(prev => [...prev, newBlock]);
-    setEditingBlockId(id);
+    
+    try {
+      // Guardar en Supabase
+      const { error } = await supabase
+        .from('work_blocks')
+        .insert({
+          id: newBlock.id,
+          name: newBlock.name,
+          color: newBlock.color,
+          pastel_color: newBlock.pastelColor,
+          icon: newBlock.icon,
+          is_active: newBlock.isActive,
+          order: newBlock.order
+        });
+      
+      if (error) throw error;
+      
+      // Actualizar state local
+      setBlocks(prev => [...prev, newBlock]);
+      setEditingBlockId(id);
+      console.log('[SUPABASE] Block created:', id);
+    } catch (e) {
+      console.error('[SUPABASE] Error creating block:', e);
+    }
   };
  
-  const handleUpdateBlock = (updated: WorkBlock) => {
-    setBlocks(prev => prev.map(b => b.id === updated.id ? updated : b));
-    setEditingBlockId(null);
+  const handleUpdateBlock = async (updated: WorkBlock) => {
+    try {
+      // Guardar en Supabase
+      const { error } = await supabase
+        .from('work_blocks')
+        .update({
+          name: updated.name,
+          color: updated.color,
+          pastel_color: updated.pastelColor,
+          icon: updated.icon,
+          is_active: updated.isActive,
+          order: updated.order
+        })
+        .eq('id', updated.id);
+      
+      if (error) throw error;
+      
+      // Actualizar state local
+      setBlocks(prev => prev.map(b => b.id === updated.id ? updated : b));
+      setEditingBlockId(null);
+      console.log('[SUPABASE] Block updated:', updated.id);
+    } catch (e) {
+      console.error('[SUPABASE] Error updating block:', e);
+    }
   };
  
-  const handleReorderBlocks = (newOrder: WorkBlock[]) => {
-    setBlocks(newOrder.map((b, i) => ({ ...b, order: i + 1 })));
+  const handleReorderBlocks = async (newOrder: WorkBlock[]) => {
+    const updated = newOrder.map((b, i) => ({ ...b, order: i + 1 }));
+    
+    try {
+      // Guardar cada bloque con su nuevo order en Supabase
+      const promises = updated.map(block =>
+        supabase
+          .from('work_blocks')
+          .update({ order: block.order })
+          .eq('id', block.id)
+      );
+      
+      await Promise.all(promises);
+      
+      // Actualizar state local
+      setBlocks(updated);
+      console.log('[SUPABASE] Blocks reordered');
+    } catch (e) {
+      console.error('[SUPABASE] Error reordering blocks:', e);
+    }
   };
  
-  const handleToggleBlockActive = (id: string) => {
-    setBlocks(prev => prev.map(b => b.id === id ? { ...b, isActive: !b.isActive } : b));
+  const handleToggleBlockActive = async (id: string) => {
+    const block = blocks.find(b => b.id === id);
+    if (!block) return;
+    
+    const newIsActive = !block.isActive;
+    
+    try {
+      // Guardar en Supabase
+      const { error } = await supabase
+        .from('work_blocks')
+        .update({ is_active: newIsActive })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      // Actualizar state local
+      setBlocks(prev => prev.map(b => b.id === id ? { ...b, isActive: newIsActive } : b));
+      console.log('[SUPABASE] Block toggled:', id, newIsActive);
+    } catch (e) {
+      console.error('[SUPABASE] Error toggling block:', e);
+    }
   };
  
   const handleDeleteBlock = (id: string) => {
