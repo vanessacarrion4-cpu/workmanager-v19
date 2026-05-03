@@ -154,20 +154,13 @@ export default function App() {
         // Auto-seleccionar subtareas si es contenedor
         if (autoSelectSubtasks) {
           const task = tasks[taskId];
-          console.log('[AUTO-SELECT] Task:', taskId, 'has subtasks:', task?.subtasks);
           if (task?.subtasks && task.subtasks.length > 0) {
-            console.log('[AUTO-SELECT] Attempting to select', task.subtasks.length, 'subtasks');
             task.subtasks.forEach(subId => {
               const sub = tasks[subId];
-              console.log('[AUTO-SELECT] Subtask', subId, 'exists:', !!sub, 'isDeleted:', sub?.isDeleted);
               if (sub && !sub.isDeleted) {
                 next.add(subId);
-                console.log('[AUTO-SELECT] Added subtask', subId);
               }
             });
-            console.log('[AUTO-SELECT] Selected IDs:', Array.from(next));
-          } else {
-            console.log('[AUTO-SELECT] No subtasks found for task', taskId);
           }
         }
       }
@@ -4837,6 +4830,9 @@ function TaskCard({
                       level={level + 1}
                       rootTaskId={currentRootId}
                       hideCompleted={hideCompleted}
+                      selectionMode={selectionMode}
+                      selectedTaskIds={selectedTaskIds}
+                      onToggleTaskSelection={onToggleTaskSelection}
                       taskIndex={idx}
                       taskCount={visibleSubs.length}
                       onMoveUp={() => {
