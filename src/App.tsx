@@ -1353,11 +1353,17 @@ export default function App() {
     dashboardTasks.forEach(t => {
       map[t.id] = t;
       
-      // Añadir subtareas del día activo
+      // Añadir subtareas del día activo (filtrar delegadas sin tag real)
       if (t.subtasks && t.subtasks.length > 0) {
         t.subtasks.forEach(subId => {
           const sub = tasks[subId];
           if (sub && sub.dueDate === activeDate) {
+            // Filtro delegación en subtareas
+            if (sub.delegation) {
+              const tags = sub.tags || [];
+              const hasRealTag = tags.some((tag: string) => tag !== 'resto');
+              if (!hasRealTag) return; // no añadir delegadas sin tag
+            }
             map[subId] = sub;
           }
         });
