@@ -3481,7 +3481,7 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
             </div>
             <div className="grid grid-cols-1 gap-4">
               <Reorder.Group axis="y" values={adhocTasks} onReorder={onReorderTasks} className="grid grid-cols-1 gap-4">
-                {adhocTasks.map((t: Task) => (
+                {adhocTasks.map((t: Task, idx: number) => (
                   <TaskCard 
                     key={t.id} 
                     task={t} 
@@ -3510,6 +3510,20 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
                     selectionMode={selectionMode}
                     selectedTaskIds={selectedTaskIds}
                     onToggleTaskSelection={onToggleTaskSelection}
+                    taskIndex={idx}
+                    taskCount={adhocTasks.length}
+                    onMoveUp={() => {
+                      if (idx === 0) return;
+                      const reordered = [...adhocTasks];
+                      [reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]];
+                      onReorderTasks(reordered);
+                    }}
+                    onMoveDown={() => {
+                      if (idx === adhocTasks.length - 1) return;
+                      const reordered = [...adhocTasks];
+                      [reordered[idx], reordered[idx + 1]] = [reordered[idx + 1], reordered[idx]];
+                      onReorderTasks(reordered);
+                    }}
                   />
                 ))}
               </Reorder.Group>
@@ -3533,7 +3547,7 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
             </div>
             <div className="grid grid-cols-1 gap-4">
               <Reorder.Group axis="y" values={coreTasks} onReorder={onReorderTasks} className="grid grid-cols-1 gap-4">
-                {coreTasks.map((t: Task) => (
+                {coreTasks.map((t: Task, idx: number) => (
                   <TaskCard 
                     key={t.id}
                     task={t}
@@ -3562,6 +3576,20 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
                     selectionMode={selectionMode}
                     selectedTaskIds={selectedTaskIds}
                     onToggleTaskSelection={onToggleTaskSelection}
+                    taskIndex={idx}
+                    taskCount={coreTasks.length}
+                    onMoveUp={() => {
+                      if (idx === 0) return;
+                      const reordered = [...coreTasks];
+                      [reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]];
+                      onReorderTasks(reordered);
+                    }}
+                    onMoveDown={() => {
+                      if (idx === coreTasks.length - 1) return;
+                      const reordered = [...coreTasks];
+                      [reordered[idx], reordered[idx + 1]] = [reordered[idx + 1], reordered[idx]];
+                      onReorderTasks(reordered);
+                    }}
                   />
                 ))}
               </Reorder.Group>
@@ -4627,7 +4655,7 @@ function TaskCard({
                       }} 
                     />
                   )}
-                  {!hasSubtasks && task.dueDate && (
+                  {!hasSubtasks && (
                     <TimePickerChip
                       value={task.dueTime || ''}
                       onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })}

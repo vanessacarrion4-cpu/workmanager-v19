@@ -178,6 +178,7 @@ export function generateInstances(
           instanceDate: dateStr,
           isTemplate: false,
           isException: false,
+          recurrence: undefined, // ✅ Instancias NO tienen recurrencia
           status: 'pending',
           completedAt: undefined,
           createdAt: timestamp,
@@ -240,6 +241,7 @@ export function generateInstances(
           instanceDate: dateStr,
           isTemplate: false,
           isException: false,
+          recurrence: undefined, // ✅ Instancias NO tienen recurrencia
           status: 'pending',
           completedAt: undefined,
           createdAt: timestamp,
