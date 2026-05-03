@@ -292,13 +292,29 @@ export function projectLoadForDay(
     if (!t || t.isDeleted) continue;
     if (t.parentTaskId) continue;       // subtareas: se suman vía su padre
     if (t.isTemplate) continue;         // nunca contar templates originales
-    if (t.dueDate !== dateStr) continue;
 
-    const id = t.id;
-    if (counted.has(id)) continue;
-    counted.add(id);
+    // Caso 1: Tarea con dueDate = dateStr
+    if (t.dueDate === dateStr) {
+      const id = t.id;
+      if (counted.has(id)) continue;
+      counted.add(id);
+      totalTime += getEstimatedForInstance(id, allTasks);
+      continue;
+    }
 
-    totalTime += getEstimatedForInstance(id, allTasks);
+    // Caso 2: Contenedor SIN dueDate pero con subtareas del día
+    if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
+      // Sumar SOLO las subtareas que tienen dueDate = dateStr
+      t.subtasks.forEach(subId => {
+        const sub = allTasks[subId];
+        if (sub && !sub.isDeleted && sub.dueDate === dateStr) {
+          if (!counted.has(subId)) {
+            counted.add(subId);
+            totalTime += getEstimatedForInstance(subId, allTasks);
+          }
+        }
+      });
+    }
   }
 
   return totalTime;

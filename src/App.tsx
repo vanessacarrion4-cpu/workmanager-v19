@@ -705,14 +705,15 @@ export default function App() {
  
     const updatedTasks = { ...tasks, [id]: newTask };
     if (parentTaskId && updatedTasks[parentTaskId]) {
+      const isFirstSubtask = (updatedTasks[parentTaskId].subtasks || []).length === 0;
       updatedTasks[parentTaskId] = {
         ...updatedTasks[parentTaskId],
         subtasks: [...(updatedTasks[parentTaskId].subtasks || []), id],
         isExpanded: true,
-        // Quitar fecha del padre cuando tiene su primera subtarea
-        dueDate: (updatedTasks[parentTaskId].subtasks || []).length === 0 
-          ? null 
-          : updatedTasks[parentTaskId].dueDate,
+        // Quitar fecha y tags del padre cuando tiene su primera subtarea
+        dueDate: isFirstSubtask ? null : updatedTasks[parentTaskId].dueDate,
+        tags: isFirstSubtask ? [] : updatedTasks[parentTaskId].tags,
+        estimatedMinutes: isFirstSubtask ? 0 : updatedTasks[parentTaskId].estimatedMinutes,
         modifiedAt: timestamp
       };
     }
@@ -1267,11 +1268,24 @@ export default function App() {
  
   const dashboardTasksMap = useMemo(() => {
     const map: any = { ...tasks };
+    
+    // Añadir tareas raíz
     dashboardTasks.forEach(t => {
       map[t.id] = t;
+      
+      // Añadir subtareas del día activo
+      if (t.subtasks && t.subtasks.length > 0) {
+        t.subtasks.forEach(subId => {
+          const sub = tasks[subId];
+          if (sub && sub.dueDate === activeDate) {
+            map[subId] = sub;
+          }
+        });
+      }
     });
+    
     return map;
-  }, [tasks, dashboardTasks]);
+  }, [tasks, dashboardTasks, activeDate]);
  
   // Loading state mientras carga desde Supabase
   if (!isDataLoaded) {
@@ -2387,7 +2401,8 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                           onChange={(rec: any) => handleUpdateSubtask(st.id, { 
                             recurrence: rec || undefined,
                             isTemplate: !!rec,
-                            dueDate: rec ? null : (st.dueDate || formatLocalISO(new Date()))
+                            dueDate: rec ? null : (st.dueDate || formatLocalISO(new Date())),
+                            dueTime: st.dueTime // ✅ Preservar hora concreta
                           })}
                         />
                       ) : null}
@@ -3428,6 +3443,21 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
             </div>
           </div>
           <div className="flex gap-3">
+              {/* Botón: Seleccionar (modo selección múltiple) */}
+              {onToggleSelectionMode && (
+                <button 
+                  onClick={() => onToggleSelectionMode()}
+                  className={`flex items-center gap-1.5 px-3 h-10 rounded-2xl border-2 transition-all text-[10px] font-black uppercase tracking-widest ${
+                    selectionMode 
+                      ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30' 
+                      : 'bg-azul/10 border-azul text-azul hover:bg-azul hover:text-white'
+                  }`}
+                  title={selectionMode ? 'Salir de selección' : 'Seleccionar múltiple'}
+                >
+                  <CheckCircle2 size={14} />
+                  <span className="hidden sm:inline">{selectionMode ? 'Cancelar' : 'Seleccionar'}</span>
+                </button>
+              )}
               <ToggleExpandButton blockId={selectedBlock.id} onExpandAll={onExpandAll} />
              <button 
               onClick={() => onAddTask(null, selectedBlock.id)}
@@ -4610,7 +4640,8 @@ function TaskCard({
                         ...task, 
                         recurrence: rec || undefined,
                         isTemplate: !!rec,
-                        dueDate: rec ? null : (task.dueDate || formatLocalISO(new Date()))
+                        dueDate: rec ? null : (task.dueDate || formatLocalISO(new Date())),
+                        dueTime: task.dueTime // ✅ Preservar hora concreta
                       })}
                     />
                   )}
@@ -6816,7 +6847,8 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                                   ...sub, 
                                                   recurrence: rec || undefined,
                                                   isTemplate: !!rec,
-                                                  dueDate: rec ? null : (sub.dueDate || formatLocalISO(new Date()))
+                                                  dueDate: rec ? null : (sub.dueDate || formatLocalISO(new Date())),
+                                                  dueTime: sub.dueTime // ✅ Preservar hora concreta
                                                 })}
                                               />
                                             ) : null}
