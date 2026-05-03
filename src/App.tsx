@@ -3915,6 +3915,7 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
       if (!activeBlockIds.has(t.blockId)) return false;
       if (t.isTemplate) return false;
       if (t.isDeleted) return false;
+      if (t.status === 'completed') return false; // ← Excluir completadas
       
       // Subtareas: no aparecen solas (se muestran bajo su padre)
       if (t.parentTaskId) return false;
@@ -3971,14 +3972,14 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
     all.forEach((t: any) => {
       const hasSubtasksToday = t.subtasks && t.subtasks.length > 0 && t.subtasks.some((subId: string) => {
         const sub = allTasksMap[subId];
-        return sub && !sub.isDeleted && sub.dueDate === selectedDay;
+        return sub && !sub.isDeleted && sub.status !== 'completed' && sub.dueDate === selectedDay;
       });
 
       if (hasSubtasksToday) {
-        // Recolectar subtareas del día
+        // Recolectar subtareas del día (excluir completadas)
         const subsToday = t.subtasks
           .map((subId: string) => allTasksMap[subId])
-          .filter((sub: any) => sub && !sub.isDeleted && sub.dueDate === selectedDay);
+          .filter((sub: any) => sub && !sub.isDeleted && sub.status !== 'completed' && sub.dueDate === selectedDay);
         
         if (subsToday.length > 0) {
           // Determinar tag dominante (el del primer subtask)
