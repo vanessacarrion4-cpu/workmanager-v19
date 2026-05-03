@@ -154,13 +154,20 @@ export default function App() {
         // Auto-seleccionar subtareas si es contenedor
         if (autoSelectSubtasks) {
           const task = tasks[taskId];
-          if (task?.subtasks) {
+          console.log('[AUTO-SELECT] Task:', taskId, 'has subtasks:', task?.subtasks);
+          if (task?.subtasks && task.subtasks.length > 0) {
+            console.log('[AUTO-SELECT] Attempting to select', task.subtasks.length, 'subtasks');
             task.subtasks.forEach(subId => {
               const sub = tasks[subId];
+              console.log('[AUTO-SELECT] Subtask', subId, 'exists:', !!sub, 'isDeleted:', sub?.isDeleted);
               if (sub && !sub.isDeleted) {
                 next.add(subId);
+                console.log('[AUTO-SELECT] Added subtask', subId);
               }
             });
+            console.log('[AUTO-SELECT] Selected IDs:', Array.from(next));
+          } else {
+            console.log('[AUTO-SELECT] No subtasks found for task', taskId);
           }
         }
       }
@@ -2132,26 +2139,26 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                   )}
                 </div>
               </div>
-              {localTask.dueDate && (
-                <div className="flex items-center gap-3 pt-2 border-t dark:border-border-main/30 border-border-main-light/30">
-                  <Clock size={16} className="text-azul shrink-0" />
-                  <span className="text-xs font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Hora</span>
-                  <input
-                    type="time"
-                    value={localTask.dueTime || ''}
-                    onChange={e => setLocalTask(prev => ({ ...prev, dueTime: e.target.value }))}
-                    className="flex-1 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-1.5 text-sm font-bold text-azul outline-none focus:border-azul/50"
-                  />
-                  {localTask.dueTime && (
-                    <button
-                      onClick={() => setLocalTask(prev => ({ ...prev, dueTime: '' }))}
-                      className="p-1.5 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-              )}
+              
+              {/* Campo hora - siempre visible para recurrentes */}
+              <div className="flex items-center gap-3 pt-2 border-t dark:border-border-main/30 border-border-main-light/30">
+                <Clock size={16} className="text-azul shrink-0" />
+                <span className="text-xs font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Hora</span>
+                <input
+                  type="time"
+                  value={localTask.dueTime || ''}
+                  onChange={e => setLocalTask(prev => ({ ...prev, dueTime: e.target.value }))}
+                  className="flex-1 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-1.5 text-sm font-bold text-azul outline-none focus:border-azul/50"
+                />
+                {localTask.dueTime && (
+                  <button
+                    onClick={() => setLocalTask(prev => ({ ...prev, dueTime: '' }))}
+                    className="p-1.5 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
             </div>
  
             {showDateSelector && (
@@ -4801,7 +4808,7 @@ function TaskCard({
                       if (!sub) return true;
                       return sub.status !== 'completed';
                     })
-                    .map((subId: string) => (
+                    .map((subId: string, idx: number, visibleSubs: string[]) => (
                     <TaskCard 
                       key={subId}
                       task={allTasksMap[subId]}
@@ -4830,6 +4837,26 @@ function TaskCard({
                       level={level + 1}
                       rootTaskId={currentRootId}
                       hideCompleted={hideCompleted}
+                      taskIndex={idx}
+                      taskCount={visibleSubs.length}
+                      onMoveUp={() => {
+                        if (idx === 0) return;
+                        const allSubs = task.subtasks || [];
+                        const currentIdx = allSubs.indexOf(subId);
+                        if (currentIdx <= 0) return;
+                        const reordered = [...allSubs];
+                        [reordered[currentIdx - 1], reordered[currentIdx]] = [reordered[currentIdx], reordered[currentIdx - 1]];
+                        onReorderSubtasks(task.id, reordered);
+                      }}
+                      onMoveDown={() => {
+                        if (idx === visibleSubs.length - 1) return;
+                        const allSubs = task.subtasks || [];
+                        const currentIdx = allSubs.indexOf(subId);
+                        if (currentIdx < 0 || currentIdx >= allSubs.length - 1) return;
+                        const reordered = [...allSubs];
+                        [reordered[currentIdx], reordered[currentIdx + 1]] = [reordered[currentIdx + 1], reordered[currentIdx]];
+                        onReorderSubtasks(task.id, reordered);
+                      }}
                     />
                   ))}
                 </Reorder.Group>

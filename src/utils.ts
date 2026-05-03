@@ -179,6 +179,7 @@ export function generateInstances(
           isTemplate: false,
           isException: false,
           recurrence: undefined, // ✅ Instancias NO tienen recurrencia
+          taskType: template.taskType || 'core', // ✅ Preservar taskType del template
           status: 'pending',
           completedAt: undefined,
           createdAt: timestamp,
@@ -242,6 +243,7 @@ export function generateInstances(
           isTemplate: false,
           isException: false,
           recurrence: undefined, // ✅ Instancias NO tienen recurrencia
+          taskType: childTemplate.taskType || 'core', // ✅ Preservar taskType del template
           status: 'pending',
           completedAt: undefined,
           createdAt: timestamp,
@@ -270,6 +272,7 @@ export function generateInstances(
         // El padre contenedor no hereda tags ni recurrencia — es solo agrupador
         tags: [],
         recurrence: undefined,
+        taskType: template.taskType || 'core', // ✅ Preservar taskType del template
       };
 
       newInstances.push(parentInstance, ...subtasksToCreate);
