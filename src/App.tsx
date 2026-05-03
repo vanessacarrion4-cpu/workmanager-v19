@@ -2139,7 +2139,18 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
  
             <div className="space-y-3">
               {subtasks.map((st: Task) => (
-                <div key={st.id} className="flex gap-4 items-start bg-bg-main/40 p-4 rounded-2xl border dark:border-border-main border-border-main-light group">
+                <div key={st.id} className="flex gap-3 items-start dark:bg-bg-main/40 bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light group">
+                  {/* Checkbox completar/descompletar subtarea */}
+                  <button
+                    onClick={() => handleUpdateSubtask(st.id, { status: st.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
+                    className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                      st.status === 'completed'
+                        ? 'bg-turquesa border-turquesa text-white'
+                        : 'dark:border-border-main border-border-main-light hover:border-turquesa'
+                    }`}
+                  >
+                    {st.status === 'completed' && <Check size={10} />}
+                  </button>
                   <div className="flex-1 space-y-3">
                     <input 
                       autoFocus={st.id === focusedSubtaskId}
