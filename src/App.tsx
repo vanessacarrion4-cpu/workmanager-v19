@@ -3979,14 +3979,30 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
     all.forEach((t: any) => {
       const hasSubtasksToday = t.subtasks && t.subtasks.length > 0 && t.subtasks.some((subId: string) => {
         const sub = allTasksMap[subId];
-        return sub && !sub.isDeleted && sub.status !== 'completed' && sub.dueDate === selectedDay;
+        if (!sub || sub.isDeleted || sub.status === 'completed' || sub.dueDate !== selectedDay) return false;
+        // Filtro delegación: excluir delegadas sin etiqueta real
+        if (sub.delegation) {
+          const tags = sub.tags || [];
+          const hasRealTag = tags.some((tag: string) => tag !== 'resto');
+          if (!hasRealTag) return false;
+        }
+        return true;
       });
 
       if (hasSubtasksToday) {
-        // Recolectar subtareas del día (excluir completadas)
+        // Recolectar subtareas del día (excluir completadas y delegadas sin tag real)
         const subsToday = t.subtasks
           .map((subId: string) => allTasksMap[subId])
-          .filter((sub: any) => sub && !sub.isDeleted && sub.status !== 'completed' && sub.dueDate === selectedDay);
+          .filter((sub: any) => {
+            if (!sub || sub.isDeleted || sub.status === 'completed' || sub.dueDate !== selectedDay) return false;
+            // Filtro delegación
+            if (sub.delegation) {
+              const tags = sub.tags || [];
+              const hasRealTag = tags.some((tag: string) => tag !== 'resto');
+              if (!hasRealTag) return false;
+            }
+            return true;
+          });
         
         if (subsToday.length > 0) {
           // Determinar tag dominante (el del primer subtask)
