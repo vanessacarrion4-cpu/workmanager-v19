@@ -4110,16 +4110,16 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
                         ${isToday ? 'dark:bg-bg-main bg-gray-100 ring-2 ring-turquesa ring-offset-4 dark:ring-offset-bg-card ring-offset-white' : ''}
                       `}
                     >
-                      <span className={`text-sm font-black ${isSelected ? 'dark:text-white text-text-main-light' : 'dark:text-text-secondary text-text-secondary-light dark:group-hover:text-white group-hover:text-text-main-light'}`}>
+                      <span className={`text-xl font-black ${isSelected ? 'dark:text-white text-text-main-light' : 'dark:text-text-secondary text-text-secondary-light dark:group-hover:text-white group-hover:text-text-main-light'}`}>
                         {parseLocalISO(day).getDate()}
                       </span>
                       {load > 0 && (
-                        <div className="mt-1 flex flex-col items-center">
-                          <div className="text-[8px] font-black text-turquesa leading-none mb-1">
+                        <div className="mt-1.5 flex flex-col items-center gap-1">
+                          <div className="text-[11px] font-black text-turquesa leading-none">
                             {formatMinutes(load)}
                           </div>
                           <div 
-                            className="w-8 h-1 rounded-full transition-all"
+                            className="w-10 h-1.5 rounded-full transition-all"
                             style={{ 
                               backgroundColor: getLoadColorHex(load),
                               boxShadow: `0 0 10px ${getLoadColorHex(load)}33`
@@ -4150,12 +4150,12 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
                           }}
                         />
                       </div>
-                      {/* Porcentajes - % libre más grande */}
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className={`text-[11px] font-black leading-none ${getWeekColorClass()}`}>
+                      {/* Porcentajes - más grandes */}
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`text-[14px] font-black leading-none ${getWeekColorClass()}`}>
                           {pct}%
                         </span>
-                        <span className="text-[10px] font-bold dark:text-text-secondary/70 text-text-secondary-light/70 leading-none">
+                        <span className="text-[12px] font-bold dark:text-text-secondary/70 text-text-secondary-light/70 leading-none">
                           libre {freePct}%
                         </span>
                       </div>
