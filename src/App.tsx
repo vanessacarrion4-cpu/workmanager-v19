@@ -7020,3 +7020,4 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
     </motion.div>
   );
 }
+"// v2-selection" 
