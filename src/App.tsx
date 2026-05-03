@@ -6207,7 +6207,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
   // Modal selector de tareas para reunión
   const [showTaskSelector, setShowTaskSelector] = useState(false);
   const [selectorPersonId, setSelectorPersonId] = useState<string | null>(null);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [meetingSelectedIds, setMeetingSelectedIds] = useState<Set<string>>(new Set());
 
   const toggleTask = (id: string) => {
     setExpandedTasks(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -6357,13 +6357,13 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
       parentIds.filter(id => allTasksMap[id]?.status !== 'completed')
     );
     setSelectorPersonId(personId);
-    setSelectedTaskIds(pendingIds);
+    setMeetingSelectedIds(pendingIds);
     setShowTaskSelector(true);
   };
 
   const handleConfirmTaskSelection = () => {
-    if (!selectorPersonId || selectedTaskIds.size === 0) return;
-    const selectedTasks = Array.from(selectedTaskIds).map(id => allTasksMap[id]).filter(Boolean);
+    if (!selectorPersonId || meetingSelectedIds.size === 0) return;
+    const selectedTasks = Array.from(meetingSelectedIds).map(id => allTasksMap[id]).filter(Boolean);
     setNewMeeting({
       personId: selectorPersonId,
       date: formatLocalISO(new Date()),
@@ -7090,13 +7090,13 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                     });
 
                   return items.map(({ task, subtitleIds }: any) => {
-                    const isSelected = selectedTaskIds.has(task.id);
+                    const isSelected = meetingSelectedIds.has(task.id);
                     const isCompleted = task.status === 'completed';
                     const subNames = subtitleIds.map((sid: string) => allTasksMap[sid]?.title).filter(Boolean);
                     return (
                       <button
                         key={task.id}
-                        onClick={() => setSelectedTaskIds(prev => { const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n; })}
+                        onClick={() => setMeetingSelectedIds(prev => { const n = new Set(prev); n.has(task.id) ? n.delete(task.id) : n.add(task.id); return n; })}
                         className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${isSelected ? 'dark:bg-morado/10 bg-morado/5 border-morado' : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light hover:border-morado/30'} ${isCompleted ? 'opacity-50' : ''}`}
                       >
                         <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${isSelected ? 'bg-morado border-morado text-white' : 'dark:border-border-main border-border-main-light'}`}>
@@ -7123,10 +7123,10 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                 </button>
                 <button
                   onClick={handleConfirmTaskSelection}
-                  disabled={selectedTaskIds.size === 0}
-                  className={`flex-1 px-4 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${selectedTaskIds.size === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-azul text-white hover:bg-azul/90 shadow-lg shadow-azul/20'}`}
+                  disabled={meetingSelectedIds.size === 0}
+                  className={`flex-1 px-4 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${meetingSelectedIds.size === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-azul text-white hover:bg-azul/90 shadow-lg shadow-azul/20'}`}
                 >
-                  Crear reunión ({selectedTaskIds.size})
+                  Crear reunión ({meetingSelectedIds.size})
                 </button>
               </div>
             </motion.div>
