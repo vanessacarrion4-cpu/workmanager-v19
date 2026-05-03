@@ -4038,7 +4038,13 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
                           <div className="text-[8px] font-black text-turquesa leading-none mb-1">
                             {formatMinutes(load)}
                           </div>
-                          <div className={`w-8 h-1 rounded-full ${getLoadColor(day)} transition-all`} />
+                          <div 
+                            className="w-8 h-1 rounded-full transition-all"
+                            style={{ 
+                              backgroundColor: getLoadColorHex(load),
+                              boxShadow: `0 0 10px ${getLoadColorHex(load)}33`
+                            }}
+                          />
                         </div>
                       )}
                     </button>
