@@ -3822,7 +3822,7 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
   // Helper para obtener color hex según minutos de carga
   const getLoadColorHex = (minutes: number) => {
     if (minutes === 0) return '#6B7280'; // gris
-    if (minutes < 180) return '#84CC16'; // lima
+    if (minutes < 180) return '#10B981'; // esmeralda
     if (minutes < 300) return '#F59E0B'; // naranja
     if (minutes < 420) return '#A855F7'; // morado
     return '#EC4899'; // rosa
@@ -3993,19 +3993,19 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
             const freePct = 100 - pct;
             
             // Usar los mismos rangos de color que la carga diaria (en minutos totales semanales)
-            // < 15h semana (900m) → verde
+            // < 15h semana (900m) → esmeralda
             // 15-25h (900-1500m) → naranja  
             // 25-35h (1500-2100m) → morado
             // > 35h (2100m+) → rosa
             const getWeekColor = () => {
-              if (weekLoad < 900) return '#84CC16'; // lima
+              if (weekLoad < 900) return '#10B981'; // esmeralda
               if (weekLoad < 1500) return '#F59E0B'; // naranja
               if (weekLoad < 2100) return '#A855F7'; // morado
               return '#EC4899'; // rosa
             };
             
             const getWeekColorClass = () => {
-              if (weekLoad < 900) return 'text-lima';
+              if (weekLoad < 900) return 'text-esmeralda';
               if (weekLoad < 1500) return 'text-naranja';
               if (weekLoad < 2100) return 'text-morado';
               return 'text-rosa';
@@ -4059,29 +4059,29 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
                 }`}>
                   {hasAnyLoad ? (
                     <>
-                      {/* Barra horizontal de progreso - más grande */}
-                      <div className="w-full h-4 dark:bg-bg-main bg-gray-200 rounded-full overflow-hidden">
+                      {/* Barra horizontal de progreso - más estilizada */}
+                      <div className="w-full h-5 dark:bg-bg-main bg-gray-200 rounded-full overflow-hidden shadow-inner">
                         <div 
                           className="h-full transition-all duration-500 rounded-full"
                           style={{ 
                             width: `${pct}%`,
                             backgroundColor: getWeekColor(),
-                            boxShadow: `0 0 10px ${getWeekColor()}33`
+                            boxShadow: `0 0 12px ${getWeekColor()}55, inset 0 1px 1px rgba(255,255,255,0.3)`
                           }}
                         />
                       </div>
-                      {/* Porcentajes más grandes y claros */}
-                      <div className="flex flex-col items-center gap-1">
+                      {/* Porcentajes - % libre más grande */}
+                      <div className="flex flex-col items-center gap-0.5">
                         <span className={`text-[11px] font-black leading-none ${getWeekColorClass()}`}>
                           {pct}%
                         </span>
-                        <span className="text-[9px] font-bold dark:text-text-secondary/60 text-text-secondary-light/60 leading-none">
+                        <span className="text-[10px] font-bold dark:text-text-secondary/70 text-text-secondary-light/70 leading-none">
                           libre {freePct}%
                         </span>
                       </div>
                     </>
                   ) : (
-                    <div className="w-full h-3 dark:bg-bg-main bg-gray-200 rounded-full" />
+                    <div className="w-full h-4 dark:bg-bg-main bg-gray-200 rounded-full" />
                   )}
                 </div>
               </div>
@@ -4094,17 +4094,22 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
           <div className="text-center">
             <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">Carga Diaria</p>
             <div className="flex flex-wrap gap-6 justify-center">
-              {[
-                { label: '<3h', color: 'bg-lima' },
-                { label: '3-5h', color: 'bg-naranja' },
-                { label: '5-7h', color: 'bg-morado' },
-                { label: '>7h', color: 'bg-rosa' },
-              ].map(item => (
-                <div key={item.label} className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${item.color}`} />
-                  <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">{item.label}</span>
-                </div>
-              ))}
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#10B981' }} />
+                <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">&lt;3h</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#F59E0B' }} />
+                <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">3-5h</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#A855F7' }} />
+                <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">5-7h</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#EC4899' }} />
+                <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">&gt;7h</span>
+              </div>
             </div>
           </div>
 
@@ -4112,17 +4117,22 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
           <div className="text-center">
             <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">Carga Semanal (L-V)</p>
             <div className="flex flex-wrap gap-6 justify-center">
-              {[
-                { label: '<15h', color: 'bg-lima' },
-                { label: '15-25h', color: 'bg-naranja' },
-                { label: '25-35h', color: 'bg-morado' },
-                { label: '>35h', color: 'bg-rosa' },
-              ].map(item => (
-                <div key={item.label} className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${item.color}`} />
-                  <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">{item.label}</span>
-                </div>
-              ))}
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#10B981' }} />
+                <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">&lt;15h</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#F59E0B' }} />
+                <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">15-25h</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#A855F7' }} />
+                <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">25-35h</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#EC4899' }} />
+                <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">&gt;35h</span>
+              </div>
             </div>
           </div>
         </div>
