@@ -127,11 +127,13 @@ export default function App() {
 
   // Helper: Toggle selection mode
   const toggleSelectionMode = () => {
-    setSelectionMode(prev => !prev);
-    if (selectionMode) {
-      // Salir de modo selección → limpiar seleccionados
-      setSelectedTaskIds(new Set());
-    }
+    setSelectionMode(prev => {
+      if (prev) {
+        // Salir de modo selección → limpiar seleccionados
+        setSelectedTaskIds(new Set());
+      }
+      return !prev;
+    });
   };
 
   // Helper: Toggle task selection
