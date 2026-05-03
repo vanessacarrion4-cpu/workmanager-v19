@@ -4018,7 +4018,10 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
           }
         }
       } else {
-        // Tarea huérfana normal
+        // Tarea huérfana normal (sin subtareas o contenedor sin subtareas del día)
+        // Si tiene subtareas, ya se procesó arriba - no mostrar aquí
+        if (t.subtasks && t.subtasks.length > 0) return; // contenedor sin subtareas hoy = no mostrar
+        
         const primaryTag = (t.tags && t.tags[0]) || 'resto';
         if (groups[primaryTag]) groups[primaryTag].push(t);
         else groups.resto.push(t);
