@@ -3818,6 +3818,15 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
     if (load < 420) return 'bg-morado shadow-[0_0_10px_rgba(139,92,246,0.3)]';
     return 'bg-rosa shadow-[0_0_10px_rgba(236,72,153,0.3)]';
   };
+
+  // Helper para obtener color hex según minutos de carga
+  const getLoadColorHex = (minutes: number) => {
+    if (minutes === 0) return '#6B7280'; // gris
+    if (minutes < 180) return '#84CC16'; // lima
+    if (minutes < 300) return '#F59E0B'; // naranja
+    if (minutes < 420) return '#A855F7'; // morado
+    return '#EC4899'; // rosa
+  };
  
   const dayTasks = useMemo(() => {
     if (!selectedDay) return [];
@@ -3867,7 +3876,7 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
       return true;
     });
     
-    // Opción B: contenedores se expanden — sus subtareas del día aparecen por su propio tag
+    // Opción B: contenedores se expanden — agrupar subtareas del mismo contenedor
     const groups: any = {
       con_hora: [],
       focus: [],
@@ -3876,6 +3885,9 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
       resto: []
     };
 
+    // Primero identificar contenedores y agrupar sus subtareas
+    const containerGroups: any = {}; // { parentId: { parentTitle, tag, subtasks: [...] } }
+
     all.forEach((t: any) => {
       const hasSubtasksToday = t.subtasks && t.subtasks.length > 0 && t.subtasks.some((subId: string) => {
         const sub = allTasksMap[subId];
@@ -3883,22 +3895,36 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
       });
 
       if (hasSubtasksToday) {
-        // Es un contenedor: en vez de añadirlo, añadir sus subtareas del día directamente
-        t.subtasks.forEach((subId: string) => {
-          const sub = allTasksMap[subId];
-          if (!sub || sub.isDeleted || sub.dueDate !== selectedDay) return;
-          // Añadir info del contenedor padre para mostrarlo en UI
-          const subWithParent = { ...sub, _parentTitle: t.title };
-          const primaryTag = (sub.tags && sub.tags[0]) || 'resto';
-          if (groups[primaryTag]) groups[primaryTag].push(subWithParent);
-          else groups.resto.push(subWithParent);
-        });
+        // Recolectar subtareas del día
+        const subsToday = t.subtasks
+          .map((subId: string) => allTasksMap[subId])
+          .filter((sub: any) => sub && !sub.isDeleted && sub.dueDate === selectedDay);
+        
+        if (subsToday.length > 0) {
+          // Determinar tag dominante (el del primer subtask)
+          const primaryTag = (subsToday[0].tags && subsToday[0].tags[0]) || 'resto';
+          
+          if (!containerGroups[t.id]) {
+            containerGroups[t.id] = {
+              parentId: t.id,
+              parentTitle: t.title,
+              tag: primaryTag,
+              subtasks: subsToday
+            };
+          }
+        }
       } else {
         // Tarea huérfana normal
         const primaryTag = (t.tags && t.tags[0]) || 'resto';
         if (groups[primaryTag]) groups[primaryTag].push(t);
         else groups.resto.push(t);
       }
+    });
+
+    // Añadir grupos de contenedores a sus tags correspondientes
+    Object.values(containerGroups).forEach((cg: any) => {
+      if (groups[cg.tag]) groups[cg.tag].push(cg);
+      else groups.resto.push(cg);
     });
 
     return groups;
@@ -3965,7 +3991,19 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
             const weekLoad = weekDays.reduce((acc, day) => acc + projectLoadForDay(day, allTasksMap), 0);
             const pct = Math.min(100, Math.round((weekLoad / WEEK_CAPACITY) * 100));
             const freePct = 100 - pct;
-            const barColor = pct < 40 ? '#14B8A6' : pct < 70 ? '#F97316' : pct < 90 ? '#A855F7' : '#EC4899';
+            
+            // Usar los mismos rangos de color que la carga diaria (en minutos totales semanales)
+            // < 15h semana (900m) → verde
+            // 15-25h (900-1500m) → naranja  
+            // 25-35h (1500-2100m) → morado
+            // > 35h (2100m+) → rosa
+            const getWeekColor = () => {
+              if (weekLoad < 900) return 'bg-lima shadow-[0_0_10px_rgba(132,204,22,0.3)]';
+              if (weekLoad < 1500) return 'bg-naranja shadow-[0_0_10px_rgba(245,158,11,0.3)]';
+              if (weekLoad < 2100) return 'bg-morado shadow-[0_0_10px_rgba(139,92,246,0.3)]';
+              return 'bg-rosa shadow-[0_0_10px_rgba(236,72,153,0.3)]';
+            };
+            
             const hasAnyLoad = weekLoad > 0;
 
             return (
@@ -4001,25 +4039,30 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
                 })}
 
                 {/* Columna resumen semanal */}
-                <div className={`flex flex-col items-center justify-center rounded-2xl border-2 px-1 py-2 gap-1 ${
+                <div className={`flex flex-col items-center justify-center rounded-2xl border-2 px-2 py-3 gap-2 ${
                   hasAnyLoad 
                     ? 'dark:bg-bg-main/60 bg-gray-50 dark:border-border-main/50 border-gray-200' 
                     : 'border-transparent opacity-30'
                 }`}>
                   {hasAnyLoad ? (
                     <>
-                      {/* Barra circular / vertical */}
-                      <div className="relative w-6 h-10 dark:bg-bg-main bg-gray-200 rounded-full overflow-hidden flex flex-col justify-end">
+                      {/* Barra horizontal de progreso */}
+                      <div className="w-full h-3 dark:bg-bg-main bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className="w-full rounded-full transition-all duration-500"
-                          style={{ height: `${pct}%`, backgroundColor: barColor }}
+                          className={`h-full transition-all duration-500 rounded-full ${getWeekColor()}`}
+                          style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <span className="text-[8px] font-black leading-none" style={{ color: barColor }}>{pct}%</span>
+                      <span className={`text-[8px] font-black leading-none ${
+                        weekLoad < 900 ? 'text-lima' : 
+                        weekLoad < 1500 ? 'text-naranja' : 
+                        weekLoad < 2100 ? 'text-morado' : 
+                        'text-rosa'
+                      }`}>{pct}%</span>
                       <span className="text-[7px] font-bold dark:text-text-secondary/50 text-text-secondary-light/50 leading-none">+{freePct}%</span>
                     </>
                   ) : (
-                    <div className="w-1 h-6 dark:bg-bg-main bg-gray-200 rounded-full" />
+                    <div className="w-full h-2 dark:bg-bg-main bg-gray-200 rounded-full" />
                   )}
                 </div>
               </div>
@@ -4110,41 +4153,87 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
                         </h4>
                         <div className="grid grid-cols-1 gap-4">
                           <Reorder.Group axis="y" values={groupTasks} onReorder={onReorderTasks} className="grid grid-cols-1 gap-4">
-                            {groupTasks.map((t: any) => (
-                              <div key={t.id}>
-                                {t._parentTitle && (
-                                  <div className="flex items-center gap-1.5 mb-1 ml-2">
-                                    <Layers size={10} className="text-turquesa/60" />
-                                    <span className="text-[9px] font-black text-turquesa/60 uppercase tracking-widest">{t._parentTitle}</span>
+                            {groupTasks.map((item: any) => {
+                              // Detectar si es un grupo de contenedor o tarea individual
+                              const isContainerGroup = item.parentId && item.subtasks;
+                              
+                              if (isContainerGroup) {
+                                // Renderizar grupo de contenedor con subtareas
+                                return (
+                                  <div key={item.parentId} className="space-y-2">
+                                    {/* Badge del contenedor */}
+                                    <div className="flex items-center gap-2 ml-2 mb-2">
+                                      <RefreshCw size={12} className="text-turquesa" />
+                                      <span className="text-[10px] font-black text-turquesa uppercase tracking-widest">
+                                        {item.parentTitle} ({item.subtasks.length})
+                                      </span>
+                                    </div>
+                                    
+                                    {/* Lista de subtareas */}
+                                    <div className="space-y-3 ml-4">
+                                      {item.subtasks.map((sub: any) => (
+                                        <TaskCard 
+                                          key={sub.id}
+                                          task={sub} 
+                                          variant="COMPACT"
+                                          allTasksMap={allTasksMap}
+                                          people={people}
+                                          onAddPerson={onAddPerson}
+                                          blocks={blocks}
+                                          timeEntries={timeEntries}
+                                          activeTimer={activeTimer}
+                                          onStartTimer={onStartTimer}
+                                          onStopTimer={onStopTimer}
+                                          onToggleStatus={onToggleTask}
+                                          onUpdateTask={onUpdateTask}
+                                          onEditTask={onEditTask}
+                                          editingTaskId={editingTaskId}
+                                          inlineEditingTaskId={inlineEditingTaskId}
+                                          setInlineEditingTaskId={setInlineEditingTaskId}
+                                          onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
+                                          onAddTask={onAddTask}
+                                          onDelete={onDelete}
+                                          onPromote={onPromote}
+                                          onDemote={onDemote}
+                                          onReorderSubtasks={onReorderSubtasks}
+                                          onToggleExpand={onToggleExpand}
+                                        />
+                                      ))}
+                                    </div>
                                   </div>
-                                )}
-                                <TaskCard 
-                                  task={t} 
-                                  variant="COMPACT"
-                                  allTasksMap={allTasksMap}
-                                  people={people}
-                                  onAddPerson={onAddPerson}
-                                  blocks={blocks}
-                                  timeEntries={timeEntries}
-                                  activeTimer={activeTimer}
-                                  onStartTimer={onStartTimer}
-                                  onStopTimer={onStopTimer}
-                                  onToggleStatus={onToggleTask}
-                                  onUpdateTask={onUpdateTask}
-                                  onEditTask={onEditTask}
-                                  editingTaskId={editingTaskId}
-                                  inlineEditingTaskId={inlineEditingTaskId}
-                                  setInlineEditingTaskId={setInlineEditingTaskId}
-                                  onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
-                                  onAddTask={onAddTask}
-                                  onDelete={onDelete}
-                                  onPromote={onPromote}
-                                  onDemote={onDemote}
-                                  onReorderSubtasks={onReorderSubtasks}
-                                  onToggleExpand={onToggleExpand}
-                                />
-                              </div>
-                            ))}
+                                );
+                              } else {
+                                // Tarea individual normal
+                                return (
+                                  <TaskCard 
+                                    key={item.id}
+                                    task={item} 
+                                    variant="COMPACT"
+                                    allTasksMap={allTasksMap}
+                                    people={people}
+                                    onAddPerson={onAddPerson}
+                                    blocks={blocks}
+                                    timeEntries={timeEntries}
+                                    activeTimer={activeTimer}
+                                    onStartTimer={onStartTimer}
+                                    onStopTimer={onStopTimer}
+                                    onToggleStatus={onToggleTask}
+                                    onUpdateTask={onUpdateTask}
+                                    onEditTask={onEditTask}
+                                    editingTaskId={editingTaskId}
+                                    inlineEditingTaskId={inlineEditingTaskId}
+                                    setInlineEditingTaskId={setInlineEditingTaskId}
+                                    onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
+                                    onAddTask={onAddTask}
+                                    onDelete={onDelete}
+                                    onPromote={onPromote}
+                                    onDemote={onDemote}
+                                    onReorderSubtasks={onReorderSubtasks}
+                                    onToggleExpand={onToggleExpand}
+                                  />
+                                );
+                              }
+                            })}
                           </Reorder.Group>
                         </div>
                       </div>
