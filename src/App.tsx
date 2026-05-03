@@ -3915,7 +3915,14 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
       if (!activeBlockIds.has(t.blockId)) return false;
       if (t.isTemplate) return false;
       if (t.isDeleted) return false;
-      if (t.status === 'completed') return false; // ← Excluir completadas
+      if (t.status === 'completed') return false; // Excluir completadas
+      
+      // Tareas delegadas sin etiqueta real o con solo 'resto': no mostrar (igual que Dashboard)
+      if (t.delegation) {
+        const tags = t.tags || [];
+        const hasRealTag = tags.some((tag: string) => tag !== 'resto');
+        if (!hasRealTag) return false;
+      }
       
       // Subtareas: no aparecen solas (se muestran bajo su padre)
       if (t.parentTaskId) return false;
