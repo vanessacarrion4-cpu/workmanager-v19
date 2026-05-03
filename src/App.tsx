@@ -57,7 +57,8 @@ import {
   ChevronsDown,
   Moon,
   Sun,
-  Tag
+  Tag,
+  Copy
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { WorkBlock, Task, ViewType, TagType, SubtaskTemplate, Priority, TimeEntry, Person, DelegationMeeting } from './types';
@@ -116,6 +117,112 @@ export default function App() {
   const [showTimePanel, setShowTimePanel] = useState<{ taskId: string, subtaskId: string | null } | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [meetings, setMeetings] = useState<DelegationMeeting[]>([]);
+
+  // --- Selection Mode State ---
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [bulkDelegateModal, setBulkDelegateModal] = useState(false);
+  const [bulkDateModal, setBulkDateModal] = useState(false);
+  const [bulkTimeModal, setBulkTimeModal] = useState(false);
+
+  // Helper: Toggle selection mode
+  const toggleSelectionMode = () => {
+    setSelectionMode(prev => !prev);
+    if (selectionMode) {
+      // Salir de modo selección → limpiar seleccionados
+      setSelectedTaskIds(new Set());
+    }
+  };
+
+  // Helper: Toggle task selection
+  const toggleTaskSelection = (taskId: string, autoSelectSubtasks = false) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        // Desmarcar
+        next.delete(taskId);
+        // Si tiene subtareas, también desmarcarlas
+        const task = tasks[taskId];
+        if (task?.subtasks) {
+          task.subtasks.forEach(subId => next.delete(subId));
+        }
+      } else {
+        // Marcar
+        next.add(taskId);
+        // Auto-seleccionar subtareas si es contenedor
+        if (autoSelectSubtasks) {
+          const task = tasks[taskId];
+          if (task?.subtasks) {
+            task.subtasks.forEach(subId => {
+              const sub = tasks[subId];
+              if (sub && !sub.isDeleted) {
+                next.add(subId);
+              }
+            });
+          }
+        }
+      }
+      return next;
+    });
+  };
+
+  // Helper: Bulk actions
+  const bulkUpdateTasks = (updates: Partial<Task>) => {
+    const timestamp = new Date().toISOString();
+    setTasks(prev => {
+      const next = { ...prev };
+      selectedTaskIds.forEach(id => {
+        if (next[id]) {
+          next[id] = { ...next[id], ...updates, modifiedAt: timestamp };
+        }
+      });
+      return next;
+    });
+    setSelectedTaskIds(new Set());
+    setSelectionMode(false);
+  };
+
+  const bulkDeleteTasks = () => {
+    const timestamp = new Date().toISOString();
+    setTasks(prev => {
+      const next = { ...prev };
+      selectedTaskIds.forEach(id => {
+        if (next[id]) {
+          next[id] = { ...next[id], isDeleted: true, modifiedAt: timestamp };
+        }
+      });
+      return next;
+    });
+    setSelectedTaskIds(new Set());
+    setSelectionMode(false);
+  };
+
+  const bulkDuplicateTasks = () => {
+    const timestamp = new Date().toISOString();
+    setTasks(prev => {
+      const next = { ...prev };
+      selectedTaskIds.forEach(id => {
+        const original = prev[id];
+        if (original && !original.isDeleted) {
+          const newId = `t-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const duplicate: Task = {
+            ...original,
+            id: newId,
+            title: `${original.title} (copia)`,
+            status: 'pending',
+            createdAt: timestamp,
+            modifiedAt: timestamp,
+            completedAt: undefined,
+            subtasks: [], // No duplicar subtareas por ahora
+          };
+          next[newId] = duplicate;
+        }
+      });
+      return next;
+    });
+    setSelectedTaskIds(new Set());
+    setSelectionMode(false);
+  };
 
   // Toggle theme
   useEffect(() => {
@@ -1358,6 +1465,19 @@ export default function App() {
                 onToggleExpand={handleToggleExpandTask}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
+                selectionMode={selectionMode}
+                selectedTaskIds={selectedTaskIds}
+                onToggleTaskSelection={toggleTaskSelection}
+                onToggleSelectionMode={toggleSelectionMode}
+                bulkUpdateTasks={bulkUpdateTasks}
+                bulkDeleteTasks={bulkDeleteTasks}
+                bulkDuplicateTasks={bulkDuplicateTasks}
+                bulkDelegateModal={bulkDelegateModal}
+                setBulkDelegateModal={setBulkDelegateModal}
+                bulkDateModal={bulkDateModal}
+                setBulkDateModal={setBulkDateModal}
+                bulkTimeModal={bulkTimeModal}
+                setBulkTimeModal={setBulkTimeModal}
               />
             )}
             {currentView === 'blocks' && (
@@ -2301,6 +2421,98 @@ const formatMinutes = (mins: number) => {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 };
 
+// --- Bulk Action Bar Component ---
+function BulkActionBar({ 
+  count, 
+  onDelegate, 
+  onChangeDate, 
+  onComplete, 
+  onChangeTime, 
+  onDuplicate, 
+  onDelete, 
+  onCancel,
+  isMobile = false 
+}: any) {
+  return (
+    <div className={`${isMobile ? 'fixed bottom-0 left-0 right-0' : 'sticky top-0'} z-50 dark:bg-bg-card bg-white border-t dark:border-border-main border-border-main-light shadow-2xl`}>
+      <div className="flex items-center gap-2 px-4 py-3">
+        <div className="flex items-center gap-2 flex-1">
+          <div className="w-6 h-6 rounded-full bg-azul/20 border-2 border-azul flex items-center justify-center">
+            <Check size={12} className="text-azul" />
+          </div>
+          <span className="text-sm font-black dark:text-white text-text-main-light">
+            {count} seleccionada{count !== 1 ? 's' : ''}
+          </span>
+        </div>
+        
+        <div className="flex items-center gap-1.5">
+          <button 
+            onClick={onDelegate}
+            className="px-3 py-2 rounded-xl bg-morado/10 border border-morado/30 text-morado hover:bg-morado/20 transition-all flex items-center gap-1.5 text-xs font-bold"
+            title="Delegar"
+          >
+            <Users size={14} />
+            {!isMobile && <span>Delegar</span>}
+          </button>
+          
+          <button 
+            onClick={onChangeDate}
+            className="px-3 py-2 rounded-xl bg-turquesa/10 border border-turquesa/30 text-turquesa hover:bg-turquesa/20 transition-all flex items-center gap-1.5 text-xs font-bold"
+            title="Cambiar fecha"
+          >
+            <Calendar size={14} />
+            {!isMobile && <span>Fecha</span>}
+          </button>
+          
+          <button 
+            onClick={onComplete}
+            className="px-3 py-2 rounded-xl bg-azul/10 border border-azul/30 text-azul hover:bg-azul/20 transition-all flex items-center gap-1.5 text-xs font-bold"
+            title="Completar"
+          >
+            <CheckCircle2 size={14} />
+            {!isMobile && <span>Completar</span>}
+          </button>
+          
+          <button 
+            onClick={onChangeTime}
+            className="px-3 py-2 rounded-xl bg-azul/10 border border-azul/30 text-azul hover:bg-azul/20 transition-all flex items-center gap-1.5 text-xs font-bold"
+            title="Cambiar tiempo"
+          >
+            <Clock size={14} />
+            {!isMobile && <span>Tiempo</span>}
+          </button>
+          
+          <button 
+            onClick={onDuplicate}
+            className="px-3 py-2 rounded-xl dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:dark:bg-white/5 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold"
+            title="Duplicar"
+          >
+            <Copy size={14} />
+            {!isMobile && <span>Duplicar</span>}
+          </button>
+          
+          <button 
+            onClick={onDelete}
+            className="px-3 py-2 rounded-xl bg-rosa/10 border border-rosa/30 text-rosa hover:bg-rosa/20 transition-all flex items-center gap-1.5 text-xs font-bold"
+            title="Eliminar"
+          >
+            <Trash2 size={14} />
+            {!isMobile && <span>Eliminar</span>}
+          </button>
+          
+          <button 
+            onClick={onCancel}
+            className="px-3 py-2 rounded-xl dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:dark:bg-white/5 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold"
+            title="Cancelar"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DashboardView({ 
   tasks, 
   allTasksMap, 
@@ -2330,7 +2542,22 @@ function DashboardView({
   onToggleExpand,
   onPromote,
   onDemote,
-  onRecurrenceDateChange = null
+  onRecurrenceDateChange = null,
+  // Selection props
+  selectionMode = false,
+  selectedTaskIds = new Set(),
+  onToggleTaskSelection = null,
+  onToggleSelectionMode = null,
+  // Bulk action props
+  bulkUpdateTasks = null,
+  bulkDeleteTasks = null,
+  bulkDuplicateTasks = null,
+  bulkDelegateModal = false,
+  setBulkDelegateModal = null,
+  bulkDateModal = false,
+  setBulkDateModal = null,
+  bulkTimeModal = false,
+  setBulkTimeModal = null
 }: any) {
   const [hideCompleted, setHideCompleted] = useState(true);
   const [showDashboardCalendar, setShowDashboardCalendar] = useState(false);
@@ -2498,6 +2725,27 @@ function DashboardView({
       exit={{ opacity: 0, y: -20 }}
       className="space-y-10"
     >
+      {/* Bulk Action Bar - adaptativo mobile/desktop */}
+      {selectionMode && selectedTaskIds.size > 0 && (
+        <BulkActionBar 
+          count={selectedTaskIds.size}
+          onDelegate={() => setBulkDelegateModal(true)}
+          onChangeDate={() => setBulkDateModal(true)}
+          onComplete={() => {
+            bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() });
+          }}
+          onChangeTime={() => setBulkTimeModal(true)}
+          onDuplicate={bulkDuplicateTasks}
+          onDelete={() => {
+            if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) {
+              bulkDeleteTasks();
+            }
+          }}
+          onCancel={onToggleSelectionMode}
+          isMobile={window.innerWidth < 768}
+        />
+      )}
+
       {/* Date Header */}
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between dark:bg-bg-card bg-bg-card-light p-4 rounded-[2rem] border dark:border-border-main border-border-main-light shadow-xl">
@@ -2648,6 +2896,24 @@ function DashboardView({
                  {hideCompleted ? 'Ver completadas' : 'Ocultar completadas'}
                </span>
              </button>
+
+             {/* Botón: Seleccionar (modo selección múltiple) */}
+             {onToggleSelectionMode && (
+               <button 
+                 onClick={onToggleSelectionMode}
+                 className={`w-10 h-10 flex items-center justify-center rounded-2xl border transition-all relative group ${
+                   selectionMode 
+                     ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30' 
+                     : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul dark:hover:bg-azul/10 hover:bg-azul/5'
+                 }`}
+                 title={selectionMode ? 'Salir de selección' : 'Seleccionar múltiple'}
+               >
+                 <CheckCircle2 size={16} />
+                 <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-xl text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                   {selectionMode ? 'Cancelar selección' : 'Seleccionar'}
+                 </span>
+               </button>
+             )}
 
              {/* Botón: Añadir tarea */}
              <button 
@@ -4022,6 +4288,23 @@ function TaskCard({
             >
               <CheckCircle2 size={12} />
             </button>
+
+            {/* Checkbox de selección (azul) */}
+            {selectionMode && onToggleTaskSelection && (
+              <button
+                onClick={() => {
+                  const isContainer = task.subtasks && task.subtasks.length > 0;
+                  onToggleTaskSelection(task.id, isContainer);
+                }}
+                className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all shadow-lg shrink-0 ${
+                  selectedTaskIds.has(task.id)
+                    ? 'bg-azul text-white border-2 border-azul'
+                    : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-azul'
+                }`}
+              >
+                <Check size={12} />
+              </button>
+            )}
 
             {/* Contenido: título + chips */}
             <div className="flex-1 min-w-0">
