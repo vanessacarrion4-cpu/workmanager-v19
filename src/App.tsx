@@ -3082,6 +3082,9 @@ function DashboardView({
                             onUpdateTask({ ...task, order: idx + 1, modifiedAt: new Date().toISOString() });
                             onUpdateTask({ ...orderedEntries[idx + 1].task, order: idx, modifiedAt: new Date().toISOString() });
                           }}
+                          selectionMode={selectionMode}
+                          selectedTaskIds={selectedTaskIds}
+                          onToggleTaskSelection={onToggleTaskSelection}
                         />
                         </div>
                         ));
@@ -4103,6 +4106,9 @@ function TaskCard({
   taskCount = null,
   onMoveUp = null,
   onMoveDown = null,
+  selectionMode = false,
+  selectedTaskIds = new Set(),
+  onToggleTaskSelection = null,
 }: any) {
   if (!task || task.isDeleted) return null;
   const currentRootId = rootTaskId || task.id;
@@ -7016,4 +7022,3 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
     </motion.div>
   );
 }
- 
