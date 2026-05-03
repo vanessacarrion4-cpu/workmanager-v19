@@ -6102,75 +6102,56 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                               </button>
 
                               {/* Título + info */}
-                              <div className="flex-1 min-w-0 flex items-center gap-3">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-1.5">
-                                    <p className={`font-black dark:text-white text-text-main-light text-[13px] truncate capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}>{task.title}</p>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                    {/* Contenedor: solo bloque + badge subtareas */}
-                                    {isContainerWithDelegatedSubs ? (
-                                      <>
-                                        {task.recurrence && (
-                                          <span className="flex items-center gap-1 text-[8px] font-black text-morado uppercase">
-                                            <RefreshCw size={9} />
-                                            {task.recurrence.frequency === 'daily' ? 'Diaria' : task.recurrence.frequency === 'weekdays' ? 'L-V' : task.recurrence.frequency === 'weekly' ? 'Semanal' : task.recurrence.frequency === 'monthly' ? 'Mensual' : 'Anual'}
-                                          </span>
-                                        )}
-                                        {/* Badge circular subtareas delegadas */}
-                                        {(() => {
-                                          const pendingCount = subtaskList.filter((s: any) => s && !s.isDeleted && s.status !== 'completed').length;
-                                          return (
-                                            <button
-                                              onClick={() => toggleTask(task.id)}
-                                              className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30"
-                                            >
-                                              {String(pendingCount)}
-                                            </button>
-                                          );
-                                        })()}
-                                        {/* Badge bloque al final */}
-                                        {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
-                                      </>
-                                    ) : (
-                                      <>
-                                        {task.recurrence && (
-                                          <span className="flex items-center gap-1 text-[8px] font-black text-morado uppercase">
-                                            <RefreshCw size={9} />
-                                            {task.recurrence.frequency === 'daily' ? 'Diaria' : task.recurrence.frequency === 'weekdays' ? 'L-V' : task.recurrence.frequency === 'weekly' ? 'Semanal' : task.recurrence.frequency === 'monthly' ? 'Mensual' : 'Anual'}
-                                          </span>
-                                        )}
-                                        {!task.isTemplate && <TimePickerChip value={task.dueTime || ''} onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })} />}
-                                        {!task.isTemplate && <DatePickerChip value={task.dueDate} onChange={(date: string) => onUpdateTask({ ...task, dueDate: date })} />}
-                                        <TagPickerChip selectedTags={task.tags} onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} />
-                                        <DelegationChip delegation={task.delegation} people={people || []} onChange={(delegation: any) => onUpdateTask({ ...task, delegation })} onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])} onRenamePerson={onRenamePerson} onDeletePerson={onDeletePerson} />
-                                        <EstimatedTimeChip value={task.estimatedMinutes} onChange={(val: number) => onUpdateTask({ ...task, estimatedMinutes: val })} variant="mini" />
-                                        {(() => { const reg = getTaskRegisteredCombo(task.id, allTasksMap, timeEntries || []); return reg > 0 ? <RegisteredTimeChip value={reg} estimated={task.estimatedMinutes || 0} onClick={() => {}} /> : null; })()}
-                                        {/* Badge bloque al final */}
-                                        {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
-                                        {/* Badge circular subtareas */}
-                                        {hasSubtasks && (() => {
-                                          const pendingCount = subtaskList.filter((s: any) => s && !s.isDeleted && s.status !== 'completed').length;
-                                          return (
-                                            <button
-                                              onClick={() => toggleTask(task.id)}
-                                              className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30"
-                                            >
-                                              {String(pendingCount)}
-                                            </button>
-                                          );
-                                        })()}
-                                      </>
-                                    )}
-                                  </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <p className={`font-black dark:text-white text-text-main-light text-[13px] truncate capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}>{task.title}</p>
                                 </div>
-                                {/* Chevron al margen derecho - fuera de chips */}
-                                {hasSubtasks && (
-                                  <button onClick={() => toggleTask(task.id)} className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all shrink-0">
-                                    {isTaskOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                                  </button>
-                                )}
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                  {/* Contenedor: solo bloque + recurrencia */}
+                                  {isContainerWithDelegatedSubs ? (
+                                    <>
+                                      {task.recurrence && (
+                                        <span className="flex items-center gap-1 text-[8px] font-black text-morado uppercase">
+                                          <RefreshCw size={9} />
+                                          {task.recurrence.frequency === 'daily' ? 'Diaria' : task.recurrence.frequency === 'weekdays' ? 'L-V' : task.recurrence.frequency === 'weekly' ? 'Semanal' : task.recurrence.frequency === 'monthly' ? 'Mensual' : 'Anual'}
+                                        </span>
+                                      )}
+                                      {/* Badge bloque */}
+                                      {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
+                                    </>
+                                  ) : (
+                                    <>
+                                      {task.recurrence && (
+                                        <span className="flex items-center gap-1 text-[8px] font-black text-morado uppercase">
+                                          <RefreshCw size={9} />
+                                          {task.recurrence.frequency === 'daily' ? 'Diaria' : task.recurrence.frequency === 'weekdays' ? 'L-V' : task.recurrence.frequency === 'weekly' ? 'Semanal' : task.recurrence.frequency === 'monthly' ? 'Mensual' : 'Anual'}
+                                        </span>
+                                      )}
+                                      {!task.isTemplate && <TimePickerChip value={task.dueTime || ''} onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })} />}
+                                      {!task.isTemplate && <DatePickerChip value={task.dueDate} onChange={(date: string) => onUpdateTask({ ...task, dueDate: date })} />}
+                                      <TagPickerChip selectedTags={task.tags} onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} />
+                                      <DelegationChip delegation={task.delegation} people={people || []} onChange={(delegation: any) => onUpdateTask({ ...task, delegation })} onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])} onRenamePerson={onRenamePerson} onDeletePerson={onDeletePerson} />
+                                      <EstimatedTimeChip value={task.estimatedMinutes} onChange={(val: number) => onUpdateTask({ ...task, estimatedMinutes: val })} variant="mini" />
+                                      {(() => { const reg = getTaskRegisteredCombo(task.id, allTasksMap, timeEntries || []); return reg > 0 ? <RegisteredTimeChip value={reg} estimated={task.estimatedMinutes || 0} onClick={() => {}} /> : null; })()}
+                                      {/* Badge bloque al final */}
+                                      {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
+                                    </>
+                                  )}
+                                </div>
                               </div>
+
+                              {/* Badge circular subtareas al margen derecho - actúa como toggle */}
+                              {hasSubtasks && (() => {
+                                const pendingCount = subtaskList.filter((s: any) => s && !s.isDeleted && s.status !== 'completed').length;
+                                return (
+                                  <button
+                                    onClick={() => toggleTask(task.id)}
+                                    className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30"
+                                  >
+                                    {String(pendingCount)}
+                                  </button>
+                                );
+                              })()}
 
                               {/* Fechas - solo para tareas huérfanas */}
                               {!isContainerWithDelegatedSubs && (
