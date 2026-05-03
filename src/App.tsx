@@ -2139,36 +2139,59 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
  
             <div className="space-y-3">
               {subtasks.map((st: Task) => (
-                <div key={st.id} className="flex gap-4 items-center bg-bg-main/40 p-4 rounded-2xl border dark:border-border-main border-border-main-light group">
-                  <div className="flex-1 space-y-2">
+                <div key={st.id} className="flex gap-4 items-start bg-bg-main/40 p-4 rounded-2xl border dark:border-border-main border-border-main-light group">
+                  <div className="flex-1 space-y-3">
                     <input 
                       autoFocus={st.id === focusedSubtaskId}
                       onFocus={() => { if(st.id === focusedSubtaskId) setFocusedSubtaskId(null); }}
-                      className="w-full bg-transparent text-sm font-bold dark:text-white text-text-main-light outline-none border-b dark:border-border-main border-border-main-light/20 focus:border-turquesa transition-all py-1"
+                      className={`w-full bg-transparent text-sm font-bold dark:text-white text-text-main-light outline-none border-b dark:border-border-main border-border-main-light/20 focus:border-turquesa transition-all py-1 ${st.status === 'completed' ? 'line-through' : ''}`}
                       value={st.title}
                       onChange={e => handleUpdateSubtask(st.id, { title: e.target.value })}
                       placeholder="Título del paso..."
                     />
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1 text-[10px] font-bold dark:text-text-secondary text-text-secondary-light">
-                        <Clock size={10} />
-                        <input 
-                          type="number"
-                          className="w-8 bg-transparent outline-none dark:text-white text-text-main-light text-center"
-                          value={st.estimatedMinutes || 0}
-                          onChange={e => handleUpdateSubtask(st.id, { estimatedMinutes: parseInt(e.target.value) || 0 })}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {/* TimePickerChip - subtareas pueden tener hora */}
+                      {!st.isTemplate && st.dueDate && (
+                        <TimePickerChip
+                          value={st.dueTime || ''}
+                          onChange={(time: string) => handleUpdateSubtask(st.id, { dueTime: time })}
                         />
-                        <span>min</span>
-                      </div>
-                      {st.recurrence && (
-                        <div className="flex items-center gap-1 text-[9px] font-black text-morado uppercase">
-                          <RefreshCw size={10} />
-                          {st.recurrence.frequency === 'daily' ? 'Diaria' : 
-                           st.recurrence.frequency === 'weekdays' ? 'L-V' :
-                           st.recurrence.frequency === 'weekly' ? `Semanal` :
-                           `Mensual`}
-                        </div>
                       )}
+                      {/* DatePickerChip */}
+                      {!st.isTemplate && (
+                        <DatePickerChip
+                          value={st.dueDate}
+                          onChange={(date: string) => handleUpdateSubtask(st.id, { dueDate: date })}
+                        />
+                      )}
+                      {/* RecurrencePickerChip - subtareas pueden ser recurrentes */}
+                      {!st.subtasks || st.subtasks.length === 0 ? (
+                        <RecurrencePickerChip 
+                          value={st.recurrence}
+                          onChange={(rec: any) => handleUpdateSubtask(st.id, { 
+                            recurrence: rec || undefined,
+                            isTemplate: !!rec,
+                            dueDate: rec ? null : (st.dueDate || formatLocalISO(new Date()))
+                          })}
+                        />
+                      ) : null}
+                      <TagPickerChip 
+                        selectedTags={st.tags || []} 
+                        onChange={(tags: TagType[]) => handleUpdateSubtask(st.id, { tags })} 
+                      />
+                      <DelegationChip
+                        delegation={st.delegation}
+                        people={people}
+                        onChange={(delegation: any) => handleUpdateSubtask(st.id, { delegation })}
+                        onAddPerson={onAddPerson}
+                        onRenamePerson={onRenamePerson}
+                        onDeletePerson={onDeletePerson}
+                      />
+                      <EstimatedTimeChip 
+                        value={st.estimatedMinutes || 0} 
+                        onChange={(val: number) => handleUpdateSubtask(st.id, { estimatedMinutes: val })}
+                        variant="mini"
+                      />
                     </div>
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
@@ -6170,13 +6193,11 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                 </div>
                               )}
 
-                              {/* Edit/Delete - hover, solo huérfanas */}
-                              {!isContainerWithDelegatedSubs && (
-                                <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/trow:opacity-100 transition-all">
-                                  <button onClick={() => onEditTask && onEditTask(task.id)} className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/15 rounded-lg border border-turquesa/20 transition-all" title="Editar"><Edit size={12} /></button>
-                                  <button onClick={() => onDeleteTask && onDeleteTask(task.id)} className="w-7 h-7 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/15 rounded-lg border border-rosa/20 transition-all" title="Eliminar"><Trash2 size={12} /></button>
-                                </div>
-                              )}
+                              {/* Edit/Delete - hover, PARA TODOS (contenedores y huérfanas) */}
+                              <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/trow:opacity-100 transition-all">
+                                <button onClick={() => onEditTask && onEditTask(task.id)} className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/15 rounded-lg border border-turquesa/20 transition-all" title="Editar"><Edit size={12} /></button>
+                                <button onClick={() => onDeleteTask && onDeleteTask(task.id)} className="w-7 h-7 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/15 rounded-lg border border-rosa/20 transition-all" title="Eliminar"><Trash2 size={12} /></button>
+                              </div>
 
                             </div>
                             {/* Subtasks expandable */}
@@ -6190,7 +6211,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                 >
                                   {subtaskList.map((sub: any) => {
                                     return (
-                                      <div key={sub.id} className={`flex items-center gap-3 pl-4 pr-4 py-3 hover:dark:bg-white/2 hover:bg-gray-50 transition-all border-b dark:border-border-main border-border-main-light/10 last:border-0 group/subrow ${sub.status === 'completed' ? 'opacity-50' : ''}`}>
+                                      <div key={sub.id} className="flex items-center gap-3 pl-4 pr-4 py-3 hover:dark:bg-white/2 hover:bg-gray-50 transition-all border-b dark:border-border-main border-border-main-light/10 last:border-0 group/subrow">
                                         {/* Checkbox completar subtarea */}
                                         <button
                                           onClick={() => onUpdateTask({ ...sub, status: sub.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
@@ -6205,10 +6226,32 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                         <div className="flex-1 min-w-0">
                                           <p className={`font-bold dark:text-white text-text-main-light text-xs truncate capitalize tracking-normal mb-1 ${sub.status === 'completed' ? 'line-through' : ''}`}>{sub.title}</p>
                                           <div className="flex flex-wrap items-center gap-1.5">
-                                            <DatePickerChip
-                                              value={sub.dueDate}
-                                              onChange={(date: string) => onUpdateTask({ ...sub, dueDate: date })}
-                                            />
+                                            {/* TimePickerChip - subtareas pueden tener hora */}
+                                            {!sub.isTemplate && sub.dueDate && (
+                                              <TimePickerChip
+                                                value={sub.dueTime || ''}
+                                                onChange={(time: string) => onUpdateTask({ ...sub, dueTime: time })}
+                                              />
+                                            )}
+                                            {/* DatePickerChip */}
+                                            {!sub.isTemplate && (
+                                              <DatePickerChip
+                                                value={sub.dueDate}
+                                                onChange={(date: string) => onUpdateTask({ ...sub, dueDate: date })}
+                                              />
+                                            )}
+                                            {/* RecurrencePickerChip - subtareas pueden ser recurrentes */}
+                                            {!sub.subtasks || sub.subtasks.length === 0 ? (
+                                              <RecurrencePickerChip 
+                                                value={sub.recurrence}
+                                                onChange={(rec: any) => onUpdateTask({ 
+                                                  ...sub, 
+                                                  recurrence: rec || undefined,
+                                                  isTemplate: !!rec,
+                                                  dueDate: rec ? null : (sub.dueDate || formatLocalISO(new Date()))
+                                                })}
+                                              />
+                                            ) : null}
                                             <TagPickerChip
                                               selectedTags={sub.tags}
                                               onChange={(tags: TagType[]) => onUpdateTask({ ...sub, tags })}
