@@ -1977,7 +1977,11 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
             )}
             <div className="flex-1">
               <p className="text-[10px] font-black text-turquesa uppercase tracking-[0.2em] mb-2">
-                {localTask.recurrence || localTask.isTemplate ? 'Configurar Tarea Repetitiva' : 'Configurar Tarea Puntual'}
+                {localTask.templateId 
+                  ? 'Instancia de Tarea Repetitiva' 
+                  : (localTask.recurrence || localTask.isTemplate) 
+                    ? 'Configurar Tarea Repetitiva' 
+                    : 'Configurar Tarea Puntual'}
               </p>
               <input 
                 autoFocus
@@ -2133,7 +2137,8 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                 </div>
               </div>
               
-              {/* Campo hora - siempre visible para recurrentes */}
+              {/* Campo hora - solo cuando NO hay recurrencia activa (si hay recurrencia, el campo hora está en esa sección) */}
+              {!localTask.recurrence && (
               <div className="flex items-center gap-3 pt-2 border-t dark:border-border-main/30 border-border-main-light/30">
                 <Clock size={16} className="text-azul shrink-0" />
                 <span className="text-xs font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Hora</span>
@@ -2152,6 +2157,7 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                   </button>
                 )}
               </div>
+              )}
             </div>
  
             {showDateSelector && (
@@ -2174,21 +2180,38 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
           <div className="p-6 dark:bg-bg-main/20 bg-gray-100/50 border dark:border-border-main border-border-main-light rounded-[2rem] space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <RefreshCw size={20} className={localTask.recurrence ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'} />
+                <RefreshCw size={20} className={localTask.recurrence || localTask.templateId ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'} />
                 <h3 className="text-sm font-black dark:text-white text-text-main-light uppercase tracking-widest">Recurrencia (Repetir tarea)</h3>
               </div>
-              <button 
-                onClick={() => setLocalTask(prev => ({ 
-                  ...prev, 
-                  recurrence: prev.recurrence ? undefined : { frequency: 'daily', startDate: prev.dueDate || formatLocalISO(new Date()) },
-                  isTemplate: !prev.recurrence,
-                  dueDate: prev.recurrence ? (prev.dueDate || formatLocalISO(new Date())) : null
-                }))}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${localTask.recurrence ? 'bg-turquesa text-white' : 'dark:bg-bg-secondary bg-gray-200 dark:text-text-secondary text-text-secondary-light'}`}
-              >
-                {localTask.recurrence ? 'ACTIVA' : 'DESACTIVADA'}
-              </button>
+              {localTask.templateId ? (
+                // Instancia: badge que indica que pertenece a una serie
+                <span className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-turquesa/20 text-turquesa border border-turquesa/30">
+                  SERIE ACTIVA
+                </span>
+              ) : (
+                <button 
+                  onClick={() => setLocalTask(prev => ({ 
+                    ...prev, 
+                    recurrence: prev.recurrence ? undefined : { frequency: 'daily', startDate: prev.dueDate || formatLocalISO(new Date()) },
+                    isTemplate: !prev.recurrence,
+                    dueDate: prev.recurrence ? (prev.dueDate || formatLocalISO(new Date())) : null
+                  }))}
+                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${localTask.recurrence ? 'bg-turquesa text-white' : 'dark:bg-bg-secondary bg-gray-200 dark:text-text-secondary text-text-secondary-light'}`}
+                >
+                  {localTask.recurrence ? 'ACTIVA' : 'DESACTIVADA'}
+                </button>
+              )}
             </div>
+
+            {/* Info instancia */}
+            {localTask.templateId && (
+              <div className="flex items-center gap-3 p-3 dark:bg-turquesa/10 bg-turquesa/5 border border-turquesa/20 rounded-xl">
+                <RefreshCw size={14} className="text-turquesa shrink-0" />
+                <p className="text-xs dark:text-text-secondary text-text-secondary-light">
+                  Esta tarea es una <span className="text-turquesa font-bold">instancia de una serie recurrente</span>. Los cambios solo afectan a este día concreto.
+                </p>
+              </div>
+            )}
  
             {localTask.recurrence && (
               <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
@@ -2225,6 +2248,28 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                       value={localTask.recurrence.startDate}
                       onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, startDate: e.target.value } }))}
                     />
+                  </div>
+                </div>
+
+                {/* Campo hora para recurrentes */}
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Hora de ejecución (opcional)</label>
+                  <div className="flex items-center gap-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl p-3">
+                    <Clock size={14} className="text-azul shrink-0" />
+                    <input
+                      type="time"
+                      value={localTask.dueTime || ''}
+                      onChange={e => setLocalTask(prev => ({ ...prev, dueTime: e.target.value }))}
+                      className="flex-1 bg-transparent text-sm font-bold text-azul outline-none"
+                    />
+                    {localTask.dueTime && (
+                      <button
+                        onClick={() => setLocalTask(prev => ({ ...prev, dueTime: '' }))}
+                        className="p-1 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
                   </div>
                 </div>
  
