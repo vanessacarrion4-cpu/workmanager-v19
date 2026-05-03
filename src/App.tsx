@@ -2726,19 +2726,21 @@ function DashboardView({
       className="space-y-10"
     >
       {/* Bulk Action Bar - adaptativo mobile/desktop */}
-      {selectionMode && selectedTaskIds.size > 0 && (
+      {selectionMode && selectedTaskIds.size > 0 && bulkUpdateTasks && (
         <BulkActionBar 
           count={selectedTaskIds.size}
-          onDelegate={() => setBulkDelegateModal(true)}
-          onChangeDate={() => setBulkDateModal(true)}
+          onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
+          onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
           onComplete={() => {
-            bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() });
+            if (bulkUpdateTasks) {
+              bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() });
+            }
           }}
-          onChangeTime={() => setBulkTimeModal(true)}
-          onDuplicate={bulkDuplicateTasks}
+          onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
+          onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
           onDelete={() => {
             if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) {
-              bulkDeleteTasks();
+              bulkDeleteTasks && bulkDeleteTasks();
             }
           }}
           onCancel={onToggleSelectionMode}
