@@ -3998,10 +3998,17 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
             // 25-35h (1500-2100m) → morado
             // > 35h (2100m+) → rosa
             const getWeekColor = () => {
-              if (weekLoad < 900) return 'bg-lima shadow-[0_0_10px_rgba(132,204,22,0.3)]';
-              if (weekLoad < 1500) return 'bg-naranja shadow-[0_0_10px_rgba(245,158,11,0.3)]';
-              if (weekLoad < 2100) return 'bg-morado shadow-[0_0_10px_rgba(139,92,246,0.3)]';
-              return 'bg-rosa shadow-[0_0_10px_rgba(236,72,153,0.3)]';
+              if (weekLoad < 900) return '#84CC16'; // lima
+              if (weekLoad < 1500) return '#F59E0B'; // naranja
+              if (weekLoad < 2100) return '#A855F7'; // morado
+              return '#EC4899'; // rosa
+            };
+            
+            const getWeekColorClass = () => {
+              if (weekLoad < 900) return 'text-lima';
+              if (weekLoad < 1500) return 'text-naranja';
+              if (weekLoad < 2100) return 'text-morado';
+              return 'text-rosa';
             };
             
             const hasAnyLoad = weekLoad > 0;
@@ -4039,30 +4046,36 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
                 })}
 
                 {/* Columna resumen semanal */}
-                <div className={`flex flex-col items-center justify-center rounded-2xl border-2 px-2 py-3 gap-2 ${
+                <div className={`flex flex-col items-center justify-center rounded-2xl border-2 px-3 py-4 gap-3 ${
                   hasAnyLoad 
                     ? 'dark:bg-bg-main/60 bg-gray-50 dark:border-border-main/50 border-gray-200' 
                     : 'border-transparent opacity-30'
                 }`}>
                   {hasAnyLoad ? (
                     <>
-                      {/* Barra horizontal de progreso */}
-                      <div className="w-full h-3 dark:bg-bg-main bg-gray-200 rounded-full overflow-hidden">
+                      {/* Barra horizontal de progreso - más grande */}
+                      <div className="w-full h-4 dark:bg-bg-main bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className={`h-full transition-all duration-500 rounded-full ${getWeekColor()}`}
-                          style={{ width: `${pct}%` }}
+                          className="h-full transition-all duration-500 rounded-full"
+                          style={{ 
+                            width: `${pct}%`,
+                            backgroundColor: getWeekColor(),
+                            boxShadow: `0 0 10px ${getWeekColor()}33`
+                          }}
                         />
                       </div>
-                      <span className={`text-[8px] font-black leading-none ${
-                        weekLoad < 900 ? 'text-lima' : 
-                        weekLoad < 1500 ? 'text-naranja' : 
-                        weekLoad < 2100 ? 'text-morado' : 
-                        'text-rosa'
-                      }`}>{pct}%</span>
-                      <span className="text-[7px] font-bold dark:text-text-secondary/50 text-text-secondary-light/50 leading-none">+{freePct}%</span>
+                      {/* Porcentajes más grandes y claros */}
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`text-[11px] font-black leading-none ${getWeekColorClass()}`}>
+                          {pct}%
+                        </span>
+                        <span className="text-[9px] font-bold dark:text-text-secondary/60 text-text-secondary-light/60 leading-none">
+                          libre {freePct}%
+                        </span>
+                      </div>
                     </>
                   ) : (
-                    <div className="w-full h-2 dark:bg-bg-main bg-gray-200 rounded-full" />
+                    <div className="w-full h-3 dark:bg-bg-main bg-gray-200 rounded-full" />
                   )}
                 </div>
               </div>
@@ -4070,18 +4083,42 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
           });
         })()}
  
-        <div className="mt-10 flex flex-wrap gap-6 justify-center">
-           {[
-             { label: '<3h', color: 'bg-lima' },
-             { label: '3-5h', color: 'bg-naranja' },
-             { label: '5-7h', color: 'bg-morado' },
-             { label: '>7h', color: 'bg-rosa' },
-           ].map(item => (
-             <div key={item.label} className="flex items-center gap-2">
-               <div className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
-               <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">{item.label}</span>
-             </div>
-           ))}
+        <div className="mt-10 space-y-4">
+          {/* Leyenda carga diaria */}
+          <div className="text-center">
+            <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">Carga Diaria</p>
+            <div className="flex flex-wrap gap-6 justify-center">
+              {[
+                { label: '<3h', color: 'bg-lima' },
+                { label: '3-5h', color: 'bg-naranja' },
+                { label: '5-7h', color: 'bg-morado' },
+                { label: '>7h', color: 'bg-rosa' },
+              ].map(item => (
+                <div key={item.label} className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${item.color}`} />
+                  <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Leyenda carga semanal */}
+          <div className="text-center">
+            <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">Carga Semanal (L-V)</p>
+            <div className="flex flex-wrap gap-6 justify-center">
+              {[
+                { label: '<15h', color: 'bg-lima' },
+                { label: '15-25h', color: 'bg-naranja' },
+                { label: '25-35h', color: 'bg-morado' },
+                { label: '>35h', color: 'bg-rosa' },
+              ].map(item => (
+                <div key={item.label} className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${item.color}`} />
+                  <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
  
