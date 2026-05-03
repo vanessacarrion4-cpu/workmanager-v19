@@ -2635,10 +2635,8 @@ function DashboardView({
           color="turquesa"
         />
         <SummaryCard 
-          label="Estimado" 
-          value={formatMinutes(stats.estimatedCompleted)}
-          total={formatMinutes(stats.estimatedTotal)}
-          progress={(stats.estimatedCompleted / (stats.estimatedTotal || 1)) * 100}
+          label="Pendiente" 
+          value={formatMinutes(stats.estimatedPending)}
           color="azul"
         />
         <SummaryCard 
@@ -3302,7 +3300,7 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
             const isToday = day === formatLocalISO(new Date());
             const isSelected = day === selectedDay;
             const isPast = day < formatLocalISO(new Date());
-            const load = isPast ? 0 : projectLoadForDay(day, allTasksMap);
+            const load = projectLoadForDay(day, allTasksMap);
             
             return (
               <button 
@@ -6123,7 +6121,18 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                           {task.recurrence.frequency === 'daily' ? 'Diaria' : task.recurrence.frequency === 'weekdays' ? 'L-V' : task.recurrence.frequency === 'weekly' ? 'Semanal' : task.recurrence.frequency === 'monthly' ? 'Mensual' : 'Anual'}
                                         </span>
                                       )}
-                                      <span className="text-[8px] dark:text-text-secondary text-text-secondary-light/40 font-black">{subtaskList.length} subtarea{subtaskList.length !== 1 ? 's' : ''} delegada{subtaskList.length !== 1 ? 's' : ''}</span>
+                                      {/* Badge circular subtareas delegadas */}
+                                      {(() => {
+                                        const pendingCount = subtaskList.filter((s: any) => s && !s.isDeleted && s.status !== 'completed').length;
+                                        return (
+                                          <button
+                                            onClick={() => toggleTask(task.id)}
+                                            className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30"
+                                          >
+                                            {String(pendingCount)}
+                                          </button>
+                                        );
+                                      })()}
                                     </>
                                   ) : (
                                     <>
@@ -6140,7 +6149,18 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                       <DelegationChip delegation={task.delegation} people={people || []} onChange={(delegation: any) => onUpdateTask({ ...task, delegation })} onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])} onRenamePerson={onRenamePerson} onDeletePerson={onDeletePerson} />
                                       <EstimatedTimeChip value={task.estimatedMinutes} onChange={(val: number) => onUpdateTask({ ...task, estimatedMinutes: val })} variant="mini" />
                                       {(() => { const reg = getTaskRegisteredCombo(task.id, allTasksMap, timeEntries || []); return reg > 0 ? <RegisteredTimeChip value={reg} estimated={task.estimatedMinutes || 0} onClick={() => {}} /> : null; })()}
-                                      {hasSubtasks && <span className="text-[8px] dark:text-text-secondary text-text-secondary-light/40 font-black">{subtaskList.length} pasos</span>}
+                                      {/* Badge circular subtareas */}
+                                      {hasSubtasks && (() => {
+                                        const pendingCount = subtaskList.filter((s: any) => s && !s.isDeleted && s.status !== 'completed').length;
+                                        return (
+                                          <button
+                                            onClick={() => toggleTask(task.id)}
+                                            className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30"
+                                          >
+                                            {String(pendingCount)}
+                                          </button>
+                                        );
+                                      })()}
                                     </>
                                   )}
                                 </div>
