@@ -72,6 +72,7 @@ import {
   projectLoad, 
   projectLoadForDay,
   getTaskEstimatedCombo,
+  getTaskEstimatedPending,
   getTaskRegisteredSelf,
   getTaskRegisteredCombo,
   formatMinutes,
@@ -1566,6 +1567,7 @@ export default function App() {
                       ...prev[parentTaskId], 
                       dueDate: null,
                       tags: [],
+                      estimatedMinutes: 0,
                       isExpanded: true,
                       subtasks: [...(prev[parentTaskId]?.subtasks || []), id],
                       modifiedAt: timestamp
@@ -3810,13 +3812,13 @@ function TaskCard({
   // En Bloques: sumar todas las subtareas
   const totalEstimated = (() => {
     if (subtasksForGroup !== null) {
-      // Dashboard: contenedor dividido por grupos - solo sumar subtareas del grupo
+      // Dashboard: contenedor dividido por grupos - solo sumar subtareas PENDIENTES del grupo
       return subtasksForGroup.reduce((acc: number, subId: string) => {
-        return acc + getTaskEstimatedCombo(subId, allTasksMap);
+        return acc + getTaskEstimatedPending(subId, allTasksMap);
       }, 0);
     } else {
-      // Bloques o tarea normal: sumar todo
-      return getTaskEstimatedCombo(task.id, allTasksMap);
+      // Bloques o tarea normal: sumar PENDIENTES
+      return getTaskEstimatedPending(task.id, allTasksMap);
     }
   })();
   
@@ -6103,18 +6105,11 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5">
                                   <p className={`font-black dark:text-white text-text-main-light text-[13px] truncate capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}>{task.title}</p>
-                                  {/* Chevron junto al título */}
-                                  {hasSubtasks && (
-                                    <button onClick={() => toggleTask(task.id)} className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all shrink-0">
-                                      {isTaskOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                                    </button>
-                                  )}
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                   {/* Contenedor: solo bloque + badge subtareas */}
                                   {isContainerWithDelegatedSubs ? (
                                     <>
-                                      {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
                                       {task.recurrence && (
                                         <span className="flex items-center gap-1 text-[8px] font-black text-morado uppercase">
                                           <RefreshCw size={9} />
@@ -6133,10 +6128,17 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                           </button>
                                         );
                                       })()}
+                                      {/* Badge bloque al final */}
+                                      {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
+                                      {/* Chevron al final */}
+                                      {hasSubtasks && (
+                                        <button onClick={() => toggleTask(task.id)} className="w-5 h-5 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all shrink-0 ml-auto">
+                                          {isTaskOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                        </button>
+                                      )}
                                     </>
                                   ) : (
                                     <>
-                                      {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
                                       {task.recurrence && (
                                         <span className="flex items-center gap-1 text-[8px] font-black text-morado uppercase">
                                           <RefreshCw size={9} />
@@ -6149,6 +6151,8 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                       <DelegationChip delegation={task.delegation} people={people || []} onChange={(delegation: any) => onUpdateTask({ ...task, delegation })} onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])} onRenamePerson={onRenamePerson} onDeletePerson={onDeletePerson} />
                                       <EstimatedTimeChip value={task.estimatedMinutes} onChange={(val: number) => onUpdateTask({ ...task, estimatedMinutes: val })} variant="mini" />
                                       {(() => { const reg = getTaskRegisteredCombo(task.id, allTasksMap, timeEntries || []); return reg > 0 ? <RegisteredTimeChip value={reg} estimated={task.estimatedMinutes || 0} onClick={() => {}} /> : null; })()}
+                                      {/* Badge bloque al final */}
+                                      {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
                                       {/* Badge circular subtareas */}
                                       {hasSubtasks && (() => {
                                         const pendingCount = subtaskList.filter((s: any) => s && !s.isDeleted && s.status !== 'completed').length;
