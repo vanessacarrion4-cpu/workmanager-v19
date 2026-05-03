@@ -1522,6 +1522,16 @@ export default function App() {
                 onExpandAll={handleExpandAllInBlock}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
+                selectionMode={selectionMode}
+                selectedTaskIds={selectedTaskIds}
+                onToggleTaskSelection={toggleTaskSelection}
+                onToggleSelectionMode={toggleSelectionMode}
+                bulkUpdateTasks={bulkUpdateTasks}
+                bulkDeleteTasks={bulkDeleteTasks}
+                bulkDuplicateTasks={bulkDuplicateTasks}
+                setBulkDelegateModal={setBulkDelegateModal}
+                setBulkDateModal={setBulkDateModal}
+                setBulkTimeModal={setBulkTimeModal}
               />
             )}
             {currentView === 'calendar' && (
@@ -1573,6 +1583,16 @@ export default function App() {
                 onRenamePerson={handleRenamePerson}
                 onDeletePerson={handleDeletePerson}
                 onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
+                selectionMode={selectionMode}
+                selectedTaskIds={selectedTaskIds}
+                onToggleTaskSelection={toggleTaskSelection}
+                onToggleSelectionMode={toggleSelectionMode}
+                bulkUpdateTasks={bulkUpdateTasks}
+                bulkDeleteTasks={bulkDeleteTasks}
+                bulkDuplicateTasks={bulkDuplicateTasks}
+                setBulkDelegateModal={setBulkDelegateModal}
+                setBulkDateModal={setBulkDateModal}
+                setBulkTimeModal={setBulkTimeModal}
               />
             )}
           </AnimatePresence>
@@ -1705,6 +1725,69 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modales de acciones bulk */}
+      {bulkDelegateModal && (
+        <BulkDelegateModal
+          people={people}
+          onClose={() => setBulkDelegateModal(false)}
+          onConfirm={(personId: string) => {
+            const person = people.find((p: any) => p.id === personId);
+            if (!person) return;
+            const timestamp = new Date().toISOString();
+            setTasks(prev => {
+              const next = { ...prev };
+              selectedTaskIds.forEach(id => {
+                if (next[id]) {
+                  next[id] = { ...next[id], delegation: { personId, personName: person.name, delegatedAt: timestamp }, modifiedAt: timestamp };
+                }
+              });
+              return next;
+            });
+            setSelectedTaskIds(new Set());
+            setSelectionMode(false);
+            setBulkDelegateModal(false);
+          }}
+        />
+      )}
+
+      {bulkDateModal && (
+        <BulkDateModal
+          onClose={() => setBulkDateModal(false)}
+          onConfirm={(date: string) => {
+            const timestamp = new Date().toISOString();
+            setTasks(prev => {
+              const next = { ...prev };
+              selectedTaskIds.forEach(id => {
+                if (next[id]) next[id] = { ...next[id], dueDate: date, modifiedAt: timestamp };
+              });
+              return next;
+            });
+            setSelectedTaskIds(new Set());
+            setSelectionMode(false);
+            setBulkDateModal(false);
+          }}
+        />
+      )}
+
+      {bulkTimeModal && (
+        <BulkTimeModal
+          onClose={() => setBulkTimeModal(false)}
+          onConfirm={(minutes: number) => {
+            const timestamp = new Date().toISOString();
+            setTasks(prev => {
+              const next = { ...prev };
+              selectedTaskIds.forEach(id => {
+                if (next[id]) next[id] = { ...next[id], estimatedMinutes: minutes, modifiedAt: timestamp };
+              });
+              return next;
+            });
+            setSelectedTaskIds(new Set());
+            setSelectionMode(false);
+            setBulkTimeModal(false);
+          }}
+        />
       )}
 
       {/* Modal cambio de fecha en instancia recurrente */}
@@ -2422,6 +2505,112 @@ const formatMinutes = (mins: number) => {
   const m = mins % 60;
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 };
+
+// --- Bulk Delegate Modal ---
+function BulkDelegateModal({ people, onConfirm, onClose }: any) {
+  const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 dark:bg-black/60 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative dark:bg-bg-card bg-white rounded-[2rem] border dark:border-border-main border-border-main-light shadow-2xl p-6 w-full max-w-sm">
+        <h3 className="text-lg font-black dark:text-white text-text-main-light mb-4">Delegar tareas seleccionadas</h3>
+        <div className="space-y-2 mb-6">
+          {people.map((p: any) => (
+            <button
+              key={p.id}
+              onClick={() => setSelectedPerson(p.id)}
+              className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${
+                selectedPerson === p.id
+                  ? 'bg-morado/10 border-morado text-morado'
+                  : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-white text-text-main-light hover:border-morado/50'
+              }`}
+            >
+              <div className="w-8 h-8 rounded-xl bg-morado/20 flex items-center justify-center text-morado font-black text-sm">
+                {p.name[0]}
+              </div>
+              <span className="font-bold text-sm">{p.name}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light font-bold text-sm hover:border-rosa transition-all">Cancelar</button>
+          <button
+            onClick={() => selectedPerson && onConfirm(selectedPerson)}
+            disabled={!selectedPerson}
+            className={`flex-1 py-3 rounded-2xl font-black text-sm transition-all ${selectedPerson ? 'bg-morado text-white hover:bg-morado/90' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+          >Delegar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Bulk Date Modal ---
+function BulkDateModal({ onConfirm, onClose }: any) {
+  const [date, setDate] = useState(formatLocalISO(new Date()));
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 dark:bg-black/60 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative dark:bg-bg-card bg-white rounded-[2rem] border dark:border-border-main border-border-main-light shadow-2xl p-6 w-full max-w-sm">
+        <h3 className="text-lg font-black dark:text-white text-text-main-light mb-4">Cambiar fecha</h3>
+        <input
+          type="date"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+          className="w-full px-4 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:bg-bg-main bg-gray-50 dark:text-white text-text-main-light font-bold mb-6 focus:outline-none focus:border-turquesa"
+        />
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light font-bold text-sm hover:border-rosa transition-all">Cancelar</button>
+          <button onClick={() => onConfirm(date)} className="flex-1 py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/90 transition-all">Aplicar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Bulk Time Modal ---
+function BulkTimeModal({ onConfirm, onClose }: any) {
+  const [minutes, setMinutes] = useState(30);
+  const options = [5, 10, 15, 20, 30, 45, 60, 90, 120];
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 dark:bg-black/60 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative dark:bg-bg-card bg-white rounded-[2rem] border dark:border-border-main border-border-main-light shadow-2xl p-6 w-full max-w-sm">
+        <h3 className="text-lg font-black dark:text-white text-text-main-light mb-4">Cambiar tiempo estimado</h3>
+        <div className="grid grid-cols-3 gap-2 mb-6">
+          {options.map(m => (
+            <button
+              key={m}
+              onClick={() => setMinutes(m)}
+              className={`py-3 rounded-2xl border font-black text-sm transition-all ${
+                minutes === m
+                  ? 'bg-azul text-white border-azul'
+                  : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-white text-text-main-light hover:border-azul'
+              }`}
+            >
+              {m >= 60 ? `${m/60}h` : `${m}m`}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2 items-center mb-4">
+          <span className="dark:text-text-secondary text-text-secondary-light text-sm">Personalizado:</span>
+          <input
+            type="number"
+            min={1}
+            value={minutes}
+            onChange={e => setMinutes(Number(e.target.value))}
+            className="flex-1 px-3 py-2 rounded-xl border dark:border-border-main border-border-main-light dark:bg-bg-main bg-gray-50 dark:text-white text-text-main-light font-bold text-sm focus:outline-none focus:border-azul"
+          />
+          <span className="dark:text-text-secondary text-text-secondary-light text-sm">min</span>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light font-bold text-sm hover:border-rosa transition-all">Cancelar</button>
+          <button onClick={() => onConfirm(minutes)} className="flex-1 py-3 rounded-2xl bg-azul text-white font-black text-sm hover:bg-azul/90 transition-all">Aplicar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // --- Bulk Action Bar Component ---
 function BulkActionBar({ 
@@ -3186,7 +3375,7 @@ function ToggleExpandButton({ blockId, onExpandAll }: { blockId: string, onExpan
   );
 }
 
-function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onAddTask, onAddRule, onToggleTask, onDelete, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, onEditRule, onToggleRule, onAddBlock, onEditBlock, onReorderBlocks, onToggleBlock, activeDate, onReorderSubtasks, onReorderTasks, onToggleExpand, onExpandAll, onPromote, onDemote, onRecurrenceDateChange = null }: any) {
+function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onAddTask, onAddRule, onToggleTask, onDelete, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, onEditRule, onToggleRule, onAddBlock, onEditBlock, onReorderBlocks, onToggleBlock, activeDate, onReorderSubtasks, onReorderTasks, onToggleExpand, onExpandAll, onPromote, onDemote, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null }: any) {
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
  
@@ -3288,6 +3477,9 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
                     onDemote={onDemote}
                     onReorderSubtasks={onReorderSubtasks}
                     onToggleExpand={onToggleExpand}
+                    selectionMode={selectionMode}
+                    selectedTaskIds={selectedTaskIds}
+                    onToggleTaskSelection={onToggleTaskSelection}
                   />
                 ))}
               </Reorder.Group>
@@ -3337,6 +3529,9 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
                     onDemote={onDemote}
                     onReorderSubtasks={onReorderSubtasks}
                     onToggleExpand={onToggleExpand}
+                    selectionMode={selectionMode}
+                    selectedTaskIds={selectedTaskIds}
+                    onToggleTaskSelection={onToggleTaskSelection}
                   />
                 ))}
               </Reorder.Group>
@@ -3354,6 +3549,22 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
  
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10 pb-32">
+
+      {/* Bulk Action Bar Bloques */}
+      {selectionMode && selectedTaskIds.size > 0 && bulkUpdateTasks && (
+        <BulkActionBar
+          count={selectedTaskIds.size}
+          onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
+          onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
+          onComplete={() => bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
+          onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
+          onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
+          onDelete={() => { if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) { bulkDeleteTasks && bulkDeleteTasks(); } }}
+          onCancel={onToggleSelectionMode}
+          isMobile={window.innerWidth < 768}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
            <div className="w-12 h-12 dark:bg-bg-card bg-bg-card-light rounded-2xl border dark:border-border-main border-border-main-light flex items-center justify-center text-turquesa shadow-xl">
@@ -3364,12 +3575,25 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
              <p className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em]">Contextos de trabajo</p>
            </div>
         </div>
-        <button 
-          onClick={onAddBlock}
-          className="bg-azul hover:bg-azul/90 text-white px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-azul/20 transition-all flex items-center gap-2"
-        >
-          <Plus size={18} /> Nuevo Contexto
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onToggleSelectionMode && onToggleSelectionMode()}
+            className={`flex items-center gap-1.5 px-3 h-10 rounded-2xl border-2 transition-all text-[10px] font-black uppercase tracking-widest ${
+              selectionMode
+                ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30'
+                : 'bg-azul/10 border-azul text-azul hover:bg-azul hover:text-white'
+            }`}
+          >
+            <CheckCircle2 size={14} />
+            <span className="hidden sm:inline">{selectionMode ? 'Cancelar' : 'Seleccionar'}</span>
+          </button>
+          <button 
+            onClick={onAddBlock}
+            className="bg-azul hover:bg-azul/90 text-white px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-azul/20 transition-all flex items-center gap-2"
+          >
+            <Plus size={18} /> Nuevo Contexto
+          </button>
+        </div>
       </div>
  
       <div className="flex items-center gap-4 dark:bg-bg-card/50 bg-gray-200 p-2 rounded-2xl border dark:border-border-main border-border-main-light w-fit">
@@ -4287,16 +4511,8 @@ function TaskCard({
             {/* Barra color bloque - inline entre flechas y checkbox */}
             <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: block.color }} />
 
-            {/* Checkbox */}
-            <button 
-              onClick={() => onToggleStatus(task.id)}
-              className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all shadow-lg shrink-0 ${task.status === 'completed' ? 'bg-turquesa text-white' : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-turquesa'}`}
-            >
-              <CheckCircle2 size={12} />
-            </button>
-
-            {/* Checkbox de selección (azul) */}
-            {selectionMode && onToggleTaskSelection && (
+            {/* Checkbox - turquesa normal, azul en modo selección */}
+            {selectionMode && onToggleTaskSelection ? (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -4310,6 +4526,13 @@ function TaskCard({
                 }`}
               >
                 <Check size={12} />
+              </button>
+            ) : (
+              <button 
+                onClick={() => onToggleStatus(task.id)}
+                className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all shadow-lg shrink-0 ${task.status === 'completed' ? 'bg-turquesa text-white' : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-turquesa'}`}
+              >
+                <CheckCircle2 size={12} />
               </button>
             )}
 
@@ -5950,7 +6173,7 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
 // ============================================================
 // DELEGADAS VIEW
 // ============================================================
-function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson }: any) {
+function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null }: any) {
   const [activeTab, setActiveTab] = useState<'tareas' | 'reuniones'>('tareas');
   const [filterPersonId, setFilterPersonId] = useState<string | null>(null);
   const [expandedPersons, setExpandedPersons] = useState<Set<string>>(new Set());
@@ -6202,6 +6425,22 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32">
+
+      {/* Bulk Action Bar Delegadas */}
+      {selectionMode && selectedTaskIds.size > 0 && bulkUpdateTasks && (
+        <BulkActionBar
+          count={selectedTaskIds.size}
+          onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
+          onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
+          onComplete={() => bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
+          onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
+          onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
+          onDelete={() => { if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) { bulkDeleteTasks && bulkDeleteTasks(); } }}
+          onCancel={onToggleSelectionMode}
+          isMobile={window.innerWidth < 768}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -6209,6 +6448,18 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
           <p className="text-text-secondary text-sm mt-1">{delegatedTasks.length} tareas · {people.length} personas</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Seleccionar */}
+          <button
+            onClick={() => onToggleSelectionMode && onToggleSelectionMode()}
+            className={`flex items-center gap-1.5 px-3 h-10 rounded-2xl border-2 transition-all text-[10px] font-black uppercase tracking-widest ${
+              selectionMode
+                ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30'
+                : 'bg-azul/10 border-azul text-azul hover:bg-azul hover:text-white'
+            }`}
+          >
+            <CheckCircle2 size={14} />
+            <span className="hidden sm:inline">{selectionMode ? 'Cancelar' : 'Seleccionar'}</span>
+          </button>
           {/* Expandir/Contraer - igual que Dashboard */}
           <button
             onClick={toggleAllPersons}
@@ -6417,13 +6668,29 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                               {/* Barra color bloque */}
                               <div className="w-1 h-full min-h-[2.5rem] rounded-full shrink-0" style={{ backgroundColor: block?.color || '#666' }} />
 
-                              {/* Checkbox */}
-                              <button
-                                onClick={() => onUpdateTask({ ...task, status: task.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
-                                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${task.status === 'completed' ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light hover:border-turquesa'}`}
-                              >
-                                {task.status === 'completed' && <Check size={10} />}
-                              </button>
+                              {/* Checkbox - turquesa normal, azul en modo selección */}
+                              {selectionMode && onToggleTaskSelection ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleTaskSelection(task.id, false);
+                                  }}
+                                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                                    selectedTaskIds.has(task.id)
+                                      ? 'bg-azul border-azul text-white'
+                                      : 'dark:border-border-main border-border-main-light hover:border-azul'
+                                  }`}
+                                >
+                                  {selectedTaskIds.has(task.id) && <Check size={10} />}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => onUpdateTask({ ...task, status: task.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
+                                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${task.status === 'completed' ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light hover:border-turquesa'}`}
+                                >
+                                  {task.status === 'completed' && <Check size={10} />}
+                                </button>
+                              )}
 
                               {/* Título + info */}
                               <div className="flex-1 min-w-0">
