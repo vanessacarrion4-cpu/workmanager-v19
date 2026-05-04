@@ -2682,9 +2682,10 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
               const formatRecurrence = () => {
                 if (!rec) return null;
                 const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-                const freq = rec.frequency || rec.type || rec.freq; // distintos nombres posibles
-                if (!freq) return JSON.stringify(rec); // fallback: mostrar raw
-                if (freq === 'daily') return 'Diaria';
+                const freq = rec.frequency || rec.type || rec.freq;
+                if (!freq) return null;
+                if (freq === 'daily') return 'Diaria — todos los días';
+                if (freq === 'weekdays') return 'Semanal — Lun, Mar, Mié, Jue, Vie';
                 if (freq === 'weekly') {
                   const days = (rec.weekDays || rec.days || []).map((d: number) => dayNames[d]).join(', ');
                   return `Semanal — ${days || 'todos los días'}`;
@@ -2692,6 +2693,13 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                 if (freq === 'monthly') {
                   const day = rec.monthDay || rec.day || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : '?');
                   return `Mensual — día ${day}`;
+                }
+                if (freq === 'yearly') {
+                  if (rec.startDate) {
+                    const d = new Date(rec.startDate + 'T12:00:00');
+                    return `Anual — ${d.getDate()} de ${d.toLocaleDateString('es-ES', { month: 'long' })}`;
+                  }
+                  return 'Anual';
                 }
                 return freq;
               };
@@ -5515,6 +5523,33 @@ function TaskCard({
                       onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })}
                     />
                   )}
+                  {/* Chip recurrencia informativo para instancias */}
+                  {task.templateId && !hasSubtasks && (() => {
+                    const tmpl = allTasksMap[task.templateId];
+                    const rec = tmpl?.recurrence;
+                    if (!rec) return null;
+                    const freq = rec.frequency || rec.type;
+                    const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+                    let label = '';
+                    if (freq === 'daily') label = 'Diaria';
+                    else if (freq === 'weekdays') label = 'L-V';
+                    else if (freq === 'weekly') {
+                      const days = (rec.weekDays || []).map((d: number) => dayNames[d]).join(', ');
+                      label = days || 'Semanal';
+                    }
+                    else if (freq === 'monthly') {
+                      const day = rec.monthDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : '');
+                      label = `Mensual${day ? ` día ${day}` : ''}`;
+                    }
+                    else if (freq === 'yearly') label = 'Anual';
+                    else label = freq;
+                    return (
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 shrink-0" title="Tarea recurrente — solo informativo">
+                        <RefreshCw size={9} className="text-turquesa shrink-0" />
+                        <span className="text-[10px] font-black text-turquesa uppercase tracking-wide">{label}</span>
+                      </div>
+                    );
+                  })()}
                   {!hasSubtasks && (
                     <RecurrencePickerChip 
                       value={task.recurrence}
@@ -5523,7 +5558,7 @@ function TaskCard({
                         recurrence: rec || undefined,
                         isTemplate: !!rec,
                         dueDate: rec ? null : (task.dueDate || formatLocalISO(new Date())),
-                        dueTime: task.dueTime // ✅ Preservar hora concreta
+                        dueTime: task.dueTime
                       })}
                     />
                   )}
