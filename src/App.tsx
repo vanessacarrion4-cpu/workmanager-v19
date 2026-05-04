@@ -2676,24 +2676,24 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
             {/* Info instancia */}
             {localTask.templateId && (() => {
               const template = allTasksMap[localTask.templateId];
-              console.log('[MODAL] Instancia templateId:', localTask.templateId, 'template:', template?.title, 'recurrence:', template?.recurrence);
               const rec = template?.recurrence || 
                 (template?.parentTaskId ? allTasksMap[template.parentTaskId]?.recurrence : null);
               
-              // Formatear descripción de recurrencia
               const formatRecurrence = () => {
                 if (!rec) return null;
                 const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-                if (rec.frequency === 'daily') return 'Diaria';
-                if (rec.frequency === 'weekly') {
-                  const days = (rec.weekDays || []).map((d: number) => dayNames[d]).join(', ');
+                const freq = rec.frequency || rec.type || rec.freq; // distintos nombres posibles
+                if (!freq) return JSON.stringify(rec); // fallback: mostrar raw
+                if (freq === 'daily') return 'Diaria';
+                if (freq === 'weekly') {
+                  const days = (rec.weekDays || rec.days || []).map((d: number) => dayNames[d]).join(', ');
                   return `Semanal — ${days || 'todos los días'}`;
                 }
-                if (rec.frequency === 'monthly') {
-                  const day = rec.monthDay || (rec.startDate ? new Date(rec.startDate).getDate() : '?');
+                if (freq === 'monthly') {
+                  const day = rec.monthDay || rec.day || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : '?');
                   return `Mensual — día ${day}`;
                 }
-                return rec.frequency;
+                return freq;
               };
 
               const recDesc = formatRecurrence();
@@ -5242,12 +5242,7 @@ function TaskCard({
   const currentRootId = rootTaskId || task.id;
   const block = blocks.find((b: any) => b.id === task.blockId) || blocks[0] || { color: '#14B8A6', icon: '📋', name: 'General' };
   const hasSubtasks = (task.subtasks && task.subtasks.length > 0) || (subtasksForGroup && subtasksForGroup.length > 0);
-  // forceExpanded (botón global Dashboard) tiene prioridad
-  // Si forceExpanded es null (Bloques), usar task.isExpanded
-  // Default: expanded (true)
   const isExpanded = forceExpanded !== null ? forceExpanded : (task.isExpanded ?? true);
-  
-  console.log('[RENDER] TaskCard', task.id, 'isExpanded:', isExpanded, 'task.isExpanded:', task.isExpanded, 'forceExpanded:', forceExpanded);
   
   // En Dashboard con subtasksForGroup: solo sumar las subtareas de ese grupo
   // En Bloques: sumar todas las subtareas
