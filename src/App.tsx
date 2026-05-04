@@ -5141,6 +5141,8 @@ function TaskCard({
   // If forceExpanded is true/false (Dashboard global toggle), still respect individual task.isExpanded if set
   const isExpanded = task.isExpanded ?? (forceExpanded ?? true);
   
+  console.log('[RENDER] TaskCard', task.id, 'isExpanded:', isExpanded, 'task.isExpanded:', task.isExpanded, 'forceExpanded:', forceExpanded);
+  
   // En Dashboard con subtasksForGroup: solo sumar las subtareas de ese grupo
   // En Bloques: sumar todas las subtareas
   const totalEstimated = (() => {
