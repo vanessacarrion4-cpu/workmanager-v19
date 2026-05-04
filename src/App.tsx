@@ -890,7 +890,6 @@ export default function App() {
         if (error) console.error('[SUPABASE] Error actualizando status:', id, error);
         else console.log('[SUPABASE] Status actualizado:', id, t.status);
       });
-      });
     });
   };
  
