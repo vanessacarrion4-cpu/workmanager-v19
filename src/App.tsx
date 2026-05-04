@@ -3477,7 +3477,11 @@ function DashboardView({
         const subtasksByTag: Record<string, string[]> = {};
         (t.subtasks || []).forEach(subId => {
           const sub = allTasksMap[subId];
-          if (!sub) return;
+          if (!sub) {
+            console.log('[DASHBOARD] Subtarea no encontrada:', subId);
+            return;
+          }
+          console.log('[DASHBOARD] Subtarea:', sub.id, 'dueDate:', sub.dueDate, 'activeDate:', activeDate, 'match:', sub.dueDate === activeDate);
           if (hideCompleted && sub.status === 'completed') return;
           if (sub.dueDate !== activeDate) return;
           // Filtro delegación: excluir delegadas sin etiqueta real
