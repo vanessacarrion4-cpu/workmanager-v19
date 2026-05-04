@@ -911,7 +911,7 @@ export default function App() {
           delegation: t.delegation || null,
           created_at: t.createdAt || timestamp,
           modified_at: timestamp,
-        }).then(({ error }) => {
+        }, { onConflict: 'id' }).then(({ error }) => {
           if (error) console.error('[SUPABASE] Error upsert instancia:', t.id, error);
           else console.log('[SUPABASE] Instancia guardada OK:', t.id, t.status);
         });
