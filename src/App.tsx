@@ -3476,12 +3476,20 @@ function DashboardView({
         // Repartir el contenedor en cada grupo donde tenga subtareas con esa etiqueta
         const subtasksByTag: Record<string, string[]> = {};
         (t.subtasks || []).forEach(subId => {
-          const sub = allTasksMap[subId];
-          if (!sub) {
-            console.log('[DASHBOARD] Subtarea no encontrada:', subId);
-            return;
+          // Primero buscar la subtarea directamente (puede ser template o instancia)
+          let sub = allTasksMap[subId];
+          
+          // Si no existe o no coincide fecha, buscar la instancia para el día activo
+          if (!sub || sub.dueDate !== activeDate) {
+            const instanceId = `inst-${subId}-${activeDate}`;
+            const instanceSub = allTasksMap[instanceId];
+            if (instanceSub) {
+              sub = instanceSub;
+              subId = instanceId; // Usar el ID de la instancia
+            }
           }
-          console.log('[DASHBOARD] Subtarea:', sub.id, 'dueDate:', sub.dueDate, 'activeDate:', activeDate, 'match:', sub.dueDate === activeDate);
+          
+          if (!sub) return;
           if (hideCompleted && sub.status === 'completed') return;
           if (sub.dueDate !== activeDate) return;
           // Filtro delegación: excluir delegadas sin etiqueta real
