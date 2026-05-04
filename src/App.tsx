@@ -5525,7 +5525,7 @@ function TaskCard({
                             console.log('[EXPAND BTN] Clicked:', task.id, task.title);
                             onToggleExpand(task.id);
                           }}
-                          className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30 cursor-pointer z-10 relative"
+                          className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30 cursor-pointer z-50 relative pointer-events-auto"
                         >
                           {String(pendingCount)}
                         </button>
@@ -7605,7 +7605,7 @@ function SearchView({ searchText, setSearchText, searchFilters, setSearchFilters
                               )}
                               {(task.tags || []).map((tag: string) => (
                                 <span key={tag} className="text-xs px-2 py-1 rounded-lg bg-turquesa/20 text-turquesa font-bold">
-                                  {TAG_LABELS[tag as TagType] || tag}
+                                  {TAG_LABELS[tag as TagType]?.label || tag}
                                 </span>
                               ))}
                               {task.templateId && (
@@ -8721,7 +8721,7 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                       {task.taskType === 'core' ? 'Core' : 'Ad-hoc'}
                                     </span>
                                   )}
-                                  {tag && <span className="text-[8px] font-black text-text-secondary">{TAG_LABELS[tag as TagType]?.icon} {TAG_LABELS[tag as TagType]?.label}</span>}
+                                  {tag && <span className="text-[8px] font-black text-text-secondary">{TAG_LABELS[tag as TagType]?.label || tag}</span>}
                                   {task.estimatedMinutes > 0 && (
                                     <span className="text-[8px] font-black text-azul flex items-center gap-0.5"><Clock size={8} />{formatMinutes(task.estimatedMinutes)}</span>
                                   )}
