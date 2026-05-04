@@ -3473,25 +3473,56 @@ function DashboardView({
       const isContainer = !!(t.subtasks && t.subtasks.length > 0);
 
       if (isContainer) {
+        // Debug específico para Rutinas Mañana
+        if (t.title && t.title.includes('Rutinas')) {
+          console.log('[DEBUG RUTINAS] Contenedor:', t.id, t.title);
+          console.log('[DEBUG RUTINAS] subtasks array:', t.subtasks);
+          console.log('[DEBUG RUTINAS] activeDate:', activeDate);
+        }
+        
         // Repartir el contenedor en cada grupo donde tenga subtareas con esa etiqueta
         const subtasksByTag: Record<string, string[]> = {};
         (t.subtasks || []).forEach(subId => {
           // Primero buscar la subtarea directamente (puede ser template o instancia)
           let sub = allTasksMap[subId];
           
+          // Debug para Rutinas
+          if (t.title && t.title.includes('Rutinas')) {
+            console.log('[DEBUG RUTINAS] Buscando subtarea:', subId);
+            console.log('[DEBUG RUTINAS] - Encontrada directa:', sub?.id, sub?.dueDate);
+          }
+          
           // Si no existe o no coincide fecha, buscar la instancia para el día activo
           if (!sub || sub.dueDate !== activeDate) {
             const instanceId = `inst-${subId}-${activeDate}`;
             const instanceSub = allTasksMap[instanceId];
+            
+            if (t.title && t.title.includes('Rutinas')) {
+              console.log('[DEBUG RUTINAS] - Buscando instancia:', instanceId);
+              console.log('[DEBUG RUTINAS] - Instancia encontrada:', instanceSub?.id, instanceSub?.dueDate);
+            }
+            
             if (instanceSub) {
               sub = instanceSub;
-              subId = instanceId; // Usar el ID de la instancia
+              subId = instanceId;
             }
           }
           
-          if (!sub) return;
+          if (!sub) {
+            if (t.title && t.title.includes('Rutinas')) {
+              console.log('[DEBUG RUTINAS] - NO ENCONTRADA, saltando');
+            }
+            return;
+          }
+          
           if (hideCompleted && sub.status === 'completed') return;
-          if (sub.dueDate !== activeDate) return;
+          if (sub.dueDate !== activeDate) {
+            if (t.title && t.title.includes('Rutinas')) {
+              console.log('[DEBUG RUTINAS] - Fecha no coincide, saltando');
+            }
+            return;
+          }
+          
           // Filtro delegación: excluir delegadas sin etiqueta real
           if (sub.delegation) {
             const tags = sub.tags || [];
@@ -3499,9 +3530,18 @@ function DashboardView({
             if (!hasRealTag) return;
           }
           const subTag = (sub.tags && sub.tags[0]) || 'resto';
+          
+          if (t.title && t.title.includes('Rutinas')) {
+            console.log('[DEBUG RUTINAS] - Subtarea VÁLIDA:', sub.id, 'tag:', subTag);
+          }
+          
           if (!subtasksByTag[subTag]) subtasksByTag[subTag] = [];
           subtasksByTag[subTag].push(subId);
         });
+        
+        if (t.title && t.title.includes('Rutinas')) {
+          console.log('[DEBUG RUTINAS] subtasksByTag final:', subtasksByTag);
+        }
 
         Object.entries(subtasksByTag).forEach(([tag, subIds]) => {
           if (groups[tag as TagType]) {

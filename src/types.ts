@@ -115,7 +115,7 @@ export interface TimeEntry {
   source: 'manual' | 'timer';
 }
 
-export type ViewType = 'dashboard' | 'blocks' | 'calendar' | 'delegadas';
+export type ViewType = 'dashboard' | 'blocks' | 'calendar' | 'delegadas' | 'search';
 
 export interface Person {
   id: string;
