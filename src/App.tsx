@@ -885,7 +885,7 @@ export default function App() {
         supabase.from('tasks').upsert({
           id: t.id,
           block_id: t.blockId,
-          parent_task_id: t.parentTaskId || null,
+          parent_task_id: null, // No FK en instancias — jerarquía se reconstruye en memoria
           template_id: t.templateId,
           instance_date: t.instanceDate || null,
           title: t.title,
