@@ -1183,6 +1183,9 @@ export default function App() {
     // --- Sync to Supabase ---
     (async () => {
       try {
+        const isInstance = !!updatedTask.templateId;
+        // Para instancias: parent_task_id null para evitar FK constraint
+        // La jerarquía se reconstruye en memoria via generateInstances
         const dbTask = {
           id: updatedTask.id,
           block_id: updatedTask.blockId,
@@ -1199,24 +1202,24 @@ export default function App() {
           total_registered_combo: updatedTask.totalRegisteredCombo || 0,
           tags: updatedTask.tags || [],
           order: updatedTask.order || 0,
-          is_template: updatedTask.isTemplate || false,
+          is_template: isInstance ? false : (updatedTask.isTemplate || false),
           is_active: updatedTask.isActive !== false,
-          is_exception: updatedTask.isException || false,
+          is_exception: isInstance ? true : (updatedTask.isException || false), // Siempre true para instancias
           is_deleted: updatedTask.isDeleted || false,
           is_expanded: updatedTask.isExpanded,
           task_type: updatedTask.taskType,
-          parent_task_id: updatedTask.parentTaskId || null,
+          parent_task_id: isInstance ? null : (updatedTask.parentTaskId || null), // null para instancias
           template_id: updatedTask.templateId || null,
           instance_date: updatedTask.instanceDate || null,
-          recurrence: updatedTask.recurrence || null,
+          recurrence: isInstance ? null : (updatedTask.recurrence || null),
           delegation: updatedTask.delegation || null,
           created_at: updatedTask.createdAt,
           modified_at: new Date().toISOString()
         };
 
-        const { error } = await supabase.from('tasks').upsert([dbTask]);
+        const { error } = await supabase.from('tasks').upsert([dbTask], { onConflict: 'id' });
         if (error) throw error;
-        console.log('[SUPABASE] Task updated:', updatedTask.id);
+        console.log('[SUPABASE] Task updated:', updatedTask.id, isInstance ? '(instancia excepción)' : '');
       } catch (e) {
         console.error('[SUPABASE] Error updating task:', e);
       }
@@ -2673,7 +2676,9 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
             {/* Info instancia */}
             {localTask.templateId && (() => {
               const template = allTasksMap[localTask.templateId];
-              const rec = template?.recurrence;
+              console.log('[MODAL] Instancia templateId:', localTask.templateId, 'template:', template?.title, 'recurrence:', template?.recurrence);
+              const rec = template?.recurrence || 
+                (template?.parentTaskId ? allTasksMap[template.parentTaskId]?.recurrence : null);
               
               // Formatear descripción de recurrencia
               const formatRecurrence = () => {
@@ -2713,6 +2718,12 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                           </span>
                         )}
                       </div>
+                    </div>
+                  )}
+                  {!recDesc && (
+                    <div className="flex items-center gap-3 p-3 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl">
+                      <RefreshCw size={12} className="text-turquesa shrink-0" />
+                      <span className="text-xs dark:text-text-secondary text-text-secondary-light">Parte de una serie recurrente</span>
                     </div>
                   )}
                 </div>
@@ -3022,7 +3033,13 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
             Cerrar
           </button>
           <button 
-            onClick={() => { onSave(localTask); onClose(); }}
+            onClick={() => { 
+              const taskToSave = localTask.templateId 
+                ? { ...localTask, isException: true, existsInSupabase: true }
+                : localTask;
+              onSave(taskToSave); 
+              onClose(); 
+            }}
             className="flex-[2] py-5 bg-gradient-to-r from-turquesa to-azul rounded-3xl text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-turquesa/20 hover:scale-[1.02] active:scale-95 transition-all"
           >
             Guardar Cambios
