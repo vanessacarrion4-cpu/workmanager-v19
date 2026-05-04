@@ -464,7 +464,10 @@ export default function App() {
           });
 
           // Reconstruir relaciones padre-hijo
+          // Las instancias (templateId presente) NO se añaden como subtareas aquí
+          // porque generateInstances reconstruye la jerarquía completa en memoria
           Object.values(mappedTasks).forEach(task => {
+            if (task.templateId) return; // Instancia — skip, jerarquía via generateInstances
             if (task.parentTaskId && mappedTasks[task.parentTaskId]) {
               if (!mappedTasks[task.parentTaskId].subtasks) {
                 mappedTasks[task.parentTaskId].subtasks = [];
@@ -889,11 +892,13 @@ export default function App() {
     tasksToUpsert.forEach(t => {
       console.log('[STATUS] Guardando:', t.id, t.status, 'templateId:', t.templateId);
       if (t.templateId) {
-        // Instancia: upsert completo porque puede no existir en BD
+        // Instancias subtarea (tienen parentTaskId): no guardar parent_task_id en BD
+        // Su jerarquía se reconstruye desde el contenedor padre al cargar
+        // Solo guardar parent_task_id si es una instancia raíz (sin padre)
         supabase.from('tasks').upsert({
           id: t.id,
           block_id: t.blockId,
-          parent_task_id: null, // No FK en instancias — jerarquía se reconstruye en memoria
+          parent_task_id: null, // Siempre null — jerarquía se reconstruye via template_id
           template_id: t.templateId,
           instance_date: t.instanceDate || null,
           title: t.title,
