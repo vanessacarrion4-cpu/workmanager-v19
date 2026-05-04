@@ -443,7 +443,7 @@ export default function App() {
               tags: t.tags || [],
               order: t.order,
               isTemplate: t.is_template,
-              isActive: t.is_active !== false, // Default true
+              isActive: t.is_active !== false,
               isException: t.is_exception,
               isDeleted: t.is_deleted,
               isExpanded: t.is_expanded,
@@ -456,8 +456,9 @@ export default function App() {
               createdAt: t.created_at,
               modifiedAt: t.modified_at,
               deletedAt: t.deleted_at,
-              subtasks: [], // Inicializar subtasks como array vacío
-              attachments: [] // Inicializar attachments como array vacío
+              existsInSupabase: true, // Flag: esta tarea existe en BD, nunca borrarla al regenerar
+              subtasks: [],
+              attachments: []
             };
           });
 
@@ -741,14 +742,15 @@ export default function App() {
     const today = formatLocalISO(new Date());
     const start = today;
     setTasks(prev => {
-      // Antes de generar: limpiar instancias futuras NO-excepción y NO-eliminadas
-      // (para que se regeneren con los datos actualizados del template)
+      // Antes de generar: limpiar instancias futuras NO-excepción, NO-eliminadas, y NO guardadas en Supabase
+      // Las que tienen existsInSupabase:true se respetan siempre (tienen status real del usuario)
       const cleaned = { ...prev };
       Object.values(cleaned).forEach((t: Task) => {
         if (
-          t.templateId &&           // es instancia
-          !t.isException &&         // no modificada individualmente
-          !t.isDeleted &&           // no eliminada
+          t.templateId &&            // es instancia
+          !t.isException &&          // no modificada individualmente
+          !t.isDeleted &&            // no eliminada
+          !t.existsInSupabase &&     // NO existe en Supabase (solo en memoria)
           t.dueDate && t.dueDate >= today  // es futura (hoy o después)
         ) {
           delete cleaned[t.id];
@@ -854,6 +856,7 @@ export default function App() {
         ...targetTask, 
         status, 
         isException: isInstance ? true : targetTask.isException,
+        existsInSupabase: isInstance ? true : targetTask.existsInSupabase,
         modifiedAt: timestamp,
         completedAt: status === 'completed' ? timestamp : undefined 
       };
@@ -2631,14 +2634,53 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
             </div>
 
             {/* Info instancia */}
-            {localTask.templateId && (
-              <div className="flex items-center gap-3 p-3 dark:bg-turquesa/10 bg-turquesa/5 border border-turquesa/20 rounded-xl">
-                <RefreshCw size={14} className="text-turquesa shrink-0" />
-                <p className="text-xs dark:text-text-secondary text-text-secondary-light">
-                  Esta tarea es una <span className="text-turquesa font-bold">instancia de una serie recurrente</span>. Los cambios solo afectan a este día concreto.
-                </p>
-              </div>
-            )}
+            {localTask.templateId && (() => {
+              const template = tasks[localTask.templateId];
+              const rec = template?.recurrence;
+              
+              // Formatear descripción de recurrencia
+              const formatRecurrence = () => {
+                if (!rec) return null;
+                const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+                if (rec.frequency === 'daily') return 'Diaria';
+                if (rec.frequency === 'weekly') {
+                  const days = (rec.weekDays || []).map((d: number) => dayNames[d]).join(', ');
+                  return `Semanal — ${days || 'todos los días'}`;
+                }
+                if (rec.frequency === 'monthly') {
+                  const day = rec.monthDay || (rec.startDate ? new Date(rec.startDate).getDate() : '?');
+                  return `Mensual — día ${day}`;
+                }
+                return rec.frequency;
+              };
+
+              const recDesc = formatRecurrence();
+
+              return (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 p-3 dark:bg-turquesa/10 bg-turquesa/5 border border-turquesa/20 rounded-xl">
+                    <RefreshCw size={14} className="text-turquesa shrink-0" />
+                    <p className="text-xs dark:text-text-secondary text-text-secondary-light">
+                      Esta tarea es una <span className="text-turquesa font-bold">instancia de una serie recurrente</span>. Los cambios solo afectan a este día concreto.
+                    </p>
+                  </div>
+                  {recDesc && (
+                    <div className="flex items-center gap-3 p-3 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl">
+                      <RefreshCw size={12} className="text-turquesa shrink-0" />
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Patrón de repetición</span>
+                        <span className="text-xs font-bold text-turquesa">{recDesc}</span>
+                        {rec.startDate && (
+                          <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">
+                            Desde {new Date(rec.startDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
  
             {localTask.recurrence && (
               <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
