@@ -359,7 +359,44 @@ export default function App() {
             }
           });
 
-          // REPARACIÓN AUTOMÁTICA: si un padre tiene subtareas con recurrence,
+          // REPARACIÓN AUTOMÁTICA 1: Contenedores con datos prohibidos
+          // Los contenedores solo tienen bloque + tipo. Cualquier otro dato debe limpiarse.
+          Object.values(mappedTasks).forEach(task => {
+            if (!task.subtasks || task.subtasks.length === 0) return;
+            
+            const hasForbiddenData = task.dueDate || task.dueTime || 
+              (task.tags && task.tags.length > 0) || 
+              task.delegation || 
+              (task.recurrence && !task.isTemplate); // recurrence solo si NO es template recurrente
+            
+            if (hasForbiddenData) {
+              console.log('[REPAIR] Limpiando contenedor con datos prohibidos:', task.title);
+              mappedTasks[task.id] = { 
+                ...task, 
+                dueDate: null, 
+                dueTime: null, 
+                tags: [], 
+                delegation: undefined,
+                estimatedMinutes: 0,
+                // NO tocar recurrence ni isTemplate aquí - se maneja en reparación 2
+              };
+              supabase.from('tasks')
+                .update({ 
+                  due_date: null, 
+                  due_time: null, 
+                  tags: [], 
+                  delegation: null,
+                  estimated_minutes: 0
+                })
+                .eq('id', task.id)
+                .then(({ error }) => {
+                  if (error) console.error('[REPAIR] Error limpiando contenedor:', error);
+                  else console.log('[REPAIR] Contenedor limpiado en Supabase:', task.title);
+                });
+            }
+          });
+
+          // REPARACIÓN AUTOMÁTICA 2: si un padre tiene subtareas con recurrence,
           // debe ser isTemplate:true para que generateInstances lo procese.
           // También repara subtareas recurrentes sin isTemplate.
           Object.values(mappedTasks).forEach(task => {
@@ -374,14 +411,14 @@ export default function App() {
             
             // Reparar el padre
             if (!task.isTemplate) {
-              console.log('[REPAIR] Reparando contenedor:', task.title, '→ isTemplate: true');
-              mappedTasks[task.id] = { ...task, isTemplate: true, dueDate: null };
+              console.log('[REPAIR] Reparando contenedor recurrente:', task.title, '→ isTemplate: true');
+              mappedTasks[task.id] = { ...mappedTasks[task.id], isTemplate: true, dueDate: null };
               supabase.from('tasks')
                 .update({ is_template: true, due_date: null })
                 .eq('id', task.id)
                 .then(({ error }) => {
-                  if (error) console.error('[REPAIR] Error reparando contenedor:', error);
-                  else console.log('[REPAIR] Contenedor reparado en Supabase:', task.title);
+                  if (error) console.error('[REPAIR] Error reparando contenedor recurrente:', error);
+                  else console.log('[REPAIR] Contenedor recurrente reparado en Supabase:', task.title);
                 });
             }
             
