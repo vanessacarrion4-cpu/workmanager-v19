@@ -835,63 +835,53 @@ export default function App() {
   };
  
   const handleToggleStatus = (taskId: string) => {
-    const updatedTasks = { ...tasks };
-    let task = updatedTasks[taskId];
- 
+    // Buscar la tarea en tasks o en allTasksMap (que incluye instancias generadas)
+    const taskFromState = tasks[taskId];
+    const taskFromAll = taskFromState || Object.values(tasks).find(t => t.id === taskId);
+    const task = taskFromAll;
+
     if (!task) {
-      // Find in generated dashboard tasks
-      task = dashboardTasks.find(t => t.id === taskId);
+      console.error('[STATUS] Tarea no encontrada:', taskId);
+      return;
     }
- 
-    if (!task) return;
- 
+
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
     const timestamp = new Date().toISOString();
-    
+    const tasksToUpsert: Task[] = [];
+
     const toggleRecursive = (targetTask: Task, status: 'pending' | 'completed') => {
-      // Si es una instancia (templateId presente), marcarla como excepción
-      // para que el useEffect de generación no la sobreescriba con status: 'pending'
       const isInstance = !!targetTask.templateId;
-      updatedTasks[targetTask.id] = { 
-        ...targetTask, 
-        status, 
+      const updated = {
+        ...targetTask,
+        status,
         isException: isInstance ? true : targetTask.isException,
-        existsInSupabase: isInstance ? true : targetTask.existsInSupabase,
+        existsInSupabase: true,
         modifiedAt: timestamp,
-        completedAt: status === 'completed' ? timestamp : undefined 
+        completedAt: status === 'completed' ? timestamp : undefined
       };
-      
-      targetTask.subtasks.forEach(sid => {
-        const subtask = updatedTasks[sid] || dashboardTasks.find(dt => dt.id === sid);
-        if (subtask) {
-          toggleRecursive(subtask, status);
-        }
+      tasksToUpsert.push(updated);
+
+      // Buscar subtareas recursivamente
+      (targetTask.subtasks || []).forEach(sid => {
+        const sub = tasks[sid];
+        if (sub) toggleRecursive(sub, status);
       });
     };
- 
+
     toggleRecursive(task, newStatus);
-    setTasks(updatedTasks);
 
-    // CRÍTICO: Persistir en Supabase
-    const tasksToUpdate = [task.id];
-    if (task.subtasks) {
-      const collectSubtasks = (t: Task) => {
-        t.subtasks?.forEach(sid => {
-          tasksToUpdate.push(sid);
-          const sub = updatedTasks[sid];
-          if (sub?.subtasks) collectSubtasks(sub);
-        });
-      };
-      collectSubtasks(task);
-    }
+    // Actualizar state local
+    setTasks(prev => {
+      const next = { ...prev };
+      tasksToUpsert.forEach(t => { next[t.id] = t; });
+      return next;
+    });
 
-    tasksToUpdate.forEach(id => {
-      const t = updatedTasks[id];
-      if (!t) return;
-      console.log('[STATUS] Updating in Supabase:', id, t.status, t.completedAt);
-      
+    // Persistir en Supabase
+    tasksToUpsert.forEach(t => {
+      console.log('[STATUS] Guardando:', t.id, t.status, 'templateId:', t.templateId);
       if (t.templateId) {
-        // Instancia recurrente: puede no existir en Supabase → upsert completo
+        // Instancia: upsert completo porque puede no existir en BD
         supabase.from('tasks').upsert({
           id: t.id,
           block_id: t.blockId,
@@ -919,10 +909,11 @@ export default function App() {
           task_type: t.taskType || 'core',
           recurrence: null,
           delegation: t.delegation || null,
+          created_at: t.createdAt || timestamp,
           modified_at: timestamp,
         }).then(({ error }) => {
-          if (error) console.error('[SUPABASE] Error upsert instancia:', id, error);
-          else console.log('[SUPABASE] Instancia guardada:', id, t.status);
+          if (error) console.error('[SUPABASE] Error upsert instancia:', t.id, error);
+          else console.log('[SUPABASE] Instancia guardada OK:', t.id, t.status);
         });
       } else {
         // Tarea normal: update simple
@@ -930,9 +921,9 @@ export default function App() {
           status: t.status,
           completed_at: t.completedAt || null,
           modified_at: timestamp
-        }).eq('id', id).then(({ error }) => {
-          if (error) console.error('[SUPABASE] Error actualizando status:', id, error);
-          else console.log('[SUPABASE] Status actualizado:', id, t.status);
+        }).eq('id', t.id).then(({ error }) => {
+          if (error) console.error('[SUPABASE] Error update tarea:', t.id, error);
+          else console.log('[SUPABASE] Tarea actualizada OK:', t.id, t.status);
         });
       }
     });
