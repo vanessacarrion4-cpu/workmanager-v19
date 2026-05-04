@@ -889,19 +889,52 @@ export default function App() {
       const t = updatedTasks[id];
       if (!t) return;
       console.log('[STATUS] Updating in Supabase:', id, t.status, t.completedAt);
-      const updatePayload: any = {
-        status: t.status,
-        completed_at: t.completedAt || null,
-        modified_at: timestamp
-      };
-      // Si es instancia, marcar también como excepción en Supabase
+      
       if (t.templateId) {
-        updatePayload.is_exception = true;
+        // Instancia recurrente: puede no existir en Supabase → upsert completo
+        supabase.from('tasks').upsert({
+          id: t.id,
+          block_id: t.blockId,
+          parent_task_id: t.parentTaskId || null,
+          template_id: t.templateId,
+          instance_date: t.instanceDate || null,
+          title: t.title,
+          notes: t.notes || '',
+          priority: t.priority || 'medium',
+          status: t.status,
+          due_date: t.dueDate || null,
+          due_time: t.dueTime || null,
+          completed_at: t.completedAt || null,
+          estimated_minutes: t.estimatedMinutes || 0,
+          actual_minutes: t.actualMinutes || 0,
+          total_estimated_combo: t.totalEstimatedCombo || 0,
+          total_registered_combo: t.totalRegisteredCombo || 0,
+          tags: t.tags || [],
+          order: t.order || 0,
+          is_template: false,
+          is_active: true,
+          is_exception: true,
+          is_deleted: false,
+          is_expanded: t.isExpanded || false,
+          task_type: t.taskType || 'core',
+          recurrence: null,
+          delegation: t.delegation || null,
+          modified_at: timestamp,
+        }).then(({ error }) => {
+          if (error) console.error('[SUPABASE] Error upsert instancia:', id, error);
+          else console.log('[SUPABASE] Instancia guardada:', id, t.status);
+        });
+      } else {
+        // Tarea normal: update simple
+        supabase.from('tasks').update({
+          status: t.status,
+          completed_at: t.completedAt || null,
+          modified_at: timestamp
+        }).eq('id', id).then(({ error }) => {
+          if (error) console.error('[SUPABASE] Error actualizando status:', id, error);
+          else console.log('[SUPABASE] Status actualizado:', id, t.status);
+        });
       }
-      supabase.from('tasks').update(updatePayload).eq('id', id).then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error actualizando status:', id, error);
-        else console.log('[SUPABASE] Status actualizado:', id, t.status);
-      });
     });
   };
  
@@ -2635,7 +2668,7 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
 
             {/* Info instancia */}
             {localTask.templateId && (() => {
-              const template = tasks[localTask.templateId];
+              const template = allTasksMap[localTask.templateId];
               const rec = template?.recurrence;
               
               // Formatear descripción de recurrencia
