@@ -847,9 +847,13 @@ export default function App() {
     const timestamp = new Date().toISOString();
     
     const toggleRecursive = (targetTask: Task, status: 'pending' | 'completed') => {
+      // Si es una instancia (templateId presente), marcarla como excepción
+      // para que el useEffect de generación no la sobreescriba con status: 'pending'
+      const isInstance = !!targetTask.templateId;
       updatedTasks[targetTask.id] = { 
         ...targetTask, 
         status, 
+        isException: isInstance ? true : targetTask.isException,
         modifiedAt: timestamp,
         completedAt: status === 'completed' ? timestamp : undefined 
       };
@@ -882,11 +886,16 @@ export default function App() {
       const t = updatedTasks[id];
       if (!t) return;
       console.log('[STATUS] Updating in Supabase:', id, t.status, t.completedAt);
-      supabase.from('tasks').update({
+      const updatePayload: any = {
         status: t.status,
         completed_at: t.completedAt || null,
         modified_at: timestamp
-      }).eq('id', id).then(({ error }) => {
+      };
+      // Si es instancia, marcar también como excepción en Supabase
+      if (t.templateId) {
+        updatePayload.is_exception = true;
+      }
+      supabase.from('tasks').update(updatePayload).eq('id', id).then(({ error }) => {
         if (error) console.error('[SUPABASE] Error actualizando status:', id, error);
         else console.log('[SUPABASE] Status actualizado:', id, t.status);
       });
@@ -5137,9 +5146,10 @@ function TaskCard({
   const currentRootId = rootTaskId || task.id;
   const block = blocks.find((b: any) => b.id === task.blockId) || blocks[0] || { color: '#14B8A6', icon: '📋', name: 'General' };
   const hasSubtasks = (task.subtasks && task.subtasks.length > 0) || (subtasksForGroup && subtasksForGroup.length > 0);
-  // If forceExpanded is null (Bloques), use task.isExpanded
-  // If forceExpanded is true/false (Dashboard global toggle), still respect individual task.isExpanded if set
-  const isExpanded = task.isExpanded ?? (forceExpanded ?? true);
+  // forceExpanded (botón global Dashboard) tiene prioridad
+  // Si forceExpanded es null (Bloques), usar task.isExpanded
+  // Default: expanded (true)
+  const isExpanded = forceExpanded !== null ? forceExpanded : (task.isExpanded ?? true);
   
   console.log('[RENDER] TaskCard', task.id, 'isExpanded:', isExpanded, 'task.isExpanded:', task.isExpanded, 'forceExpanded:', forceExpanded);
   
