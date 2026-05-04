@@ -5371,11 +5371,14 @@ function TaskCard({
                       }).length;
                       return (
                         <button
-                          onClick={() => {
+                          data-testid="expand-button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
                             console.log('[EXPAND BTN] Clicked:', task.id, task.title);
                             onToggleExpand(task.id);
                           }}
-                          className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30"
+                          className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30 cursor-pointer z-10 relative"
                         >
                           {String(pendingCount)}
                         </button>
