@@ -742,31 +742,38 @@ export default function App() {
     const today = formatLocalISO(new Date());
     const start = today;
     setTasks(prev => {
-      // Antes de generar: limpiar instancias futuras NO-excepción, NO-eliminadas, y NO guardadas en Supabase
-      // Las que tienen existsInSupabase:true se respetan siempre (tienen status real del usuario)
       const cleaned = { ...prev };
+      let deletedCount = 0;
       Object.values(cleaned).forEach((t: Task) => {
         if (
-          t.templateId &&            // es instancia
-          !t.isException &&          // no modificada individualmente
-          !t.isDeleted &&            // no eliminada
-          !t.existsInSupabase &&     // NO existe en Supabase (solo en memoria)
-          t.dueDate && t.dueDate >= today  // es futura (hoy o después)
+          t.templateId &&
+          !t.isException &&
+          !t.isDeleted &&
+          !t.existsInSupabase &&
+          t.dueDate && t.dueDate >= today
         ) {
           delete cleaned[t.id];
+          deletedCount++;
         }
       });
+      console.log(`[GENERATION] Cleaned ${deletedCount} instances`);
+
+      // Log instancias completadas/excepcion que se preservan
+      const preserved = Object.values(cleaned).filter((t: Task) => t.templateId && (t.isException || t.existsInSupabase));
+      console.log(`[GENERATION] Preserved ${preserved.length} exceptions/supabase instances:`, preserved.map((t: Task) => `${t.id}:${t.status}`));
 
       const instantiated = generateInstances(cleaned, start, 365);
       console.log(`[GENERATION] Generated ${instantiated.length} instances`);
       if (instantiated.length === 0) return cleaned;
       const updated = { ...cleaned };
+      let addedCount = 0;
       instantiated.forEach(t => {
         if (!updated[t.id]) {
           updated[t.id] = t;
+          addedCount++;
         }
       });
-      console.log(`[GENERATION] Total instances added`);
+      console.log(`[GENERATION] Added ${addedCount} new instances`);
       return updated;
     });
   }, [isDataLoaded, templateKey]);
