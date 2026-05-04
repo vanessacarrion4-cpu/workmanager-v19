@@ -358,6 +358,48 @@ export default function App() {
               mappedTasks[task.parentTaskId].subtasks.push(task.id);
             }
           });
+
+          // REPARACIÓN AUTOMÁTICA: si un padre tiene subtareas con recurrence,
+          // debe ser isTemplate:true para que generateInstances lo procese.
+          // También repara subtareas recurrentes sin isTemplate.
+          Object.values(mappedTasks).forEach(task => {
+            if (!task.subtasks || task.subtasks.length === 0) return;
+            
+            const hasRecurringChild = task.subtasks.some(subId => {
+              const sub = mappedTasks[subId];
+              return sub && sub.recurrence;
+            });
+            
+            if (!hasRecurringChild) return;
+            
+            // Reparar el padre
+            if (!task.isTemplate) {
+              console.log('[REPAIR] Reparando contenedor:', task.title, '→ isTemplate: true');
+              mappedTasks[task.id] = { ...task, isTemplate: true, dueDate: null };
+              supabase.from('tasks')
+                .update({ is_template: true, due_date: null })
+                .eq('id', task.id)
+                .then(({ error }) => {
+                  if (error) console.error('[REPAIR] Error reparando contenedor:', error);
+                  else console.log('[REPAIR] Contenedor reparado en Supabase:', task.title);
+                });
+            }
+            
+            // Reparar subtareas recurrentes sin isTemplate
+            task.subtasks.forEach(subId => {
+              const sub = mappedTasks[subId];
+              if (!sub || !sub.recurrence || sub.isTemplate) return;
+              console.log('[REPAIR] Reparando subtarea recurrente:', sub.title, '→ isTemplate: true');
+              mappedTasks[subId] = { ...sub, isTemplate: true, dueDate: null };
+              supabase.from('tasks')
+                .update({ is_template: true, due_date: null })
+                .eq('id', subId)
+                .then(({ error }) => {
+                  if (error) console.error('[REPAIR] Error reparando subtarea:', error);
+                  else console.log('[REPAIR] Subtarea reparada en Supabase:', sub.title);
+                });
+            });
+          });
           
           setTasks(mappedTasks);
         }
@@ -523,25 +565,37 @@ export default function App() {
 
   useEffect(() => {
     if (!isDataLoaded) return;
-    // Solo regenerar si los templates han cambiado realmente (no por instancias añadidas)
     if (templateKey === prevTemplateKeyRef.current && prevTemplateKeyRef.current !== '') return;
     prevTemplateKeyRef.current = templateKey;
     console.log('[GENERATION] useEffect triggered');
-    const start = formatLocalISO(new Date());
+    const today = formatLocalISO(new Date());
+    const start = today;
     setTasks(prev => {
-      const instantiated = generateInstances(prev, start, 365);
+      // Antes de generar: limpiar instancias futuras NO-excepción y NO-eliminadas
+      // (para que se regeneren con los datos actualizados del template)
+      const cleaned = { ...prev };
+      Object.values(cleaned).forEach((t: Task) => {
+        if (
+          t.templateId &&           // es instancia
+          !t.isException &&         // no modificada individualmente
+          !t.isDeleted &&           // no eliminada
+          t.dueDate && t.dueDate >= today  // es futura (hoy o después)
+        ) {
+          delete cleaned[t.id];
+        }
+      });
+
+      const instantiated = generateInstances(cleaned, start, 365);
       console.log(`[GENERATION] Generated ${instantiated.length} instances`);
-      if (instantiated.length === 0) return prev;
-      let changed = false;
-      const updated = { ...prev };
+      if (instantiated.length === 0) return cleaned;
+      const updated = { ...cleaned };
       instantiated.forEach(t => {
         if (!updated[t.id]) {
           updated[t.id] = t;
-          changed = true;
         }
       });
-      console.log(`[GENERATION] Added ${Object.keys(updated).length - Object.keys(prev).length} new instances to state`);
-      return changed ? updated : prev;
+      console.log(`[GENERATION] Total instances added`);
+      return updated;
     });
   }, [isDataLoaded, templateKey]);
  
@@ -580,7 +634,7 @@ export default function App() {
       }
     }
  
-    if (task?.templateId && currentView !== 'dashboard') {
+    if (task?.templateId) {
       setRecurrenceAction({ taskId, type: 'edit', ruleId: task.templateId });
     } else {
       setEditingTaskId(taskId);
@@ -601,14 +655,8 @@ export default function App() {
       }
     }
  
-    if (task?.templateId && currentView !== 'dashboard') {
+    if (task?.templateId) {
       setRecurrenceAction({ taskId, type: 'delete', ruleId: task.templateId });
-    } else if (task?.templateId && currentView === 'dashboard') {
-      // Si es recurrente y estamos en dashboard, simplemente marcamos ESTA instancia como eliminada
-      setTasks(prev => ({
-        ...prev,
-        [taskId]: { ...(prev[taskId] || task!), isDeleted: true, modifiedAt: new Date().toISOString() }
-      }));
     } else {
       handleDeleteTask(taskId);
     }
@@ -649,12 +697,15 @@ export default function App() {
   };
  
   const handleAddTask = (parentTaskId: string | null = null, blockId?: string, overrideDate?: string, defaultPersonId?: string) => {
-    // Si el padre tiene fecha o etiqueta y no tiene subtareas aún → mostrar aviso de conversión a contenedor
+    // Si el padre tiene fecha, etiqueta, recurrencia, hora o delegación y no tiene subtareas aún → mostrar aviso de conversión a contenedor
     if (parentTaskId && tasks[parentTaskId]) {
       const parent = tasks[parentTaskId];
       const hasDate = !!parent.dueDate;
       const hasTag = parent.tags && parent.tags.length > 0;
-      if ((hasDate || hasTag) && (!parent.subtasks || parent.subtasks.length === 0)) {
+      const hasRecurrence = !!parent.recurrence;
+      const hasTime = !!parent.dueTime;
+      const hasDelegation = !!parent.delegation;
+      if ((hasDate || hasTag || hasRecurrence || hasTime || hasDelegation) && (!parent.subtasks || parent.subtasks.length === 0)) {
         setAddSubtaskWarning({ parentTaskId, blockId, overrideDate });
         return;
       }
@@ -860,6 +911,23 @@ export default function App() {
         isException: updatedTask.templateId ? true : (isException ? true : updatedTask.isException),
         modifiedAt: timestamp
       };
+
+      // CRÍTICO: si esta subtarea tiene recurrencia, el padre debe ser isTemplate:true y dueDate:null
+      if (updatedTask.recurrence && updatedTask.parentTaskId && updated[updatedTask.parentTaskId]) {
+        const parent = updated[updatedTask.parentTaskId];
+        if (!parent.isTemplate || parent.dueDate) {
+          updated[parent.id] = { ...parent, isTemplate: true, dueDate: null, modifiedAt: timestamp };
+          setTimeout(() => {
+            supabase.from('tasks')
+              .update({ is_template: true, due_date: null, modified_at: timestamp })
+              .eq('id', parent.id)
+              .then(({ error }) => {
+                if (error) console.error('[SUPABASE] Error propagando isTemplate al padre:', error);
+                else console.log('[SUPABASE] Contenedor marcado isTemplate:', parent.title);
+              });
+          }, 0);
+        }
+      }
       
       return updated;
     });
@@ -1761,10 +1829,19 @@ export default function App() {
                 {tasks[addSubtaskWarning.parentTaskId]?.dueDate && (
                   <li>• Su <span className="text-turquesa font-bold">fecha de ejecución</span> se eliminará</li>
                 )}
+                {tasks[addSubtaskWarning.parentTaskId]?.dueTime && (
+                  <li>• Su <span className="text-azul font-bold">hora</span> se eliminará</li>
+                )}
                 {tasks[addSubtaskWarning.parentTaskId]?.tags?.length > 0 && (
                   <li>• Su <span className="text-rosa font-bold">etiqueta</span> se eliminará</li>
                 )}
-                <li>• La fecha y etiqueta las asignarán sus subtareas</li>
+                {tasks[addSubtaskWarning.parentTaskId]?.recurrence && (
+                  <li>• Su <span className="text-naranja font-bold">recurrencia</span> se eliminará</li>
+                )}
+                {tasks[addSubtaskWarning.parentTaskId]?.delegation && (
+                  <li>• Su <span className="text-morado font-bold">delegación</span> se eliminará</li>
+                )}
+                <li className="text-text-secondary/60 text-xs mt-1">Los contenedores no tienen datos propios. Toda la información la asignan sus subtareas.</li>
               </ul>
             </div>
             <div className="flex gap-3">
@@ -1808,14 +1885,32 @@ export default function App() {
                     [parentTaskId]: { 
                       ...prev[parentTaskId], 
                       dueDate: null,
+                      dueTime: '',
                       tags: [],
                       estimatedMinutes: 0,
+                      recurrence: undefined,
+                      isTemplate: false,
+                      delegation: undefined,
                       isExpanded: true,
                       subtasks: [...(prev[parentTaskId]?.subtasks || []), id],
                       modifiedAt: timestamp
                     },
                     [id]: newTask
                   }));
+                  // Persistir la limpieza del contenedor en Supabase
+                  supabase.from('tasks').update({
+                    due_date: null,
+                    due_time: null,
+                    tags: [],
+                    estimated_minutes: 0,
+                    recurrence: null,
+                    is_template: false,
+                    delegation: null,
+                    is_expanded: true,
+                    modified_at: timestamp
+                  }).eq('id', parentTaskId).then(({ error }) => {
+                    if (error) console.error('[SUPABASE] Error limpiando contenedor:', error);
+                  });
                   setTimeout(() => setEditingTaskId(id), 50);
                 }}
                 className="flex-1 py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/80 transition-all"
@@ -1966,28 +2061,55 @@ export default function App() {
           onConfirm={(choice) => {
             const { taskId, type, ruleId } = recurrenceAction;
             setRecurrenceAction(null);
- 
+            const today = formatLocalISO(new Date());
+            const timestamp = new Date().toISOString();
+
             if (choice === 'instance') {
               if (type === 'edit') {
+                // Marcar como excepción y abrir modal
                 setTasks(prev => ({
                   ...prev,
                   [taskId]: { ...prev[taskId], isException: true }
                 }));
                 setEditingTaskId(taskId);
               } else {
+                // Eliminar solo esta instancia → persistir en Supabase
                 setTasks(prev => ({
                   ...prev,
-                  [taskId]: { ...prev[taskId], isDeleted: true }
+                  [taskId]: { ...(prev[taskId]), isDeleted: true, modifiedAt: timestamp }
                 }));
+                supabase.from('tasks')
+                  .update({ is_deleted: true, modified_at: timestamp })
+                  .eq('id', taskId)
+                  .then(({ error }) => {
+                    if (error) console.error('[SUPABASE] Error eliminando instancia:', error);
+                  });
               }
             } else if (choice === 'series') {
               if (type === 'edit') {
+                // Editar el template original
                 setEditingRuleId(ruleId);
               } else {
-                setTasks(prev => ({
-                  ...prev,
-                  [ruleId]: { ...prev[ruleId], isActive: false, modifiedAt: new Date().toISOString() }
-                }));
+                // Eliminar serie: desactivar template + borrar instancias futuras (>= hoy)
+                // Las pasadas (< hoy) se respetan siempre
+                setTasks(prev => {
+                  const updated = { ...prev };
+                  if (updated[ruleId]) {
+                    updated[ruleId] = { ...updated[ruleId], isActive: false, modifiedAt: timestamp };
+                  }
+                  Object.values(updated).forEach(t => {
+                    if (t && t.templateId === ruleId && !t.isDeleted && t.dueDate && t.dueDate >= today) {
+                      updated[t.id] = { ...t, isDeleted: true, modifiedAt: timestamp };
+                    }
+                  });
+                  return updated;
+                });
+                supabase.from('tasks')
+                  .update({ is_active: false, modified_at: timestamp })
+                  .eq('id', ruleId)
+                  .then(({ error }) => {
+                    if (error) console.error('[SUPABASE] Error desactivando serie:', error);
+                  });
               }
             }
           }}
@@ -2031,7 +2153,20 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
   }, [localTask.subtasks, allTasksMap]);
  
   const handleUpdateSubtask = (sid: string, updates: Partial<Task>) => {
-    onSave({ ...allTasksMap[sid], ...updates });
+    const subtask = allTasksMap[sid];
+    onSave({ ...subtask, ...updates });
+    
+    // Si la subtarea tiene/activa recurrencia, asegurarse que el padre es isTemplate:true y dueDate:null
+    const hasRecurrence = updates.recurrence !== undefined 
+      ? !!updates.recurrence 
+      : !!subtask?.recurrence;
+    
+    if (hasRecurrence && subtask?.parentTaskId) {
+      const parent = allTasksMap[subtask.parentTaskId];
+      if (parent && (!parent.isTemplate || parent.dueDate)) {
+        onSave({ ...parent, isTemplate: true, dueDate: null });
+      }
+    }
   };
  
   const frequencies = [
@@ -2987,11 +3122,9 @@ function DashboardView({
     };
 
     filteredDayTasks.forEach((t: Task) => {
-      // Contenedor: sin etiqueta propia Y con subtareas
-      // Las instancias padre (templateId + subtareas) heredan tags del template pero deben tratarse como contenedores
-      const isContainer = t.subtasks && t.subtasks.length > 0 && (
-        !t.tags || t.tags.length === 0 || (t.templateId && t.subtasks.length > 0)
-      );
+      // Contenedor: cualquier tarea con subtareas
+      // Por definición los contenedores no tienen tags propios — sus subtareas sí
+      const isContainer = !!(t.subtasks && t.subtasks.length > 0);
 
       if (isContainer) {
         // Repartir el contenedor en cada grupo donde tenga subtareas con esa etiqueta
@@ -3001,6 +3134,12 @@ function DashboardView({
           if (!sub) return;
           if (hideCompleted && sub.status === 'completed') return;
           if (sub.dueDate !== activeDate) return;
+          // Filtro delegación: excluir delegadas sin etiqueta real
+          if (sub.delegation) {
+            const tags = sub.tags || [];
+            const hasRealTag = tags.some((tag: string) => tag !== 'resto');
+            if (!hasRealTag) return;
+          }
           const subTag = (sub.tags && sub.tags[0]) || 'resto';
           if (!subtasksByTag[subTag]) subtasksByTag[subTag] = [];
           subtasksByTag[subTag].push(subId);
@@ -3942,20 +4081,14 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
       if (t.isException) {
         return t.dueDate === selectedDay;
       }
+
+      // Templates originales (isTemplate:true): NUNCA mostrar — sus instancias se muestran arriba
+      if (t.isTemplate) return false;
       
-      // ── Contenedor padre sin dueDate propio ──
-      // El padre aparece si alguna subtarea tiene dueDate = selectedDay
-      if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
-        return t.subtasks.some((subId: string) => {
-          const sub = allTasksMap[subId];
-          return sub && sub.dueDate === selectedDay;
-        });
-      }
-      
-      // Excluir templates originales con recurrencia (solo los que NO son instancias)
+      // Excluir templates con recurrencia propia
       if (t.recurrence) return false;
       
-      // Excluir contenedores padre de tareas recurrentes
+      // Excluir contenedores padre de tareas recurrentes (son templates aunque isTemplate sea false)
       if (t.subtasks && t.subtasks.length > 0) {
         const hasRecurringChild = t.subtasks.some((subId: string) => {
           const sub = allTasksMap[subId];
@@ -7267,13 +7400,22 @@ function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntri
                                             {!sub.subtasks || sub.subtasks.length === 0 ? (
                                               <RecurrencePickerChip 
                                                 value={sub.recurrence}
-                                                onChange={(rec: any) => onUpdateTask({ 
-                                                  ...sub, 
-                                                  recurrence: rec || undefined,
-                                                  isTemplate: !!rec,
-                                                  dueDate: rec ? null : (sub.dueDate || formatLocalISO(new Date())),
-                                                  dueTime: sub.dueTime // ✅ Preservar hora concreta
-                                                })}
+                                                onChange={(rec: any) => {
+                                                  onUpdateTask({ 
+                                                    ...sub, 
+                                                    recurrence: rec || undefined,
+                                                    isTemplate: !!rec,
+                                                    dueDate: rec ? null : (sub.dueDate || formatLocalISO(new Date())),
+                                                    dueTime: sub.dueTime
+                                                  });
+                                                  // Si la subtarea tiene recurrencia, marcar el padre como isTemplate y dueDate:null
+                                                  if (rec && sub.parentTaskId && allTasksMap[sub.parentTaskId]) {
+                                                    const parent = allTasksMap[sub.parentTaskId];
+                                                    if (!parent.isTemplate || parent.dueDate) {
+                                                      onUpdateTask({ ...parent, isTemplate: true, dueDate: null });
+                                                    }
+                                                  }
+                                                }}
                                               />
                                             ) : null}
                                             <TagPickerChip

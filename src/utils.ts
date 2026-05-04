@@ -54,10 +54,13 @@ function matchesRecurrence(recurrence: any, date: Date): boolean {
       return specDay >= 0 && specDay <= 4;
     case 'weekly':
       return recurrence.weekDays?.includes(specDay) || false;
-    case 'monthly':
-      return recurrence.monthDay === dayOfMonth;
+    case 'monthly': {
+      const targetDay = recurrence.monthDay ?? 
+        (recurrence.startDate ? parseLocalISO(recurrence.startDate).getDate() : null);
+      if (!targetDay) return false;
+      return targetDay === dayOfMonth;
+    }
     case 'yearly':
-      // yearMonth: 1-12, yearDay: 1-31
       return recurrence.yearMonth === month && recurrence.yearDay === dayOfMonth;
     default:
       return false;
