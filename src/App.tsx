@@ -370,12 +370,13 @@ export default function App() {
 
         if (blocksError) throw blocksError;
 
-        // Cargar tareas (excluyendo eliminadas y sin templateId para evitar instancias duplicadas)
+        // Cargar tareas: templates, tareas manuales, Y instancias modificadas (excepciones)
+        // Las instancias normales se generan en memoria, pero las excepciones (completadas, editadas) se cargan de BD
         const { data: tasksData, error: tasksError } = await supabase
           .from('tasks')
           .select('*')
           .or('is_deleted.is.null,is_deleted.eq.false')
-          .is('template_id', null) // Solo cargar templates y tareas manuales, no instancias
+          .or('template_id.is.null,is_exception.eq.true') // Templates/manuales + excepciones
           .order('order', { ascending: true });
 
         if (tasksError) throw tasksError;
