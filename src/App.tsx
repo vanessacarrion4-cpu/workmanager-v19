@@ -680,25 +680,32 @@ export default function App() {
  
   const handleToggleExpandTask = (taskId: string) => {
     const timestamp = new Date().toISOString();
-    setTasks(prev => {
-      const newExpanded = prev[taskId].isExpanded !== undefined ? !prev[taskId].isExpanded : true;
-      
-      // Persistir en Supabase
-      supabase.from('tasks').update({
-        is_expanded: newExpanded,
-        modified_at: timestamp
-      }).eq('id', taskId).then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error actualizando isExpanded:', error);
-      });
+    const task = tasks[taskId];
+    if (!task) {
+      console.error('[EXPAND] Task not found:', taskId);
+      return;
+    }
 
-      return {
-        ...prev,
-        [taskId]: {
-          ...prev[taskId],
-          isExpanded: newExpanded,
-          modifiedAt: timestamp
-        }
-      };
+    const newExpanded = task.isExpanded !== undefined ? !task.isExpanded : true;
+    console.log('[EXPAND] Toggling', taskId, 'from', task.isExpanded, 'to', newExpanded);
+    
+    // Actualizar state
+    setTasks(prev => ({
+      ...prev,
+      [taskId]: {
+        ...prev[taskId],
+        isExpanded: newExpanded,
+        modifiedAt: timestamp
+      }
+    }));
+
+    // Persistir en Supabase
+    supabase.from('tasks').update({
+      is_expanded: newExpanded,
+      modified_at: timestamp
+    }).eq('id', taskId).then(({ error }) => {
+      if (error) console.error('[SUPABASE] Error actualizando isExpanded:', error);
+      else console.log('[SUPABASE] isExpanded actualizado:', taskId, newExpanded);
     });
   };
  
@@ -874,12 +881,15 @@ export default function App() {
     tasksToUpdate.forEach(id => {
       const t = updatedTasks[id];
       if (!t) return;
+      console.log('[STATUS] Updating in Supabase:', id, t.status, t.completedAt);
       supabase.from('tasks').update({
         status: t.status,
         completed_at: t.completedAt || null,
         modified_at: timestamp
       }).eq('id', id).then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error actualizando status:', error);
+        if (error) console.error('[SUPABASE] Error actualizando status:', id, error);
+        else console.log('[SUPABASE] Status actualizado:', id, t.status);
+      });
       });
     });
   };
@@ -3923,8 +3933,8 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
                 onClick={() => setHideCompleted(!hideCompleted)}
                 className={`w-9 h-9 flex items-center justify-center rounded-full border-2 transition-all relative group ${
                   hideCompleted
-                    ? 'bg-morado text-white border-morado shadow-lg shadow-morado/30'
-                    : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-morado hover:text-morado'
+                    ? 'bg-turquesa text-white border-turquesa shadow-lg shadow-turquesa/30'
+                    : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'
                 }`}
                 title={hideCompleted ? 'Mostrar completadas' : 'Ocultar completadas'}
               >
