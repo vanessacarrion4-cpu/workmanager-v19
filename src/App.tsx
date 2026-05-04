@@ -94,6 +94,12 @@ export default function App() {
   const [blocks, setBlocks] = useState<WorkBlock[]>([]);
   const [tasks, setTasks] = useState<Record<string, Task>>({});
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
+
+  // Resetear modo selección al cambiar de vista
+  useEffect(() => {
+    setSelectionMode(false);
+    setSelectedTaskIds(new Set());
+  }, [currentView]);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const todayLocal = formatLocalISO(new Date());
@@ -229,31 +235,69 @@ export default function App() {
   const bulkDuplicateTasks = () => {
     const timestamp = new Date().toISOString();
     const duplicates: Task[] = [];
+    const idMapping = new Map<string, string>(); // oldId -> newId
+
+    // Función recursiva para duplicar tarea y sus subtareas
+    const duplicateTaskRecursive = (original: Task, newParentId: string | null = null): Task | null => {
+      if (!original || original.isDeleted) return null;
+
+      const newId = `t-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      idMapping.set(original.id, newId);
+
+      const duplicate: Task = {
+        ...original,
+        id: newId,
+        title: newParentId ? original.title : `${original.title} (copia)`, // Solo añadir (copia) a la raíz
+        parentTaskId: newParentId,
+        status: 'pending',
+        createdAt: timestamp,
+        modifiedAt: timestamp,
+        completedAt: undefined,
+        subtasks: [], // Se llenarán con los IDs nuevos
+      };
+
+      return duplicate;
+    };
 
     setTasks(prev => {
       const next = { ...prev };
+      
       selectedTaskIds.forEach(id => {
         const original = prev[id];
-        if (original && !original.isDeleted) {
-          const newId = `t-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          const duplicate: Task = {
-            ...original,
-            id: newId,
-            title: `${original.title} (copia)`,
-            status: 'pending',
-            createdAt: timestamp,
-            modifiedAt: timestamp,
-            completedAt: undefined,
-            subtasks: [], // No duplicar subtareas por ahora
-          };
-          next[newId] = duplicate;
-          duplicates.push(duplicate);
+        if (!original || original.isDeleted) return;
+
+        // Duplicar tarea raíz
+        const rootDuplicate = duplicateTaskRecursive(original);
+        if (!rootDuplicate) return;
+
+        next[rootDuplicate.id] = rootDuplicate;
+        duplicates.push(rootDuplicate);
+
+        // Duplicar subtareas recursivamente
+        if (original.subtasks && original.subtasks.length > 0) {
+          const newSubtaskIds: string[] = [];
+
+          original.subtasks.forEach(subId => {
+            const subOriginal = prev[subId];
+            if (!subOriginal) return;
+
+            const subDuplicate = duplicateTaskRecursive(subOriginal, rootDuplicate.id);
+            if (!subDuplicate) return;
+
+            newSubtaskIds.push(subDuplicate.id);
+            next[subDuplicate.id] = subDuplicate;
+            duplicates.push(subDuplicate);
+          });
+
+          rootDuplicate.subtasks = newSubtaskIds;
+          next[rootDuplicate.id] = rootDuplicate;
         }
       });
+
       return next;
     });
 
-    // Persistir en Supabase
+    // Persistir TODAS las tareas duplicadas en Supabase
     duplicates.forEach(task => {
       supabase.from('tasks').insert({
         id: task.id,
@@ -635,13 +679,27 @@ export default function App() {
   };
  
   const handleToggleExpandTask = (taskId: string) => {
-    setTasks(prev => ({
-      ...prev,
-      [taskId]: {
-        ...prev[taskId],
-        isExpanded: prev[taskId].isExpanded !== undefined ? !prev[taskId].isExpanded : true // Fix logic: if was undefined (default collapsed), now becomes expanded (true)
-      }
-    }));
+    const timestamp = new Date().toISOString();
+    setTasks(prev => {
+      const newExpanded = prev[taskId].isExpanded !== undefined ? !prev[taskId].isExpanded : true;
+      
+      // Persistir en Supabase
+      supabase.from('tasks').update({
+        is_expanded: newExpanded,
+        modified_at: timestamp
+      }).eq('id', taskId).then(({ error }) => {
+        if (error) console.error('[SUPABASE] Error actualizando isExpanded:', error);
+      });
+
+      return {
+        ...prev,
+        [taskId]: {
+          ...prev[taskId],
+          isExpanded: newExpanded,
+          modifiedAt: timestamp
+        }
+      };
+    });
   };
  
   const handleExpandAllInBlock = (blockId: string, expand: boolean) => {
@@ -3793,24 +3851,27 @@ function ToggleExpandButton({ blockId, onExpandAll }: { blockId: string, onExpan
 function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onAddTask, onAddRule, onToggleTask, onDelete, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, onEditRule, onToggleRule, onAddBlock, onEditBlock, onReorderBlocks, onToggleBlock, activeDate, onReorderSubtasks, onReorderTasks, onToggleExpand, onExpandAll, onPromote, onDemote, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null }: any) {
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [hideCompleted, setHideCompleted] = useState(false);
  
   const coreTasks = useMemo(() => {
     if (!selectedBlock) return [];
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id || t.parentTaskId || t.templateId) return false;
+      if (hideCompleted && t.status === 'completed') return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
       return type === 'core';
     }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap]);
+  }, [selectedBlock, allTasksMap, hideCompleted]);
  
   const adhocTasks = useMemo(() => {
     if (!selectedBlock) return [];
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id || t.parentTaskId || t.templateId) return false;
+      if (hideCompleted && t.status === 'completed') return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
       return type === 'adhoc';
     }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap]);
+  }, [selectedBlock, allTasksMap, hideCompleted]);
  
   const filteredBlocks = useMemo(() => {
     if (filter === 'active') return blocks.filter(b => b.isActive);
@@ -3858,6 +3919,20 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
                   <span className="hidden sm:inline">{selectionMode ? 'Cancelar' : 'Seleccionar'}</span>
                 </button>
               )}
+              <button
+                onClick={() => setHideCompleted(!hideCompleted)}
+                className={`w-9 h-9 flex items-center justify-center rounded-full border-2 transition-all relative group ${
+                  hideCompleted
+                    ? 'bg-morado text-white border-morado shadow-lg shadow-morado/30'
+                    : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-morado hover:text-morado'
+                }`}
+                title={hideCompleted ? 'Mostrar completadas' : 'Ocultar completadas'}
+              >
+                {hideCompleted ? <EyeOff size={14} /> : <Eye size={14} />}
+                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-lg text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                  {hideCompleted ? 'Mostrar' : 'Ocultar'}
+                </span>
+              </button>
               <ToggleExpandButton blockId={selectedBlock.id} onExpandAll={onExpandAll} />
              <button 
               onClick={() => onAddTask(null, selectedBlock.id)}
@@ -3869,6 +3944,29 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
  
           </div>
         </div>
+
+        {/* Bulk Actions Bar */}
+        {selectionMode && selectedTaskIds.size > 0 && bulkUpdateTasks && (
+          <BulkActionBar 
+            count={selectedTaskIds.size}
+            onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
+            onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
+            onComplete={() => {
+              if (bulkUpdateTasks) {
+                bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() });
+              }
+            }}
+            onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
+            onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
+            onDelete={() => {
+              if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) {
+                bulkDeleteTasks && bulkDeleteTasks();
+              }
+            }}
+            onCancel={onToggleSelectionMode}
+            isMobile={window.innerWidth < 768}
+          />
+        )}
  
         <div className="space-y-12">
           {/* Ad-hoc Tasks Section */}
