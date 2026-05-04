@@ -180,6 +180,22 @@ export default function App() {
       });
       return next;
     });
+
+    // Persistir en Supabase
+    selectedTaskIds.forEach(id => {
+      const supabaseUpdates: any = { modified_at: timestamp };
+      if (updates.status !== undefined) supabaseUpdates.status = updates.status;
+      if (updates.completedAt !== undefined) supabaseUpdates.completed_at = updates.completedAt || null;
+      if (updates.dueDate !== undefined) supabaseUpdates.due_date = updates.dueDate || null;
+      if (updates.tags !== undefined) supabaseUpdates.tags = updates.tags;
+      if (updates.estimatedMinutes !== undefined) supabaseUpdates.estimated_minutes = updates.estimatedMinutes;
+      if (updates.delegation !== undefined) supabaseUpdates.delegation = updates.delegation || null;
+
+      supabase.from('tasks').update(supabaseUpdates).eq('id', id).then(({ error }) => {
+        if (error) console.error('[SUPABASE] Error bulk update:', error);
+      });
+    });
+
     setSelectedTaskIds(new Set());
     setSelectionMode(false);
   };
@@ -195,12 +211,25 @@ export default function App() {
       });
       return next;
     });
+
+    // Persistir en Supabase
+    selectedTaskIds.forEach(id => {
+      supabase.from('tasks').update({
+        is_deleted: true,
+        modified_at: timestamp
+      }).eq('id', id).then(({ error }) => {
+        if (error) console.error('[SUPABASE] Error bulk delete:', error);
+      });
+    });
+
     setSelectedTaskIds(new Set());
     setSelectionMode(false);
   };
 
   const bulkDuplicateTasks = () => {
     const timestamp = new Date().toISOString();
+    const duplicates: Task[] = [];
+
     setTasks(prev => {
       const next = { ...prev };
       selectedTaskIds.forEach(id => {
@@ -218,10 +247,49 @@ export default function App() {
             subtasks: [], // No duplicar subtareas por ahora
           };
           next[newId] = duplicate;
+          duplicates.push(duplicate);
         }
       });
       return next;
     });
+
+    // Persistir en Supabase
+    duplicates.forEach(task => {
+      supabase.from('tasks').insert({
+        id: task.id,
+        block_id: task.blockId,
+        parent_task_id: task.parentTaskId || null,
+        template_id: task.templateId || null,
+        instance_date: task.instanceDate || null,
+        title: task.title,
+        notes: task.notes || '',
+        priority: task.priority,
+        status: task.status,
+        due_date: task.dueDate || null,
+        due_time: task.dueTime || null,
+        completed_at: null,
+        estimated_minutes: task.estimatedMinutes || 0,
+        actual_minutes: task.actualMinutes || 0,
+        total_estimated_combo: task.totalEstimatedCombo || 0,
+        total_registered_combo: task.totalRegisteredCombo || 0,
+        tags: task.tags || [],
+        order: task.order || 0,
+        is_template: task.isTemplate || false,
+        is_active: task.isActive !== false,
+        is_exception: task.isException || false,
+        is_deleted: false,
+        is_expanded: task.isExpanded || false,
+        task_type: task.taskType || 'core',
+        recurrence: task.recurrence || null,
+        delegation: task.delegation || null,
+        created_at: timestamp,
+        modified_at: timestamp,
+        deleted_at: null
+      }).then(({ error }) => {
+        if (error) console.error('[SUPABASE] Error duplicando tarea:', error);
+      });
+    });
+
     setSelectedTaskIds(new Set());
     setSelectionMode(false);
   };
@@ -731,6 +799,31 @@ export default function App() {
  
     toggleRecursive(task, newStatus);
     setTasks(updatedTasks);
+
+    // CRÍTICO: Persistir en Supabase
+    const tasksToUpdate = [task.id];
+    if (task.subtasks) {
+      const collectSubtasks = (t: Task) => {
+        t.subtasks?.forEach(sid => {
+          tasksToUpdate.push(sid);
+          const sub = updatedTasks[sid];
+          if (sub?.subtasks) collectSubtasks(sub);
+        });
+      };
+      collectSubtasks(task);
+    }
+
+    tasksToUpdate.forEach(id => {
+      const t = updatedTasks[id];
+      if (!t) return;
+      supabase.from('tasks').update({
+        status: t.status,
+        completed_at: t.completedAt || null,
+        modified_at: timestamp
+      }).eq('id', id).then(({ error }) => {
+        if (error) console.error('[SUPABASE] Error actualizando status:', error);
+      });
+    });
   };
  
   const handleAddTask = (parentTaskId: string | null = null, blockId?: string, overrideDate?: string, defaultPersonId?: string) => {
