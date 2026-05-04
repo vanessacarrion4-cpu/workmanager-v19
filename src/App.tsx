@@ -130,6 +130,20 @@ export default function App() {
   const [bulkDelegateModal, setBulkDelegateModal] = useState(false);
   const [bulkDateModal, setBulkDateModal] = useState(false);
   const [bulkTimeModal, setBulkTimeModal] = useState(false);
+  
+  // Search filters
+  const [searchText, setSearchText] = useState('');
+  const [searchFilters, setSearchFilters] = useState({
+    tags: [] as string[],
+    status: 'all' as 'all' | 'pending' | 'completed',
+    taskType: 'all' as 'all' | 'core' | 'adhoc',
+    dueDateRange: { start: '', end: '' },
+    createdRange: { start: '', end: '' },
+    completedRange: { start: '', end: '' },
+    recurrence: 'all' as 'all' | 'recurring' | 'instances' | 'manual',
+    hasEstimatedTime: false,
+    estimatedTimeRange: { min: 0, max: 999 }
+  });
 
   // Helper: Toggle selection mode
   const toggleSelectionMode = () => {
@@ -1797,6 +1811,12 @@ export default function App() {
             icon={<Users size={20} />} 
             label="Delegadas" 
           />
+          <NavItem 
+            active={currentView === 'search'} 
+            onClick={() => setCurrentView('search')} 
+            icon={<Search size={20} />} 
+            label="Búsqueda" 
+          />
         </div>
  
         <div className="mt-auto px-4">
@@ -2010,6 +2030,22 @@ export default function App() {
                 setBulkDelegateModal={setBulkDelegateModal}
                 setBulkDateModal={setBulkDateModal}
                 setBulkTimeModal={setBulkTimeModal}
+              />
+            )}
+            
+            {currentView === 'search' && (
+              <SearchView
+                searchText={searchText}
+                setSearchText={setSearchText}
+                searchFilters={searchFilters}
+                setSearchFilters={setSearchFilters}
+                tasks={Object.values(tasks).filter(t => !t.isDeleted)}
+                allTasksMap={tasks}
+                blocks={blocks}
+                onEditTask={(id: string) => setEditingTaskId(id)}
+                onToggle={handleToggleStatus}
+                onDelete={handleDeleteTaskRequest}
+                onUpdateTask={handleUpdateTask}
               />
             )}
           </AnimatePresence>
@@ -7145,6 +7181,473 @@ function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRena
 // ============================================================
 // DELEGADAS VIEW
 // ============================================================
+// ========== SEARCH VIEW ==========
+function SearchView({ searchText, setSearchText, searchFilters, setSearchFilters, tasks, allTasksMap, blocks, onEditTask, onToggle, onDelete, onUpdateTask }: any) {
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    tasks.forEach((t: Task) => {
+      (t.tags || []).forEach((tag: string) => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [tasks]);
+
+  const filteredResults = useMemo(() => {
+    return tasks.filter((t: Task) => {
+      // Text search (contains)
+      if (searchText && !t.title.toLowerCase().includes(searchText.toLowerCase())) return false;
+      
+      // Tag filter
+      if (searchFilters.tags.length > 0) {
+        const hasTag = searchFilters.tags.some(tag => (t.tags || []).includes(tag));
+        if (!hasTag) return false;
+      }
+      
+      // Status filter
+      if (searchFilters.status === 'pending' && t.status === 'completed') return false;
+      if (searchFilters.status === 'completed' && t.status !== 'completed') return false;
+      
+      // Type filter
+      if (searchFilters.taskType === 'core' && t.taskType !== 'core') return false;
+      if (searchFilters.taskType === 'adhoc' && t.taskType !== 'adhoc') return false;
+      
+      // Due date range
+      if (searchFilters.dueDateRange.start && (!t.dueDate || t.dueDate < searchFilters.dueDateRange.start)) return false;
+      if (searchFilters.dueDateRange.end && (!t.dueDate || t.dueDate > searchFilters.dueDateRange.end)) return false;
+      
+      // Created date range
+      if (searchFilters.createdRange.start && (!t.createdAt || t.createdAt < searchFilters.createdRange.start)) return false;
+      if (searchFilters.createdRange.end && (!t.createdAt || t.createdAt > searchFilters.createdRange.end)) return false;
+      
+      // Completed date range
+      if (searchFilters.completedRange.start && (!t.completedAt || t.completedAt < searchFilters.completedRange.start)) return false;
+      if (searchFilters.completedRange.end && (!t.completedAt || t.completedAt > searchFilters.completedRange.end)) return false;
+      
+      // Recurrence filter
+      if (searchFilters.recurrence === 'recurring' && !t.isTemplate) return false;
+      if (searchFilters.recurrence === 'instances' && !t.templateId) return false;
+      if (searchFilters.recurrence === 'manual' && (t.isTemplate || t.templateId)) return false;
+      
+      // Estimated time filter
+      if (searchFilters.hasEstimatedTime && (!t.estimatedMinutes || t.estimatedMinutes === 0)) return false;
+      if (t.estimatedMinutes && t.estimatedMinutes < searchFilters.estimatedTimeRange.min) return false;
+      if (t.estimatedMinutes && t.estimatedMinutes > searchFilters.estimatedTimeRange.max) return false;
+      
+      return true;
+    });
+  }, [tasks, searchText, searchFilters]);
+
+  const groupedResults = useMemo(() => {
+    const groups: Record<string, Task[]> = {};
+    filteredResults.forEach((t: Task) => {
+      const block = blocks.find((b: any) => b.id === t.blockId) || { id: 'unknown', name: 'Sin bloque', color: '#666' };
+      if (!groups[block.id]) groups[block.id] = [];
+      groups[block.id].push(t);
+    });
+    return groups;
+  }, [filteredResults, blocks]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="max-w-7xl mx-auto space-y-6"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-black dark:text-white text-text-main-light">Búsqueda</h1>
+          <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-1">
+            {filteredResults.length} {filteredResults.length === 1 ? 'resultado' : 'resultados'}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Filters Sidebar */}
+        <div className="lg:col-span-1 space-y-4">
+          {/* Text Search */}
+          <div className="dark:bg-bg-card bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light">
+            <label className="block text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-2">
+              Buscar texto
+            </label>
+            <input
+              type="text"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Escribe aquí..."
+              className="w-full px-3 py-2 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-sm dark:text-white text-text-main-light focus:outline-none focus:ring-2 focus:ring-turquesa"
+            />
+          </div>
+
+          {/* Tag Filter */}
+          <div className="dark:bg-bg-card bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light">
+            <label className="block text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-2">
+              Etiquetas
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {allTags.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => {
+                    setSearchFilters((prev: any) => ({
+                      ...prev,
+                      tags: prev.tags.includes(tag) ? prev.tags.filter((t: string) => t !== tag) : [...prev.tags, tag]
+                    }));
+                  }}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    searchFilters.tags.includes(tag)
+                      ? 'bg-turquesa text-white'
+                      : 'dark:bg-bg-secondary bg-gray-100 dark:text-text-secondary text-text-secondary-light'
+                  }`}
+                >
+                  {TAG_LABELS[tag as TagType] || tag}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Status Filter */}
+          <div className="dark:bg-bg-card bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light">
+            <label className="block text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-2">
+              Estado
+            </label>
+            <div className="flex gap-2">
+              {['all', 'pending', 'completed'].map(status => (
+                <button
+                  key={status}
+                  onClick={() => setSearchFilters((prev: any) => ({ ...prev, status }))}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                    searchFilters.status === status
+                      ? 'bg-turquesa text-white'
+                      : 'dark:bg-bg-secondary bg-gray-100 dark:text-text-secondary text-text-secondary-light'
+                  }`}
+                >
+                  {status === 'all' ? 'Todas' : status === 'pending' ? 'Pendientes' : 'Completadas'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Type Filter */}
+          <div className="dark:bg-bg-card bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light">
+            <label className="block text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-2">
+              Tipo
+            </label>
+            <div className="flex gap-2">
+              {['all', 'core', 'adhoc'].map(type => (
+                <button
+                  key={type}
+                  onClick={() => setSearchFilters((prev: any) => ({ ...prev, taskType: type }))}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                    searchFilters.taskType === type
+                      ? 'bg-turquesa text-white'
+                      : 'dark:bg-bg-secondary bg-gray-100 dark:text-text-secondary text-text-secondary-light'
+                  }`}
+                >
+                  {type === 'all' ? 'Todas' : type === 'core' ? 'Core' : 'Ad-hoc'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Recurrence Filter */}
+          <div className="dark:bg-bg-card bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light">
+            <label className="block text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-2">
+              Recurrencia
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: 'all', label: 'Todas' },
+                { id: 'recurring', label: 'Recurrentes' },
+                { id: 'instances', label: 'Instancias' },
+                { id: 'manual', label: 'Manuales' }
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => setSearchFilters((prev: any) => ({ ...prev, recurrence: opt.id }))}
+                  className={`py-2 rounded-lg text-xs font-bold transition-all ${
+                    searchFilters.recurrence === opt.id
+                      ? 'bg-turquesa text-white'
+                      : 'dark:bg-bg-secondary bg-gray-100 dark:text-text-secondary text-text-secondary-light'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Due Date Range Filter */}
+          <div className="dark:bg-bg-card bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light">
+            <label className="block text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">
+              Fecha de ejecución
+            </label>
+            <div className="space-y-2">
+              <div>
+                <label className="text-[10px] dark:text-text-secondary text-text-secondary-light mb-1 block">Desde</label>
+                <input
+                  type="date"
+                  value={searchFilters.dueDateRange.start}
+                  onChange={(e) => setSearchFilters((prev: any) => ({
+                    ...prev,
+                    dueDateRange: { ...prev.dueDateRange, start: e.target.value }
+                  }))}
+                  className="w-full px-3 py-2 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-xs dark:text-white text-text-main-light focus:outline-none focus:ring-2 focus:ring-turquesa"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] dark:text-text-secondary text-text-secondary-light mb-1 block">Hasta</label>
+                <input
+                  type="date"
+                  value={searchFilters.dueDateRange.end}
+                  onChange={(e) => setSearchFilters((prev: any) => ({
+                    ...prev,
+                    dueDateRange: { ...prev.dueDateRange, end: e.target.value }
+                  }))}
+                  className="w-full px-3 py-2 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-xs dark:text-white text-text-main-light focus:outline-none focus:ring-2 focus:ring-turquesa"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Created Date Range Filter */}
+          <div className="dark:bg-bg-card bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light">
+            <label className="block text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">
+              Fecha de creación
+            </label>
+            <div className="space-y-2">
+              <div>
+                <label className="text-[10px] dark:text-text-secondary text-text-secondary-light mb-1 block">Desde</label>
+                <input
+                  type="date"
+                  value={searchFilters.createdRange.start}
+                  onChange={(e) => setSearchFilters((prev: any) => ({
+                    ...prev,
+                    createdRange: { ...prev.createdRange, start: e.target.value }
+                  }))}
+                  className="w-full px-3 py-2 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-xs dark:text-white text-text-main-light focus:outline-none focus:ring-2 focus:ring-turquesa"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] dark:text-text-secondary text-text-secondary-light mb-1 block">Hasta</label>
+                <input
+                  type="date"
+                  value={searchFilters.createdRange.end}
+                  onChange={(e) => setSearchFilters((prev: any) => ({
+                    ...prev,
+                    createdRange: { ...prev.createdRange, end: e.target.value }
+                  }))}
+                  className="w-full px-3 py-2 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-xs dark:text-white text-text-main-light focus:outline-none focus:ring-2 focus:ring-turquesa"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Completed Date Range Filter */}
+          <div className="dark:bg-bg-card bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light">
+            <label className="block text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">
+              Fecha de completado
+            </label>
+            <div className="space-y-2">
+              <div>
+                <label className="text-[10px] dark:text-text-secondary text-text-secondary-light mb-1 block">Desde</label>
+                <input
+                  type="date"
+                  value={searchFilters.completedRange.start}
+                  onChange={(e) => setSearchFilters((prev: any) => ({
+                    ...prev,
+                    completedRange: { ...prev.completedRange, start: e.target.value }
+                  }))}
+                  className="w-full px-3 py-2 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-xs dark:text-white text-text-main-light focus:outline-none focus:ring-2 focus:ring-turquesa"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] dark:text-text-secondary text-text-secondary-light mb-1 block">Hasta</label>
+                <input
+                  type="date"
+                  value={searchFilters.completedRange.end}
+                  onChange={(e) => setSearchFilters((prev: any) => ({
+                    ...prev,
+                    completedRange: { ...prev.completedRange, end: e.target.value }
+                  }))}
+                  className="w-full px-3 py-2 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-xs dark:text-white text-text-main-light focus:outline-none focus:ring-2 focus:ring-turquesa"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Estimated Time Filter */}
+          <div className="dark:bg-bg-card bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light">
+            <label className="block text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3">
+              Tiempo estimado
+            </label>
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={searchFilters.hasEstimatedTime}
+                  onChange={(e) => setSearchFilters((prev: any) => ({
+                    ...prev,
+                    hasEstimatedTime: e.target.checked
+                  }))}
+                  className="w-4 h-4 rounded border-2 dark:border-border-main border-border-main-light dark:bg-bg-secondary bg-gray-100 checked:bg-turquesa checked:border-turquesa"
+                />
+                <span className="text-xs dark:text-white text-text-main-light">Solo tareas con tiempo</span>
+              </label>
+              <div>
+                <label className="text-[10px] dark:text-text-secondary text-text-secondary-light mb-1 block">Rango (minutos)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    value={searchFilters.estimatedTimeRange.min}
+                    onChange={(e) => setSearchFilters((prev: any) => ({
+                      ...prev,
+                      estimatedTimeRange: { ...prev.estimatedTimeRange, min: parseInt(e.target.value) || 0 }
+                    }))}
+                    className="flex-1 px-3 py-2 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-xs dark:text-white text-text-main-light focus:outline-none focus:ring-2 focus:ring-turquesa"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Max"
+                    value={searchFilters.estimatedTimeRange.max}
+                    onChange={(e) => setSearchFilters((prev: any) => ({
+                      ...prev,
+                      estimatedTimeRange: { ...prev.estimatedTimeRange, max: parseInt(e.target.value) || 999 }
+                    }))}
+                    className="flex-1 px-3 py-2 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-xs dark:text-white text-text-main-light focus:outline-none focus:ring-2 focus:ring-turquesa"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Reset Filters */}
+          <button
+            onClick={() => {
+              setSearchText('');
+              setSearchFilters({
+                tags: [],
+                status: 'all',
+                taskType: 'all',
+                dueDateRange: { start: '', end: '' },
+                createdRange: { start: '', end: '' },
+                completedRange: { start: '', end: '' },
+                recurrence: 'all',
+                hasEstimatedTime: false,
+                estimatedTimeRange: { min: 0, max: 999 }
+              });
+            }}
+            className="w-full py-3 rounded-xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all font-black text-sm"
+          >
+            Limpiar filtros
+          </button>
+        </div>
+
+        {/* Results */}
+        <div className="lg:col-span-3 space-y-6">
+          {filteredResults.length === 0 ? (
+            <div className="dark:bg-bg-card bg-white p-12 rounded-2xl border dark:border-border-main border-border-main-light text-center">
+              <Search size={48} className="mx-auto dark:text-text-secondary text-text-secondary-light mb-4" />
+              <p className="text-lg font-bold dark:text-text-secondary text-text-secondary-light">
+                No se encontraron resultados
+              </p>
+              <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-2">
+                Intenta ajustar los filtros
+              </p>
+            </div>
+          ) : (
+            Object.entries(groupedResults).map(([blockId, blockTasks]) => {
+              const block = blocks.find((b: any) => b.id === blockId) || { id: 'unknown', name: 'Sin bloque', color: '#666', icon: '📋' };
+              return (
+                <div key={blockId} className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-1 h-8 rounded-full" style={{ backgroundColor: block.color }} />
+                    <span className="text-sm font-black uppercase tracking-wider dark:text-white text-text-main-light">
+                      {block.icon} {block.name}
+                    </span>
+                    <span className="text-xs dark:text-text-secondary text-text-secondary-light">
+                      {blockTasks.length} {blockTasks.length === 1 ? 'tarea' : 'tareas'}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {blockTasks.map((task: Task) => (
+                      <div
+                        key={task.id}
+                        className="dark:bg-bg-card bg-white p-4 rounded-xl border dark:border-border-main border-border-main-light hover:dark:border-turquesa hover:border-turquesa transition-all"
+                      >
+                        <div className="flex items-start gap-3">
+                          <button
+                            onClick={() => onToggle(task.id)}
+                            className="mt-1 shrink-0"
+                          >
+                            {task.status === 'completed' ? (
+                              <CheckCircle2 size={20} className="text-turquesa" />
+                            ) : (
+                              <Circle size={20} className="dark:text-text-secondary text-text-secondary-light" />
+                            )}
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <h3 className={`font-bold text-sm dark:text-white text-text-main-light ${task.status === 'completed' ? 'line-through opacity-50' : ''}`}>
+                              {task.title}
+                            </h3>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {task.dueDate && (
+                                <span className="text-xs px-2 py-1 rounded-lg dark:bg-bg-secondary bg-gray-100 dark:text-text-secondary text-text-secondary-light">
+                                  📅 {new Date(task.dueDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                                </span>
+                              )}
+                              {task.estimatedMinutes > 0 && (
+                                <span className="text-xs px-2 py-1 rounded-lg dark:bg-bg-secondary bg-gray-100 dark:text-text-secondary text-text-secondary-light">
+                                  ⏱️ {formatMinutes(task.estimatedMinutes)}
+                                </span>
+                              )}
+                              {(task.tags || []).map((tag: string) => (
+                                <span key={tag} className="text-xs px-2 py-1 rounded-lg bg-turquesa/20 text-turquesa font-bold">
+                                  {TAG_LABELS[tag as TagType] || tag}
+                                </span>
+                              ))}
+                              {task.templateId && (
+                                <span className="text-xs px-2 py-1 rounded-lg bg-turquesa/20 text-turquesa font-bold flex items-center gap-1">
+                                  <RefreshCw size={10} /> Instancia
+                                </span>
+                              )}
+                              {task.isTemplate && (
+                                <span className="text-xs px-2 py-1 rounded-lg bg-morado/20 text-morado font-bold flex items-center gap-1">
+                                  <RefreshCw size={10} /> Template
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              onClick={() => onEditTask(task.id)}
+                              className="p-2 dark:bg-bg-secondary bg-gray-100 rounded-lg dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              onClick={() => onDelete(task.id)}
+                              className="p-2 dark:bg-bg-secondary bg-gray-100 rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-rosa transition-all"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null }: any) {
   const [activeTab, setActiveTab] = useState<'tareas' | 'reuniones'>('tareas');
   const [filterPersonId, setFilterPersonId] = useState<string | null>(null);
