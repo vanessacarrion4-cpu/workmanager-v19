@@ -4014,6 +4014,7 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
                     onDemote={onDemote}
                     onReorderSubtasks={onReorderSubtasks}
                     onToggleExpand={onToggleExpand}
+                    hideCompleted={hideCompleted}
                     selectionMode={selectionMode}
                     selectedTaskIds={selectedTaskIds}
                     onToggleTaskSelection={onToggleTaskSelection}
@@ -4080,6 +4081,7 @@ function BlocksManagerView({ blocks, tasks, allTasksMap, people = [], onAddPerso
                     onDemote={onDemote}
                     onReorderSubtasks={onReorderSubtasks}
                     onToggleExpand={onToggleExpand}
+                    hideCompleted={hideCompleted}
                     selectionMode={selectionMode}
                     selectedTaskIds={selectedTaskIds}
                     onToggleTaskSelection={onToggleTaskSelection}
@@ -5369,7 +5371,10 @@ function TaskCard({
                       }).length;
                       return (
                         <button
-                          onClick={() => onToggleExpand(task.id)}
+                          onClick={() => {
+                            console.log('[EXPAND BTN] Clicked:', task.id, task.title);
+                            onToggleExpand(task.id);
+                          }}
                           className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30"
                         >
                           {String(pendingCount)}
