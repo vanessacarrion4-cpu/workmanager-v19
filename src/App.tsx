@@ -3469,34 +3469,33 @@ function DashboardView({
       const isContainer = !!(t.subtasks && t.subtasks.length > 0);
 
       if (isContainer) {
+        // IMPORTANTE: No usar t.subtasks porque puede estar desactualizado si se movieron subtareas
+        // En su lugar, buscar TODAS las tareas del día activo que tengan parentTaskId apuntando al template de este contenedor
+        const containerTemplateId = t.templateId || t.id; // Si el contenedor es template, usar su ID; si es instancia, usar su templateId
+        
+        // Buscar todas las subtareas que:
+        // 1. Tienen parentTaskId apuntando al template del contenedor
+        // 2. Tienen dueDate = activeDate
+        const actualSubtasks = Object.values(allTasksMap).filter((task: Task) => {
+          if (!task.templateId) return false; // Solo instancias generadas o excepciones
+          
+          // Buscar el template de esta subtarea para ver su parentTaskId
+          const subtaskTemplate = allTasksMap[task.templateId];
+          if (!subtaskTemplate) return false;
+          
+          // ¿El template de esta subtarea tiene como padre el template del contenedor?
+          const isChildOfThisContainer = subtaskTemplate.parentTaskId === containerTemplateId;
+          
+          // ¿Esta subtarea es para el día activo?
+          const isForActiveDate = task.dueDate === activeDate;
+          
+          return isChildOfThisContainer && isForActiveDate;
+        });
         
         // Repartir el contenedor en cada grupo donde tenga subtareas con esa etiqueta
         const subtasksByTag: Record<string, string[]> = {};
-        (t.subtasks || []).forEach(subId => {
-          // Primero buscar la subtarea directamente (puede ser template o instancia)
-          let sub = allTasksMap[subId];
-          
-          
-          // Si no existe o no coincide fecha, buscar la instancia para el día activo
-          if (!sub || sub.dueDate !== activeDate) {
-            const instanceId = `inst-${subId}-${activeDate}`;
-            const instanceSub = allTasksMap[instanceId];
-            
-            
-            if (instanceSub) {
-              sub = instanceSub;
-              subId = instanceId;
-            }
-          }
-          
-          if (!sub) {
-            return;
-          }
-          
+        actualSubtasks.forEach((sub: Task) => {
           if (hideCompleted && sub.status === 'completed') return;
-          if (sub.dueDate !== activeDate) {
-            return;
-          }
           
           // Filtro delegación: excluir delegadas sin etiqueta real
           if (sub.delegation) {
@@ -3504,11 +3503,10 @@ function DashboardView({
             const hasRealTag = tags.some((tag: string) => tag !== 'resto');
             if (!hasRealTag) return;
           }
+          
           const subTag = (sub.tags && sub.tags[0]) || 'resto';
-          
-          
           if (!subtasksByTag[subTag]) subtasksByTag[subTag] = [];
-          subtasksByTag[subTag].push(subId);
+          subtasksByTag[subTag].push(sub.id);
         });
         
 
