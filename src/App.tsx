@@ -3952,6 +3952,7 @@ function DashboardView({
                             setExpandAll(null);
                             onToggleExpand(taskId);
                           }}
+                          onRecurrenceDateChange={onRecurrenceDateChange}
                           hideCompleted={hideCompleted}
                           subtasksForGroup={subtasksForGroup}
                           forceExpanded={expandAll}
@@ -5631,9 +5632,12 @@ function TaskCard({
                       <DatePickerChip 
                         value={task.dueDate} 
                         onChange={(date: string) => {
+                          console.log('[DATEPICKER] onChange llamado:', { taskId: task.id, newDate: date, hasTemplateId: !!task.templateId });
                           if (task.templateId) {
+                            console.log('[DATEPICKER] Llamando onRecurrenceDateChange');
                             onRecurrenceDateChange && onRecurrenceDateChange(task, date);
                           } else {
+                            console.log('[DATEPICKER] Llamando onUpdateTask');
                             onUpdateTask({ ...task, dueDate: date });
                           }
                         }} 
