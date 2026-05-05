@@ -218,20 +218,21 @@ export function generateInstances(
           return;
         }
 
-        // Comprobar excepción para esta subtarea en este día
+        // Comprobar excepción para esta subtarea en este día (buscar por dueDate, no instanceDate)
         const childHasException = Object.values(allTasks).some(t =>
           t &&
           t.templateId === childTemplate.id &&
-          t.instanceDate === dateStr &&
-          t.isException
+          t.dueDate === dateStr &&
+          t.isException &&
+          !t.isDeleted
         );
         if (childHasException) {
           const exceptionTask = Object.values(allTasks).find(t =>
             t &&
             t.templateId === childTemplate.id &&
-            t.instanceDate === dateStr &&
+            t.dueDate === dateStr &&
             t.isException &&
-            !t.isDeleted // No incluir excepciones borradas
+            !t.isDeleted
           );
           if (exceptionTask) subtaskInstanceIds.push(exceptionTask.id);
           return;

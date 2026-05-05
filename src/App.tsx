@@ -1691,7 +1691,14 @@ export default function App() {
       if (t.isTemplate) return false;
 
       // Subtareas: nunca aparecen solas en el Dashboard (se muestran bajo su padre)
+      // Esto incluye instancias generadas Y excepciones guardadas en Supabase
+      // Las excepciones se guardan con parent_task_id=null en BD pero su template sí tiene parentTaskId
       if (t.parentTaskId) return false;
+      if (t.templateId) {
+        // Para instancias/excepciones: verificar si su template es subtarea (tiene parentTaskId)
+        const template = tasks[t.templateId];
+        if (template && template.parentTaskId) return false; // Es subtarea → no mostrar sola
+      }
 
       // Tareas delegadas sin etiqueta real o con solo 'resto': no mostrar en Dashboard
       if (t.delegation) {
