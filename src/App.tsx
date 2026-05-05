@@ -389,8 +389,7 @@ export default function App() {
         const { data: tasksData, error: tasksError } = await supabase
           .from('tasks')
           .select('*')
-          .or('is_deleted.is.null,is_deleted.eq.false')
-          .or('template_id.is.null,is_exception.eq.true') // Templates/manuales + excepciones
+          .or('template_id.is.null,is_exception.eq.true') // Templates/manuales + excepciones (incluye borradas)
           .order('order', { ascending: true });
 
         if (tasksError) throw tasksError;
