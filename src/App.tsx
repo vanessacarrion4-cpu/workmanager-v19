@@ -2310,11 +2310,15 @@ export default function App() {
       )}
 
       {/* Modal cambio de fecha en instancia recurrente */}
-      {pendingDateChange && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 dark:bg-black/60 bg-black/40 backdrop-blur-sm">
-          <div className="dark:bg-bg-card bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border dark:border-border-main border-border-main-light space-y-4">
-            <h3 className="font-black dark:text-white text-text-main-light text-base uppercase tracking-widest">Cambiar fecha</h3>
-            <p className="text-sm dark:text-text-secondary text-text-secondary-light">¿Qué quieres cambiar?</p>
+      {(() => {
+        if (pendingDateChange) {
+          console.log('[MODAL] pendingDateChange tiene valor:', pendingDateChange);
+        }
+        return pendingDateChange && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 dark:bg-black/60 bg-black/40 backdrop-blur-sm">
+            <div className="dark:bg-bg-card bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border dark:border-border-main border-border-main-light space-y-4">
+              <h3 className="font-black dark:text-white text-text-main-light text-base uppercase tracking-widest">Cambiar fecha</h3>
+              <p className="text-sm dark:text-text-secondary text-text-secondary-light">¿Qué quieres cambiar?</p>
             <div className="space-y-2">
               <button
                 onClick={() => {
@@ -2354,7 +2358,8 @@ export default function App() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {recurrenceAction && (
         <RecurrenceChoiceModal 
