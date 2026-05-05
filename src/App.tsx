@@ -484,10 +484,6 @@ export default function App() {
                 mappedTasks[task.parentTaskId].subtasks = [];
               }
               mappedTasks[task.parentTaskId].subtasks.push(task.id);
-              
-              // Debug Rutinas
-              if (task.parentTaskId === 'inst-t-1777828189938-2026-05-05') {
-              }
             }
           });
 
@@ -797,7 +793,6 @@ export default function App() {
           // La tarea ya existe (excepción/supabase)
           // Si es un contenedor, actualizar su array subtasks con las instancias generadas
           if (t.subtasks && t.subtasks.length > 0) {
-            console.log(`[GENERATION] Actualizando subtasks de contenedor existente:`, t.id, t.title, 'subtasks:', t.subtasks);
             updated[t.id] = {
               ...updated[t.id],
               subtasks: t.subtasks
@@ -1380,58 +1375,62 @@ export default function App() {
       delete updatedTasks[id];
     };
  
+    // Recoger todos los IDs a borrar antes de eliminar del state
+    const idsToDelete: Task[] = [];
+    const collectRecursive = (id: string) => {
+      const t = updatedTasks[id];
+      if (!t) return;
+      idsToDelete.push(t);
+      t.subtasks.forEach(sid => collectRecursive(sid));
+    };
+    collectRecursive(taskId);
+
     removeRecursive(taskId);
     setTasks(updatedTasks);
 
-    // --- Soft delete in Supabase ---
+    // --- Soft delete en Supabase para TODOS (tarea + subtareas) ---
     (async () => {
-      try {
-        const isInstance = !!task.templateId;
-        console.log('[DELETE DEBUG] Borrando:', task.id, 'isInstance:', isInstance, 'templateId:', task.templateId, 'status:', task.status);
-        
-        if (isInstance) {
-          // Para instancias: hacer upsert para que persista el borrado
-          const { error } = await supabase.from('tasks').upsert({
-            id: task.id,
-            block_id: task.blockId,
-            parent_task_id: null,
-            template_id: task.templateId,
-            instance_date: task.instanceDate || null,
-            title: task.title,
-            notes: task.notes || '',
-            priority: task.priority || 'medium',
-            status: task.status,
-            due_date: task.dueDate || null,
-            due_time: task.dueTime || null,
-            completed_at: task.completedAt || null,
-            estimated_minutes: task.estimatedMinutes || 0,
-            actual_minutes: task.actualMinutes || 0,
-            tags: task.tags || [],
-            delegation: task.delegation || null,
-            is_template: false,
-            is_exception: true, // Marcar como excepción para que se cargue
-            is_deleted: true, // Soft delete
-            deleted_at: new Date().toISOString(),
-            is_active: false,
-            created_at: task.createdAt || new Date().toISOString(),
-            modified_at: new Date().toISOString()
-          }, { onConflict: 'id' });
-          
-          if (error) throw error;
-          console.log('[SUPABASE] Instancia borrada (soft delete + upsert):', task.id);
-        } else {
-          // Para tareas normales: solo update
-          const { error } = await supabase
-            .from('tasks')
-            .update({ is_deleted: true, deleted_at: new Date().toISOString() })
-            .eq('id', taskId);
-          
-          if (error) throw error;
-          console.log('[SUPABASE] Task deleted (soft):', taskId);
+      const timestamp = new Date().toISOString();
+      for (const t of idsToDelete) {
+        try {
+          if (t.templateId) {
+            // Instancia generada: upsert con is_deleted
+            await supabase.from('tasks').upsert({
+              id: t.id,
+              block_id: t.blockId,
+              parent_task_id: null,
+              template_id: t.templateId,
+              instance_date: t.instanceDate || null,
+              title: t.title,
+              notes: t.notes || '',
+              priority: t.priority || 'medium',
+              status: t.status,
+              due_date: t.dueDate || null,
+              due_time: t.dueTime || null,
+              completed_at: t.completedAt || null,
+              estimated_minutes: t.estimatedMinutes || 0,
+              actual_minutes: t.actualMinutes || 0,
+              tags: t.tags || [],
+              delegation: t.delegation || null,
+              is_template: false,
+              is_exception: true,
+              is_deleted: true,
+              deleted_at: timestamp,
+              is_active: false,
+              created_at: t.createdAt || timestamp,
+              modified_at: timestamp
+            }, { onConflict: 'id' });
+          } else {
+            // Tarea normal: update
+            await supabase.from('tasks')
+              .update({ is_deleted: true, deleted_at: timestamp })
+              .eq('id', t.id);
+          }
+        } catch (e) {
+          console.error('[SUPABASE] Error borrando:', t.id, e);
         }
-      } catch (e) {
-        console.error('[SUPABASE] Error deleting task:', e);
       }
+      console.log('[SUPABASE] Borradas', idsToDelete.length, 'tareas/instancias');
     })();
   };
  
@@ -1732,7 +1731,11 @@ export default function App() {
   }, [filteredTasks, blocks, activeDate, tasks]);
  
   const dashboardTasksMap = useMemo(() => {
-    const map: any = { ...tasks };
+    // Empezar con tasks filtradas (sin borradas, sin templates puros)
+    const map: any = {};
+    Object.values(tasks).forEach((t: Task) => {
+      if (!t.isDeleted) map[t.id] = t;
+    });
     
     // Añadir tareas raíz
     dashboardTasks.forEach(t => {
@@ -2325,10 +2328,7 @@ export default function App() {
       )}
 
       {/* Modal cambio de fecha en instancia recurrente */}
-      {(() => {
-        if (pendingDateChange) {
-        }
-        return pendingDateChange && (
+      {pendingDateChange && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 dark:bg-black/60 bg-black/40 backdrop-blur-sm">
             <div className="dark:bg-bg-card bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border dark:border-border-main border-border-main-light space-y-4">
               <h3 className="font-black dark:text-white text-text-main-light text-base uppercase tracking-widest">Cambiar fecha</h3>
@@ -2372,8 +2372,7 @@ export default function App() {
             </div>
           </div>
         </div>
-        );
-      })()}
+      )}
 
       {recurrenceAction && (
         <RecurrenceChoiceModal 
@@ -2403,7 +2402,7 @@ export default function App() {
                 
                 setTasks(prev => ({
                   ...prev,
-                  [taskId]: { ...(prev[taskId] || taskToDelete), isDeleted: true, modifiedAt: timestamp }
+                  [taskId]: { ...(prev[taskId] || taskToDelete), isDeleted: true, isException: true, existsInSupabase: true, modifiedAt: timestamp }
                 }));
                 
                 // UPSERT en lugar de UPDATE para que funcione con instancias no guardadas
@@ -3456,11 +3455,13 @@ function DashboardView({
     return tasks.filter((t: Task) => {
       if (!activeBlockIds.has(t.blockId)) return false;
       if (t.parentTaskId) return false;
+      if (t.isDeleted) return false; // Nunca mostrar borradas
       if (t.dueDate === activeDate) return true;
+      // Contenedor sin dueDate: aparece si tiene subtareas NO borradas en el día activo
       if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
         return t.subtasks.some(subId => {
           const sub = allTasksMap[subId];
-          return sub && sub.dueDate === activeDate;
+          return sub && !sub.isDeleted && sub.dueDate === activeDate;
         });
       }
       return false;
@@ -3547,6 +3548,7 @@ function DashboardView({
         // 2. Tienen dueDate = activeDate
         const actualSubtasks = Object.values(allTasksMap).filter((task: Task) => {
           if (!task.templateId) return false; // Solo instancias generadas o excepciones
+          if (task.isDeleted) return false; // NO incluir borradas
           
           // Buscar el template de esta subtarea para ver su parentTaskId
           const subtaskTemplate = allTasksMap[task.templateId];

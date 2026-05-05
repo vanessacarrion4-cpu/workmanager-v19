@@ -210,9 +210,11 @@ export function generateInstances(
 
         const childInstanceId = `inst-${childTemplate.id}-${dateStr}`;
 
-        // Si ya existe (excepción guardada), reutilizar su ID
+        // Si ya existe (excepción guardada), reutilizar — PERO solo si no está borrada
         if (allTasks[childInstanceId]) {
-          subtaskInstanceIds.push(childInstanceId);
+          if (!allTasks[childInstanceId].isDeleted) {
+            subtaskInstanceIds.push(childInstanceId);
+          }
           return;
         }
 
@@ -224,13 +226,12 @@ export function generateInstances(
           t.isException
         );
         if (childHasException) {
-          // La excepción ya existe con otro ID — no crear duplicado
-          // pero sí incluirla en el padre si la encontramos
           const exceptionTask = Object.values(allTasks).find(t =>
             t &&
             t.templateId === childTemplate.id &&
             t.instanceDate === dateStr &&
-            t.isException
+            t.isException &&
+            !t.isDeleted // No incluir excepciones borradas
           );
           if (exceptionTask) subtaskInstanceIds.push(exceptionTask.id);
           return;
