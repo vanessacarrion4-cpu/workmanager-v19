@@ -491,11 +491,6 @@ export default function App() {
               }
             }
           });
-          
-          // Debug: Ver subtasks final del contenedor Rutinas
-          const rutinasContainer = mappedTasks['inst-t-1777828189938-2026-05-05'];
-          if (rutinasContainer) {
-          }
 
           // REPARACIÓN AUTOMÁTICA 1: Contenedores con datos prohibidos
           // Los contenedores solo tienen bloque + tipo. Cualquier otro dato debe limpiarse.
@@ -812,16 +807,6 @@ export default function App() {
         }
       });
       console.log(`[GENERATION] Added ${addedCount} new instances`);
-      
-      // Debug: Verificar que Rutinas ahora tiene subtasks
-      const rutinasAfterGen = updated['inst-t-1777828189938-2026-05-05'];
-      if (rutinasAfterGen) {
-          id: rutinasAfterGen.id,
-          title: rutinasAfterGen.title,
-          subtasks: rutinasAfterGen.subtasks,
-          subtasksCount: rutinasAfterGen.subtasks?.length || 0
-        });
-      }
       
       return updated;
     });
