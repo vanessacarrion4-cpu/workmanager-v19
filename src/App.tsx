@@ -788,6 +788,14 @@ export default function App() {
       // Log instancias completadas/excepcion que se preservan
       const preserved = Object.values(cleaned).filter((t: Task) => t.templateId && (t.isException || t.existsInSupabase));
       console.log(`[GENERATION] Preserved ${preserved.length} exceptions/supabase instances:`, preserved.map((t: Task) => `${t.id}:${t.status}`));
+      
+      // IMPORTANTE: Borrar contenedores de Supabase sin subtareas para que se regeneren correctamente
+      Object.values(cleaned).forEach((t: Task) => {
+        if (t.existsInSupabase && t.templateId && (!t.subtasks || t.subtasks.length === 0) && !t.parentTaskId) {
+          console.log(`[GENERATION] Borrando contenedor vacío de Supabase:`, t.id, t.title);
+          delete cleaned[t.id];
+        }
+      });
 
       const instantiated = generateInstances(cleaned, start, 365);
       console.log(`[GENERATION] Generated ${instantiated.length} instances`);
@@ -802,6 +810,7 @@ export default function App() {
           // La tarea ya existe (excepción/supabase)
           // Si es un contenedor, actualizar su array subtasks con las instancias generadas
           if (t.subtasks && t.subtasks.length > 0) {
+            console.log(`[GENERATION] Actualizando subtasks de contenedor existente:`, t.id, t.title, 'subtasks:', t.subtasks);
             updated[t.id] = {
               ...updated[t.id],
               subtasks: t.subtasks
@@ -810,6 +819,18 @@ export default function App() {
         }
       });
       console.log(`[GENERATION] Added ${addedCount} new instances`);
+      
+      // Debug: Verificar que Rutinas ahora tiene subtasks
+      const rutinasAfterGen = updated['inst-t-1777828189938-2026-05-05'];
+      if (rutinasAfterGen) {
+        console.log('[GENERATION DEBUG] Rutinas después de generateInstances:', {
+          id: rutinasAfterGen.id,
+          title: rutinasAfterGen.title,
+          subtasks: rutinasAfterGen.subtasks,
+          subtasksCount: rutinasAfterGen.subtasks?.length || 0
+        });
+      }
+      
       return updated;
     });
   }, [isDataLoaded, templateKey]);
@@ -3486,10 +3507,6 @@ function DashboardView({
     };
 
     filteredDayTasks.forEach((t: Task) => {
-      if (t.title && t.title.includes('Rutinas')) {
-        console.log('[DEBUG] Rutinas está en filteredDayTasks:', t.id, t.title);
-      }
-      
       // Contenedor: cualquier tarea con subtareas
       // Por definición los contenedores no tienen tags propios — sus subtareas sí
       const isContainer = !!(t.subtasks && t.subtasks.length > 0);
