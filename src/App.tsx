@@ -798,6 +798,15 @@ export default function App() {
         if (!updated[t.id]) {
           updated[t.id] = t;
           addedCount++;
+        } else {
+          // La tarea ya existe (excepción/supabase)
+          // Si es un contenedor, actualizar su array subtasks con las instancias generadas
+          if (t.subtasks && t.subtasks.length > 0) {
+            updated[t.id] = {
+              ...updated[t.id],
+              subtasks: t.subtasks
+            };
+          }
         }
       });
       console.log(`[GENERATION] Added ${addedCount} new instances`);
