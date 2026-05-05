@@ -3469,9 +3469,6 @@ function DashboardView({
       const isContainer = !!(t.subtasks && t.subtasks.length > 0);
 
       if (isContainer) {
-        // Debug específico para Rutinas Mañana
-        if (t.title && t.title.includes('Rutinas')) {
-        }
         
         // Repartir el contenedor en cada grupo donde tenga subtareas con esa etiqueta
         const subtasksByTag: Record<string, string[]> = {};
@@ -3479,17 +3476,12 @@ function DashboardView({
           // Primero buscar la subtarea directamente (puede ser template o instancia)
           let sub = allTasksMap[subId];
           
-          // Debug para Rutinas
-          if (t.title && t.title.includes('Rutinas')) {
-          }
           
           // Si no existe o no coincide fecha, buscar la instancia para el día activo
           if (!sub || sub.dueDate !== activeDate) {
             const instanceId = `inst-${subId}-${activeDate}`;
             const instanceSub = allTasksMap[instanceId];
             
-            if (t.title && t.title.includes('Rutinas')) {
-            }
             
             if (instanceSub) {
               sub = instanceSub;
@@ -3498,15 +3490,11 @@ function DashboardView({
           }
           
           if (!sub) {
-            if (t.title && t.title.includes('Rutinas')) {
-            }
             return;
           }
           
           if (hideCompleted && sub.status === 'completed') return;
           if (sub.dueDate !== activeDate) {
-            if (t.title && t.title.includes('Rutinas')) {
-            }
             return;
           }
           
@@ -3518,15 +3506,11 @@ function DashboardView({
           }
           const subTag = (sub.tags && sub.tags[0]) || 'resto';
           
-          if (t.title && t.title.includes('Rutinas')) {
-          }
           
           if (!subtasksByTag[subTag]) subtasksByTag[subTag] = [];
           subtasksByTag[subTag].push(subId);
         });
         
-        if (t.title && t.title.includes('Rutinas')) {
-        }
 
         Object.entries(subtasksByTag).forEach(([tag, subIds]) => {
           if (groups[tag as TagType]) {
@@ -5588,17 +5572,8 @@ function TaskCard({
                     onChange={(val: string) => onUpdateTask({ ...task, taskType: val })} 
                     isCompact={true}
                   />
-                  {(() => {
-                    if (task.templateId && task.id.includes('inst-t-1777828247976')) {
-                        id: task.id,
-                        hasSubtasks,
-                        subtasks: task.subtasks,
-                        templateId: task.templateId,
-                        shouldShowDatePicker: !hasSubtasks
-                      });
-                    }
-                    return !hasSubtasks && (
-                      <DatePickerChip 
+                  {!hasSubtasks && (
+                    <DatePickerChip 
                         value={task.dueDate} 
                         onChange={(date: string) => {
                           if (task.templateId) {
@@ -5608,8 +5583,7 @@ function TaskCard({
                           }
                         }} 
                       />
-                    );
-                  })()}
+                    )}
                   {!hasSubtasks && (
                     <TimePickerChip
                       value={task.dueTime || ''}
