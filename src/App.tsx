@@ -1388,6 +1388,7 @@ export default function App() {
     (async () => {
       try {
         const isInstance = !!task.templateId;
+        console.log('[DELETE DEBUG] Borrando:', task.id, 'isInstance:', isInstance, 'templateId:', task.templateId, 'status:', task.status);
         
         if (isInstance) {
           // Para instancias: hacer upsert para que persista el borrado
@@ -1681,6 +1682,9 @@ export default function App() {
     const activeBlockIds = new Set(blocks.filter(b => b && b.isActive).map(b => b.id));
     const result = filteredTasks.filter(t => {
       if (!t) return false;
+
+      // Nunca mostrar tareas borradas
+      if (t.isDeleted) return false;
 
       // Bloque inactivo
       if (!activeBlockIds.has(t.blockId)) return false;
