@@ -488,7 +488,6 @@ export default function App() {
               
               // Debug Rutinas
               if (task.parentTaskId === 'inst-t-1777828189938-2026-05-05') {
-                console.log('[DEBUG REBUILD] Subtarea encontrada para Rutinas:', task.id, task.title);
               }
             }
           });
@@ -496,7 +495,6 @@ export default function App() {
           // Debug: Ver subtasks final del contenedor Rutinas
           const rutinasContainer = mappedTasks['inst-t-1777828189938-2026-05-05'];
           if (rutinasContainer) {
-            console.log('[DEBUG REBUILD] Rutinas contenedor subtasks:', rutinasContainer.subtasks);
           }
 
           // REPARACIÓN AUTOMÁTICA 1: Contenedores con datos prohibidos
@@ -789,13 +787,8 @@ export default function App() {
       const preserved = Object.values(cleaned).filter((t: Task) => t.templateId && (t.isException || t.existsInSupabase));
       console.log(`[GENERATION] Preserved ${preserved.length} exceptions/supabase instances:`, preserved.map((t: Task) => `${t.id}:${t.status}`));
       
-      // IMPORTANTE: Borrar contenedores de Supabase sin subtareas para que se regeneren correctamente
-      Object.values(cleaned).forEach((t: Task) => {
-        if (t.existsInSupabase && t.templateId && (!t.subtasks || t.subtasks.length === 0) && !t.parentTaskId) {
-          console.log(`[GENERATION] Borrando contenedor vacío de Supabase:`, t.id, t.title);
-          delete cleaned[t.id];
-        }
-      });
+      // IMPORTANTE: NO borrar instancias de Supabase - son excepciones válidas (completadas/modificadas)
+      // Antes borrábamos contenedores vacíos, pero eso también borraba subtareas completadas
 
       const instantiated = generateInstances(cleaned, start, 365);
       console.log(`[GENERATION] Generated ${instantiated.length} instances`);
@@ -823,7 +816,6 @@ export default function App() {
       // Debug: Verificar que Rutinas ahora tiene subtasks
       const rutinasAfterGen = updated['inst-t-1777828189938-2026-05-05'];
       if (rutinasAfterGen) {
-        console.log('[GENERATION DEBUG] Rutinas después de generateInstances:', {
           id: rutinasAfterGen.id,
           title: rutinasAfterGen.title,
           subtasks: rutinasAfterGen.subtasks,
@@ -2312,7 +2304,6 @@ export default function App() {
       {/* Modal cambio de fecha en instancia recurrente */}
       {(() => {
         if (pendingDateChange) {
-          console.log('[MODAL] pendingDateChange tiene valor:', pendingDateChange);
         }
         return pendingDateChange && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 dark:bg-black/60 bg-black/40 backdrop-blur-sm">
@@ -3495,9 +3486,6 @@ function DashboardView({
       if (isContainer) {
         // Debug específico para Rutinas Mañana
         if (t.title && t.title.includes('Rutinas')) {
-          console.log('[DEBUG RUTINAS] Contenedor:', t.id, t.title);
-          console.log('[DEBUG RUTINAS] subtasks array:', t.subtasks);
-          console.log('[DEBUG RUTINAS] activeDate:', activeDate);
         }
         
         // Repartir el contenedor en cada grupo donde tenga subtareas con esa etiqueta
@@ -3508,8 +3496,6 @@ function DashboardView({
           
           // Debug para Rutinas
           if (t.title && t.title.includes('Rutinas')) {
-            console.log('[DEBUG RUTINAS] Buscando subtarea:', subId);
-            console.log('[DEBUG RUTINAS] - Encontrada directa:', sub?.id, sub?.dueDate);
           }
           
           // Si no existe o no coincide fecha, buscar la instancia para el día activo
@@ -3518,8 +3504,6 @@ function DashboardView({
             const instanceSub = allTasksMap[instanceId];
             
             if (t.title && t.title.includes('Rutinas')) {
-              console.log('[DEBUG RUTINAS] - Buscando instancia:', instanceId);
-              console.log('[DEBUG RUTINAS] - Instancia encontrada:', instanceSub?.id, instanceSub?.dueDate);
             }
             
             if (instanceSub) {
@@ -3530,7 +3514,6 @@ function DashboardView({
           
           if (!sub) {
             if (t.title && t.title.includes('Rutinas')) {
-              console.log('[DEBUG RUTINAS] - NO ENCONTRADA, saltando');
             }
             return;
           }
@@ -3538,7 +3521,6 @@ function DashboardView({
           if (hideCompleted && sub.status === 'completed') return;
           if (sub.dueDate !== activeDate) {
             if (t.title && t.title.includes('Rutinas')) {
-              console.log('[DEBUG RUTINAS] - Fecha no coincide, saltando');
             }
             return;
           }
@@ -3552,7 +3534,6 @@ function DashboardView({
           const subTag = (sub.tags && sub.tags[0]) || 'resto';
           
           if (t.title && t.title.includes('Rutinas')) {
-            console.log('[DEBUG RUTINAS] - Subtarea VÁLIDA:', sub.id, 'tag:', subTag);
           }
           
           if (!subtasksByTag[subTag]) subtasksByTag[subTag] = [];
@@ -3560,7 +3541,6 @@ function DashboardView({
         });
         
         if (t.title && t.title.includes('Rutinas')) {
-          console.log('[DEBUG RUTINAS] subtasksByTag final:', subtasksByTag);
         }
 
         Object.entries(subtasksByTag).forEach(([tag, subIds]) => {
@@ -5625,7 +5605,6 @@ function TaskCard({
                   />
                   {(() => {
                     if (task.templateId && task.id.includes('inst-t-1777828247976')) {
-                      console.log('[DATEPICKER DEBUG] Ingresos:', {
                         id: task.id,
                         hasSubtasks,
                         subtasks: task.subtasks,
@@ -5637,12 +5616,9 @@ function TaskCard({
                       <DatePickerChip 
                         value={task.dueDate} 
                         onChange={(date: string) => {
-                          console.log('[DATEPICKER] onChange llamado:', { taskId: task.id, newDate: date, hasTemplateId: !!task.templateId });
                           if (task.templateId) {
-                            console.log('[DATEPICKER] Llamando onRecurrenceDateChange');
                             onRecurrenceDateChange && onRecurrenceDateChange(task, date);
                           } else {
-                            console.log('[DATEPICKER] Llamando onUpdateTask');
                             onUpdateTask({ ...task, dueDate: date });
                           }
                         }} 
