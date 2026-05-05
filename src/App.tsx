@@ -5849,6 +5849,7 @@ function TaskCard({
                       onDemote={onDemote}
                       onReorderSubtasks={onReorderSubtasks}
                       onToggleExpand={onToggleExpand}
+                      onRecurrenceDateChange={onRecurrenceDateChange}
                       level={level + 1}
                       rootTaskId={currentRootId}
                       hideCompleted={hideCompleted}
