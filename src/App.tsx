@@ -3418,7 +3418,7 @@ function DashboardView({
 }: any) {
   const [hideCompleted, setHideCompleted] = useState(true);
   const [showDashboardCalendar, setShowDashboardCalendar] = useState(false);
-  const [expandAll, setExpandAll] = useState(true);
+  const [expandAll, setExpandAll] = useState<boolean | null>(null);
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set(['con_hora', 'focus', 'dirección', 'espera', 'resto']));
   const [isFrozen, setIsFrozen] = useState(false);
   const frozenOrderRef = React.useRef<string[]>([]);
@@ -3777,17 +3777,21 @@ function DashboardView({
 
              {/* Botón: Expandir/Contraer SUBTAREAS — flechas azul */}
              <button 
-              onClick={() => setExpandAll(!expandAll)}
+              onClick={() => {
+                // Si está en null o false, expandir todo (true)
+                // Si está en true, contraer todo (false)
+                setExpandAll(prev => prev === true ? false : true);
+              }}
               className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-all relative group ${
-                expandAll 
+                expandAll === true
                   ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30' 
                   : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul dark:hover:bg-azul/10 hover:bg-azul/5'
               }`}
-              title={expandAll ? 'Contraer subtareas' : 'Expandir subtareas'}
+              title={expandAll === true ? 'Contraer subtareas' : 'Expandir subtareas'}
              >
-               {expandAll ? <ChevronsUp size={15} /> : <ChevronsDown size={15} />}
+               {expandAll === true ? <ChevronsUp size={15} /> : <ChevronsDown size={15} />}
                <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-xl text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                 {expandAll ? 'Contraer subtareas' : 'Expandir subtareas'}
+                 {expandAll === true ? 'Contraer subtareas' : 'Expandir subtareas'}
                </span>
              </button>
 
@@ -3967,7 +3971,11 @@ function DashboardView({
                           onPromote={onPromote}
                           onDemote={onDemote}
                           onReorderSubtasks={onReorderSubtasks}
-                          onToggleExpand={onToggleExpand}
+                          onToggleExpand={(taskId: string) => {
+                            // Al expandir/contraer individualmente, desactivar el control global
+                            setExpandAll(null);
+                            onToggleExpand(taskId);
+                          }}
                           hideCompleted={hideCompleted}
                           subtasksForGroup={subtasksForGroup}
                           forceExpanded={expandAll}
