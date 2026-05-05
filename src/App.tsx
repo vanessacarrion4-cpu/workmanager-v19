@@ -3468,6 +3468,10 @@ function DashboardView({
     };
 
     filteredDayTasks.forEach((t: Task) => {
+      if (t.title && t.title.includes('Rutinas')) {
+        console.log('[DEBUG] Rutinas está en filteredDayTasks:', t.id, t.title);
+      }
+      
       // Contenedor: cualquier tarea con subtareas
       // Por definición los contenedores no tienen tags propios — sus subtareas sí
       const isContainer = !!(t.subtasks && t.subtasks.length > 0);
