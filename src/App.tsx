@@ -3032,20 +3032,13 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                           onChange={(time: string) => handleUpdateSubtask(st.id, { dueTime: time })}
                         />
                       )}
-                      {/* DatePickerChip */}
-                      {(() => {
-                        if (st.templateId) {
-                          console.log('[MODAL DEBUG] Subtarea instancia:', st.id, 'isTemplate:', st.isTemplate, 'templateId:', st.templateId);
-                        }
-                        return !st.isTemplate && (
-                          <DatePickerChip
-                            value={st.dueDate}
-                            onChange={(date: string) => handleUpdateSubtask(st.id, { dueDate: date })}
-                          />
-                        );
-                      })()}
-                      {/* RecurrencePickerChip - subtareas pueden ser recurrentes */}
-                      {!st.subtasks || st.subtasks.length === 0 ? (
+                      {/* DatePickerChip - permitir cambio de fecha incluso para instancias */}
+                      <DatePickerChip
+                        value={st.dueDate}
+                        onChange={(date: string) => handleUpdateSubtask(st.id, { dueDate: date })}
+                      />
+                      {/* RecurrencePickerChip - solo para templates, no instancias */}
+                      {!st.templateId && (!st.subtasks || st.subtasks.length === 0) ? (
                         <RecurrencePickerChip 
                           value={st.recurrence}
                           onChange={(rec: any) => handleUpdateSubtask(st.id, { 
