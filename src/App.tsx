@@ -478,10 +478,8 @@ export default function App() {
           });
 
           // Reconstruir relaciones padre-hijo
-          // Las instancias (templateId presente) NO se añaden como subtareas aquí
-          // porque generateInstances reconstruye la jerarquía completa en memoria
+          // IMPORTANTE: También para instancias guardadas en Supabase
           Object.values(mappedTasks).forEach(task => {
-            if (task.templateId) return; // Instancia — skip, jerarquía via generateInstances
             if (task.parentTaskId && mappedTasks[task.parentTaskId]) {
               if (!mappedTasks[task.parentTaskId].subtasks) {
                 mappedTasks[task.parentTaskId].subtasks = [];
