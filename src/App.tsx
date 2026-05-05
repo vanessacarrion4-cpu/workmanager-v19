@@ -2395,16 +2395,47 @@ export default function App() {
                 }));
                 setEditingTaskId(taskId);
               } else {
-                // Eliminar solo esta instancia → persistir en Supabase
+                // Eliminar solo esta instancia → persistir en Supabase con UPSERT
+                const taskToDelete = tasks[taskId] || dashboardTasks.find(t => t.id === taskId);
+                if (!taskToDelete) {
+                  console.error('[DELETE] Tarea no encontrada:', taskId);
+                  return;
+                }
+                
                 setTasks(prev => ({
                   ...prev,
-                  [taskId]: { ...(prev[taskId]), isDeleted: true, modifiedAt: timestamp }
+                  [taskId]: { ...(prev[taskId] || taskToDelete), isDeleted: true, modifiedAt: timestamp }
                 }));
-                supabase.from('tasks')
-                  .update({ is_deleted: true, modified_at: timestamp })
-                  .eq('id', taskId)
+                
+                // UPSERT en lugar de UPDATE para que funcione con instancias no guardadas
+                supabase.from('tasks').upsert({
+                  id: taskToDelete.id,
+                  block_id: taskToDelete.blockId,
+                  parent_task_id: null,
+                  template_id: taskToDelete.templateId,
+                  instance_date: taskToDelete.instanceDate || null,
+                  title: taskToDelete.title,
+                  notes: taskToDelete.notes || '',
+                  priority: taskToDelete.priority || 'medium',
+                  status: taskToDelete.status,
+                  due_date: taskToDelete.dueDate || null,
+                  due_time: taskToDelete.dueTime || null,
+                  completed_at: taskToDelete.completedAt || null,
+                  estimated_minutes: taskToDelete.estimatedMinutes || 0,
+                  actual_minutes: taskToDelete.actualMinutes || 0,
+                  tags: taskToDelete.tags || [],
+                  delegation: taskToDelete.delegation || null,
+                  is_template: false,
+                  is_exception: true,
+                  is_deleted: true, // ← ESTO ES LO IMPORTANTE
+                  deleted_at: new Date().toISOString(),
+                  is_active: false,
+                  created_at: taskToDelete.createdAt || new Date().toISOString(),
+                  modified_at: timestamp
+                }, { onConflict: 'id' })
                   .then(({ error }) => {
                     if (error) console.error('[SUPABASE] Error eliminando instancia:', error);
+                    else console.log('[SUPABASE] Instancia eliminada (upsert):', taskId);
                   });
               }
             } else if (choice === 'series') {
