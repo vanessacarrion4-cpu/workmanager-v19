@@ -1387,13 +1387,48 @@ export default function App() {
     // --- Soft delete in Supabase ---
     (async () => {
       try {
-        const { error } = await supabase
-          .from('tasks')
-          .update({ is_deleted: true, deleted_at: new Date().toISOString() })
-          .eq('id', taskId);
+        const isInstance = !!task.templateId;
         
-        if (error) throw error;
-        console.log('[SUPABASE] Task deleted (soft):', taskId);
+        if (isInstance) {
+          // Para instancias: hacer upsert para que persista el borrado
+          const { error } = await supabase.from('tasks').upsert({
+            id: task.id,
+            block_id: task.blockId,
+            parent_task_id: null,
+            template_id: task.templateId,
+            instance_date: task.instanceDate || null,
+            title: task.title,
+            notes: task.notes || '',
+            priority: task.priority || 'medium',
+            status: task.status,
+            due_date: task.dueDate || null,
+            due_time: task.dueTime || null,
+            completed_at: task.completedAt || null,
+            estimated_minutes: task.estimatedMinutes || 0,
+            actual_minutes: task.actualMinutes || 0,
+            tags: task.tags || [],
+            delegation: task.delegation || null,
+            is_template: false,
+            is_exception: true, // Marcar como excepción para que se cargue
+            is_deleted: true, // Soft delete
+            deleted_at: new Date().toISOString(),
+            is_active: false,
+            created_at: task.createdAt || new Date().toISOString(),
+            modified_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+          
+          if (error) throw error;
+          console.log('[SUPABASE] Instancia borrada (soft delete + upsert):', task.id);
+        } else {
+          // Para tareas normales: solo update
+          const { error } = await supabase
+            .from('tasks')
+            .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+            .eq('id', taskId);
+          
+          if (error) throw error;
+          console.log('[SUPABASE] Task deleted (soft):', taskId);
+        }
       } catch (e) {
         console.error('[SUPABASE] Error deleting task:', e);
       }
