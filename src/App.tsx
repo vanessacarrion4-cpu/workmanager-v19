@@ -3033,12 +3033,17 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                         />
                       )}
                       {/* DatePickerChip */}
-                      {!st.isTemplate && (
-                        <DatePickerChip
-                          value={st.dueDate}
-                          onChange={(date: string) => handleUpdateSubtask(st.id, { dueDate: date })}
-                        />
-                      )}
+                      {(() => {
+                        if (st.templateId) {
+                          console.log('[MODAL DEBUG] Subtarea instancia:', st.id, 'isTemplate:', st.isTemplate, 'templateId:', st.templateId);
+                        }
+                        return !st.isTemplate && (
+                          <DatePickerChip
+                            value={st.dueDate}
+                            onChange={(date: string) => handleUpdateSubtask(st.id, { dueDate: date })}
+                          />
+                        );
+                      })()}
                       {/* RecurrencePickerChip - subtareas pueden ser recurrentes */}
                       {!st.subtasks || st.subtasks.length === 0 ? (
                         <RecurrencePickerChip 
