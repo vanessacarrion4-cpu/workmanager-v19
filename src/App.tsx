@@ -2320,24 +2320,7 @@ export default function App() {
                 onClick={() => {
                   const { task, newDate } = pendingDateChange;
                   // Solo este día: guardar como excepción
-                  const updated = { ...task, dueDate: newDate, isException: true, modifiedAt: new Date().toISOString() };
-                  setTasks(prev => ({ ...prev, [task.id]: updated }));
-                  // Guardar excepción en Supabase
-                  fetch(task.isException ? `/api/tasks/${task.id}` : '/api/tasks', {
-                    method: task.isException ? 'PUT' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      id: task.id, blockId: task.blockId, title: task.title,
-                      priority: task.priority, status: task.status,
-                      dueDate: newDate, notes: task.notes || '',
-                      estimatedMinutes: task.estimatedMinutes || 0,
-                      parentTaskId: task.parentTaskId || null,
-                      isTemplate: false, isException: true,
-                      templateId: task.templateId || null,
-                      instanceDate: task.instanceDate || null,
-                      tags: task.tags || [], delegation: task.delegation || null,
-                    })
-                  }).catch(e => console.error('[API] Error guardando excepción fecha:', e));
+                  handleUpdateTask({ ...task, dueDate: newDate });
                   setPendingDateChange(null);
                 }}
                 className="w-full py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/80 transition-all"
@@ -2349,16 +2332,11 @@ export default function App() {
                   const { task, newDate } = pendingDateChange;
                   // Toda la serie: actualizar el startDate del template
                   const templateId = task.templateId;
-                  if (templateId) {
-                    setTasks(prev => {
-                      const template = prev[templateId];
-                      if (!template) return prev;
-                      const updatedTemplate = {
-                        ...template,
-                        recurrence: template.recurrence ? { ...template.recurrence, startDate: newDate } : template.recurrence,
-                        modifiedAt: new Date().toISOString()
-                      };
-                      return { ...prev, [templateId]: updatedTemplate };
+                  if (templateId && tasks[templateId]) {
+                    const template = tasks[templateId];
+                    handleUpdateTask({
+                      ...template,
+                      recurrence: template.recurrence ? { ...template.recurrence, startDate: newDate } : template.recurrence
                     });
                   }
                   setPendingDateChange(null);
@@ -5639,18 +5617,29 @@ function TaskCard({
                     onChange={(val: string) => onUpdateTask({ ...task, taskType: val })} 
                     isCompact={true}
                   />
-                  {!hasSubtasks && (
-                    <DatePickerChip 
-                      value={task.dueDate} 
-                      onChange={(date: string) => {
-                        if (task.templateId) {
-                          onRecurrenceDateChange && onRecurrenceDateChange(task, date);
-                        } else {
-                          onUpdateTask({ ...task, dueDate: date });
-                        }
-                      }} 
-                    />
-                  )}
+                  {(() => {
+                    if (task.templateId && task.id.includes('inst-t-1777828247976')) {
+                      console.log('[DATEPICKER DEBUG] Ingresos:', {
+                        id: task.id,
+                        hasSubtasks,
+                        subtasks: task.subtasks,
+                        templateId: task.templateId,
+                        shouldShowDatePicker: !hasSubtasks
+                      });
+                    }
+                    return !hasSubtasks && (
+                      <DatePickerChip 
+                        value={task.dueDate} 
+                        onChange={(date: string) => {
+                          if (task.templateId) {
+                            onRecurrenceDateChange && onRecurrenceDateChange(task, date);
+                          } else {
+                            onUpdateTask({ ...task, dueDate: date });
+                          }
+                        }} 
+                      />
+                    );
+                  })()}
                   {!hasSubtasks && (
                     <TimePickerChip
                       value={task.dueTime || ''}
