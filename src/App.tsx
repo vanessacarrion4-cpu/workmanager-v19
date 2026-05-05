@@ -485,8 +485,19 @@ export default function App() {
                 mappedTasks[task.parentTaskId].subtasks = [];
               }
               mappedTasks[task.parentTaskId].subtasks.push(task.id);
+              
+              // Debug Rutinas
+              if (task.parentTaskId === 'inst-t-1777828189938-2026-05-05') {
+                console.log('[DEBUG REBUILD] Subtarea encontrada para Rutinas:', task.id, task.title);
+              }
             }
           });
+          
+          // Debug: Ver subtasks final del contenedor Rutinas
+          const rutinasContainer = mappedTasks['inst-t-1777828189938-2026-05-05'];
+          if (rutinasContainer) {
+            console.log('[DEBUG REBUILD] Rutinas contenedor subtasks:', rutinasContainer.subtasks);
+          }
 
           // REPARACIÓN AUTOMÁTICA 1: Contenedores con datos prohibidos
           // Los contenedores solo tienen bloque + tipo. Cualquier otro dato debe limpiarse.
