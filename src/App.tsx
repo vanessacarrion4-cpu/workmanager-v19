@@ -779,7 +779,7 @@ export default function App() {
 
       // Log instancias completadas/excepcion que se preservan
       const preserved = Object.values(cleaned).filter((t: Task) => t.templateId && (t.isException || t.existsInSupabase));
-      console.log(`[GENERATION] Preserved ${preserved.length} exceptions/supabase instances:`, preserved.map((t: Task) => `${t.id}:${t.status}`));
+      console.log(`[GENERATION] Preserved ${preserved.length} exceptions/supabase instances:`, preserved.map((t: Task) => `${t.id}:${t.status}${t.isDeleted ? ':DELETED' : ''}`));
       
       // IMPORTANTE: NO borrar instancias de Supabase - son excepciones válidas (completadas/modificadas)
       // Antes borrábamos contenedores vacíos, pero eso también borraba subtareas completadas
