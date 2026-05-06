@@ -3533,7 +3533,16 @@ function DashboardView({
       if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
         return t.subtasks.some(subId => {
           const sub = allTasksMap[subId];
-          return sub && !sub.isDeleted && sub.dueDate === activeDate;
+          if (!sub || sub.isDeleted || sub.dueDate !== activeDate) return false;
+          
+          // Excluir subtareas delegadas sin tag real
+          if (sub.delegation) {
+            const tags = sub.tags || [];
+            const hasRealTag = tags.some((tag: string) => tag !== 'resto');
+            if (!hasRealTag) return false;
+          }
+          
+          return true;
         });
       }
       return false;
