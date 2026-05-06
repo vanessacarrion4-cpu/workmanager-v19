@@ -4569,54 +4569,44 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
   const dayTasks = useMemo(() => {
     if (!selectedDay) return [];
     const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
-    const all = Object.values(allTasksMap).filter((t: any) => {
-      if (!activeBlockIds.has(t.blockId)) return false;
-      if (t.isTemplate) return false;
-      if (t.isDeleted) return false;
-      if (t.status === 'completed') return false; // Excluir completadas
-      
-      // Tareas delegadas sin etiqueta real o con solo 'resto': no mostrar (igual que Dashboard)
-      if (t.delegation) {
-        const tags = t.tags || [];
-        const hasRealTag = tags.some((tag: string) => tag !== 'resto');
-        if (!hasRealTag) return false;
-      }
-      
-      // Subtareas: no aparecen solas (se muestran bajo su padre)
-      if (t.parentTaskId) return false;
-      
-      // Instancias generadas (tienen templateId): mostrar si tienen la fecha correcta
-      if (t.templateId) {
-        return t.dueDate === selectedDay;
-      }
-      
-      // Excepciones guardadas
-      if (t.isException) {
-        return t.dueDate === selectedDay;
-      }
-
-      // Templates originales (isTemplate:true): NUNCA mostrar — sus instancias se muestran arriba
-      if (t.isTemplate) return false;
-      
-      // Excluir templates con recurrencia propia
-      if (t.recurrence) return false;
-      
-      // Excluir contenedores padre de tareas recurrentes (son templates aunque isTemplate sea false)
-      if (t.subtasks && t.subtasks.length > 0) {
-        const hasRecurringChild = t.subtasks.some((subId: string) => {
-          const sub = allTasksMap[subId];
-          return sub && (sub.recurrence || sub.isTemplate);
-        });
-        if (hasRecurringChild) return false;
-      }
-      
-      // Tareas manuales normales: solo si tienen la fecha correcta
-      if (t.dueDate !== selectedDay) return false;
-      
-      return true;
-    });
     
-    // Opción B: contenedores se expanden — agrupar subtareas del mismo contenedor
+    // USAR LA MISMA LÓGICA QUE DASHBOARD
+    return tasks.filter((t: Task) => {
+      if (!activeBlockIds.has(t.blockId)) return false;
+      if (t.parentTaskId) return false;  // Excluir subtareas (se muestran bajo contenedor)
+      if (t.isDeleted) return false;
+      
+      // Filtrar completadas (igual que Dashboard con hideCompleted)
+      if (isTaskCompleted(t.id, allTasksMap)) return false;
+      
+      // Tarea con fecha: mostrar si es del día seleccionado
+      if (t.dueDate === selectedDay) return true;
+      
+      // Contenedor sin dueDate: aparece si tiene subtareas NO borradas en el día seleccionado
+      if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
+        return t.subtasks.some(subId => {
+          const sub = allTasksMap[subId];
+          if (!sub || sub.isDeleted || sub.dueDate !== selectedDay) return false;
+          
+          // Excluir subtareas delegadas sin tag real
+          if (sub.delegation) {
+            const tags = sub.tags || [];
+            const hasRealTag = tags.some((tag: string) => tag !== 'resto');
+            if (!hasRealTag) return false;
+          }
+          
+          return true;
+        });
+      }
+      
+      return false;
+    }).sort((a: Task, b: Task) => (a.order || 0) - (b.order || 0));
+  }, [tasks, selectedDay, blocks, allTasksMap]);
+  
+  // Agrupar tareas por tags (igual que Dashboard - Opción B)
+  const groupedTasks = useMemo(() => {
+    if (!selectedDay) return { con_hora: [], focus: [], dirección: [], espera: [], resto: [] };
+    
     const groups: any = {
       con_hora: [],
       focus: [],
@@ -4626,12 +4616,14 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
     };
 
     // Primero identificar contenedores y agrupar sus subtareas
-    const containerGroups: any = {}; // { parentId: { parentTitle, tag, subtasks: [...] } }
+    const containerGroups: any = {};
 
-    all.forEach((t: any) => {
+    dayTasks.forEach((t: any) => {
       const hasSubtasksToday = t.subtasks && t.subtasks.length > 0 && t.subtasks.some((subId: string) => {
         const sub = allTasksMap[subId];
-        if (!sub || sub.isDeleted || sub.status === 'completed' || sub.dueDate !== selectedDay) return false;
+        if (!sub || sub.isDeleted || sub.dueDate !== selectedDay) return false;
+        if (isTaskCompleted(sub.id, allTasksMap)) return false;
+        
         // Filtro delegación: excluir delegadas sin etiqueta real
         if (sub.delegation) {
           const tags = sub.tags || [];
@@ -4646,7 +4638,9 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
         const subsToday = t.subtasks
           .map((subId: string) => allTasksMap[subId])
           .filter((sub: any) => {
-            if (!sub || sub.isDeleted || sub.status === 'completed' || sub.dueDate !== selectedDay) return false;
+            if (!sub || sub.isDeleted || sub.dueDate !== selectedDay) return false;
+            if (isTaskCompleted(sub.id, allTasksMap)) return false;
+            
             // Filtro delegación
             if (sub.delegation) {
               const tags = sub.tags || [];
@@ -4670,10 +4664,7 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
           }
         }
       } else {
-        // Tarea huérfana normal (sin subtareas o contenedor sin subtareas del día)
-        // Si tiene subtareas, ya se procesó arriba - no mostrar aquí
-        if (t.subtasks && t.subtasks.length > 0) return; // contenedor sin subtareas hoy = no mostrar
-        
+        // Tarea huérfana normal (sin subtareas)
         const primaryTag = (t.tags && t.tags[0]) || 'resto';
         if (groups[primaryTag]) groups[primaryTag].push(t);
         else groups.resto.push(t);
@@ -4687,12 +4678,12 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
     });
 
     return groups;
-  }, [selectedDay, tasks, allTasksMap, blocks]);
+  }, [dayTasks, selectedDay, allTasksMap]);
  
   const totalGroups = useMemo(() => {
     if (!selectedDay) return 0;
-    return Object.values(dayTasks as any).flat().length;
-  }, [dayTasks, selectedDay]);
+    return Object.values(groupedTasks as any).flat().length;
+  }, [groupedTasks, selectedDay]);
  
   return (
     <motion.div 
@@ -4954,7 +4945,7 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
  
                 <div className="space-y-10">
                   {Object.entries(TAG_LABELS).map(([tag, label]: [any, any]) => {
-                    const groupTasks = (dayTasks as any)[tag] || [];
+                    const groupTasks = (groupedTasks as any)[tag] || [];
                     if (groupTasks.length === 0) return null;
  
                     return (
