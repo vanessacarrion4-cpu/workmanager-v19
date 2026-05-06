@@ -1678,6 +1678,25 @@ export default function App() {
   // --- Views ---
   const dashboardTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter(b => b && b.isActive).map(b => b.id));
+    
+    // DEBUG: Log para Jose Manuel Romero
+    const joseManuel = filteredTasks.find(t => t && t.title === 'Jose Manuel Romero');
+    if (joseManuel) {
+      console.log('[DEBUG Jose Manuel Romero]', {
+        id: joseManuel.id,
+        blockId: joseManuel.blockId,
+        blockActive: activeBlockIds.has(joseManuel.blockId),
+        isDeleted: joseManuel.isDeleted,
+        isTemplate: joseManuel.isTemplate,
+        parentTaskId: joseManuel.parentTaskId,
+        templateId: joseManuel.templateId,
+        delegation: joseManuel.delegation,
+        dueDate: joseManuel.dueDate,
+        subtasks: joseManuel.subtasks,
+        activeDate: activeDate
+      });
+    }
+    
     const result = filteredTasks.filter(t => {
       if (!t) return false;
 
