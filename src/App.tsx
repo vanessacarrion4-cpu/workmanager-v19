@@ -1678,25 +1678,6 @@ export default function App() {
   // --- Views ---
   const dashboardTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter(b => b && b.isActive).map(b => b.id));
-    
-    // DEBUG: Log para Jose Manuel Romero
-    const joseManuel = filteredTasks.find(t => t && t.title === 'Jose Manuel Romero');
-    if (joseManuel) {
-      console.log('[DEBUG Jose Manuel Romero]', {
-        id: joseManuel.id,
-        blockId: joseManuel.blockId,
-        blockActive: activeBlockIds.has(joseManuel.blockId),
-        isDeleted: joseManuel.isDeleted,
-        isTemplate: joseManuel.isTemplate,
-        parentTaskId: joseManuel.parentTaskId,
-        templateId: joseManuel.templateId,
-        delegation: joseManuel.delegation,
-        dueDate: joseManuel.dueDate,
-        subtasks: joseManuel.subtasks,
-        activeDate: activeDate
-      });
-    }
-    
     const result = filteredTasks.filter(t => {
       if (!t) return false;
 
@@ -1742,29 +1723,8 @@ export default function App() {
       // ── Contenedor padre sin dueDate propio ──
       // El padre aparece si alguna subtarea (instancia o excepción) tiene dueDate = hoy.
       if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
-        // DEBUG para Jose Manuel Romero
-        if (t.title === 'Jose Manuel Romero') {
-          console.log('[DEBUG] Evaluando subtareas de Jose Manuel Romero:', {
-            subtaskIds: t.subtasks,
-            activeDate: activeDate
-          });
-        }
-        
         const hasValidSubtask = t.subtasks.some(subId => {
           const sub = tasks[subId];
-          
-          // DEBUG para Jose Manuel Romero
-          if (t.title === 'Jose Manuel Romero') {
-            console.log('[DEBUG] Subtarea:', {
-              id: subId,
-              found: !!sub,
-              title: sub?.title,
-              dueDate: sub?.dueDate,
-              delegation: sub?.delegation,
-              tags: sub?.tags
-            });
-          }
-          
           if (!sub || sub.dueDate !== activeDate) return false;
           
           // Excluir subtareas delegadas sin tag real (solo 'resto' o sin tags)
@@ -1776,11 +1736,6 @@ export default function App() {
           
           return true;
         });
-        
-        // DEBUG para Jose Manuel Romero
-        if (t.title === 'Jose Manuel Romero') {
-          console.log('[DEBUG] Resultado final:', hasValidSubtask);
-        }
         
         // Si tiene subtareas válidas para hoy, mostrar el contenedor
         if (hasValidSubtask) return true;
@@ -1794,11 +1749,6 @@ export default function App() {
 
       return true;
     });
-    
-    // DEBUG: Ver si Jose Manuel está en el resultado final
-    const joseManuelInResult = result.find(t => t && t.title === 'Jose Manuel Romero');
-    console.log('[DEBUG] Jose Manuel en dashboardTasks final:', !!joseManuelInResult, 'Total tareas:', result.length);
-    
     return result;
   }, [filteredTasks, blocks, activeDate, tasks]);
  
@@ -3524,7 +3474,7 @@ function DashboardView({
  
   const dayTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
-    return tasks.filter((t: Task) => {
+    const result = tasks.filter((t: Task) => {
       if (!activeBlockIds.has(t.blockId)) return false;
       if (t.parentTaskId) return false;
       if (t.isDeleted) return false; // Nunca mostrar borradas
@@ -3547,6 +3497,12 @@ function DashboardView({
       }
       return false;
     }).sort((a: Task, b: Task) => (a.order || 0) - (b.order || 0));
+    
+    // DEBUG: Log único
+    const joseManuel = result.find(t => t.title === 'Jose Manuel Romero');
+    console.log('[DASHBOARD VIEW] dayTasks tiene Jose Manuel:', !!joseManuel, 'Total:', result.length);
+    
+    return result;
   }, [tasks, activeDate, blocks, allTasksMap]);
  
   const filteredDayTasks = useMemo(() => {
