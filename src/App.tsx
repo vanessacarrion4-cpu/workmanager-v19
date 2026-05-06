@@ -3508,15 +3508,24 @@ function DashboardView({
   const filteredDayTasks = useMemo(() => {
     const result = dayTasks.filter((t: Task) => !hideCompleted || !isTaskCompleted(t.id, allTasksMap));
     
-    // DEBUG
+    // DEBUG - Buscar contenedor Y subtarea
     const joseManuel = dayTasks.find(t => t.title === 'Jose Manuel Romero');
-    const joseManuelCompleted = joseManuel ? isTaskCompleted(joseManuel.id, allTasksMap) : null;
-    const joseManuelInFiltered = result.find(t => t.title === 'Jose Manuel Romero');
-    console.log('[FILTERED] Jose Manuel:', {
-      hideCompleted,
-      isCompleted: joseManuelCompleted,
-      inFiltered: !!joseManuelInFiltered,
-      totalFiltered: result.length
+    const pagoFactura = joseManuel ? allTasksMap[joseManuel.subtasks?.[0]] : null;
+    
+    console.log('[FILTERED]', {
+      contenedor: joseManuel ? {
+        title: joseManuel.title,
+        subtasks: joseManuel.subtasks,
+        tags: joseManuel.tags
+      } : 'NO ENCONTRADO',
+      subtarea: pagoFactura ? {
+        id: pagoFactura.id,
+        title: pagoFactura.title,
+        dueDate: pagoFactura.dueDate,
+        tags: pagoFactura.tags,
+        delegation: pagoFactura.delegation
+      } : 'NO ENCONTRADA',
+      contenedorInFiltered: result.find(t => t.title === 'Jose Manuel Romero') ? 'SÍ' : 'NO'
     });
     
     return result;
