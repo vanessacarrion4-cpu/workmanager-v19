@@ -1742,8 +1742,29 @@ export default function App() {
       // ── Contenedor padre sin dueDate propio ──
       // El padre aparece si alguna subtarea (instancia o excepción) tiene dueDate = hoy.
       if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
+        // DEBUG para Jose Manuel Romero
+        if (t.title === 'Jose Manuel Romero') {
+          console.log('[DEBUG] Evaluando subtareas de Jose Manuel Romero:', {
+            subtaskIds: t.subtasks,
+            activeDate: activeDate
+          });
+        }
+        
         const hasValidSubtask = t.subtasks.some(subId => {
           const sub = tasks[subId];
+          
+          // DEBUG para Jose Manuel Romero
+          if (t.title === 'Jose Manuel Romero') {
+            console.log('[DEBUG] Subtarea:', {
+              id: subId,
+              found: !!sub,
+              title: sub?.title,
+              dueDate: sub?.dueDate,
+              delegation: sub?.delegation,
+              tags: sub?.tags
+            });
+          }
+          
           if (!sub || sub.dueDate !== activeDate) return false;
           
           // Excluir subtareas delegadas sin tag real (solo 'resto' o sin tags)
@@ -1755,6 +1776,11 @@ export default function App() {
           
           return true;
         });
+        
+        // DEBUG para Jose Manuel Romero
+        if (t.title === 'Jose Manuel Romero') {
+          console.log('[DEBUG] Resultado final:', hasValidSubtask);
+        }
         
         // Si tiene subtareas válidas para hoy, mostrar el contenedor
         if (hasValidSubtask) return true;
