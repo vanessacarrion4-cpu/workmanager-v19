@@ -1794,6 +1794,11 @@ export default function App() {
 
       return true;
     });
+    
+    // DEBUG: Ver si Jose Manuel está en el resultado final
+    const joseManuelInResult = result.find(t => t && t.title === 'Jose Manuel Romero');
+    console.log('[DEBUG] Jose Manuel en dashboardTasks final:', !!joseManuelInResult, 'Total tareas:', result.length);
+    
     return result;
   }, [filteredTasks, blocks, activeDate, tasks]);
  
