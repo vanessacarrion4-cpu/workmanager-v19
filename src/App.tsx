@@ -1723,10 +1723,25 @@ export default function App() {
       // ── Contenedor padre sin dueDate propio ──
       // El padre aparece si alguna subtarea (instancia o excepción) tiene dueDate = hoy.
       if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
-        return t.subtasks.some(subId => {
+        const hasValidSubtask = t.subtasks.some(subId => {
           const sub = tasks[subId];
-          return sub && sub.dueDate === activeDate;
+          if (!sub || sub.dueDate !== activeDate) return false;
+          
+          // Excluir subtareas delegadas sin tag real (solo 'resto' o sin tags)
+          if (sub.delegation) {
+            const tags = sub.tags || [];
+            const hasRealTag = tags.some((tag: string) => tag !== 'resto');
+            if (!hasRealTag) return false;
+          }
+          
+          return true;
         });
+        
+        // Si tiene subtareas válidas para hoy, mostrar el contenedor
+        if (hasValidSubtask) return true;
+        
+        // Si no tiene subtareas válidas, excluir el contenedor (no caer en línea 1733)
+        return false;
       }
 
       // ── Tareas manuales normales (sin recurrencia, sin templateId) ──
