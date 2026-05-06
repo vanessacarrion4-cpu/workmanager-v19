@@ -3474,18 +3474,16 @@ function DashboardView({
  
   const dayTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
-    const result = tasks.filter((t: Task) => {
+    return tasks.filter((t: Task) => {
       if (!activeBlockIds.has(t.blockId)) return false;
       if (t.parentTaskId) return false;
-      if (t.isDeleted) return false; // Nunca mostrar borradas
+      if (t.isDeleted) return false;
       if (t.dueDate === activeDate) return true;
-      // Contenedor sin dueDate: aparece si tiene subtareas NO borradas en el día activo
       if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
         return t.subtasks.some(subId => {
           const sub = allTasksMap[subId];
           if (!sub || sub.isDeleted || sub.dueDate !== activeDate) return false;
           
-          // Excluir subtareas delegadas sin tag real
           if (sub.delegation) {
             const tags = sub.tags || [];
             const hasRealTag = tags.some((tag: string) => tag !== 'resto');
@@ -3497,38 +3495,10 @@ function DashboardView({
       }
       return false;
     }).sort((a: Task, b: Task) => (a.order || 0) - (b.order || 0));
-    
-    // DEBUG: Log único
-    const joseManuel = result.find(t => t.title === 'Jose Manuel Romero');
-    console.log('[DASHBOARD VIEW] dayTasks tiene Jose Manuel:', !!joseManuel, 'Total:', result.length);
-    
-    return result;
   }, [tasks, activeDate, blocks, allTasksMap]);
  
   const filteredDayTasks = useMemo(() => {
-    const result = dayTasks.filter((t: Task) => !hideCompleted || !isTaskCompleted(t.id, allTasksMap));
-    
-    // DEBUG - Buscar contenedor Y subtarea
-    const joseManuel = dayTasks.find(t => t.title === 'Jose Manuel Romero');
-    const pagoFactura = joseManuel ? allTasksMap[joseManuel.subtasks?.[0]] : null;
-    
-    console.log('[FILTERED]', {
-      contenedor: joseManuel ? {
-        title: joseManuel.title,
-        subtasks: joseManuel.subtasks,
-        tags: joseManuel.tags
-      } : 'NO ENCONTRADO',
-      subtarea: pagoFactura ? {
-        id: pagoFactura.id,
-        title: pagoFactura.title,
-        dueDate: pagoFactura.dueDate,
-        tags: pagoFactura.tags,
-        delegation: pagoFactura.delegation
-      } : 'NO ENCONTRADA',
-      contenedorInFiltered: result.find(t => t.title === 'Jose Manuel Romero') ? 'SÍ' : 'NO'
-    });
-    
-    return result;
+    return dayTasks.filter((t: Task) => !hideCompleted || !isTaskCompleted(t.id, allTasksMap));
   }, [dayTasks, hideCompleted, allTasksMap]);
  
   const stats = useMemo(() => {
@@ -3598,28 +3568,25 @@ function DashboardView({
       const isContainer = !!(t.subtasks && t.subtasks.length > 0);
 
       if (isContainer) {
-        // IMPORTANTE: No usar t.subtasks porque puede estar desactualizado si se movieron subtareas
-        // En su lugar, buscar TODAS las tareas del día activo que tengan parentTaskId apuntando al template de este contenedor
-        const containerTemplateId = t.templateId || t.id; // Si el contenedor es template, usar su ID; si es instancia, usar su templateId
+        // IMPORTANTE: Buscar TODAS las subtareas del día activo de este contenedor
+        // Puede ser un contenedor manual (con subtareas manuales) o un contenedor recurrente (con instancias)
+        const containerTemplateId = t.templateId || t.id;
         
-        // Buscar todas las subtareas que:
-        // 1. Tienen parentTaskId apuntando al template del contenedor
-        // 2. Tienen dueDate = activeDate
+        // CASO 1: Instancias recurrentes (templateId presente)
+        // CASO 2: Subtareas manuales (parentTaskId directo, sin templateId)
         const actualSubtasks = Object.values(allTasksMap).filter((task: Task) => {
-          if (!task.templateId) return false; // Solo instancias generadas o excepciones
-          if (task.isDeleted) return false; // NO incluir borradas
+          if (task.isDeleted) return false;
+          if (task.dueDate !== activeDate) return false;
           
-          // Buscar el template de esta subtarea para ver su parentTaskId
-          const subtaskTemplate = allTasksMap[task.templateId];
-          if (!subtaskTemplate) return false;
+          // CASO 1: Instancia recurrente - buscar por template
+          if (task.templateId) {
+            const subtaskTemplate = allTasksMap[task.templateId];
+            if (!subtaskTemplate) return false;
+            return subtaskTemplate.parentTaskId === containerTemplateId;
+          }
           
-          // ¿El template de esta subtarea tiene como padre el template del contenedor?
-          const isChildOfThisContainer = subtaskTemplate.parentTaskId === containerTemplateId;
-          
-          // ¿Esta subtarea es para el día activo?
-          const isForActiveDate = task.dueDate === activeDate;
-          
-          return isChildOfThisContainer && isForActiveDate;
+          // CASO 2: Subtarea manual - parentTaskId directo
+          return task.parentTaskId === t.id;
         });
         
         // Repartir el contenedor en cada grupo donde tenga subtareas con esa etiqueta
