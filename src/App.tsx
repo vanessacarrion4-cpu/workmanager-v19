@@ -3506,7 +3506,20 @@ function DashboardView({
   }, [tasks, activeDate, blocks, allTasksMap]);
  
   const filteredDayTasks = useMemo(() => {
-    return dayTasks.filter((t: Task) => !hideCompleted || !isTaskCompleted(t.id, allTasksMap));
+    const result = dayTasks.filter((t: Task) => !hideCompleted || !isTaskCompleted(t.id, allTasksMap));
+    
+    // DEBUG
+    const joseManuel = dayTasks.find(t => t.title === 'Jose Manuel Romero');
+    const joseManuelCompleted = joseManuel ? isTaskCompleted(joseManuel.id, allTasksMap) : null;
+    const joseManuelInFiltered = result.find(t => t.title === 'Jose Manuel Romero');
+    console.log('[FILTERED] Jose Manuel:', {
+      hideCompleted,
+      isCompleted: joseManuelCompleted,
+      inFiltered: !!joseManuelInFiltered,
+      totalFiltered: result.length
+    });
+    
+    return result;
   }, [dayTasks, hideCompleted, allTasksMap]);
  
   const stats = useMemo(() => {
