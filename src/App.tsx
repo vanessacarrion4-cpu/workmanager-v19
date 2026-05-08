@@ -1252,10 +1252,11 @@ export default function App() {
       if (updatedTask.recurrence && updatedTask.parentTaskId && updated[updatedTask.parentTaskId]) {
         const parent = updated[updatedTask.parentTaskId];
         if (!parent.isTemplate || parent.dueDate) {
-          updated[parent.id] = { ...parent, isTemplate: true, dueDate: null, modifiedAt: timestamp };
+          // NO actualizar modifiedAt del padre para evitar bucle infinito en templateKey
+          updated[parent.id] = { ...parent, isTemplate: true, dueDate: null };
           setTimeout(() => {
             supabase.from('tasks')
-              .update({ is_template: true, due_date: null, modified_at: timestamp })
+              .update({ is_template: true, due_date: null })
               .eq('id', parent.id)
               .then(({ error }) => {
                 if (error) console.error('[SUPABASE] Error propagando isTemplate al padre:', error);
