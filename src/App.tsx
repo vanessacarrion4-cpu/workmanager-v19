@@ -4718,7 +4718,7 @@ function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, on
                         </h3>
                         <div className="flex items-center gap-3 mt-1">
                           {selectedDay >= formatLocalISO(new Date()) && (
-                            <p className="text-[9px] font-black text-turquesa uppercase tracking-[0.2em]">Carga: {projectLoadForDay(selectedDay, allTasksMap)}m</p>
+                            <p className="text-[9px] font-black text-turquesa uppercase tracking-[0.2em]">Carga: {getStatsForDay(dayTasks, allTasksMap, [], selectedDay).estimatedPending}m</p>
                           )}
                           {selectedDay >= formatLocalISO(new Date()) && <span className="dark:text-text-secondary text-text-secondary-light opacity-30 text-[9px]">•</span>}
                           <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">{totalGroups} tareas</p>
