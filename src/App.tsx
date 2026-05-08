@@ -1085,6 +1085,14 @@ export default function App() {
     (async () => {
       try {
         const isInstance = !!updatedTask.templateId;
+        
+        // Si parentTaskId apunta a una instancia en memoria (empieza por 'inst-'),
+        // usar el templateId del padre para evitar FK constraint en Supabase
+        let supabaseParentId = isInstance ? null : (updatedTask.parentTaskId || null);
+        if (supabaseParentId && supabaseParentId.startsWith('inst-')) {
+          const parentInstance = tasks[supabaseParentId];
+          supabaseParentId = parentInstance?.templateId || null;
+        }
         // Para instancias: parent_task_id null para evitar FK constraint
         // La jerarquía se reconstruye en memoria via generateInstances
         const dbTask = {
@@ -1109,7 +1117,7 @@ export default function App() {
           is_deleted: updatedTask.isDeleted || false,
           is_expanded: updatedTask.isExpanded,
           task_type: updatedTask.taskType,
-          parent_task_id: isInstance ? null : (updatedTask.parentTaskId || null), // null para instancias
+          parent_task_id: supabaseParentId,
           template_id: updatedTask.templateId || null,
           instance_date: updatedTask.instanceDate || null,
           recurrence: isInstance ? null : (updatedTask.recurrence || null),
