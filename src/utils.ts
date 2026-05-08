@@ -74,7 +74,17 @@ export function generateInstances(
 ): Task[] {
   if (!allTasks) return [];
   const newInstances: Task[] = [];
-  const templates = Object.values(allTasks).filter(t => t && !t.parentTaskId && t.isActive !== false && isTaskRepetitive(t.id, allTasks));
+  // CRÍTICO: Solo procesar templates REALES (isTemplate:true, sin templateId propio)
+  // Excluir instancias generadas (tienen templateId) para evitar inst-inst-... y bucles
+  const templates = Object.values(allTasks).filter(t => 
+    t && 
+    !t.parentTaskId && 
+    t.isActive !== false && 
+    t.isTemplate === true &&      // Solo templates reales
+    !t.templateId &&              // Nunca instancias
+    !t.isDeleted &&               // Nunca borrados
+    isTaskRepetitive(t.id, allTasks)
+  );
   
   const startDate = parseLocalISO(startDateStr);
   
