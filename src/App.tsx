@@ -5242,7 +5242,7 @@ function TaskCard({
                       </div>
                     );
                   })()}
-                  {!hasSubtasks && (
+                  {!hasSubtasks && !task.templateId && (
                     <RecurrencePickerChip 
                       value={task.recurrence}
                       onChange={(rec: any) => onUpdateTask({ 
