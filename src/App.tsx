@@ -88,7 +88,10 @@ import { DashboardView } from './DashboardView';
 import { CalendarView } from './CalendarView';
 import { 
   TaskCard, BulkActionBar, DashboardHarmonicCalendar, RecurrenceChoiceModal,
-  BlockModal, TimeManagementPanel, SearchView, getTagColor
+  BlockModal, TimeManagementPanel, SearchView, getTagColor,
+  DelegationChip, DatePickerChip, TagPickerChip, RecurrencePickerChip,
+  EstimatedTimeChip, RegisteredTimeChip, BlockPickerChip, TimePickerChip,
+  TaskTypeChip, TimerDisplay, ToggleExpandButton, MonthDatePicker
 } from './components';
  
 // --- Storage Key ---
