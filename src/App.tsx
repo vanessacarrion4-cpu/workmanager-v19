@@ -592,6 +592,11 @@ export default function App() {
     if (task?.templateId) {
       // Es una instancia → modal de recurrencia
       setRecurrenceAction({ taskId, type: 'delete', ruleId: task.templateId });
+    } else if (task?.isTemplate && (task?.recurrence || (task?.subtasks && task.subtasks.some((subId: string) => tasks[subId]?.recurrence)))) {
+      // Es un template recurrente → confirmar borrado de toda la serie
+      if (confirm(`¿Borrar "${task.title}" y todas sus instancias futuras?`)) {
+        handleDeleteTask(taskId);
+      }
     } else {
       handleDeleteTask(taskId);
     }
