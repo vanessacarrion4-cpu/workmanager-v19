@@ -488,6 +488,10 @@ export default function App() {
               }
             }
           });
+          
+          // DEBUG: Ver subtasks del contenedor
+          const gc2 = mappedTasks['t-1778265159875'];
+          if (gc2) console.log('[DEBUG] Gestion campaña 2 subtasks:', gc2.subtasks);
 
           // SEGUNDA PASADA: Reconstruir jerarquía de instancias que tienen parentTaskId=null en BD
           // Las instancias se guardan sin parentTaskId (evitar FK constraint) pero se pueden
