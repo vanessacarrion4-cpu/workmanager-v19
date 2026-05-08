@@ -3539,45 +3539,7 @@ function DashboardView({
       { hideCompleted, hideDelegatedNoTag: true }
     );
   }, [filteredDayTasks, allTasksMap, activeDate, hideCompleted]);
-          if (groups[tag as TagType]) {
-            groups[tag as TagType].push({ task: t, subtasksForGroup: subIds });
-          } else {
-            groups.resto.push({ task: t, subtasksForGroup: subIds });
-          }
-        });
-      } else {
-        // Tarea normal: va a su grupo por etiqueta
-        const primaryTag = (t.tags && t.tags[0]) || 'resto';
-        const group = groups[primaryTag as TagType] || groups.resto;
-        group.push({ task: t, subtasksForGroup: null });
-      }
-    });
 
-    // Ordenar dentro de cada grupo
-    tagOrder.forEach(tag => {
-      groups[tag].sort((a, b) => (a.task.order || 0) - (b.task.order || 0));
-    });
-    groups.con_hora.sort((a, b) => (a.task.dueTime || '99:99').localeCompare(b.task.dueTime || '99:99'));
-
-    // Si está congelado y tenemos un orden guardado, aplicar ese orden
-    if (isFrozen && frozenOrderRef.current.length > 0) {
-      const orderMap = new Map(frozenOrderRef.current.map((id, i) => [id, i]));
-      tagOrder.forEach(tag => {
-        groups[tag].sort((a, b) => {
-          const ia = orderMap.has(a.task.id) ? orderMap.get(a.task.id)! : 999;
-          const ib = orderMap.has(b.task.id) ? orderMap.get(b.task.id)! : 999;
-          return ia - ib;
-        });
-      });
-    } else {
-      // Guardar orden actual
-      const allIds = tagOrder.flatMap(tag => groups[tag].map(e => e.task.id));
-      frozenOrderRef.current = allIds;
-    }
-
-    return groups;
-  }, [filteredDayTasks, hideCompleted, allTasksMap, activeDate, isFrozen]);
- 
   const formatDate = (dateStr: string) => {
     const d = parseLocalISO(dateStr);
     const dayName = new Intl.DateTimeFormat('es-ES', { weekday: 'long' }).format(d);
