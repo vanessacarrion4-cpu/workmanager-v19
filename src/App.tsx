@@ -938,6 +938,7 @@ export default function App() {
     }
  
     if (task?.templateId) {
+      // Es una instancia → modal de recurrencia
       setRecurrenceAction({ taskId, type: 'delete', ruleId: task.templateId });
     } else {
       handleDeleteTask(taskId);
@@ -1461,7 +1462,30 @@ export default function App() {
     };
     collectRecursive(taskId);
 
+    // Si es un template recurrente, también recoger y borrar todas sus instancias en memoria
+    if (task.isTemplate && !task.templateId) {
+      Object.values(updatedTasks).forEach((t: Task) => {
+        if (!t || idsToDelete.find(d => d.id === t.id)) return;
+        // Instancia directa del template
+        if (t.templateId === taskId) {
+          idsToDelete.push(t);
+        }
+        // Instancia de subtarea cuyo template tiene este padre
+        if (t.templateId) {
+          const tTemplate = updatedTasks[t.templateId];
+          if (tTemplate && tTemplate.parentTaskId === taskId) {
+            idsToDelete.push(t);
+          }
+        }
+      });
+    }
+
     removeRecursive(taskId);
+    
+    // Borrar instancias de memoria también
+    idsToDelete.forEach(t => {
+      if (t.id !== taskId) delete updatedTasks[t.id];
+    });
     setTasks(updatedTasks);
 
     // --- Soft delete en Supabase para TODOS (tarea + subtareas) ---
