@@ -776,8 +776,8 @@ export default function App() {
   const prevTemplateKeyRef = useRef<string>('');
   const templateKey = useMemo(() => {
     return Object.values(tasks)
-      .filter(t => t && t.isTemplate && !t.templateId)
-      .map(t => `${t.id}:${t.modifiedAt}`)
+      .filter(t => t && t.isTemplate && !t.templateId && !t.isDeleted)
+      .map(t => `${t.id}:${t.recurrence ? JSON.stringify(t.recurrence) : 'norecurrence'}:${t.isActive}`)
       .sort()
       .join('|');
   }, [tasks]);
