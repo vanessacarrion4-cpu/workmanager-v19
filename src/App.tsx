@@ -773,6 +773,7 @@ export default function App() {
   // Evita bucle infinito al no depender de 'tasks' directamente
   // templateKey: solo cambia cuando se añaden/modifican templates reales.
   // Usamos useRef para evitar que las instancias generadas relancen el effect.
+  const generationCountRef = useRef<number>(0);
   const prevTemplateKeyRef = useRef<string>('');
   const templateKey = useMemo(() => {
     return Object.values(tasks)
@@ -785,8 +786,16 @@ export default function App() {
   useEffect(() => {
     if (!isDataLoaded) return;
     if (templateKey === prevTemplateKeyRef.current && prevTemplateKeyRef.current !== '') return;
+    
+    // Protección contra bucle infinito
+    generationCountRef.current += 1;
+    if (generationCountRef.current > 20) {
+      console.error('[GENERATION] ⛔ Bucle infinito detectado - abortando');
+      return;
+    }
+    
     prevTemplateKeyRef.current = templateKey;
-    console.log('[GENERATION] useEffect triggered');
+    console.log('[GENERATION] useEffect triggered #', generationCountRef.current);
     const today = formatLocalISO(new Date());
     const start = today;
     setTasks(prev => {
