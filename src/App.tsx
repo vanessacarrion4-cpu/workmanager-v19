@@ -912,7 +912,48 @@ export default function App() {
 
       // CRÍTICO: si esta subtarea tiene recurrencia, el padre debe ser isTemplate:true y dueDate:null
       if (updatedTask.recurrence && updatedTask.parentTaskId && updated[updatedTask.parentTaskId]) {
-        const parent = updated[updatedTask.parentTaskId];
+        let parent = updated[updatedTask.parentTaskId];
+        
+        // Si el padre es una INSTANCIA (tiene templateId), redirigir al template original
+        // Esto ocurre cuando se añade subtarea recurrente desde el Dashboard
+        if (parent.templateId && updated[parent.templateId]) {
+          const realParentTemplateId = parent.templateId;
+          const realParent = updated[realParentTemplateId];
+          
+          // Reconectar la subtarea al template padre real
+          updated[updatedTask.id] = {
+            ...updated[updatedTask.id],
+            parentTaskId: realParentTemplateId
+          };
+          
+          // Actualizar subtasks del template padre
+          if (!realParent.subtasks.includes(updatedTask.id)) {
+            updated[realParentTemplateId] = {
+              ...realParent,
+              subtasks: [...realParent.subtasks, updatedTask.id]
+            };
+          }
+          
+          // Quitar del array de subtasks de la instancia
+          updated[parent.id] = {
+            ...parent,
+            subtasks: (parent.subtasks || []).filter((id: string) => id !== updatedTask.id)
+          };
+
+          // Persistir el cambio de parentTaskId en Supabase
+          setTimeout(() => {
+            supabase.from('tasks')
+              .update({ parent_task_id: realParentTemplateId })
+              .eq('id', updatedTask.id)
+              .then(({ error }) => {
+                if (error) console.error('[SUPABASE] Error reconectando subtarea al template:', error);
+                else console.log('[SUPABASE] Subtarea reconectada al template padre:', realParentTemplateId);
+              });
+          }, 0);
+          
+          parent = realParent; // Usar el template real para el resto de la lógica
+        }
+        
         if (!parent.isTemplate || parent.dueDate) {
           // NO actualizar modifiedAt del padre para evitar bucle infinito en templateKey
           updated[parent.id] = { ...parent, isTemplate: true, dueDate: null };
