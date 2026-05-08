@@ -950,7 +950,7 @@ export default function App() {
           modifiedAt: instanceTimestamp
         };
 
-        // Crear instancia para el día actual
+        // Crear instancia para el día actual (sin recurrence - eso es del template)
         updated[instanceId] = {
           ...updatedTask,
           id: instanceId,
@@ -960,6 +960,7 @@ export default function App() {
           isTemplate: false,
           isException: true,
           existsInSupabase: true,
+          recurrence: null, // Las instancias NO tienen recurrence, solo el template
           createdAt: instanceTimestamp,
           modifiedAt: instanceTimestamp
         };
@@ -1001,6 +1002,7 @@ export default function App() {
             is_active: true,
             is_exception: true,
             is_deleted: false,
+            recurrence: null, // Las instancias NO tienen recurrence
             created_at: instanceTimestamp,
             modified_at: instanceTimestamp
           }, { onConflict: 'id' }).then(({ error }) => {
