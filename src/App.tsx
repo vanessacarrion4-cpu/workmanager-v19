@@ -384,12 +384,13 @@ export default function App() {
 
         if (blocksError) throw blocksError;
 
-        // Cargar tareas: templates, tareas manuales, Y instancias modificadas (excepciones)
-        // Las instancias normales se generan en memoria, pero las excepciones (completadas, editadas) se cargan de BD
+        // Cargar tareas: templates activos, tareas manuales, Y instancias modificadas (excepciones)
+        // Las instancias normales se generan en memoria
+        // Cargamos TODO y filtramos en memoria para tener control total
         const { data: tasksData, error: tasksError } = await supabase
           .from('tasks')
           .select('*')
-          .or('template_id.is.null,is_exception.eq.true') // Templates/manuales + excepciones (incluye borradas)
+          .or('template_id.is.null,is_exception.eq.true')
           .order('order', { ascending: true });
 
         if (tasksError) throw tasksError;
@@ -483,7 +484,8 @@ export default function App() {
               if (!mappedTasks[task.parentTaskId].subtasks) {
                 mappedTasks[task.parentTaskId].subtasks = [];
               }
-              if (!mappedTasks[task.parentTaskId].subtasks.includes(task.id)) {
+              // NO añadir subtareas borradas al array del padre
+              if (!task.isDeleted && !mappedTasks[task.parentTaskId].subtasks.includes(task.id)) {
                 mappedTasks[task.parentTaskId].subtasks.push(task.id);
               }
             }
