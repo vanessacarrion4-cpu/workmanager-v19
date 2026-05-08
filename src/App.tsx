@@ -1896,6 +1896,8 @@ export default function App() {
                 BulkActionBar={BulkActionBar}
                 ToggleExpandButton={ToggleExpandButton}
               />
+            )}
+            {currentView === 'calendar' && (
               <CalendarView 
                 tasks={allActiveTasks} 
                 allTasksMap={tasks}
