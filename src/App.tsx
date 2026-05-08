@@ -832,11 +832,11 @@ export default function App() {
       // Esto soluciona el caso donde el contenedor existe en Supabase pero sus subtareas no
       instantiated.forEach(t => {
         if (t.parentTaskId && t.subtasks !== undefined) return; // Es subtarea, no contenedor
-        if (!t.templateId) return; // No es instancia
+        if (!t.templateId) return; // No es instancia (evitar modificar templates → bucle infinito)
         if (!t.subtasks || t.subtasks.length === 0) return; // No tiene subtareas generadas
         
         const existingContainer = updated[t.id];
-        if (existingContainer && existingContainer.existsInSupabase) {
+        if (existingContainer && existingContainer.existsInSupabase && !existingContainer.isTemplate) {
           // Merge: preservar subtareas existentes de Supabase + añadir las generadas
           const existingSubIds = new Set(existingContainer.subtasks || []);
           const newSubIds = t.subtasks.filter((id: string) => !existingSubIds.has(id));
@@ -854,10 +854,11 @@ export default function App() {
       // ya existía en Supabase con subtasks=[]
       instantiated.forEach(t => {
         if (!t.parentTaskId) return; // Solo subtareas
-        if (!t.templateId) return; // Solo instancias
+        if (!t.templateId) return; // Solo instancias (evitar modificar templates → bucle infinito)
         
         const parent = updated[t.parentTaskId];
-        if (parent && !parent.subtasks?.includes(t.id)) {
+        // Solo modificar si el padre es una INSTANCIA (tiene templateId), nunca un template
+        if (parent && parent.templateId && !parent.subtasks?.includes(t.id)) {
           updated[t.parentTaskId] = {
             ...parent,
             subtasks: [...(parent.subtasks || []), t.id]
