@@ -776,6 +776,24 @@ export default function App() {
     // --- Sync to Supabase ---
     (async () => {
       try {
+        // Si el padre es una instancia en memoria (id empieza por 'inst-'),
+        // NO existe en Supabase → usar el templateId del padre como parent_task_id
+        // para evitar FK constraint violation
+        let supabaseParentId = newTask.parentTaskId || null;
+        if (supabaseParentId && supabaseParentId.startsWith('inst-')) {
+          const parentInstance = tasks[supabaseParentId];
+          if (parentInstance?.templateId) {
+            supabaseParentId = parentInstance.templateId;
+            // También actualizar en memoria
+            setTasks(prev => ({
+              ...prev,
+              [newTask.id]: { ...prev[newTask.id], parentTaskId: supabaseParentId }
+            }));
+          } else {
+            supabaseParentId = null; // Fallback: sin padre en Supabase
+          }
+        }
+
         const dbTask = {
           id: newTask.id,
           block_id: newTask.blockId,
@@ -792,7 +810,7 @@ export default function App() {
           is_template: newTask.isTemplate || false,
           is_active: true,
           is_deleted: false,
-          parent_task_id: newTask.parentTaskId || null,
+          parent_task_id: supabaseParentId,
           template_id: newTask.templateId || null,
           instance_date: newTask.instanceDate || null,
           recurrence: newTask.recurrence || null,
