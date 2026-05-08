@@ -927,6 +927,88 @@ export default function App() {
           }, 0);
         }
       }
+
+      // CRÍTICO: si una tarea raíz del Dashboard recibe recurrencia,
+      // debe convertirse en template y crear una instancia para el día actual.
+      // Sin esto, generateInstances no la procesa y desaparece al recargar.
+      if (
+        updatedTask.recurrence &&
+        !updatedTask.parentTaskId &&
+        !updatedTask.templateId &&
+        !updatedTask.isTemplate
+      ) {
+        const instanceDate = updatedTask.dueDate || formatLocalISO(new Date());
+        const instanceId = `inst-${updatedTask.id}-${instanceDate}`;
+        const instanceTimestamp = new Date().toISOString();
+
+        // Convertir la tarea en template
+        updated[updatedTask.id] = {
+          ...updatedTask,
+          isTemplate: true,
+          dueDate: null,
+          dueTime: null,
+          modifiedAt: instanceTimestamp
+        };
+
+        // Crear instancia para el día actual
+        updated[instanceId] = {
+          ...updatedTask,
+          id: instanceId,
+          templateId: updatedTask.id,
+          dueDate: instanceDate,
+          instanceDate,
+          isTemplate: false,
+          isException: true,
+          existsInSupabase: true,
+          createdAt: instanceTimestamp,
+          modifiedAt: instanceTimestamp
+        };
+
+        // Persistir template en Supabase
+        setTimeout(() => {
+          supabase.from('tasks')
+            .update({ 
+              is_template: true, 
+              due_date: null, 
+              due_time: null,
+              recurrence: updatedTask.recurrence,
+              modified_at: instanceTimestamp
+            })
+            .eq('id', updatedTask.id)
+            .then(({ error }) => {
+              if (error) console.error('[SUPABASE] Error convirtiendo a template:', error);
+              else console.log('[SUPABASE] Tarea convertida a template:', updatedTask.title);
+            });
+
+          // Persistir instancia del día en Supabase
+          supabase.from('tasks').upsert({
+            id: instanceId,
+            block_id: updatedTask.blockId,
+            parent_task_id: null,
+            template_id: updatedTask.id,
+            instance_date: instanceDate,
+            title: updatedTask.title,
+            notes: updatedTask.notes || '',
+            priority: updatedTask.priority || 'media',
+            status: updatedTask.status,
+            due_date: instanceDate,
+            due_time: updatedTask.dueTime || null,
+            estimated_minutes: updatedTask.estimatedMinutes || 0,
+            actual_minutes: updatedTask.actualMinutes || 0,
+            tags: updatedTask.tags || [],
+            delegation: updatedTask.delegation || null,
+            is_template: false,
+            is_active: true,
+            is_exception: true,
+            is_deleted: false,
+            created_at: instanceTimestamp,
+            modified_at: instanceTimestamp
+          }, { onConflict: 'id' }).then(({ error }) => {
+            if (error) console.error('[SUPABASE] Error creando instancia del día:', error);
+            else console.log('[SUPABASE] Instancia del día creada:', instanceId);
+          });
+        }, 0);
+      }
       
       return updated;
     });
