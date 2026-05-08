@@ -483,7 +483,40 @@ export default function App() {
               if (!mappedTasks[task.parentTaskId].subtasks) {
                 mappedTasks[task.parentTaskId].subtasks = [];
               }
-              mappedTasks[task.parentTaskId].subtasks.push(task.id);
+              if (!mappedTasks[task.parentTaskId].subtasks.includes(task.id)) {
+                mappedTasks[task.parentTaskId].subtasks.push(task.id);
+              }
+            }
+          });
+
+          // SEGUNDA PASADA: Reconstruir jerarquía de instancias que tienen parentTaskId=null en BD
+          // Las instancias se guardan sin parentTaskId (evitar FK constraint) pero se pueden
+          // reconstruir usando: templateId → template.parentTaskId → buscar instancia del contenedor padre
+          Object.values(mappedTasks).forEach(task => {
+            if (!task.templateId) return; // Solo instancias
+            if (task.parentTaskId) return; // Ya tiene padre
+            if (task.isDeleted) return;
+            
+            const template = mappedTasks[task.templateId];
+            if (!template || !template.parentTaskId) return;
+            
+            // El template de esta subtarea tiene un padre (contenedor template)
+            // Buscar la instancia del contenedor para este mismo día
+            const parentTemplateId = template.parentTaskId;
+            const instanceDate = task.instanceDate || task.dueDate;
+            if (!instanceDate) return;
+            
+            // Buscar la instancia del contenedor padre para este día
+            const parentInstanceId = `inst-${parentTemplateId}-${instanceDate}`;
+            const parentInstance = mappedTasks[parentInstanceId];
+            
+            if (parentInstance) {
+              // Conectar esta instancia al contenedor padre
+              task.parentTaskId = parentInstanceId;
+              if (!parentInstance.subtasks) parentInstance.subtasks = [];
+              if (!parentInstance.subtasks.includes(task.id)) {
+                parentInstance.subtasks.push(task.id);
+              }
             }
           });
 
@@ -785,21 +818,53 @@ export default function App() {
       if (instantiated.length === 0) return cleaned;
       const updated = { ...cleaned };
       let addedCount = 0;
+      
+      // PASO 1: Añadir todas las instancias nuevas
       instantiated.forEach(t => {
         if (!updated[t.id]) {
           updated[t.id] = t;
           addedCount++;
-        } else {
-          // La tarea ya existe (excepción/supabase)
-          // Si es un contenedor, actualizar su array subtasks con las instancias generadas
-          if (t.subtasks && t.subtasks.length > 0) {
+        }
+      });
+      
+      // PASO 2: Para contenedores que ya existían en Supabase (existsInSupabase=true),
+      // actualizar sus subtasks con las instancias generadas para ese día
+      // Esto soluciona el caso donde el contenedor existe en Supabase pero sus subtareas no
+      instantiated.forEach(t => {
+        if (t.parentTaskId && t.subtasks !== undefined) return; // Es subtarea, no contenedor
+        if (!t.templateId) return; // No es instancia
+        if (!t.subtasks || t.subtasks.length === 0) return; // No tiene subtareas generadas
+        
+        const existingContainer = updated[t.id];
+        if (existingContainer && existingContainer.existsInSupabase) {
+          // Merge: preservar subtareas existentes de Supabase + añadir las generadas
+          const existingSubIds = new Set(existingContainer.subtasks || []);
+          const newSubIds = t.subtasks.filter((id: string) => !existingSubIds.has(id));
+          if (newSubIds.length > 0) {
             updated[t.id] = {
-              ...updated[t.id],
-              subtasks: t.subtasks
+              ...existingContainer,
+              subtasks: [...(existingContainer.subtasks || []), ...newSubIds]
             };
           }
         }
       });
+      
+      // PASO 3: Para subtareas generadas, asegurarse que su contenedor las referencia
+      // Esto soluciona el caso donde generateInstances crea subtareas pero el contenedor
+      // ya existía en Supabase con subtasks=[]
+      instantiated.forEach(t => {
+        if (!t.parentTaskId) return; // Solo subtareas
+        if (!t.templateId) return; // Solo instancias
+        
+        const parent = updated[t.parentTaskId];
+        if (parent && !parent.subtasks?.includes(t.id)) {
+          updated[t.parentTaskId] = {
+            ...parent,
+            subtasks: [...(parent.subtasks || []), t.id]
+          };
+        }
+      });
+      
       console.log(`[GENERATION] Added ${addedCount} new instances`);
       
       return updated;
@@ -3480,18 +3545,26 @@ function DashboardView({
       if (t.isDeleted) return false;
       if (t.dueDate === activeDate) return true;
       if (!t.dueDate && t.subtasks && t.subtasks.length > 0) {
-        return t.subtasks.some(subId => {
+        // CASO 1: buscar en t.subtasks (IDs guardados)
+        const hasSubtaskInArray = t.subtasks.some(subId => {
           const sub = allTasksMap[subId];
           if (!sub || sub.isDeleted || sub.dueDate !== activeDate) return false;
-          
           if (sub.delegation) {
             const tags = sub.tags || [];
             const hasRealTag = tags.some((tag: string) => tag !== 'resto');
             if (!hasRealTag) return false;
           }
-          
           return true;
         });
+        if (hasSubtaskInArray) return true;
+        
+        // CASO 2: buscar subtareas manuales que apuntan a este contenedor por parentTaskId
+        const hasManualSubtask = Object.values(allTasksMap).some((sub: Task) => {
+          if (!sub || sub.isDeleted || sub.dueDate !== activeDate) return false;
+          if (sub.templateId) return false; // No es manual
+          return sub.parentTaskId === t.id;
+        });
+        return hasManualSubtask;
       }
       return false;
     }).sort((a: Task, b: Task) => (a.order || 0) - (b.order || 0));
@@ -3585,8 +3658,8 @@ function DashboardView({
             return subtaskTemplate.parentTaskId === containerTemplateId;
           }
           
-          // CASO 2: Subtarea manual - parentTaskId directo
-          return task.parentTaskId === t.id;
+          // CASO 2: Subtarea manual - parentTaskId puede apuntar al contenedor instancia O al template
+          return task.parentTaskId === t.id || task.parentTaskId === containerTemplateId;
         });
         
         // Repartir el contenedor en cada grupo donde tenga subtareas con esa etiqueta
