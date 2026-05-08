@@ -22,6 +22,7 @@ import { motion } from 'framer-motion';
 import { Reorder } from 'framer-motion';
 import { WorkBlock, Task } from './types';
 import { isTaskRepetitive } from './utils';
+import { TaskCard, BulkActionBar, ToggleExpandButton } from './components';
 
 // Componentes compartidos importados desde App.tsx vía props
 // (TaskCard, BulkActionBar, ToggleExpandButton se pasan como props o se importarán
@@ -76,7 +77,7 @@ interface BlocksViewProps {
   // Componentes compartidos pasados como props hasta que se extraigan
   TaskCard: React.ComponentType<any>;
   BulkActionBar: React.ComponentType<any>;
-  ToggleExpandButton: React.ComponentType<any>;
+  setBulkTimeModal?: ((open: boolean) => void) | null;
 }
 
 export function BlocksManagerView({
@@ -88,8 +89,7 @@ export function BlocksManagerView({
   onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(),
   onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null,
   bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null,
-  setBulkDateModal = null, setBulkTimeModal = null,
-  TaskCard, BulkActionBar, ToggleExpandButton
+  setBulkDateModal = null, setBulkTimeModal = null
 }: BlocksViewProps) {
 
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);

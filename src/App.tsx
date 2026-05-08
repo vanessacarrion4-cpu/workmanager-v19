@@ -86,6 +86,10 @@ import { useGeneration } from './useGeneration';
 import { BlocksManagerView } from './BlocksView';
 import { DashboardView } from './DashboardView';
 import { CalendarView } from './CalendarView';
+import { 
+  TaskCard, BulkActionBar, DashboardHarmonicCalendar, RecurrenceChoiceModal,
+  BlockModal, TimeManagementPanel, SearchView, getTagColor
+} from './components';
  
 // --- Storage Key ---
 const STORAGE_KEY = 'workmanager-v19-data-v1';
@@ -1842,9 +1846,6 @@ export default function App() {
                 setBulkDateModal={setBulkDateModal}
                 bulkTimeModal={bulkTimeModal}
                 setBulkTimeModal={setBulkTimeModal}
-                TaskCard={TaskCard}
-                BulkActionBar={BulkActionBar}
-                DashboardHarmonicCalendar={DashboardHarmonicCalendar}
               />
             )}
             {currentView === 'blocks' && (
@@ -1897,9 +1898,6 @@ export default function App() {
                 setBulkDelegateModal={setBulkDelegateModal}
                 setBulkDateModal={setBulkDateModal}
                 setBulkTimeModal={setBulkTimeModal}
-                TaskCard={TaskCard}
-                BulkActionBar={BulkActionBar}
-                ToggleExpandButton={ToggleExpandButton}
               />
             )}
             {currentView === 'calendar' && (
@@ -3178,97 +3176,6 @@ function BulkTimeModal({ onConfirm, onClose }: any) {
 }
 
 // --- Bulk Action Bar Component ---
-function BulkActionBar({ 
-  count, 
-  onDelegate, 
-  onChangeDate, 
-  onComplete, 
-  onChangeTime, 
-  onDuplicate, 
-  onDelete, 
-  onCancel,
-  isMobile = false 
-}: any) {
-  return (
-    <div className={`${isMobile ? 'fixed bottom-0 left-0 right-0' : 'sticky top-0'} z-50 dark:bg-bg-card bg-white border-t dark:border-border-main border-border-main-light shadow-2xl`}>
-      <div className="flex items-center gap-2 px-4 py-3">
-        <div className="flex items-center gap-2 flex-1">
-          <div className="w-6 h-6 rounded-full bg-azul/20 border-2 border-azul flex items-center justify-center">
-            <Check size={12} className="text-azul" />
-          </div>
-          <span className="text-sm font-black dark:text-white text-text-main-light">
-            {count} seleccionada{count !== 1 ? 's' : ''}
-          </span>
-        </div>
-        
-        <div className="flex items-center gap-1.5">
-          <button 
-            onClick={onDelegate}
-            className="px-3 py-2 rounded-xl bg-morado/10 border border-morado/30 text-morado hover:bg-morado/20 transition-all flex items-center gap-1.5 text-xs font-bold"
-            title="Delegar"
-          >
-            <Users size={14} />
-            {!isMobile && <span>Delegar</span>}
-          </button>
-          
-          <button 
-            onClick={onChangeDate}
-            className="px-3 py-2 rounded-xl bg-turquesa/10 border border-turquesa/30 text-turquesa hover:bg-turquesa/20 transition-all flex items-center gap-1.5 text-xs font-bold"
-            title="Cambiar fecha"
-          >
-            <CalendarIcon size={14} />
-            {!isMobile && <span>Fecha</span>}
-          </button>
-          
-          <button 
-            onClick={onComplete}
-            className="px-3 py-2 rounded-xl bg-azul/10 border border-azul/30 text-azul hover:bg-azul/20 transition-all flex items-center gap-1.5 text-xs font-bold"
-            title="Completar"
-          >
-            <CheckCircle2 size={14} />
-            {!isMobile && <span>Completar</span>}
-          </button>
-          
-          <button 
-            onClick={onChangeTime}
-            className="px-3 py-2 rounded-xl bg-azul/10 border border-azul/30 text-azul hover:bg-azul/20 transition-all flex items-center gap-1.5 text-xs font-bold"
-            title="Cambiar tiempo"
-          >
-            <Clock size={14} />
-            {!isMobile && <span>Tiempo</span>}
-          </button>
-          
-          <button 
-            onClick={onDuplicate}
-            className="px-3 py-2 rounded-xl dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:dark:bg-white/5 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold"
-            title="Duplicar"
-          >
-            <Copy size={14} />
-            {!isMobile && <span>Duplicar</span>}
-          </button>
-          
-          <button 
-            onClick={onDelete}
-            className="px-3 py-2 rounded-xl bg-rosa/10 border border-rosa/30 text-rosa hover:bg-rosa/20 transition-all flex items-center gap-1.5 text-xs font-bold"
-            title="Eliminar"
-          >
-            <Trash2 size={14} />
-            {!isMobile && <span>Eliminar</span>}
-          </button>
-          
-          <button 
-            onClick={onCancel}
-            className="px-3 py-2 rounded-xl dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:dark:bg-white/5 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold"
-            title="Cancelar"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null }: any) {
   const [activeTab, setActiveTab] = useState<'tareas' | 'reuniones'>('tareas');
   const [filterPersonId, setFilterPersonId] = useState<string | null>(null);

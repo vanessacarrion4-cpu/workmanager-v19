@@ -28,6 +28,7 @@ import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { isTaskCompleted, getTaskEstimatedCombo, formatMinutes } from './utils';
 import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
+import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
 
 interface DashboardViewProps {
   tasks: Task[];
@@ -72,11 +73,6 @@ interface DashboardViewProps {
   setBulkDateModal?: ((open: boolean) => void) | null;
   bulkTimeModal?: boolean;
   setBulkTimeModal?: ((open: boolean) => void) | null;
-  // Componentes compartidos
-  TaskCard: React.ComponentType<any>;
-  BulkActionBar: React.ComponentType<any>;
-  DashboardHarmonicCalendar: React.ComponentType<any>;
-  SummaryCard?: React.ComponentType<any>;
 }
 
 export function DashboardView({
@@ -88,8 +84,7 @@ export function DashboardView({
   selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null,
   onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null,
   bulkDuplicateTasks = null, bulkDelegateModal = false, setBulkDelegateModal = null,
-  bulkDateModal = false, setBulkDateModal = null, bulkTimeModal = false, setBulkTimeModal = null,
-  TaskCard, BulkActionBar, DashboardHarmonicCalendar
+  bulkDateModal = false, setBulkDateModal = null, bulkTimeModal = false, setBulkTimeModal = null
 }: DashboardViewProps) {
 
   const [hideCompleted, setHideCompleted] = useState(true);
