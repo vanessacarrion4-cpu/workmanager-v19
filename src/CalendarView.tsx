@@ -25,7 +25,7 @@ import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { isTaskCompleted, getTaskEstimatedCombo, formatMinutes, projectLoadForDay } from './utils';
 import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
 
-export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, activeDate, onDateSelect, onAddTask, onToggleTask, onDelete, onReorderTasks, onReorderSubtasks, onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null, TaskCard, BulkActionBar }: any) {
+export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, activeDate, onDateSelect, onAddTask, onToggleTask, onDelete, onReorderTasks, onReorderSubtasks, onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null }: any) {
   const [viewDate, setViewDate] = useState(() => parseLocalISO(activeDate));
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
  

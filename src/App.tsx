@@ -1932,8 +1932,6 @@ export default function App() {
                 onToggleExpand={handleToggleExpandTask}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
-                TaskCard={TaskCard}
-                BulkActionBar={BulkActionBar}
               />
             )}
             {currentView === 'delegadas' && (
