@@ -98,8 +98,12 @@ export function BlocksManagerView({
 
   const coreTasks = useMemo(() => {
     if (!selectedBlock) return [];
+    // Solo tareas reales (no instancias generadas: templateId es null)
     return Object.values(allTasksMap).filter((t: any) => {
-      if (!t || t.blockId !== selectedBlock.id || t.parentTaskId || t.templateId) return false;
+      if (!t || t.blockId !== selectedBlock.id) return false;
+      if (t.parentTaskId) return false;  // No subtareas
+      if (t.templateId) return false;    // No instancias generadas
+      if (t.isDeleted) return false;     // No borradas
       if (hideCompleted && t.status === 'completed') return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
       return type === 'core';
@@ -108,8 +112,12 @@ export function BlocksManagerView({
 
   const adhocTasks = useMemo(() => {
     if (!selectedBlock) return [];
+    // Solo tareas reales (no instancias generadas: templateId es null)
     return Object.values(allTasksMap).filter((t: any) => {
-      if (!t || t.blockId !== selectedBlock.id || t.parentTaskId || t.templateId) return false;
+      if (!t || t.blockId !== selectedBlock.id) return false;
+      if (t.parentTaskId) return false;  // No subtareas
+      if (t.templateId) return false;    // No instancias generadas
+      if (t.isDeleted) return false;     // No borradas
       if (hideCompleted && t.status === 'completed') return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
       return type === 'adhoc';
