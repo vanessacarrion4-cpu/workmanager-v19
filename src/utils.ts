@@ -311,6 +311,22 @@ export function getTaskEstimatedCombo(taskId: string, tasks: Record<string, Task
   return task.estimatedMinutes || 0;
 }
 
+export function getTaskEstimatedPending(taskId: string, tasks: Record<string, Task>, visited = new Set<string>()): number {
+  if (visited.has(taskId)) return 0;
+  visited.add(taskId);
+  const task = tasks[taskId];
+  if (!task) return 0;
+  
+  // Si está completada, no suma
+  if (task.status === 'completed') return 0;
+  
+  if (task.subtasks && task.subtasks.length > 0) {
+    return task.subtasks.reduce((acc, subId) => acc + getTaskEstimatedPending(subId, tasks, visited), 0);
+  }
+  
+  return task.estimatedMinutes || 0;
+}
+
 export function getTaskRegisteredSelf(taskId: string, timeEntries: any[]): number {
   if (!taskId || !timeEntries) return 0;
   return timeEntries

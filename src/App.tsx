@@ -3978,7 +3978,6 @@ function DashboardView({
                           onAddPerson={onAddPerson}
                           onRenamePerson={onRenamePerson}
                           onDeletePerson={onDeletePerson}
-                onRecurrenceDateChange={onRecurrenceDateChange}
                           blocks={blocks}
                           timeEntries={timeEntries}
                           activeTimer={activeTimer}
