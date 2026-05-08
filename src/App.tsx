@@ -1845,7 +1845,7 @@ export default function App() {
             {currentView === 'blocks' && (
               <BlocksManagerView 
                 blocks={blocks} 
-                tasks={allActiveTasks}
+                tasks={Object.values(tasks).filter((t: Task) => !t.isDeleted)}
                 allTasksMap={tasks}
                 people={people}
                 onAddPerson={handleAddPerson}
