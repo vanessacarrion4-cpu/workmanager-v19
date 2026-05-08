@@ -17,7 +17,7 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { WorkBlock, Task, TagType, TimeEntry, Person } from './types';
 import { TAG_LABELS, COLORS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { isTaskCompleted, isTaskRepetitive, getTaskEstimatedCombo, getTaskRegisteredCombo, getTaskRegisteredSelf, formatMinutes } from './utils';
+import { isTaskCompleted, isTaskRepetitive, getTaskEstimatedCombo, getTaskEstimatedPending, getTaskRegisteredCombo, getTaskRegisteredSelf, formatMinutes } from './utils';
 import { supabase } from './supabaseClient';
 
 export function RecurrenceChoiceModal({ type, onClose, onConfirm }: { type: 'edit' | 'delete', onClose: () => void, onConfirm: (choice: 'instance' | 'series') => void }) {
