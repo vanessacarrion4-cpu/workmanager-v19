@@ -262,7 +262,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
         onUpdateTask({ ...task, notes: existingNotes ? `${existingNotes}\n${newNote}` : newNote });
       }
     });
-    onUpdateMeetings((prev: any[]) => [meeting, ...prev]);
+    onUpdateMeetings([meeting, ...(meetings || [])]);
     setShowNewMeeting(false);
     setNewMeeting(null);
   };
