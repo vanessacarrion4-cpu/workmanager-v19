@@ -12,7 +12,7 @@ import {
   ArrowRight, Tag, User, Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Task, WorkBlock, Person } from './types';
+import { Task, WorkBlock, Person, DelegationMeeting } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { isTaskCompleted, formatMinutes } from './utils';
 import {
