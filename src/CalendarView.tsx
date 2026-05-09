@@ -75,9 +75,14 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
 
   // Precalcular carga de todos los días del mes en un solo useMemo
   // Evita calcular filterTasksForDay para cada día en el render (muy costoso)
-  // Solo depende de tareas reales (no instancias generadas) para evitar recálculos innecesarios
+  // Incluir instancias generadas (recurrentes) además de tareas manuales y excepciones
+  // Las instancias tienen templateId pero necesitamos sus dueDate para el calendario
   const realTasksForCalendar = useMemo(() => 
-    Object.values(allTasksMap).filter((t: any) => !t.templateId || t.isException) as Task[],
+    Object.values(allTasksMap).filter((t: any) => {
+      if (t.isDeleted) return false;
+      if (t.isTemplate) return false; // No templates, solo instancias y manuales
+      return true; // Incluir manuales, instancias generadas Y excepciones
+    }) as Task[],
     [allTasksMap]
   );
 
