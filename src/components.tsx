@@ -413,7 +413,7 @@ export function TaskCard({
     };
 
     return (
-      <Reorder.Item value={task} className="relative">
+      <div className="relative">
         <div className="flex items-center gap-2 p-2 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl transition-all group">
           <div className="w-1.5 h-6 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
           <span className="text-[11px] font-bold dark:text-white text-text-main-light truncate flex-1 uppercase tracking-tight">{task.title}</span>
@@ -502,7 +502,7 @@ export function TaskCard({
             </div>
           </div>
         </div>
-      </Reorder.Item>
+      </div>
     );
   }
  
