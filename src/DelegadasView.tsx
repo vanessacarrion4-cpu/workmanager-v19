@@ -1096,34 +1096,48 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                 </div>
               )}
 
-              {/* Task selector - show after person is selected */}
-              {newMeeting.personId && (
+              {/* Task list with notes - TaskCard COMPACT format */}
+              {newMeeting.personId && newMeeting.items.length > 0 && (
                 <div className="mb-4 space-y-2">
-                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block">Tareas a tratar</label>
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {delegatedTasks.filter((t: any) => t.delegation?.personId === newMeeting.personId).map((t: any) => {
-                      const isSelected = newMeeting.items.some((i: any) => i.taskId === t.id);
+                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block">Tareas ({newMeeting.items.length})</label>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {newMeeting.items.map((item: any, idx: number) => {
+                      const task = allTasksMap[item.taskId];
+                      if (!task) return null;
                       return (
-                        <button
-                          key={t.id}
-                          onClick={() => {
-                            if (isSelected) {
-                              setNewMeeting({ ...newMeeting, items: newMeeting.items.filter((i: any) => i.taskId !== t.id) });
-                            } else {
-                              setNewMeeting({ ...newMeeting, items: [...newMeeting.items, { taskId: t.id, note: '', isSubtask: false }] });
-                            }
-                          }}
-                          className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all border ${
-                            isSelected
-                              ? 'bg-morado/10 border-morado/40 text-morado'
-                              : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-white text-text-main-light hover:border-morado/30'
-                          }`}
-                        >
-                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-morado border-morado' : 'dark:border-border-main border-border-main-light'}`}>
-                            {isSelected && <Check size={10} className="text-white" />}
+                        <div key={item.taskId} className="dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-xl overflow-hidden">
+                          {/* TaskCard row */}
+                          <div className="flex items-center gap-2 px-3 py-2">
+                            <TaskCard
+                              task={task}
+                              variant="COMPACT"
+                              allTasksMap={allTasksMap}
+                              people={people}
+                              blocks={blocks}
+                              timeEntries={timeEntries}
+                              onToggleStatus={() => {}}
+                              onUpdateTask={onUpdateTask}
+                              onEditTask={onEditTask}
+                              onAddTask={onAddTask}
+                              onDelete={() => setNewMeeting({ ...newMeeting, items: newMeeting.items.filter((_: any, i: number) => i !== idx) })}
+                            />
                           </div>
-                          <span className="text-[11px] font-bold truncate">{t.title}</span>
-                        </button>
+                          {/* Note textarea */}
+                          <div className="px-3 pb-3 border-t dark:border-border-main/30 border-border-main-light/30 pt-2">
+                            <textarea
+                              value={item.note}
+                              onChange={e => {
+                                const items = [...newMeeting.items];
+                                items[idx] = { ...item, note: e.target.value };
+                                setNewMeeting({ ...newMeeting, items });
+                              }}
+                              placeholder="¿Qué dijo sobre esta tarea?..."
+                              rows={1}
+                              onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                              className="w-full dark:bg-bg-card bg-white border dark:border-border-main/50 border-border-main-light rounded-lg px-3 py-2 text-sm dark:text-white text-text-main-light dark:placeholder:text-text-secondary/30 placeholder:text-text-secondary-light/50 outline-none focus:border-morado/40 resize-none overflow-hidden"
+                            />
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -1151,85 +1165,6 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                     className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2.5 text-sm dark:text-white text-text-main-light dark:placeholder:text-text-secondary/40 placeholder:text-text-secondary-light/40 outline-none focus:border-morado/50 resize-none overflow-hidden"
                   />
                 </div>
-
-                {newMeeting.items.length > 0 && (
-                  <div>
-                    <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block mb-2">Seguimiento por tarea</label>
-                    <div className="space-y-2">
-                      {newMeeting.items.map((item: any, idx: number) => {
-                        const task = allTasksMap[item.taskId];
-                        if (!task) return null;
-                        const block = getBlock(task.blockId);
-                        const tag = task.tags?.[0];
-                        return (
-                          <div key={item.taskId} className={`border dark:border-border-main border-border-main-light rounded-xl overflow-hidden ${item.isSubtask ? 'ml-4 dark:bg-bg-main/50 bg-gray-50' : 'dark:bg-bg-main bg-white'}`}>
-                            {/* Task header with chips */}
-                            <div className="flex items-center gap-2 px-3 py-2 border-b dark:border-border-main/30 border-border-main-light/30">
-                              <div className="w-1 h-6 rounded-full shrink-0" style={{ backgroundColor: block?.color || '#666' }} />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[10px] font-black dark:text-white text-text-main-light uppercase tracking-wider truncate">{task.title}</p>
-                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                                  {block && <span className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light">{block.icon} {block.name}</span>}
-                                  {task.dueDate && (
-                                    <span className="text-[8px] font-black text-turquesa px-1 py-0.5 bg-turquesa/10 rounded-md">
-                                      {new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(parseLocalISO(task.dueDate))}
-                                    </span>
-                                  )}
-                                  {tag && <span className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light">{TAG_LABELS[tag as TagType]?.label || tag}</span>}
-                                  {task.estimatedMinutes > 0 && (
-                                    <span className="text-[8px] font-black text-azul flex items-center gap-0.5"><Clock size={8} />{formatMinutes(task.estimatedMinutes)}</span>
-                                  )}
-                                  {task.recurrence && (() => {
-                                    const rec = task.recurrence;
-                                    const freq = rec.frequency || rec.type;
-                                    const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-                                    let label = '';
-                                    if (freq === 'daily') label = 'Diaria';
-                                    else if (freq === 'weekdays') label = 'L-V';
-                                    else if (freq === 'weekly') label = (rec.weekDays || []).map((d: number) => dayNames[d]).join(' ') || 'Sem';
-                                    else if (freq === 'monthly') label = `Mes ${rec.monthDay || ''}`;
-                                    else if (freq === 'yearly') {
-                                      if (rec.startDate) {
-                                        const d = new Date(rec.startDate + 'T12:00:00');
-                                        label = `Año ${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}`;
-                                      } else label = 'Año';
-                                    }
-                                    return label ? (
-                                      <span className="text-[8px] font-black text-turquesa px-1 py-0.5 bg-turquesa/10 rounded-md flex items-center gap-0.5">
-                                        <RefreshCw size={7} />{label}
-                                      </span>
-                                    ) : null;
-                                  })()}
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => onEditTask && onEditTask(task.id)}
-                                className="w-6 h-6 flex items-center justify-center text-turquesa/50 hover:text-turquesa hover:bg-turquesa/10 rounded-lg transition-all flex-shrink-0"
-                                title="Editar tarea"
-                              >
-                                <Edit size={11} />
-                              </button>
-                            </div>
-                            <div className="p-3">
-                              <textarea
-                                value={item.note}
-                                onChange={e => {
-                                  const items = [...newMeeting.items];
-                                  items[idx] = { ...item, note: e.target.value };
-                                  setNewMeeting({ ...newMeeting, items });
-                                }}
-                                placeholder="¿Qué dijo sobre esta tarea?..."
-                                rows={1}
-                                onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                                className="w-full dark:bg-bg-card bg-gray-50 border dark:border-border-main/50 border-border-main-light rounded-lg px-3 py-2 text-sm dark:text-white text-text-main-light dark:placeholder:text-text-secondary/30 placeholder:text-text-secondary-light/50 outline-none focus:border-morado/40 resize-none overflow-hidden"
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="flex gap-3 mt-6">
