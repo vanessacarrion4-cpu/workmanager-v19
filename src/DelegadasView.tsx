@@ -379,7 +379,10 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
             </span>
           </button>
           <button
-            onClick={() => { setShowNewMeeting(true); setNewMeeting({ personId: '', date: formatLocalISO(new Date()), notes: '', items: [] }); }}
+            onClick={() => { 
+              setShowNewMeeting(true); 
+              setNewMeeting({ personId: '', date: formatLocalISO(new Date()), notes: '', items: [] }); 
+            }}
             className="flex items-center gap-2 px-4 py-2.5 bg-azul/10 border border-azul/30 text-azul rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-azul/20 transition-all"
           >
             <History size={14} />
@@ -1088,7 +1091,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                 </button>
               </div>
               {/* Person selector - only show if no person preselected */}
-              {!newMeeting.personId && (
+              {newMeeting.personId === '' && (
                 <div className="mb-4 space-y-2">
                   <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block">Persona</label>
                   <div className="flex flex-wrap gap-2">
@@ -1096,9 +1099,14 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                       <button
                         key={p.id}
                         onClick={() => {
+                          // Usar el mismo flujo que desde bloque: showTaskSelector
+                          setShowNewMeeting(false);
+                          setNewMeeting(null);
                           const personTasks = delegatedTasks.filter((t: any) => t.delegation?.personId === p.id);
-                          const allItems = personTasks.map((t: any) => ({ taskId: t.id, note: '', isSubtask: false }));
-                          setNewMeeting({ ...newMeeting, personId: p.id, items: allItems });
+                          const pendingIds = new Set(personTasks.map((t: any) => t.id));
+                          setSelectorPersonId(p.id);
+                          setMeetingSelectedIds(pendingIds);
+                          setShowTaskSelector(true);
                         }}
                         className="flex items-center gap-2 px-3 py-2 dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-[11px] font-bold dark:text-white text-text-main-light hover:border-morado/50 transition-all"
                       >
@@ -1242,34 +1250,6 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                     className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2.5 text-sm dark:text-white text-text-main-light outline-none focus:border-morado/50 resize-none"
                   />
                 </div>
-
-                {editingMeeting.items.length > 0 && (
-                  <div>
-                    <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block mb-2">Notas por tarea</label>
-                    <div className="space-y-2">
-                      {editingMeeting.items.map((item: any, idx: number) => {
-                        const task = allTasksMap[item.taskId];
-                        if (!task) return null;
-                        return (
-                          <div key={item.taskId} className="dark:bg-bg-main bg-gray-50 rounded-xl p-3 border dark:border-border-main border-border-main-light">
-                            <p className="text-[10px] font-black text-morado uppercase tracking-wider mb-1.5">{task.title}</p>
-                            <textarea
-                              value={item.note}
-                              onChange={e => {
-                                const newItems = [...editingMeeting.items];
-                                newItems[idx] = { ...item, note: e.target.value };
-                                setEditingMeeting({ ...editingMeeting, items: newItems });
-                              }}
-                              placeholder="Nota sobre esta tarea..."
-                              rows={2}
-                              className="w-full dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-lg px-2.5 py-2 text-sm dark:text-white text-text-main-light dark:placeholder:text-text-secondary/40 placeholder:text-text-secondary-light/40 outline-none focus:border-morado/50 resize-none"
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="flex gap-3 mt-6">
