@@ -208,21 +208,39 @@ export default function App() {
       if (!task) return;
       const isContainer = task.subtasks && task.subtasks.length > 0;
       if (isContainer && !isContainerSafeUpdate) {
-        // Buscar subtareas visibles - tanto templates como instancias del día
+        // Buscar subtareas visibles del contenedor
+        const instanceDate = task.instanceDate || task.dueDate;
         Object.values(tasks).forEach((t: Task) => {
           if (t.isDeleted) return;
-          // Subtarea directa del contenedor
+          // Caso 1: subtarea directa (tarea manual con parentTaskId = id)
           if (t.parentTaskId === id) { effectiveIds.add(t.id); return; }
-          // Instancia cuyo template es subtarea del contenedor
-          if (t.templateId) {
+          // Caso 2: instancia cuyo template tiene parentTaskId = id (template del contenedor)
+          if (t.templateId && instanceDate) {
             const tmpl = tasks[t.templateId];
-            if (tmpl && tmpl.parentTaskId === id) effectiveIds.add(t.id);
+            if (tmpl && tmpl.parentTaskId === id) { effectiveIds.add(t.id); return; }
+            // Caso 3: instancia cuyo template tiene parentTaskId = templateId del contenedor
+            if (task.templateId) {
+              if (tmpl && tmpl.parentTaskId === task.templateId && t.dueDate === instanceDate) {
+                effectiveIds.add(t.id); return;
+              }
+            }
           }
         });
+        // Si no encontró subtareas, también añadir las que están en task.subtasks directamente
+        if (effectiveIds.size === 0 && task.subtasks) {
+          task.subtasks.forEach((subId: string) => {
+            const sub = tasks[subId];
+            if (sub && !sub.isDeleted) effectiveIds.add(subId);
+          });
+        }
       } else {
         effectiveIds.add(id);
       }
     });
+
+    console.log('[BULK] selectedTaskIds:', Array.from(selectedTaskIds));
+    console.log('[BULK] effectiveIds:', Array.from(effectiveIds));
+    console.log('[BULK] updates:', updates);
 
     setTasks(prev => {
       const next = { ...prev };
