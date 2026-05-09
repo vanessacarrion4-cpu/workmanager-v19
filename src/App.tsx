@@ -296,7 +296,6 @@ export default function App() {
     setSelectedTaskIds(new Set());
     setSelectionMode(false);
   };
-  };
 
   const bulkDuplicateTasks = () => {
     const timestamp = new Date().toISOString();
