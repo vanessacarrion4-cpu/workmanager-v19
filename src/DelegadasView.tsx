@@ -1119,6 +1119,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                               onUpdateTask={onUpdateTask}
                               onEditTask={onEditTask}
                               onAddTask={onAddTask}
+                              onReorderSubtasks={() => {}}
                               onDelete={() => setNewMeeting({ ...newMeeting, items: newMeeting.items.filter((_: any, i: number) => i !== idx) })}
                             />
                           </div>
