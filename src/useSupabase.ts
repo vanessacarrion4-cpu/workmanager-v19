@@ -18,6 +18,7 @@ interface UseSupabaseOptions {
   setBlocks: (blocks: WorkBlock[]) => void;
   setTasks: (tasks: Record<string, Task>) => void;
   setPeople: (people: Person[]) => void;
+  setMeetings: (meetings: any[]) => void;
   setIsDataLoaded: (loaded: boolean) => void;
 }
 
@@ -156,6 +157,7 @@ export function useSupabase({
   setBlocks,
   setTasks,
   setPeople,
+  setMeetings,
   setIsDataLoaded,
 }: UseSupabaseOptions): void {
   useEffect(() => {
@@ -177,7 +179,8 @@ export function useSupabase({
           .from('tasks')
           .select('*')
           .or('template_id.is.null,is_exception.eq.true')
-          .order('order', { ascending: true });
+          .order('order', { ascending: true })
+          .limit(10000);
 
         if (tasksError) throw tasksError;
 
@@ -191,10 +194,21 @@ export function useSupabase({
           console.warn('[SUPABASE] Error loading persons:', personsError);
         }
 
+        // Cargar reuniones
+        const { data: meetingsData, error: meetingsError } = await supabase
+          .from('meetings')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (meetingsError) {
+          console.warn('[SUPABASE] Error loading meetings:', meetingsError);
+        }
+
         console.log('[SUPABASE] Loaded:', {
           blocks: blocksData?.length,
           tasks: tasksData?.length,
-          persons: personsData?.length
+          persons: personsData?.length,
+          meetings: meetingsData?.length
         });
 
         // Mapear bloques
@@ -274,8 +288,39 @@ export function useSupabase({
           setTasks(mappedTasks);
         }
 
+        // Mapear reuniones
+        if (meetingsData && meetingsData.length > 0) {
+          const mappedMeetings = meetingsData.map((m: any) => ({
+            id: m.id,
+            personId: m.person_id,
+            date: m.date,
+            notes: m.notes || '',
+            items: m.items || [],
+            createdAt: m.created_at
+          }));
+          setMeetings(mappedMeetings);
+          console.log('[SUPABASE] Loaded meetings:', mappedMeetings.length);
+        }
+
         setIsDataLoaded(true);
         console.log('[SUPABASE] Data loaded successfully');
+
+        // Limpieza automática: borrar instancias eliminadas de más de 30 días
+        // Esto evita que la tabla crezca indefinidamente con basura
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const cutoffDate = thirtyDaysAgo.toISOString().split('T')[0];
+        
+        supabase.from('tasks')
+          .delete()
+          .eq('is_deleted', true)
+          .not('template_id', 'is', null)
+          .lt('instance_date', cutoffDate)
+          .then(({ error, count }) => {
+            if (!error && count) {
+              console.log(`[SUPABASE] Limpieza automática: ${count} instancias borradas antiguas eliminadas`);
+            }
+          });
       } catch (e) {
         console.error('[SUPABASE] Error loading data:', e);
         setBlocks(INITIAL_BLOCKS);

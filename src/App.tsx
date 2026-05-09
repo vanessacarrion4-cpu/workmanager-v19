@@ -386,7 +386,7 @@ export default function App() {
  
   // --- Initialization & Sync ---
   // Carga inicial desde Supabase
-  useSupabase({ setBlocks, setTasks, setPeople, setIsDataLoaded });
+  useSupabase({ setBlocks, setTasks, setPeople, setMeetings, setIsDataLoaded });
  
   // Guardado automático desactivado - ahora se guarda directamente en Supabase en cada operación
   // useEffect(() => {
@@ -1947,7 +1947,29 @@ export default function App() {
                 onUpdateTask={handleUpdateTask}
                 onToggleTask={handleToggleStatus}
                 onUpdatePeople={setPeople}
-                onUpdateMeetings={setMeetings}
+                onUpdateMeetings={async (updatedMeetings: any[]) => {
+                  setMeetings(updatedMeetings);
+                  // Sincronizar con Supabase: upsert todas las reuniones
+                  for (const m of updatedMeetings) {
+                    await supabase.from('meetings').upsert({
+                      id: m.id,
+                      person_id: m.personId,
+                      date: m.date,
+                      notes: m.notes || '',
+                      items: m.items || [],
+                      created_at: m.createdAt || new Date().toISOString()
+                    }, { onConflict: 'id' });
+                  }
+                  // Borrar reuniones eliminadas
+                  const currentIds = updatedMeetings.map((m: any) => m.id);
+                  const { data: existing } = await supabase.from('meetings').select('id');
+                  if (existing) {
+                    const toDelete = existing.filter((r: any) => !currentIds.includes(r.id));
+                    for (const r of toDelete) {
+                      await supabase.from('meetings').delete().eq('id', r.id);
+                    }
+                  }
+                }}
                 onAddTask={handleAddTask}
                 onEditTask={(id: string) => setEditingTaskId(id)}
                 onDeleteTask={handleDeleteTaskRequest}
