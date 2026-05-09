@@ -1110,12 +1110,12 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                           <div className="flex items-center gap-2 px-3 py-2">
                             <TaskCard
                               task={task}
-                              variant="COMPACT"
+                              variant="FULL"
                               allTasksMap={allTasksMap}
                               people={people}
                               blocks={blocks}
                               timeEntries={timeEntries}
-                              onToggleStatus={() => {}}
+                              onToggleStatus={onUpdateTask}
                               onUpdateTask={onUpdateTask}
                               onEditTask={onEditTask}
                               onAddTask={onAddTask}
