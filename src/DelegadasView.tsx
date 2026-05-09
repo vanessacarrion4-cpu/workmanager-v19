@@ -877,7 +877,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                         {allContainersOpen ? <ChevronsUp size={12} /> : <ChevronsDown size={12} />}
                       </button>
                     )}
-
+                    <button
+                      onClick={() => {
                         const person = people.find((p: any) => p.id === meeting.personId);
                         const personName = person?.name || '';
                         const dateLabel = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }).format(parseLocalISO(meeting.date));
