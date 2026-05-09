@@ -643,22 +643,61 @@ export function TaskCard({
                     const rec = tmpl?.recurrence;
                     if (!rec) return null;
                     const freq = rec.frequency || rec.type;
-                    const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+                    const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
                     let label = '';
                     if (freq === 'daily') label = 'Diaria';
                     else if (freq === 'weekdays') label = 'L-V';
                     else if (freq === 'weekly') {
-                      const days = (rec.weekDays || []).map((d: number) => dayNames[d]).join(', ');
-                      label = days || 'Semanal';
+                      const days = (rec.weekDays || []).map((d: number) => dayNames[d]).join(' ');
+                      label = days || 'Sem';
                     }
                     else if (freq === 'monthly') {
                       const day = rec.monthDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : '');
-                      label = `Mensual${day ? ` día ${day}` : ''}`;
+                      label = `Mes ${day || ''}`;
                     }
-                    else if (freq === 'yearly') label = 'Anual';
+                    else if (freq === 'yearly') {
+                      if (rec.startDate) {
+                        const d = new Date(rec.startDate + 'T12:00:00');
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        const mm = String(d.getMonth() + 1).padStart(2, '0');
+                        label = `Año ${dd}-${mm}`;
+                      } else label = 'Año';
+                    }
                     else label = freq;
                     return (
-                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 shrink-0" title="Tarea recurrente — solo informativo">
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 shrink-0" title="Tarea recurrente">
+                        <RefreshCw size={9} className="text-turquesa shrink-0" />
+                        <span className="text-[10px] font-black text-turquesa uppercase tracking-wide">{label}</span>
+                      </div>
+                    );
+                  })()}
+                  {/* Chip recurrencia para templates (Delegadas, Vista Bloques) */}
+                  {task.isTemplate && task.recurrence && !task.templateId && !hasSubtasks && (() => {
+                    const rec = task.recurrence;
+                    const freq = rec.frequency || rec.type;
+                    const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+                    let label = '';
+                    if (freq === 'daily') label = 'Diaria';
+                    else if (freq === 'weekdays') label = 'L-V';
+                    else if (freq === 'weekly') {
+                      const days = (rec.weekDays || []).map((d: number) => dayNames[d]).join(' ');
+                      label = days || 'Sem';
+                    }
+                    else if (freq === 'monthly') {
+                      const day = rec.monthDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : '');
+                      label = `Mes ${day || ''}`;
+                    }
+                    else if (freq === 'yearly') {
+                      if (rec.startDate) {
+                        const d = new Date(rec.startDate + 'T12:00:00');
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        const mm = String(d.getMonth() + 1).padStart(2, '0');
+                        label = `Año ${dd}-${mm}`;
+                      } else label = 'Año';
+                    }
+                    else label = freq;
+                    return (
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 shrink-0" title="Tarea recurrente">
                         <RefreshCw size={9} className="text-turquesa shrink-0" />
                         <span className="text-[10px] font-black text-turquesa uppercase tracking-wide">{label}</span>
                       </div>

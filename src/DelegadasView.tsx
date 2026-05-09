@@ -242,8 +242,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
       id: `m-${Date.now()}`,
       personId: newMeeting.personId,
       date: newMeeting.date,
-      notes: formattedNotes,
-      items: newMeeting.items, // Guardar TODOS los items seleccionados, con o sin nota
+      notes: newMeeting.notes, // Solo lo que escribió el usuario
+      items: newMeeting.items,
       createdAt: new Date().toISOString()
     };
     // Añadir notas a cada tarea con timestamp día+hora
@@ -267,7 +267,42 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
     setNewMeeting(null);
   };
 
-  const filteredMeetings = filterPersonId
+  const getRecurrenceLabel = (recurrence: any): string | null => {
+    if (!recurrence) return null;
+    const { frequency, weekDays, monthDay, startDate } = recurrence;
+    switch (frequency) {
+      case 'weekdays': return 'L-V';
+      case 'daily': return 'Diaria';
+      case 'weekly': {
+        const dayMap: Record<number, string> = { 0: 'L', 1: 'M', 2: 'X', 3: 'J', 4: 'V', 5: 'S', 6: 'D' };
+        return weekDays?.map((d: number) => dayMap[d]).join(' ') || 'Sem';
+      }
+      case 'monthly': return `Mes ${monthDay || ''}`;
+      case 'yearly': {
+        if (startDate) {
+          const d = parseLocalISO(startDate);
+          const dd = String(d.getDate()).padStart(2, '0');
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          return `Año ${dd}-${mm}`;
+        }
+        return 'Año';
+      }
+      default: return null;
+    }
+  };
+
+  const getTagLabel = (tags: string[]): string | null => {
+    if (!tags || tags.length === 0) return null;
+    const tag = tags[0];
+    const labels: Record<string, string> = {
+      con_hora: '🕐',
+      focus: '🎯',
+      'dirección': '🚀',
+      espera: '⏳',
+      resto: null as any
+    };
+    return labels[tag] || null;
+  };
     ? meetings.filter((m: any) => m.personId === filterPersonId)
     : meetings;
 
@@ -802,41 +837,33 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                       )}
                       {meeting.items.map((item: any) => {
                         const task = allTasksMap[item.taskId];
-                        const block = task ? getBlock(task.blockId) : null;
+                        if (!task) return null;
                         const hasNote = item.note && item.note.trim().length > 0;
                         return (
-                          <div key={item.taskId} className={`flex gap-3 p-3 rounded-xl border transition-all group/mitem ${
-                            hasNote
-                              ? 'dark:bg-bg-main bg-white dark:border-border-main border-border-main-light'
-                              : 'dark:bg-bg-main/30 bg-gray-50/50 dark:border-border-main/30 border-border-main-light/30 opacity-50'
-                          }`}>
-                            <div className={`w-1 h-full min-h-[2rem] rounded-full shrink-0 ${hasNote ? 'bg-morado/40' : 'bg-morado/20'}`} />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="min-w-0">
-                                  <p className={`text-[10px] font-black uppercase tracking-wider truncate ${hasNote ? 'text-morado' : 'dark:text-text-secondary text-text-secondary-light'}`}>{task?.title || item.taskId}</p>
-                                  {block && <span className="text-[8px] dark:text-text-secondary text-text-secondary-light font-black">{block.icon} {block.name}</span>}
-                                </div>
-                                <div className="flex items-center gap-1 opacity-0 group-hover/mitem:opacity-100 transition-all shrink-0">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); if (onEditTask) onEditTask(item.taskId); }}
-                                    className="w-6 h-6 flex items-center justify-center text-turquesa/70 hover:text-turquesa hover:bg-turquesa/10 rounded-lg transition-all"
-                                    title="Abrir tarea"
-                                  >
-                                    <Edit size={11} />
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); if (onDeleteTask) onDeleteTask(item.taskId); }}
-                                    className="w-6 h-6 flex items-center justify-center text-rosa/70 hover:text-rosa hover:bg-rosa/10 rounded-lg transition-all"
-                                    title="Eliminar tarea"
-                                  >
-                                    <Trash2 size={11} />
-                                  </button>
-                                </div>
+                          <div key={item.taskId} className={`rounded-xl border transition-all ${hasNote ? 'dark:border-border-main border-border-main-light' : 'dark:border-border-main/30 border-border-main-light/30 opacity-60'}`}>
+                            <TaskCard
+                              task={task}
+                              variant="COMPACT"
+                              allTasksMap={allTasksMap}
+                              people={people}
+                              blocks={blocks}
+                              timeEntries={timeEntries}
+                              onToggleStatus={() => {}}
+                              onUpdateTask={onUpdateTask}
+                              onEditTask={onEditTask}
+                              onAddTask={onAddTask}
+                              onDelete={onDeleteTask}
+                            />
+                            {hasNote && (
+                              <div className="px-4 pb-3 border-t dark:border-border-main/30 border-border-main-light/30 mt-1 pt-2">
+                                <p className="text-sm dark:text-text-secondary text-text-secondary-light">{item.note}</p>
                               </div>
-                              {hasNote && <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-1">{item.note}</p>}
-                              {!hasNote && <p className="text-[10px] dark:text-text-secondary/40 text-text-secondary-light/40 mt-1 italic">Sin nota</p>}
-                            </div>
+                            )}
+                            {!hasNote && (
+                              <div className="px-4 pb-2">
+                                <p className="text-[10px] dark:text-text-secondary/30 text-text-secondary-light/30 italic">Sin nota</p>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
