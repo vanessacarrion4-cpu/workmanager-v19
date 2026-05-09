@@ -6,10 +6,10 @@
 
 import React, { useState, useMemo } from 'react';
 import {
-  Plus, ChevronDown, ChevronRight, Edit, Trash2, X, Check,
+  Plus, ChevronDown, ChevronRight, ChevronUp, Edit, Trash2, X, Check,
   Users, Calendar as CalendarIcon, Clock, MessageSquare, CheckCircle2,
   ChevronsUp, ChevronsDown, Eye, EyeOff, GripVertical, RefreshCw,
-  ArrowRight, Tag, User, Zap
+  ArrowRight, Tag, User, Zap, History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task, WorkBlock, Person, DelegationMeeting } from './types';
