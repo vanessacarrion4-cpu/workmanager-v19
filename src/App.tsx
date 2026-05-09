@@ -1610,6 +1610,15 @@ export default function App() {
         if (error) console.error('[SUPABASE] Error deleting time entry:', error);
       });
   };
+
+  const handleUpdateTimeEntry = (entryId: string, updates: { duration: number, note: string }) => {
+    setTimeEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...updates } : e));
+    supabase.from('time_entries').update({ duration: updates.duration, note: updates.note })
+      .eq('id', entryId)
+      .then(({ error }) => {
+        if (error) console.error('[SUPABASE] Error updating time entry:', error);
+      });
+  };
  
   const handleUpdateTimeEntry = (id: string, updates: Partial<TimeEntry>) => {
     setTimeEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
@@ -1883,6 +1892,7 @@ export default function App() {
                 bulkTimeModal={bulkTimeModal}
                 setBulkTimeModal={setBulkTimeModal}
                 onDeleteTimeEntry={handleDeleteTimeEntry}
+                onUpdateTimeEntry={handleUpdateTimeEntry}
               />
             )}
             {currentView === 'blocks' && (
