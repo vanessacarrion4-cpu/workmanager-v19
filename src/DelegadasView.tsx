@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task, WorkBlock, Person, DelegationMeeting } from './types';
+import { TAG_LABELS, COLORS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { isTaskCompleted, formatMinutes } from './utils';
 import {
