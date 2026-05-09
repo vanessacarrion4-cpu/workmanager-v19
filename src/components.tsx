@@ -531,11 +531,15 @@ export function TaskCard({
     <div className="group relative">
       <div>
         <div
-          className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''} ${selectionMode && selectedTaskIds.has(task.id) ? 'dark:bg-azul/15 bg-azul/10 rounded-[1.5rem]' : ''} ${selectionMode ? 'cursor-pointer' : ''}`}
+          className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''} ${selectionMode && selectedTaskIds.has(task.id) ? 'dark:bg-azul/15 bg-azul/10 rounded-[1.5rem]' : ''} ${selectionMode ? 'cursor-pointer' : ''} ${searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) ? 'dark:bg-yellow-400/5 bg-yellow-400/10 rounded-2xl' : ''}`}
           style={selectionMode && selectedTaskIds.has(task.id) ? { 
             outline: '3px solid #3B82F6', 
             outlineOffset: '-1px', 
             borderRadius: '1.5rem'
+          } : searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) ? {
+            outline: '2px solid #facc15',
+            outlineOffset: '-1px',
+            borderRadius: '1rem'
           } : undefined}
           onClickCapture={selectionMode && onToggleTaskSelection ? (e) => {
             const target = e.target as HTMLElement;
@@ -612,9 +616,6 @@ export function TaskCard({
                         }}
                         placeholder="Título de la tarea..."
                       />
-                      {searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) && (
-                        <div className="absolute -bottom-0.5 left-0 right-0 h-0.5 rounded-full" style={{ backgroundColor: '#facc15' }} />
-                      )}
                     </div>
                     {/* Badge circular subtareas pendientes */}
                     {hasSubtasks && (() => {
@@ -930,6 +931,7 @@ export function TaskCard({
                           [reordered[currentIdx], reordered[currentIdx + 1]] = [reordered[currentIdx + 1], reordered[currentIdx]];
                           onReorderSubtasks(task.id, reordered);
                         }}
+                        searchQuery={searchQuery}
                       />
                       {/* Nota de subtarea en reunión */}
                       {inMeeting && meetingItems && onUpdateMeetingItems && (
