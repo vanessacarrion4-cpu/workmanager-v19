@@ -171,45 +171,36 @@ export default function App() {
   };
 
   // Helper: Toggle task selection
-  const toggleTaskSelection = (taskId: string, autoSelectSubtasks = false) => {
+  const toggleTaskSelection = useCallback((taskId: string, autoSelectSubtasks = false) => {
     setSelectedTaskIds(prev => {
       const next = new Set(prev);
       if (next.has(taskId)) {
-        // Desmarcar
         next.delete(taskId);
-        // Si tiene subtareas, también desmarcarlas
         const task = tasks[taskId];
         if (task?.subtasks) {
           task.subtasks.forEach(subId => next.delete(subId));
         }
       } else {
-        // Marcar
         next.add(taskId);
-        // Auto-seleccionar subtareas si es contenedor
         if (autoSelectSubtasks) {
           const task = tasks[taskId];
           if (task?.subtasks && task.subtasks.length > 0) {
             task.subtasks.forEach(subId => {
               const sub = tasks[subId];
-              if (sub && !sub.isDeleted) {
-                next.add(subId);
-              }
+              if (sub && !sub.isDeleted) next.add(subId);
             });
           }
         }
       }
       return next;
     });
-  };
+  }, [tasks]);
 
   // Helper: Bulk actions
   const bulkUpdateTasks = (updates: Partial<Task>) => {
     const timestamp = new Date().toISOString();
     
-    // Determinar qué IDs realmente actualizar
-    // Los contenedores NO reciben delegación, fecha, etiqueta, tiempo estimado
-    // Solo reciben: status (completar)
-    const isContainerSafeUpdate = updates.status !== undefined; // completar sí va al contenedor
+    const isContainerSafeUpdate = updates.status !== undefined;
     
     const effectiveIds = new Set<string>();
     selectedTaskIds.forEach(id => {
@@ -217,10 +208,16 @@ export default function App() {
       if (!task) return;
       const isContainer = task.subtasks && task.subtasks.length > 0;
       if (isContainer && !isContainerSafeUpdate) {
-        // Aplicar a subtareas en lugar del contenedor
-        task.subtasks.forEach((subId: string) => {
-          const sub = tasks[subId];
-          if (sub && !sub.isDeleted) effectiveIds.add(subId);
+        // Buscar subtareas visibles - tanto templates como instancias del día
+        Object.values(tasks).forEach((t: Task) => {
+          if (t.isDeleted) return;
+          // Subtarea directa del contenedor
+          if (t.parentTaskId === id) { effectiveIds.add(t.id); return; }
+          // Instancia cuyo template es subtarea del contenedor
+          if (t.templateId) {
+            const tmpl = tasks[t.templateId];
+            if (tmpl && tmpl.parentTaskId === id) effectiveIds.add(t.id);
+          }
         });
       } else {
         effectiveIds.add(id);
@@ -237,8 +234,13 @@ export default function App() {
       return next;
     });
 
-    // Persistir en Supabase
+    // Persistir en Supabase - solo tareas reales (no instancias generadas sin existsInSupabase)
     effectiveIds.forEach(id => {
+      const task = tasks[id];
+      if (!task) return;
+      // Solo persistir si existe en Supabase o es una tarea manual
+      if (task.templateId && !task.existsInSupabase && !task.isException) return;
+      
       const supabaseUpdates: any = { modified_at: timestamp };
       if (updates.status !== undefined) supabaseUpdates.status = updates.status;
       if (updates.completedAt !== undefined) supabaseUpdates.completed_at = updates.completedAt || null;
@@ -3181,6 +3183,18 @@ function BulkDelegateModal({ people, onConfirm, onClose }: any) {
       <div className="relative dark:bg-bg-card bg-white rounded-[2rem] border dark:border-border-main border-border-main-light shadow-2xl p-6 w-full max-w-sm">
         <h3 className="text-lg font-black dark:text-white text-text-main-light mb-4">Delegar tareas seleccionadas</h3>
         <div className="space-y-2 mb-6">
+          {/* Opción quitar delegación */}
+          <button
+            onClick={() => setSelectedPerson('__none__')}
+            className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${
+              selectedPerson === '__none__'
+                ? 'bg-rosa/10 border-rosa text-rosa'
+                : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-rosa/50'
+            }`}
+          >
+            <div className="w-8 h-8 rounded-xl bg-rosa/20 flex items-center justify-center text-rosa font-black text-sm">✕</div>
+            <span className="font-bold text-sm">Quitar delegación</span>
+          </button>
           {people.map((p: any) => (
             <button
               key={p.id}
@@ -3201,10 +3215,10 @@ function BulkDelegateModal({ people, onConfirm, onClose }: any) {
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light font-bold text-sm hover:border-rosa transition-all">Cancelar</button>
           <button
-            onClick={() => selectedPerson && onConfirm(selectedPerson)}
+            onClick={() => selectedPerson && onConfirm(selectedPerson === '__none__' ? null : selectedPerson)}
             disabled={!selectedPerson}
             className={`flex-1 py-3 rounded-2xl font-black text-sm transition-all ${selectedPerson ? 'bg-morado text-white hover:bg-morado/90' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-          >Delegar</button>
+          >{selectedPerson === '__none__' ? 'Quitar delegación' : 'Delegar'}</button>
         </div>
       </div>
     </div>
