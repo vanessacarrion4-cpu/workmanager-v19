@@ -359,6 +359,8 @@ export function TaskCard({
   selectedTaskIds = new Set(),
   onToggleTaskSelection = null,
   inMeeting = false,
+  meetingItems = null,
+  onUpdateMeetingItems = null,
 }: any) {
   if (!task || task.isDeleted) return null;
   const currentRootId = rootTaskId || task.id;
@@ -846,59 +848,83 @@ export function TaskCard({
                       return sub.status !== 'completed';
                     })
                     .map((subId: string, idx: number, visibleSubs: string[]) => (
-                    <TaskCard 
-                      key={subId}
-                      task={allTasksMap[subId]}
-                      variant={variant}
-                      allTasksMap={allTasksMap}
-                      people={people}
-                      onAddPerson={onAddPerson}
-                      blocks={blocks}
-                      timeEntries={timeEntries}
-                      activeTimer={activeTimer}
-                      onStartTimer={onStartTimer}
-                      onStopTimer={onStopTimer}
-                      onToggleStatus={onToggleStatus}
-                      onUpdateTask={onUpdateTask}
-                      onEditTask={onEditTask}
-                      editingTaskId={editingTaskId}
-                      inlineEditingTaskId={inlineEditingTaskId}
-                      setInlineEditingTaskId={setInlineEditingTaskId}
-                      onOpenTimePanel={onOpenTimePanel}
-                      onAddTask={onAddTask}
-                      onDelete={onDelete}
-                      onPromote={onPromote}
-                      onDemote={onDemote}
-                      onReorderSubtasks={onReorderSubtasks}
-                      onToggleExpand={onToggleExpand}
-                      onRecurrenceDateChange={onRecurrenceDateChange}
-                      level={level + 1}
-                      rootTaskId={currentRootId}
-                      hideCompleted={hideCompleted}
-                      selectionMode={selectionMode}
-                      selectedTaskIds={selectedTaskIds}
-                      onToggleTaskSelection={onToggleTaskSelection}
-                      taskIndex={idx}
-                      taskCount={visibleSubs.length}
-                      onMoveUp={() => {
-                        if (idx === 0) return;
-                        const allSubs = task.subtasks || [];
-                        const currentIdx = allSubs.indexOf(subId);
-                        if (currentIdx <= 0) return;
-                        const reordered = [...allSubs];
-                        [reordered[currentIdx - 1], reordered[currentIdx]] = [reordered[currentIdx], reordered[currentIdx - 1]];
-                        onReorderSubtasks(task.id, reordered);
-                      }}
-                      onMoveDown={() => {
-                        if (idx === visibleSubs.length - 1) return;
-                        const allSubs = task.subtasks || [];
-                        const currentIdx = allSubs.indexOf(subId);
-                        if (currentIdx < 0 || currentIdx >= allSubs.length - 1) return;
-                        const reordered = [...allSubs];
-                        [reordered[currentIdx], reordered[currentIdx + 1]] = [reordered[currentIdx + 1], reordered[currentIdx]];
-                        onReorderSubtasks(task.id, reordered);
-                      }}
-                    />
+                    <div key={subId}>
+                      <TaskCard 
+                        task={allTasksMap[subId]}
+                        variant={variant}
+                        allTasksMap={allTasksMap}
+                        people={people}
+                        onAddPerson={onAddPerson}
+                        blocks={blocks}
+                        timeEntries={timeEntries}
+                        activeTimer={activeTimer}
+                        onStartTimer={onStartTimer}
+                        onStopTimer={onStopTimer}
+                        onToggleStatus={onToggleStatus}
+                        onUpdateTask={onUpdateTask}
+                        onEditTask={onEditTask}
+                        editingTaskId={editingTaskId}
+                        inlineEditingTaskId={inlineEditingTaskId}
+                        setInlineEditingTaskId={setInlineEditingTaskId}
+                        onOpenTimePanel={onOpenTimePanel}
+                        onAddTask={onAddTask}
+                        onDelete={onDelete}
+                        onPromote={onPromote}
+                        onDemote={onDemote}
+                        onReorderSubtasks={onReorderSubtasks}
+                        onToggleExpand={onToggleExpand}
+                        onRecurrenceDateChange={onRecurrenceDateChange}
+                        level={level + 1}
+                        rootTaskId={currentRootId}
+                        hideCompleted={hideCompleted}
+                        inMeeting={inMeeting}
+                        meetingItems={meetingItems}
+                        onUpdateMeetingItems={onUpdateMeetingItems}
+                        selectionMode={selectionMode}
+                        selectedTaskIds={selectedTaskIds}
+                        onToggleTaskSelection={onToggleTaskSelection}
+                        taskIndex={idx}
+                        taskCount={visibleSubs.length}
+                        onMoveUp={() => {
+                          if (idx === 0) return;
+                          const allSubs = task.subtasks || [];
+                          const currentIdx = allSubs.indexOf(subId);
+                          if (currentIdx <= 0) return;
+                          const reordered = [...allSubs];
+                          [reordered[currentIdx - 1], reordered[currentIdx]] = [reordered[currentIdx], reordered[currentIdx - 1]];
+                          onReorderSubtasks(task.id, reordered);
+                        }}
+                        onMoveDown={() => {
+                          if (idx === visibleSubs.length - 1) return;
+                          const allSubs = task.subtasks || [];
+                          const currentIdx = allSubs.indexOf(subId);
+                          if (currentIdx < 0 || currentIdx >= allSubs.length - 1) return;
+                          const reordered = [...allSubs];
+                          [reordered[currentIdx], reordered[currentIdx + 1]] = [reordered[currentIdx + 1], reordered[currentIdx]];
+                          onReorderSubtasks(task.id, reordered);
+                        }}
+                      />
+                      {/* Nota de subtarea en reunión */}
+                      {inMeeting && meetingItems && onUpdateMeetingItems && (
+                        <div className="px-4 pb-2 ml-5 border-t dark:border-border-main/20 border-border-main-light/20">
+                          <textarea
+                            value={meetingItems.find((i: any) => i.taskId === subId)?.note || ''}
+                            onChange={e => {
+                              const existing = meetingItems.find((i: any) => i.taskId === subId);
+                              if (existing) {
+                                onUpdateMeetingItems(meetingItems.map((i: any) => i.taskId === subId ? { ...i, note: e.target.value } : i));
+                              } else {
+                                onUpdateMeetingItems([...meetingItems, { taskId: subId, note: e.target.value, isSubtask: true }]);
+                              }
+                            }}
+                            placeholder="Nota sobre esta subtarea..."
+                            rows={1}
+                            onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                            className="w-full dark:bg-transparent bg-transparent border-none text-sm dark:text-text-secondary text-text-secondary-light dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/30 outline-none resize-none overflow-hidden mt-1"
+                          />
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </Reorder.Group>
               )}

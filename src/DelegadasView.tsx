@@ -856,8 +856,13 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                               onAddTask={onAddTask}
                               onReorderSubtasks={() => {}}
                               onToggleExpand={(taskId: string) => onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded })}
-                              hideCompleted={false}
+                              hideCompleted={true}
                               inMeeting={true}
+                              meetingItems={meeting.items}
+                              onUpdateMeetingItems={(updatedItems: any[]) => {
+                                const updatedMeeting = { ...meeting, items: updatedItems };
+                                onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
+                              }}
                               onDelete={onDeleteTask}
                             />
                             {/* Nota inline editable */}
