@@ -17,8 +17,10 @@ import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { isTaskCompleted, formatMinutes } from './utils';
 import {
   TaskCard, BulkActionBar, DelegationChip, DatePickerChip, TagPickerChip,
-  EstimatedTimeChip, RecurrencePickerChip, BlockPickerChip
+  EstimatedTimeChip, RegisteredTimeChip, RecurrencePickerChip, BlockPickerChip, 
+  TimePickerChip, TaskTypeChip, TimerDisplay
 } from './components';
+import { getTaskRegisteredCombo, getTaskEstimatedCombo } from './utils';
 
 export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null }: any) {
   const [activeTab, setActiveTab] = useState<'tareas' | 'reuniones'>('tareas');
