@@ -2299,21 +2299,12 @@ export default function App() {
         <BulkDelegateModal
           people={people}
           onClose={() => setBulkDelegateModal(false)}
-          onConfirm={(personId: string) => {
-            const person = people.find((p: any) => p.id === personId);
-            if (!person) return;
+          onConfirm={(personId: string | null) => {
             const timestamp = new Date().toISOString();
-            setTasks(prev => {
-              const next = { ...prev };
-              selectedTaskIds.forEach(id => {
-                if (next[id]) {
-                  next[id] = { ...next[id], delegation: { personId, personName: person.name, delegatedAt: timestamp }, modifiedAt: timestamp };
-                }
-              });
-              return next;
-            });
-            setSelectedTaskIds(new Set());
-            setSelectionMode(false);
+            const delegation = personId 
+              ? { personId, personName: people.find((p: any) => p.id === personId)?.name || '', delegatedAt: timestamp }
+              : null;
+            bulkUpdateTasks({ delegation });
             setBulkDelegateModal(false);
           }}
         />
