@@ -743,27 +743,41 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
           {filteredMeetings.map((meeting: any) => {
             const isOpen = expandedMeetings.has(meeting.id);
             return (
-              <div key={meeting.id} className="bg-bg-card border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
-                <button
-                  onClick={() => toggleMeeting(meeting.id)}
-                  className="w-full flex items-center justify-between p-5 hover:bg-white/2 transition-all"
-                >
-                  <div className="flex items-center gap-4">
+              <div key={meeting.id} className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
+                <div className="flex items-center justify-between p-5">
+                  <button
+                    onClick={() => toggleMeeting(meeting.id)}
+                    className="flex items-center gap-4 flex-1 text-left hover:opacity-80 transition-all"
+                  >
                     <div className="w-10 h-10 rounded-2xl bg-azul/20 border border-azul/30 flex items-center justify-center text-azul">
                       <History size={18} />
                     </div>
-                    <div className="text-left">
+                    <div>
                       <p className="font-black dark:text-white text-text-main-light uppercase tracking-widest text-sm">
                         Reunión con {getPersonName(meeting.personId)}
                       </p>
                       <p className="text-[10px] dark:text-text-secondary text-text-secondary-light">
                         {new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }).format(parseLocalISO(meeting.date))}
-                        {' · '}{meeting.items.length} notas
+                        {' · '}{meeting.items.length} tareas
                       </p>
                     </div>
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        if (confirm(`¿Eliminar la reunión con ${getPersonName(meeting.personId)}?`)) {
+                          const updated = meetings.filter((m: any) => m.id !== meeting.id);
+                          onUpdateMeetings(updated);
+                        }
+                      }}
+                      className="w-8 h-8 flex items-center justify-center text-rosa/60 hover:text-rosa hover:bg-rosa/10 rounded-xl transition-all"
+                      title="Eliminar reunión"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    {isOpen ? <ChevronUp size={18} className="dark:text-text-secondary text-text-secondary-light" /> : <ChevronDown size={18} className="dark:text-text-secondary text-text-secondary-light" />}
                   </div>
-                  {isOpen ? <ChevronUp size={18} className="text-text-secondary" /> : <ChevronDown size={18} className="text-text-secondary" />}
-                </button>
+                </div>
                 <AnimatePresence>
                   {isOpen && (
                     <motion.div
@@ -773,7 +787,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                       className="border-t dark:border-border-main border-border-main-light/50 p-5 space-y-3"
                     >
                       {meeting.notes && (
-                        <div className="bg-bg-main rounded-xl p-3 border dark:border-border-main border-border-main-light">
+                        <div className="dark:bg-bg-main bg-gray-50 rounded-xl p-3 border dark:border-border-main border-border-main-light">
                           <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-1">Nota general</p>
                           <p className="text-sm dark:text-white text-text-main-light">{meeting.notes}</p>
                         </div>
@@ -781,14 +795,19 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                       {meeting.items.map((item: any) => {
                         const task = allTasksMap[item.taskId];
                         const block = task ? getBlock(task.blockId) : null;
+                        const hasNote = item.note && item.note.trim().length > 0;
                         return (
-                          <div key={item.taskId} className="flex gap-3 p-3 dark:bg-bg-main bg-white rounded-xl border dark:border-border-main border-border-main-light group/mitem">
-                            <div className="w-1 h-full min-h-[2rem] rounded-full shrink-0 bg-morado/40" />
+                          <div key={item.taskId} className={`flex gap-3 p-3 rounded-xl border transition-all group/mitem ${
+                            hasNote
+                              ? 'dark:bg-bg-main bg-white dark:border-border-main border-border-main-light'
+                              : 'dark:bg-bg-main/30 bg-gray-50/50 dark:border-border-main/30 border-border-main-light/30 opacity-50'
+                          }`}>
+                            <div className={`w-1 h-full min-h-[2rem] rounded-full shrink-0 ${hasNote ? 'bg-morado/40' : 'bg-morado/20'}`} />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="min-w-0">
-                                  <p className="text-[10px] font-black text-morado uppercase tracking-wider truncate">{task?.title || item.taskId}</p>
-                                  {block && <span className="text-[8px] text-text-secondary font-black">{block.icon} {block.name}</span>}
+                                  <p className={`text-[10px] font-black uppercase tracking-wider truncate ${hasNote ? 'text-morado' : 'dark:text-text-secondary text-text-secondary-light'}`}>{task?.title || item.taskId}</p>
+                                  {block && <span className="text-[8px] dark:text-text-secondary text-text-secondary-light font-black">{block.icon} {block.name}</span>}
                                 </div>
                                 <div className="flex items-center gap-1 opacity-0 group-hover/mitem:opacity-100 transition-all shrink-0">
                                   <button
@@ -807,7 +826,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                                   </button>
                                 </div>
                               </div>
-                              <p className="text-sm text-text-secondary mt-1">{item.note}</p>
+                              {hasNote && <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-1">{item.note}</p>}
+                              {!hasNote && <p className="text-[10px] dark:text-text-secondary/40 text-text-secondary-light/40 mt-1 italic">Sin nota</p>}
                             </div>
                           </div>
                         );
@@ -1023,16 +1043,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                       <button
                         key={p.id}
                         onClick={() => {
-                          const personTasks = delegatedTasks.filter((t: any) => t.delegation?.personId === p.id);
-                          const allItems: any[] = [];
-                          personTasks.forEach((t: any) => {
-                            allItems.push({ taskId: t.id, note: '', isSubtask: false });
-                            if (t.subtasks) t.subtasks.forEach((sid: string) => {
-                              const sub = allTasksMap[sid];
-                              if (sub && !sub.isDeleted) allItems.push({ taskId: sid, note: '', isSubtask: true });
-                            });
-                          });
-                          setNewMeeting({ ...newMeeting, personId: p.id, items: allItems });
+                          setNewMeeting({ ...newMeeting, personId: p.id, items: [] });
                         }}
                         className="flex items-center gap-2 px-3 py-2 dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-[11px] font-bold dark:text-white text-text-main-light hover:border-morado/50 transition-all"
                       >
@@ -1042,6 +1053,40 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                         {p.name}
                       </button>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Task selector - show after person is selected */}
+              {newMeeting.personId && (
+                <div className="mb-4 space-y-2">
+                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block">Tareas a tratar</label>
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {delegatedTasks.filter((t: any) => t.delegation?.personId === newMeeting.personId).map((t: any) => {
+                      const isSelected = newMeeting.items.some((i: any) => i.taskId === t.id);
+                      return (
+                        <button
+                          key={t.id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setNewMeeting({ ...newMeeting, items: newMeeting.items.filter((i: any) => i.taskId !== t.id) });
+                            } else {
+                              setNewMeeting({ ...newMeeting, items: [...newMeeting.items, { taskId: t.id, note: '', isSubtask: false }] });
+                            }
+                          }}
+                          className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all border ${
+                            isSelected
+                              ? 'bg-morado/10 border-morado/40 text-morado'
+                              : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-white text-text-main-light hover:border-morado/30'
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-morado border-morado' : 'dark:border-border-main border-border-main-light'}`}>
+                            {isSelected && <Check size={10} className="text-white" />}
+                          </div>
+                          <span className="text-[11px] font-bold truncate">{t.title}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
