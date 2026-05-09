@@ -7,7 +7,9 @@
 import React, { useState, useMemo } from 'react';
 import {
   Plus, ChevronDown, ChevronRight, Edit, Trash2, X, Check,
-  Users, Calendar as CalendarIcon, Clock, MessageSquare, CheckCircle2
+  Users, Calendar as CalendarIcon, Clock, MessageSquare, CheckCircle2,
+  ChevronsUp, ChevronsDown, Eye, EyeOff, GripVertical, RefreshCw,
+  ArrowRight, Tag, User, Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task, WorkBlock, Person } from './types';
