@@ -513,7 +513,15 @@ export function TaskCard({
     <div className="group relative">
       <div>
         <div
-          className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''}`}
+          className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''} ${selectionMode && selectedTaskIds.has(task.id) ? 'dark:bg-azul/10 bg-azul/5' : ''}`}
+          onClick={selectionMode && onToggleTaskSelection ? (e) => {
+            // Solo seleccionar si no se hizo click en un botón o input
+            const target = e.target as HTMLElement;
+            if (target.closest('button') || target.closest('input') || target.closest('select')) return;
+            const isContainer = !!(task.subtasks && task.subtasks.length > 0);
+            onToggleTaskSelection(task.id, isContainer);
+          } : undefined}
+          style={selectionMode && selectedTaskIds.has(task.id) ? { outline: '2px solid #3B82F6', outlineOffset: '-1px', borderRadius: '4px' } : undefined}
         >
           {/* Main Row */}
           <div className="flex items-center gap-2 px-4 py-2.5 pl-3">
@@ -541,30 +549,22 @@ export function TaskCard({
             {/* Barra color bloque - inline entre flechas y checkbox */}
             <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: block.color }} />
 
-            {/* Checkbox - turquesa normal, azul en modo selección */}
-            {selectionMode && onToggleTaskSelection ? (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const isContainer = task.subtasks && task.subtasks.length > 0;
-                  onToggleTaskSelection(task.id, isContainer);
-                }}
-                className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all shadow-lg shrink-0 ${
-                  selectedTaskIds.has(task.id)
-                    ? 'bg-azul text-white border-2 border-azul'
-                    : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-azul'
-                }`}
-              >
-                <Check size={12} />
-              </button>
-            ) : (
-              <button 
-                onClick={() => onToggleStatus(task.id)}
-                className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all shadow-lg shrink-0 ${task.status === 'completed' ? 'bg-turquesa text-white' : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-turquesa'}`}
-              >
-                <CheckCircle2 size={12} />
-              </button>
-            )}
+            {/* Checkbox completar - siempre visible */}
+            <button 
+              onClick={(e) => { e.stopPropagation(); onToggleStatus(task.id); }}
+              className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all shadow-lg shrink-0 ${
+                selectionMode && selectedTaskIds.has(task.id)
+                  ? 'bg-azul/20 border-2 border-azul text-azul'
+                  : task.status === 'completed' 
+                    ? 'bg-turquesa text-white' 
+                    : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-turquesa'
+              }`}
+            >
+              {selectionMode && selectedTaskIds.has(task.id) 
+                ? <Check size={12} />
+                : <CheckCircle2 size={12} />
+              }
+            </button>
 
             {/* Contenido: título + chips */}
             <div className="flex-1 min-w-0">
