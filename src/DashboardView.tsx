@@ -547,82 +547,16 @@ export function DashboardView({
                 {timeEntries
                   .filter((e: any) => e.date === activeDate)
                   .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                  .map((entry: any) => {
-                    const task = allTasksMap[entry.subtaskId || entry.taskId];
-                    const [editing, setEditing] = React.useState(false);
-                    const [editMinutes, setEditMinutes] = React.useState(entry.duration);
-                    const [editNote, setEditNote] = React.useState(entry.note || '');
-                    return (
-                      <div key={entry.id} className="dark:bg-bg-main bg-gray-50 rounded-xl border dark:border-border-main border-border-main-light overflow-hidden">
-                        {!editing ? (
-                          <div className="flex items-center gap-3 p-3 group">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[11px] font-black dark:text-white text-text-main-light truncate uppercase">
-                                {task?.title || entry.taskId}
-                              </p>
-                              {entry.note && <p className="text-[10px] dark:text-text-secondary text-text-secondary-light mt-0.5">{entry.note}</p>}
-                              <p className="text-[9px] dark:text-text-secondary/50 text-text-secondary-light/50 mt-0.5">
-                                {entry.source === 'timer' ? '⏱ Timer' : '✏️ Manual'}
-                              </p>
-                            </div>
-                            <span className="text-sm font-black text-morado shrink-0">{formatMinutes(entry.duration)}</span>
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                              <button
-                                onClick={() => { setEditing(true); setEditMinutes(entry.duration); setEditNote(entry.note || ''); }}
-                                className="w-6 h-6 flex items-center justify-center text-turquesa/70 hover:text-turquesa hover:bg-turquesa/10 rounded-lg transition-all"
-                              >
-                                <Edit size={12} />
-                              </button>
-                              <button
-                                onClick={() => onDeleteTimeEntry && onDeleteTimeEntry(entry.id)}
-                                className="w-6 h-6 flex items-center justify-center text-rosa/70 hover:text-rosa hover:bg-rosa/10 rounded-lg transition-all"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="p-3 space-y-2">
-                            <p className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">{task?.title || entry.taskId}</p>
-                            <div className="flex items-center gap-2">
-                              <label className="text-[9px] dark:text-text-secondary text-text-secondary-light font-bold uppercase">Min:</label>
-                              <input
-                                type="number"
-                                value={editMinutes}
-                                onChange={e => setEditMinutes(Number(e.target.value))}
-                                className="w-20 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-lg px-2 py-1 text-sm dark:text-white text-text-main-light outline-none focus:border-morado/50"
-                                min={1}
-                              />
-                            </div>
-                            <input
-                              type="text"
-                              value={editNote}
-                              onChange={e => setEditNote(e.target.value)}
-                              placeholder="Nota..."
-                              className="w-full dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-lg px-2 py-1.5 text-sm dark:text-white text-text-main-light outline-none focus:border-morado/50"
-                            />
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => setEditing(false)}
-                                className="flex-1 py-1.5 rounded-lg border dark:border-border-main border-border-main-light text-[10px] font-black dark:text-text-secondary text-text-secondary-light"
-                              >
-                                Cancelar
-                              </button>
-                              <button
-                                onClick={() => {
-                                  onUpdateTimeEntry && onUpdateTimeEntry(entry.id, { duration: editMinutes, note: editNote });
-                                  setEditing(false);
-                                }}
-                                className="flex-1 py-1.5 rounded-lg bg-morado text-white text-[10px] font-black"
-                              >
-                                Guardar
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  .map((entry: any) => (
+                    <div key={entry.id} className="dark:bg-bg-main bg-gray-50 rounded-xl border dark:border-border-main border-border-main-light overflow-hidden">
+                      <TimeEntryItem
+                        entry={entry}
+                        allTasksMap={allTasksMap}
+                        onDelete={onDeleteTimeEntry}
+                        onUpdate={onUpdateTimeEntry}
+                      />
+                    </div>
+                  ))}
                 <div className="pt-3 border-t dark:border-border-main border-border-main-light flex justify-between items-center">
                   <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Total</span>
                   <span className="font-black text-morado">{formatMinutes(stats.registered)}</span>
@@ -639,6 +573,49 @@ export function DashboardView({
 // ─────────────────────────────────────────────
 // Componentes auxiliares del Dashboard
 // ─────────────────────────────────────────────
+
+function TimeEntryItem({ entry, allTasksMap, onDelete, onUpdate }: any) {
+  const [editing, setEditing] = React.useState(false);
+  const [editMinutes, setEditMinutes] = React.useState(entry.duration);
+  const [editNote, setEditNote] = React.useState(entry.note || '');
+  const task = allTasksMap[entry.subtaskId || entry.taskId];
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-3 p-3 group">
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-black dark:text-white text-text-main-light truncate uppercase">{task?.title || entry.taskId}</p>
+          {entry.note && <p className="text-[10px] dark:text-text-secondary text-text-secondary-light mt-0.5">{entry.note}</p>}
+          <p className="text-[9px] dark:text-text-secondary/50 text-text-secondary-light/50 mt-0.5">{entry.source === 'timer' ? '⏱ Timer' : '✏️ Manual'}</p>
+        </div>
+        <span className="text-sm font-black text-morado shrink-0">{formatMinutes(entry.duration)}</span>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+          <button onClick={() => { setEditing(true); setEditMinutes(entry.duration); setEditNote(entry.note || ''); }} className="w-6 h-6 flex items-center justify-center text-turquesa/70 hover:text-turquesa hover:bg-turquesa/10 rounded-lg transition-all">
+            <Edit size={12} />
+          </button>
+          <button onClick={() => onDelete(entry.id)} className="w-6 h-6 flex items-center justify-center text-rosa/70 hover:text-rosa hover:bg-rosa/10 rounded-lg transition-all">
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3 space-y-2">
+      <p className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">{task?.title || entry.taskId}</p>
+      <div className="flex items-center gap-2">
+        <label className="text-[9px] dark:text-text-secondary text-text-secondary-light font-bold uppercase">Min:</label>
+        <input type="number" value={editMinutes} onChange={e => setEditMinutes(Number(e.target.value))} className="w-20 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-lg px-2 py-1 text-sm dark:text-white text-text-main-light outline-none focus:border-morado/50" min={1} />
+      </div>
+      <input type="text" value={editNote} onChange={e => setEditNote(e.target.value)} placeholder="Nota..." className="w-full dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-lg px-2 py-1.5 text-sm dark:text-white text-text-main-light outline-none focus:border-morado/50" />
+      <div className="flex gap-2">
+        <button onClick={() => setEditing(false)} className="flex-1 py-1.5 rounded-lg border dark:border-border-main border-border-main-light text-[10px] font-black dark:text-text-secondary text-text-secondary-light">Cancelar</button>
+        <button onClick={() => { onUpdate(entry.id, { duration: editMinutes, note: editNote }); setEditing(false); }} className="flex-1 py-1.5 rounded-lg bg-morado text-white text-[10px] font-black">Guardar</button>
+      </div>
+    </div>
+  );
+}
 
 export function SummaryCard({ label, value, total, progress, color, subtitle, clickable, onClick }: any) {
   return (
