@@ -89,11 +89,12 @@ import { CalendarView } from './CalendarView';
 import { DelegadasView } from './DelegadasView';
 import { 
   TaskCard, BulkActionBar, DashboardHarmonicCalendar, RecurrenceChoiceModal,
-  BlockModal, TimeManagementPanel, SearchView, getTagColor,
+  BlockModal, TimeManagementPanel, getTagColor,
   DelegationChip, DatePickerChip, TagPickerChip, RecurrencePickerChip,
   EstimatedTimeChip, RegisteredTimeChip, BlockPickerChip, TimePickerChip,
   TaskTypeChip, TimerDisplay, ToggleExpandButton, MonthDatePicker
 } from './components';
+import { SearchView } from './SearchView';
  
 // --- Storage Key ---
 const STORAGE_KEY = 'workmanager-v19-data-v1';
@@ -2135,17 +2136,20 @@ export default function App() {
             
             {currentView === 'search' && (
               <SearchView
-                searchText={searchText}
-                setSearchText={setSearchText}
-                searchFilters={searchFilters}
-                setSearchFilters={setSearchFilters}
-                tasks={Object.values(tasks).filter(t => !t.isDeleted)}
+                tasks={Object.values(tasks).filter((t: Task) => !t.isDeleted)}
                 allTasksMap={tasks}
                 blocks={blocks}
+                people={people}
+                timeEntries={timeEntries}
+                activeTimer={activeTimer}
                 onEditTask={(id: string) => setEditingTaskId(id)}
                 onToggle={handleToggleStatus}
                 onDelete={handleDeleteTaskRequest}
                 onUpdateTask={handleUpdateTask}
+                onAddTask={handleAddTask}
+                onNavigateToBlocks={(blockId: string) => {
+                  setCurrentView('blocks');
+                }}
               />
             )}
           </AnimatePresence>
