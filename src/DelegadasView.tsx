@@ -23,7 +23,7 @@ import {
 } from './components';
 import { getTaskRegisteredCombo, getTaskEstimatedCombo } from './utils';
 
-export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null }: any) {
+export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '' }: any) {
   const [activeTab, setActiveTab] = useState<'tareas' | 'reuniones'>('tareas');
   const [filterPersonId, setFilterPersonId] = useState<string | null>(null);
   const [expandedPersons, setExpandedPersons] = useState<Set<string>>(new Set());
@@ -165,9 +165,16 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
       sorted = [...entries].sort((a: any, b: any) => (a.task.order ?? 0) - (b.task.order ?? 0));
     }
 
-    // Para compatibilidad con el render existente, extraemos .tasks como array de tareas
-    // pero también exponemos subtasksForGroup por entrada
-    return { person: p, tasks: sorted.map((e: any) => e.task), entries: sorted };
+    // Filtro de búsqueda: tarea coincide si ella o alguna subtarea contiene el texto
+    const q = searchQuery.toLowerCase();
+    const filteredSorted = q ? sorted.filter(({ task, subtasksForGroup }: any) => {
+      if (task.title.toLowerCase().includes(q)) return true;
+      // Subtareas del grupo (delegadas a esta persona)
+      const subIds = subtasksForGroup || task.subtasks || [];
+      return subIds.some((sid: string) => allTasksMap[sid]?.title?.toLowerCase().includes(q));
+    }) : sorted;
+
+    return { person: p, tasks: filteredSorted.map((e: any) => e.task), entries: filteredSorted };
   }).filter((g: any) => g.entries.length > 0);
 
   const filteredByPerson = filterPersonId

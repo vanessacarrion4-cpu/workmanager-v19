@@ -74,6 +74,7 @@ interface BlocksViewProps {
   setBulkDelegateModal?: ((open: boolean) => void) | null;
   setBulkDateModal?: ((open: boolean) => void) | null;
   setBulkTimeModal?: ((open: boolean) => void) | null;
+  searchQuery?: string;
   // Componentes compartidos pasados como props hasta que se extraigan
   TaskCard: React.ComponentType<any>;
   BulkActionBar: React.ComponentType<any>;
@@ -89,7 +90,7 @@ export function BlocksManagerView({
   onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(),
   onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null,
   bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null,
-  setBulkDateModal = null, setBulkTimeModal = null
+  setBulkDateModal = null, setBulkTimeModal = null, searchQuery = ''
 }: BlocksViewProps) {
 
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
@@ -98,31 +99,37 @@ export function BlocksManagerView({
 
   const coreTasks = useMemo(() => {
     if (!selectedBlock) return [];
-    // Solo tareas reales (no instancias generadas: templateId es null)
+    const q = searchQuery.toLowerCase();
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id) return false;
-      if (t.parentTaskId) return false;  // No subtareas
-      if (t.templateId) return false;    // No instancias generadas
-      if (t.isDeleted) return false;     // No borradas
+      if (t.parentTaskId) return false;
+      if (t.templateId) return false;
+      if (t.isDeleted) return false;
       if (hideCompleted && t.status === 'completed') return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
-      return type === 'core';
+      if (type !== 'core') return false;
+      if (!q) return true;
+      if (t.title.toLowerCase().includes(q)) return true;
+      return (t.subtasks || []).some((sid: string) => allTasksMap[sid]?.title?.toLowerCase().includes(q));
     }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap, hideCompleted]);
+  }, [selectedBlock, allTasksMap, hideCompleted, searchQuery]);
 
   const adhocTasks = useMemo(() => {
     if (!selectedBlock) return [];
-    // Solo tareas reales (no instancias generadas: templateId es null)
+    const q = searchQuery.toLowerCase();
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id) return false;
-      if (t.parentTaskId) return false;  // No subtareas
-      if (t.templateId) return false;    // No instancias generadas
-      if (t.isDeleted) return false;     // No borradas
+      if (t.parentTaskId) return false;
+      if (t.templateId) return false;
+      if (t.isDeleted) return false;
       if (hideCompleted && t.status === 'completed') return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
-      return type === 'adhoc';
+      if (type !== 'adhoc') return false;
+      if (!q) return true;
+      if (t.title.toLowerCase().includes(q)) return true;
+      return (t.subtasks || []).some((sid: string) => allTasksMap[sid]?.title?.toLowerCase().includes(q));
     }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap, hideCompleted]);
+  }, [selectedBlock, allTasksMap, hideCompleted, searchQuery]);
 
   const filteredBlocks = useMemo(() => {
     if (filter === 'active') return blocks.filter(b => b.isActive);

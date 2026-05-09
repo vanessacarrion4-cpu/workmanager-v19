@@ -61,6 +61,7 @@ interface DashboardViewProps {
   setBulkDateModal?: ((open: boolean) => void) | null;
   bulkTimeModal?: boolean;
   setBulkTimeModal?: ((open: boolean) => void) | null;
+  searchQuery?: string;
 }
 
 export function DashboardView({
@@ -74,7 +75,8 @@ export function DashboardView({
   bulkDuplicateTasks = null, bulkDelegateModal = false, setBulkDelegateModal = null,
   bulkDateModal = false, setBulkDateModal = null, bulkTimeModal = false, setBulkTimeModal = null,
   onDeleteTimeEntry = null,
-  onUpdateTimeEntry = null
+  onUpdateTimeEntry = null,
+  searchQuery = ''
 }: DashboardViewProps) {
 
   const [hideCompleted, setHideCompleted] = useState(true);
@@ -98,8 +100,19 @@ export function DashboardView({
   }, [tasks, activeDate, blocks, allTasksMap]);
 
   const filteredDayTasks = useMemo(() => {
-    return dayTasks.filter((t: Task) => !hideCompleted || !isTaskCompleted(t.id, allTasksMap));
-  }, [dayTasks, hideCompleted, allTasksMap]);
+    let result = dayTasks.filter((t: Task) => !hideCompleted || !isTaskCompleted(t.id, allTasksMap));
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((t: Task) => {
+        // Coincide la tarea misma
+        if (t.title.toLowerCase().includes(q)) return true;
+        // O alguna de sus subtareas
+        const subs = t.subtasks || [];
+        return subs.some((sid: string) => allTasksMap[sid]?.title?.toLowerCase().includes(q));
+      });
+    }
+    return result;
+  }, [dayTasks, hideCompleted, allTasksMap, searchQuery]);
 
   const stats = useMemo(() => {
     return getStatsForDay(dayTasks, allTasksMap, timeEntries, activeDate);

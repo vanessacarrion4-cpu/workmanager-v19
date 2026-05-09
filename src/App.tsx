@@ -1730,12 +1730,8 @@ export default function App() {
   const allActiveTasks = useMemo(() => Object.values(tasks).filter((t: Task) => !t.isDeleted && !t.isTemplate), [tasks]);
  
   const filteredTasks = useMemo(() => {
-    let result = allActiveTasks;
-    if (searchQuery) {
-      result = result.filter((t: Task) => t.title.toLowerCase().includes(searchQuery.toLowerCase()));
-    }
-    return result;
-  }, [allActiveTasks, searchQuery]);
+    return allActiveTasks;
+  }, [allActiveTasks]);
  
   // --- Views ---
   const dashboardTasks = useMemo(() => {
@@ -1995,6 +1991,7 @@ export default function App() {
                 setBulkTimeModal={setBulkTimeModal}
                 onDeleteTimeEntry={handleDeleteTimeEntry}
                 onUpdateTimeEntry={handleUpdateTimeEntry}
+                searchQuery={searchQuery}
               />
             )}
             {currentView === 'blocks' && (
@@ -2047,6 +2044,7 @@ export default function App() {
                 setBulkDelegateModal={setBulkDelegateModal}
                 setBulkDateModal={setBulkDateModal}
                 setBulkTimeModal={setBulkTimeModal}
+                searchQuery={searchQuery}
               />
             )}
             {currentView === 'calendar' && (
@@ -2131,6 +2129,7 @@ export default function App() {
                 setBulkDelegateModal={setBulkDelegateModal}
                 setBulkDateModal={setBulkDateModal}
                 setBulkTimeModal={setBulkTimeModal}
+                searchQuery={searchQuery}
               />
             )}
             
