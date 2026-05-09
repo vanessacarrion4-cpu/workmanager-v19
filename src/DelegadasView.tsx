@@ -1025,7 +1025,9 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                       }
                     });
 
-                  return items.map(({ task, subtitleIds }: any) => {
+                  return items
+                    .filter(({ task }: any) => task.status !== 'completed')
+                    .map(({ task, subtitleIds }: any) => {
                     const isSelected = meetingSelectedIds.has(task.id);
                     const isCompleted = task.status === 'completed';
                     const subNames = subtitleIds.map((sid: string) => allTasksMap[sid]?.title).filter(Boolean);
@@ -1102,7 +1104,9 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                           // Usar el mismo flujo que desde bloque: showTaskSelector
                           setShowNewMeeting(false);
                           setNewMeeting(null);
-                          const personTasks = delegatedTasks.filter((t: any) => t.delegation?.personId === p.id);
+                          const personTasks = delegatedTasks.filter((t: any) => 
+                            t.delegation?.personId === p.id && t.status !== 'completed'
+                          );
                           const pendingIds = new Set(personTasks.map((t: any) => t.id));
                           setSelectorPersonId(p.id);
                           setMeetingSelectedIds(pendingIds);
