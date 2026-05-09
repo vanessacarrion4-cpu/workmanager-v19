@@ -74,7 +74,6 @@ interface BlocksViewProps {
   setBulkDelegateModal?: ((open: boolean) => void) | null;
   setBulkDateModal?: ((open: boolean) => void) | null;
   setBulkTimeModal?: ((open: boolean) => void) | null;
-  searchQuery?: string;
   // Componentes compartidos pasados como props hasta que se extraigan
   TaskCard: React.ComponentType<any>;
   BulkActionBar: React.ComponentType<any>;
@@ -90,7 +89,7 @@ export function BlocksManagerView({
   onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(),
   onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null,
   bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null,
-  setBulkDateModal = null, setBulkTimeModal = null, searchQuery = ''
+  setBulkDateModal = null, setBulkTimeModal = null
 }: BlocksViewProps) {
 
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
@@ -99,37 +98,31 @@ export function BlocksManagerView({
 
   const coreTasks = useMemo(() => {
     if (!selectedBlock) return [];
-    const q = searchQuery.toLowerCase();
+    // Solo tareas reales (no instancias generadas: templateId es null)
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id) return false;
-      if (t.parentTaskId) return false;
-      if (t.templateId) return false;
-      if (t.isDeleted) return false;
+      if (t.parentTaskId) return false;  // No subtareas
+      if (t.templateId) return false;    // No instancias generadas
+      if (t.isDeleted) return false;     // No borradas
       if (hideCompleted && t.status === 'completed') return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
-      if (type !== 'core') return false;
-      if (!q) return true;
-      if (t.title.toLowerCase().includes(q)) return true;
-      return (t.subtasks || []).some((sid: string) => allTasksMap[sid]?.title?.toLowerCase().includes(q));
+      return type === 'core';
     }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap, hideCompleted, searchQuery]);
+  }, [selectedBlock, allTasksMap, hideCompleted]);
 
   const adhocTasks = useMemo(() => {
     if (!selectedBlock) return [];
-    const q = searchQuery.toLowerCase();
+    // Solo tareas reales (no instancias generadas: templateId es null)
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id) return false;
-      if (t.parentTaskId) return false;
-      if (t.templateId) return false;
-      if (t.isDeleted) return false;
+      if (t.parentTaskId) return false;  // No subtareas
+      if (t.templateId) return false;    // No instancias generadas
+      if (t.isDeleted) return false;     // No borradas
       if (hideCompleted && t.status === 'completed') return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
-      if (type !== 'adhoc') return false;
-      if (!q) return true;
-      if (t.title.toLowerCase().includes(q)) return true;
-      return (t.subtasks || []).some((sid: string) => allTasksMap[sid]?.title?.toLowerCase().includes(q));
+      return type === 'adhoc';
     }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap, hideCompleted, searchQuery]);
+  }, [selectedBlock, allTasksMap, hideCompleted]);
 
   const filteredBlocks = useMemo(() => {
     if (filter === 'active') return blocks.filter(b => b.isActive);
@@ -279,6 +272,7 @@ export function BlocksManagerView({
                       [reordered[idx], reordered[idx + 1]] = [reordered[idx + 1], reordered[idx]];
                       onReorderTasks(reordered);
                     }}
+                    searchQuery={searchQuery}
                   />
                 ))}
               </Reorder.Group>
@@ -346,6 +340,7 @@ export function BlocksManagerView({
                       [reordered[idx], reordered[idx + 1]] = [reordered[idx + 1], reordered[idx]];
                       onReorderTasks(reordered);
                     }}
+                    searchQuery={searchQuery}
                   />
                 ))}
               </Reorder.Group>

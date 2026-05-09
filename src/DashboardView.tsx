@@ -495,6 +495,7 @@ export function DashboardView({
                               selectionMode={selectionMode}
                               selectedTaskIds={selectedTaskIds}
                               onToggleTaskSelection={onToggleTaskSelection}
+                              searchQuery={searchQuery}
                             />
                           </div>
                         ));

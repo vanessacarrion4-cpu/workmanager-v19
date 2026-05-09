@@ -24,6 +24,24 @@ import {
 import { getTaskRegisteredCombo, getTaskEstimatedCombo } from './utils';
 
 export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '' }: any) {
+
+  // Highlight helper
+  const HighlightText = ({ text }: { text: string }) => {
+    if (!searchQuery) return <>{text}</>;
+    const q = searchQuery.toLowerCase();
+    const idx = text.toLowerCase().indexOf(q);
+    if (idx === -1) return <>{text}</>;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark style={{ backgroundColor: '#facc15', color: 'inherit', borderRadius: '2px', padding: '0 1px' }}>
+          {text.slice(idx, idx + searchQuery.length)}
+        </mark>
+        {text.slice(idx + searchQuery.length)}
+      </>
+    );
+  };
+
   const [activeTab, setActiveTab] = useState<'tareas' | 'reuniones'>('tareas');
   const [filterPersonId, setFilterPersonId] = useState<string | null>(null);
   const [expandedPersons, setExpandedPersons] = useState<Set<string>>(new Set());
@@ -165,11 +183,10 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
       sorted = [...entries].sort((a: any, b: any) => (a.task.order ?? 0) - (b.task.order ?? 0));
     }
 
-    // Filtro de búsqueda: tarea coincide si ella o alguna subtarea contiene el texto
+    // Filtro búsqueda
     const q = searchQuery.toLowerCase();
     const filteredSorted = q ? sorted.filter(({ task, subtasksForGroup }: any) => {
       if (task.title.toLowerCase().includes(q)) return true;
-      // Subtareas del grupo (delegadas a esta persona)
       const subIds = subtasksForGroup || task.subtasks || [];
       return subIds.some((sid: string) => allTasksMap[sid]?.title?.toLowerCase().includes(q));
     }) : sorted;
@@ -640,7 +657,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                               {/* Título + info */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <p className={`font-black dark:text-white text-text-main-light text-[13px] truncate capitalize tracking-normal flex-1 ${task.status === 'completed' ? 'line-through' : ''}`}>{task.title}</p>
+                                  <p className={`font-black dark:text-white text-text-main-light text-[13px] truncate capitalize tracking-normal flex-1 ${task.status === 'completed' ? 'line-through' : ''}`}><HighlightText text={task.title} /></p>
                                   {/* Badge circular subtareas - junto al título como Dashboard */}
                                   {hasSubtasks && (() => {
                                     const pendingCount = subtaskList.filter((s: any) => s && !s.isDeleted && s.status !== 'completed').length;

@@ -361,12 +361,30 @@ export function TaskCard({
   inMeeting = false,
   meetingItems = null,
   onUpdateMeetingItems = null,
+  searchQuery = '',
 }: any) {
   if (!task || task.isDeleted) return null;
   const currentRootId = rootTaskId || task.id;
   const block = blocks.find((b: any) => b.id === task.blockId) || blocks[0] || { color: '#14B8A6', icon: '📋', name: 'General' };
   const hasSubtasks = (task.subtasks && task.subtasks.length > 0) || (subtasksForGroup && subtasksForGroup.length > 0);
   const isExpanded = forceExpanded !== null ? forceExpanded : (task.isExpanded ?? true);
+
+  // Highlight helper: resalta el texto coincidente con fondo amarillo
+  const HighlightText = ({ text }: { text: string }) => {
+    if (!searchQuery) return <>{text}</>;
+    const q = searchQuery.toLowerCase();
+    const idx = text.toLowerCase().indexOf(q);
+    if (idx === -1) return <>{text}</>;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark style={{ backgroundColor: '#facc15', color: 'inherit', borderRadius: '2px', padding: '0 1px' }}>
+          {text.slice(idx, idx + searchQuery.length)}
+        </mark>
+        {text.slice(idx + searchQuery.length)}
+      </>
+    );
+  };
   
   // En Dashboard con subtasksForGroup: solo sumar las subtareas de ese grupo
   // En Bloques: sumar todas las subtareas
@@ -419,7 +437,7 @@ export function TaskCard({
       <div className="relative">
         <div className="flex items-center gap-2 p-2 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl transition-all group">
           <div className="w-1.5 h-6 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
-          <span className="text-[11px] font-bold dark:text-white text-text-main-light truncate flex-1 uppercase tracking-tight">{task.title}</span>
+          <span className="text-[11px] font-bold dark:text-white text-text-main-light truncate flex-1 uppercase tracking-tight"><HighlightText text={task.title} /></span>
           {(task.templateId || task.recurrence) && <RefreshCw size={10} className="text-turquesa shrink-0" />}
           <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">
             {formatMinutes(totalEstimated)}
@@ -576,23 +594,28 @@ export function TaskCard({
                 {/* Fila título */}
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                    <input 
-                      autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
-                      className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none min-w-0 flex-1 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
-                      value={task.title}
-                      onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
-                      onBlur={() => { 
-                        if(editingTaskId === task.id) onEditTask(null);
-                        if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
-                      }}
-                      onKeyDown={(e) => { 
-                        if(e.key === 'Enter') {
+                    <div className="relative flex-1 min-w-0">
+                      <input 
+                        autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
+                        className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none min-w-0 w-full truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
+                        value={task.title}
+                        onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
+                        onBlur={() => { 
                           if(editingTaskId === task.id) onEditTask(null);
                           if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
-                        }
-                      }}
-                      placeholder="Título de la tarea..."
-                    />
+                        }}
+                        onKeyDown={(e) => { 
+                          if(e.key === 'Enter') {
+                            if(editingTaskId === task.id) onEditTask(null);
+                            if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
+                          }
+                        }}
+                        placeholder="Título de la tarea..."
+                      />
+                      {searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) && (
+                        <div className="absolute -bottom-0.5 left-0 right-0 h-0.5 rounded-full" style={{ backgroundColor: '#facc15' }} />
+                      )}
+                    </div>
                     {/* Badge circular subtareas pendientes */}
                     {hasSubtasks && (() => {
                       const subIds: string[] = subtasksForGroup || task.subtasks || [];
