@@ -36,6 +36,25 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
 
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(true);
+  // Expand/contraer contenedores por reunión (por defecto comprimidos = vacío)
+  const [meetingExpandedContainers, setMeetingExpandedContainers] = useState<Record<string, Set<string>>>({});
+  const toggleMeetingContainer = (meetingId: string, taskId: string) => {
+    setMeetingExpandedContainers(prev => {
+      const set = new Set(prev[meetingId] || []);
+      set.has(taskId) ? set.delete(taskId) : set.add(taskId);
+      return { ...prev, [meetingId]: set };
+    });
+  };
+  const toggleAllMeetingContainers = (meetingId: string, taskIds: string[]) => {
+    setMeetingExpandedContainers(prev => {
+      const current = prev[meetingId] || new Set<string>();
+      const allOpen = taskIds.every((id: string) => current.has(id));
+      const next = new Set<string>(allOpen ? [] : taskIds);
+      return { ...prev, [meetingId]: next };
+    });
+  };
+  // Filtro rango de fechas para reuniones
+  const [meetingDateRange, setMeetingDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [editingPersonName, setEditingPersonName] = useState('');
   const [hideCompletedDelegadas, setHideCompletedDelegadas] = useState(false);
@@ -304,9 +323,12 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
     return labels[tag] || null;
   };
 
-  const filteredMeetings = filterPersonId
-    ? meetings.filter((m: any) => m.personId === filterPersonId)
-    : meetings;
+  const filteredMeetings = (meetings || []).filter((m: any) => {
+    if (filterPersonId && m.personId !== filterPersonId) return false;
+    if (meetingDateRange.start && m.date < meetingDateRange.start) return false;
+    if (meetingDateRange.end && m.date > meetingDateRange.end) return false;
+    return true;
+  });
 
   const getPersonName = (id: string) => people.find((p: any) => p.id === id)?.name || 'Desconocido';
   const getBlock = (blockId: string) => blocks.find((b: any) => b.id === blockId);
@@ -774,6 +796,36 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
       {/* REUNIONES TAB */}
       {activeTab === 'reuniones' && (
         <div className="space-y-4">
+
+          {/* Filtros reuniones: persona (ya existe arriba) + rango de fechas */}
+          <div className="flex flex-wrap items-center gap-3 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-2xl p-4">
+            <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest shrink-0">Rango</span>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <input
+                type="date"
+                value={meetingDateRange.start}
+                onChange={e => setMeetingDateRange(prev => ({ ...prev, start: e.target.value }))}
+                className="flex-1 min-w-0 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-xs dark:text-white text-text-main-light outline-none focus:border-morado/50"
+              />
+              <span className="text-[10px] dark:text-text-secondary text-text-secondary-light shrink-0">→</span>
+              <input
+                type="date"
+                value={meetingDateRange.end}
+                onChange={e => setMeetingDateRange(prev => ({ ...prev, end: e.target.value }))}
+                className="flex-1 min-w-0 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-xs dark:text-white text-text-main-light outline-none focus:border-morado/50"
+              />
+            </div>
+            {(meetingDateRange.start || meetingDateRange.end) && (
+              <button
+                onClick={() => setMeetingDateRange({ start: '', end: '' })}
+                className="w-7 h-7 flex items-center justify-center text-rosa/60 hover:text-rosa hover:bg-rosa/10 rounded-lg transition-all shrink-0"
+                title="Limpiar rango"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
           {filteredMeetings.length === 0 && (
             <div className="py-24 text-center dark:text-text-secondary text-text-secondary-light border-2 border-dashed dark:border-border-main border-border-main-light rounded-[2.5rem] opacity-50">
               <History size={40} className="mx-auto mb-4 opacity-20" />
@@ -783,6 +835,13 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
           )}
           {filteredMeetings.map((meeting: any) => {
             const isOpen = expandedMeetings.has(meeting.id);
+            // Tareas contenedor en esta reunión (tienen subtareas en allTasksMap)
+            const containerTaskIds = meeting.items
+              .map((item: any) => allTasksMap[item.taskId])
+              .filter((t: any) => t && (t.subtasks?.length > 0))
+              .map((t: any) => t.id);
+            const meetingExpanded = meetingExpandedContainers[meeting.id] || new Set<string>();
+            const allContainersOpen = containerTaskIds.length > 0 && containerTaskIds.every((id: string) => meetingExpanded.has(id));
             return (
               <div key={meeting.id} className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
                 <div className="flex items-center justify-between p-5">
@@ -804,9 +863,21 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                     </div>
                   </button>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        // Guardar todas las notas de la reunión en los templates
+                    {/* Botón expandir/contraer contenedores de esta reunión */}
+                    {containerTaskIds.length > 0 && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleAllMeetingContainers(meeting.id, containerTaskIds); }}
+                        className={`flex items-center gap-1.5 px-3 h-8 rounded-xl border transition-all text-[9px] font-black uppercase tracking-widest ${
+                          allContainersOpen
+                            ? 'bg-turquesa/10 border-turquesa/50 text-turquesa'
+                            : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:text-turquesa'
+                        }`}
+                        title={allContainersOpen ? 'Contraer contenedores' : 'Expandir contenedores'}
+                      >
+                        {allContainersOpen ? <ChevronsUp size={12} /> : <ChevronsDown size={12} />}
+                      </button>
+                    )}
+
                         const person = people.find((p: any) => p.id === meeting.personId);
                         const personName = person?.name || '';
                         const dateLabel = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }).format(parseLocalISO(meeting.date));
@@ -868,6 +939,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                         .filter((item: any) => {
                           const task = allTasksMap[item.taskId];
                           if (!task) return false;
+                          // Ocultar completadas
+                          if (task.status === 'completed') return false;
                           // No mostrar si es subtarea Y su contenedor padre también está en los items
                           if (task.parentTaskId) {
                             const parentInItems = meeting.items.some((i: any) => i.taskId === task.parentTaskId);
@@ -879,30 +952,89 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                         const task = allTasksMap[item.taskId];
                         if (!task) return null;
                         const hasNote = item.note && item.note.trim().length > 0;
+                        const isContainer = task.subtasks && task.subtasks.length > 0;
+                        const isContainerOpen = meetingExpanded.has(task.id);
                         return (
                           <div key={item.taskId} className={`rounded-xl border transition-all ${hasNote ? 'dark:border-border-main border-border-main-light' : 'dark:border-border-main/30 border-border-main-light/30'}`}>
-                            <TaskCard
-                              task={task}
-                              variant="FULL"
-                              allTasksMap={allTasksMap}
-                              people={people}
-                              blocks={blocks}
-                              timeEntries={timeEntries}
-                              onToggleStatus={onToggleTask}
-                              onUpdateTask={onUpdateTask}
-                              onEditTask={onEditTask}
-                              onAddTask={onAddTask}
-                              onReorderSubtasks={() => {}}
-                              onToggleExpand={(taskId: string) => onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded })}
-                              hideCompleted={true}
-                              inMeeting={true}
-                              meetingItems={meeting.items}
-                              onUpdateMeetingItems={(updatedItems: any[]) => {
-                                const updatedMeeting = { ...meeting, items: updatedItems };
-                                onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
-                              }}
-                              onDelete={onDeleteTask}
-                            />
+                            {/* Si es contenedor: header propio con botón expandir */}
+                            {isContainer ? (
+                              <div>
+                                <div className="flex items-center gap-3 p-3">
+                                  <button
+                                    onClick={() => onToggleTask && onToggleTask(task.id)}
+                                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                                      task.status === 'completed' ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light hover:border-turquesa'
+                                    }`}
+                                  >
+                                    {task.status === 'completed' && <Check size={10} />}
+                                  </button>
+                                  <p className={`flex-1 font-bold dark:text-white text-text-main-light text-sm ${task.status === 'completed' ? 'line-through opacity-50' : ''}`}>{task.title}</p>
+                                  <button
+                                    onClick={() => toggleMeetingContainer(meeting.id, task.id)}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg dark:bg-bg-main bg-gray-100 dark:border-border-main border-border-main-light border text-[9px] font-black dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:border-turquesa/50 transition-all uppercase tracking-widest"
+                                  >
+                                    {isContainerOpen ? <ChevronsUp size={11} /> : <ChevronsDown size={11} />}
+                                    <span>{isContainerOpen ? 'Comprimir' : 'Expandir'}</span>
+                                  </button>
+                                </div>
+                                <AnimatePresence>
+                                  {isContainerOpen && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      className="border-t dark:border-border-main/30 border-border-main-light/30"
+                                    >
+                                      <TaskCard
+                                        task={task}
+                                        variant="FULL"
+                                        allTasksMap={allTasksMap}
+                                        people={people}
+                                        blocks={blocks}
+                                        timeEntries={timeEntries}
+                                        onToggleStatus={onToggleTask}
+                                        onUpdateTask={onUpdateTask}
+                                        onEditTask={onEditTask}
+                                        onAddTask={onAddTask}
+                                        onReorderSubtasks={() => {}}
+                                        onToggleExpand={(taskId: string) => onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded })}
+                                        hideCompleted={true}
+                                        inMeeting={true}
+                                        meetingItems={meeting.items}
+                                        onUpdateMeetingItems={(updatedItems: any[]) => {
+                                          const updatedMeeting = { ...meeting, items: updatedItems };
+                                          onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
+                                        }}
+                                        onDelete={onDeleteTask}
+                                      />
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            ) : (
+                              <TaskCard
+                                task={task}
+                                variant="FULL"
+                                allTasksMap={allTasksMap}
+                                people={people}
+                                blocks={blocks}
+                                timeEntries={timeEntries}
+                                onToggleStatus={onToggleTask}
+                                onUpdateTask={onUpdateTask}
+                                onEditTask={onEditTask}
+                                onAddTask={onAddTask}
+                                onReorderSubtasks={() => {}}
+                                onToggleExpand={(taskId: string) => onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded })}
+                                hideCompleted={true}
+                                inMeeting={true}
+                                meetingItems={meeting.items}
+                                onUpdateMeetingItems={(updatedItems: any[]) => {
+                                  const updatedMeeting = { ...meeting, items: updatedItems };
+                                  onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
+                                }}
+                                onDelete={onDeleteTask}
+                              />
+                            )}
                             {/* Nota inline editable */}
                             <div className="px-4 pb-3 border-t dark:border-border-main/30 border-border-main-light/30 pt-2">
                               <textarea
