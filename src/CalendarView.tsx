@@ -72,6 +72,19 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
   const monthName = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(viewDate);
  
   const activeBlockIds = useMemo(() => new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id)), [blocks]);
+
+  // Precalcular carga de todos los días del mes en un solo useMemo
+  // Evita calcular filterTasksForDay para cada día en el render (muy costoso)
+  const monthLoadMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    const realTasks = Object.values(allTasksMap).filter((t: any) => !t.templateId || t.isException) as Task[];
+    daysInMonth.forEach(day => {
+      if (!day) return;
+      const dayT = filterTasksForDay(realTasks, allTasksMap, activeBlockIds, day, { hideCompleted: false, hideDelegatedNoTag: true });
+      map[day] = getStatsForDay(dayT, allTasksMap, [], day).estimatedPending;
+    });
+    return map;
+  }, [daysInMonth, allTasksMap, activeBlockIds]);
  
   const getLoadColor = (minutes: number) => {
     if (minutes === 0) return 'bg-bg-secondary opacity-20';
@@ -170,10 +183,7 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
           return rows.map((week, weekIdx) => {
             // Calcular carga total de la semana (solo días con datos)
             const weekDays = week.filter(Boolean) as string[];
-            const weekLoad = weekDays.reduce((acc, day) => {
-              const dayT = filterTasksForDay(Object.values(allTasksMap), allTasksMap, activeBlockIds, day, { hideCompleted: false, hideDelegatedNoTag: true });
-              return acc + getStatsForDay(dayT, allTasksMap, [], day).estimatedPending;
-            }, 0);
+            const weekLoad = weekDays.reduce((acc, day) => acc + (monthLoadMap[day] || 0), 0);
             const pct = Math.min(100, Math.round((weekLoad / WEEK_CAPACITY) * 100));
             const freePct = 100 - pct;
             
@@ -204,8 +214,7 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                   if (!day) return <div key={dIdx} className="aspect-square" />;
                   const isToday = day === formatLocalISO(new Date());
                   const isSelected = day === selectedDay;
-                  const dayTasksForLoad = filterTasksForDay(Object.values(allTasksMap), allTasksMap, activeBlockIds, day, { hideCompleted: false, hideDelegatedNoTag: true });
-                  const load = getStatsForDay(dayTasksForLoad, allTasksMap, [], day).estimatedPending;
+                  const load = monthLoadMap[day] || 0;
                   return (
                     <button 
                       key={day}
