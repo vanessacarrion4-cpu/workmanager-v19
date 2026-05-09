@@ -1175,17 +1175,40 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                                       {new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(parseLocalISO(task.dueDate))}
                                     </span>
                                   )}
-                                  {task.taskType && (
-                                    <span className={`text-[8px] font-black uppercase px-1 py-0.5 rounded-full border ${task.taskType === 'core' ? 'bg-turquesa/10 border-turquesa/20 text-turquesa' : 'bg-rosa/10 border-rosa/20 text-rosa'}`}>
-                                      {task.taskType === 'core' ? 'Core' : 'Ad-hoc'}
-                                    </span>
-                                  )}
-                                  {tag && <span className="text-[8px] font-black text-text-secondary">{TAG_LABELS[tag as TagType]?.label || tag}</span>}
+                                  {tag && <span className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light">{TAG_LABELS[tag as TagType]?.label || tag}</span>}
                                   {task.estimatedMinutes > 0 && (
                                     <span className="text-[8px] font-black text-azul flex items-center gap-0.5"><Clock size={8} />{formatMinutes(task.estimatedMinutes)}</span>
                                   )}
+                                  {task.recurrence && (() => {
+                                    const rec = task.recurrence;
+                                    const freq = rec.frequency || rec.type;
+                                    const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+                                    let label = '';
+                                    if (freq === 'daily') label = 'Diaria';
+                                    else if (freq === 'weekdays') label = 'L-V';
+                                    else if (freq === 'weekly') label = (rec.weekDays || []).map((d: number) => dayNames[d]).join(' ') || 'Sem';
+                                    else if (freq === 'monthly') label = `Mes ${rec.monthDay || ''}`;
+                                    else if (freq === 'yearly') {
+                                      if (rec.startDate) {
+                                        const d = new Date(rec.startDate + 'T12:00:00');
+                                        label = `Año ${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                                      } else label = 'Año';
+                                    }
+                                    return label ? (
+                                      <span className="text-[8px] font-black text-turquesa px-1 py-0.5 bg-turquesa/10 rounded-md flex items-center gap-0.5">
+                                        <RefreshCw size={7} />{label}
+                                      </span>
+                                    ) : null;
+                                  })()}
                                 </div>
                               </div>
+                              <button
+                                onClick={() => onEditTask && onEditTask(task.id)}
+                                className="w-6 h-6 flex items-center justify-center text-turquesa/50 hover:text-turquesa hover:bg-turquesa/10 rounded-lg transition-all flex-shrink-0"
+                                title="Editar tarea"
+                              >
+                                <Edit size={11} />
+                              </button>
                             </div>
                             <div className="p-3">
                               <textarea
