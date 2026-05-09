@@ -1101,13 +1101,24 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                       <button
                         key={p.id}
                         onClick={() => {
-                          // Usar el mismo flujo que desde bloque: showTaskSelector
+                          // Usar el mismo flujo que desde bloque
                           setShowNewMeeting(false);
                           setNewMeeting(null);
-                          const personTasks = delegatedTasks.filter((t: any) => 
-                            t.delegation?.personId === p.id && t.status !== 'completed'
+                          // Calcular IDs igual que handleOpenMeetingSelector
+                          const seen = new Set<string>();
+                          const parentIds: string[] = [];
+                          const personDelegatedTasks = delegatedTasks.filter((t: any) => t.delegation?.personId === p.id);
+                          personDelegatedTasks.forEach((t: any) => {
+                            const parentId = t.parentTaskId || t.id;
+                            const parent = allTasksMap[parentId];
+                            if (parent && !parent.isDeleted && !seen.has(parentId)) {
+                              seen.add(parentId);
+                              parentIds.push(parentId);
+                            }
+                          });
+                          const pendingIds = new Set<string>(
+                            parentIds.filter(id => allTasksMap[id]?.status !== 'completed')
                           );
-                          const pendingIds = new Set(personTasks.map((t: any) => t.id));
                           setSelectorPersonId(p.id);
                           setMeetingSelectedIds(pendingIds);
                           setShowTaskSelector(true);
