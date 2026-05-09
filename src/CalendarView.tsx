@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS, COLORS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { isTaskCompleted, formatMinutes, projectLoadForDay } from './utils';
+import { isTaskCompleted, formatMinutes } from './utils';
 import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
 import {
   TaskCard, RecurrenceChoiceModal, BlockModal, DashboardHarmonicCalendar,
@@ -45,7 +45,7 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS, COLORS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { isTaskCompleted, getTaskEstimatedCombo, formatMinutes, projectLoadForDay } from './utils';
+import { isTaskCompleted, getTaskEstimatedCombo, formatMinutes } from './utils';
 import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
 
 export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, activeDate, onDateSelect, onAddTask, onToggleTask, onDelete, onReorderTasks, onReorderSubtasks, onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null }: any) {
@@ -73,22 +73,20 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
  
   const activeBlockIds = useMemo(() => new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id)), [blocks]);
  
-  const getLoadColor = (dateStr: string) => {
-    const load = projectLoadForDay(dateStr, allTasksMap);
-    if (load === 0) return 'bg-bg-secondary opacity-20';
-    if (load < 180) return 'bg-lima shadow-[0_0_10px_rgba(132,204,22,0.3)]';
-    if (load < 300) return 'bg-naranja shadow-[0_0_10px_rgba(245,158,11,0.3)]';
-    if (load < 420) return 'bg-morado shadow-[0_0_10px_rgba(139,92,246,0.3)]';
+  const getLoadColor = (minutes: number) => {
+    if (minutes === 0) return 'bg-bg-secondary opacity-20';
+    if (minutes < 180) return 'bg-lima shadow-[0_0_10px_rgba(132,204,22,0.3)]';
+    if (minutes < 300) return 'bg-naranja shadow-[0_0_10px_rgba(245,158,11,0.3)]';
+    if (minutes < 420) return 'bg-morado shadow-[0_0_10px_rgba(139,92,246,0.3)]';
     return 'bg-rosa shadow-[0_0_10px_rgba(236,72,153,0.3)]';
   };
 
-  // Helper para obtener color hex según minutos de carga
   const getLoadColorHex = (minutes: number) => {
-    if (minutes === 0) return '#6B7280'; // gris
-    if (minutes < 180) return '#10B981'; // esmeralda
-    if (minutes < 300) return '#F59E0B'; // naranja
-    if (minutes < 420) return '#A855F7'; // morado
-    return '#EC4899'; // rosa
+    if (minutes === 0) return '#6B7280';
+    if (minutes < 180) return '#10B981';
+    if (minutes < 300) return '#F59E0B';
+    if (minutes < 420) return '#A855F7';
+    return '#EC4899';
   };
  
   const dayTasks = useMemo(() => {
@@ -172,7 +170,10 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
           return rows.map((week, weekIdx) => {
             // Calcular carga total de la semana (solo días con datos)
             const weekDays = week.filter(Boolean) as string[];
-            const weekLoad = weekDays.reduce((acc, day) => acc + projectLoadForDay(day, allTasksMap), 0);
+            const weekLoad = weekDays.reduce((acc, day) => {
+              const dayT = filterTasksForDay(Object.values(allTasksMap), allTasksMap, activeBlockIds, day, { hideCompleted: false, hideDelegatedNoTag: true });
+              return acc + getStatsForDay(dayT, allTasksMap, [], day).estimatedPending;
+            }, 0);
             const pct = Math.min(100, Math.round((weekLoad / WEEK_CAPACITY) * 100));
             const freePct = 100 - pct;
             
@@ -203,7 +204,8 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                   if (!day) return <div key={dIdx} className="aspect-square" />;
                   const isToday = day === formatLocalISO(new Date());
                   const isSelected = day === selectedDay;
-                  const load = projectLoadForDay(day, allTasksMap);
+                  const dayTasksForLoad = filterTasksForDay(Object.values(allTasksMap), allTasksMap, activeBlockIds, day, { hideCompleted: false, hideDelegatedNoTag: true });
+                  const load = getStatsForDay(dayTasksForLoad, allTasksMap, [], day).estimatedPending;
                   return (
                     <button 
                       key={day}
@@ -402,17 +404,18 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                                   .map((id: string) => allTasksMap[id])
                                   .filter(Boolean);
                                 return (
-                                  <div key={task.id} className="space-y-2">
-                                    {/* Badge del contenedor */}
-                                    <div className="flex items-center gap-2 ml-2 mb-2">
-                                      <RefreshCw size={12} className="text-turquesa" />
-                                      <span className="text-[10px] font-black text-turquesa uppercase tracking-widest">
-                                        {task.title} ({subtaskObjects.length})
+                                  <div key={task.id} className="space-y-1">
+                                    {/* Contenedor - mismo aspecto que tarea huérfana pero sin icono recurrencia */}
+                                    <div className="flex items-center gap-2 px-2 py-1.5">
+                                      <div className="w-2 h-2 rounded-full bg-turquesa/60 flex-shrink-0" />
+                                      <span className="text-[11px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">
+                                        {task.title}
                                       </span>
+                                      <span className="text-[9px] dark:text-text-secondary text-text-secondary-light opacity-50">({subtaskObjects.length})</span>
                                     </div>
                                     
-                                    {/* Lista de subtareas */}
-                                    <div className="space-y-3 ml-4">
+                                    {/* Subtareas con sangría */}
+                                    <div className="space-y-2 ml-4 border-l-2 dark:border-border-main border-border-main-light pl-3">
                                       {subtaskObjects.map((sub: any) => (
                                         <TaskCard 
                                           key={sub.id}
