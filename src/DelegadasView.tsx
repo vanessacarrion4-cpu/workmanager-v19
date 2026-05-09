@@ -303,6 +303,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
     };
     return labels[tag] || null;
   };
+
+  const filteredMeetings = filterPersonId
     ? meetings.filter((m: any) => m.personId === filterPersonId)
     : meetings;
 
