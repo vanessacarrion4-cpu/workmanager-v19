@@ -1620,10 +1620,6 @@ export default function App() {
       });
   };
  
-  const handleUpdateTimeEntry = (id: string, updates: Partial<TimeEntry>) => {
-    setTimeEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
-  };
- 
   // --- Computed ---
   const allActiveTasks = useMemo(() => Object.values(tasks).filter((t: Task) => !t.isDeleted && !t.isTemplate), [tasks]);
  
