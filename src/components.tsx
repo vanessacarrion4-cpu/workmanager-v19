@@ -513,15 +513,18 @@ export function TaskCard({
     <div className="group relative">
       <div>
         <div
-          className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''} ${selectionMode && selectedTaskIds.has(task.id) ? 'dark:bg-azul/10 bg-azul/5' : ''}`}
+          className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''} ${selectionMode && selectedTaskIds.has(task.id) ? 'dark:bg-azul/15 bg-azul/10 rounded-[1.5rem]' : ''}`}
           onClick={selectionMode && onToggleTaskSelection ? (e) => {
-            // Solo seleccionar si no se hizo click en un botón o input
             const target = e.target as HTMLElement;
             if (target.closest('button') || target.closest('input') || target.closest('select')) return;
             const isContainer = !!(task.subtasks && task.subtasks.length > 0);
             onToggleTaskSelection(task.id, isContainer);
           } : undefined}
-          style={selectionMode && selectedTaskIds.has(task.id) ? { outline: '2px solid #3B82F6', outlineOffset: '-1px', borderRadius: '4px' } : undefined}
+          style={selectionMode && selectedTaskIds.has(task.id) ? { 
+            outline: '3px solid #3B82F6', 
+            outlineOffset: '-1px', 
+            borderRadius: '1.5rem'
+          } : undefined}
         >
           {/* Main Row */}
           <div className="flex items-center gap-2 px-4 py-2.5 pl-3">

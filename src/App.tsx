@@ -205,9 +205,31 @@ export default function App() {
   // Helper: Bulk actions
   const bulkUpdateTasks = (updates: Partial<Task>) => {
     const timestamp = new Date().toISOString();
+    
+    // Determinar qué IDs realmente actualizar
+    // Los contenedores NO reciben delegación, fecha, etiqueta, tiempo estimado
+    // Solo reciben: status (completar)
+    const isContainerSafeUpdate = updates.status !== undefined; // completar sí va al contenedor
+    
+    const effectiveIds = new Set<string>();
+    selectedTaskIds.forEach(id => {
+      const task = tasks[id];
+      if (!task) return;
+      const isContainer = task.subtasks && task.subtasks.length > 0;
+      if (isContainer && !isContainerSafeUpdate) {
+        // Aplicar a subtareas en lugar del contenedor
+        task.subtasks.forEach((subId: string) => {
+          const sub = tasks[subId];
+          if (sub && !sub.isDeleted) effectiveIds.add(subId);
+        });
+      } else {
+        effectiveIds.add(id);
+      }
+    });
+
     setTasks(prev => {
       const next = { ...prev };
-      selectedTaskIds.forEach(id => {
+      effectiveIds.forEach(id => {
         if (next[id]) {
           next[id] = { ...next[id], ...updates, modifiedAt: timestamp };
         }
@@ -216,7 +238,7 @@ export default function App() {
     });
 
     // Persistir en Supabase
-    selectedTaskIds.forEach(id => {
+    effectiveIds.forEach(id => {
       const supabaseUpdates: any = { modified_at: timestamp };
       if (updates.status !== undefined) supabaseUpdates.status = updates.status;
       if (updates.completedAt !== undefined) supabaseUpdates.completed_at = updates.completedAt || null;
@@ -236,9 +258,25 @@ export default function App() {
 
   const bulkDeleteTasks = () => {
     const timestamp = new Date().toISOString();
+
+    // Calcular IDs efectivos - contenedores → borrar contenedor + subtareas
+    const effectiveIds = new Set<string>();
+    selectedTaskIds.forEach(id => {
+      const task = tasks[id];
+      if (!task) return;
+      effectiveIds.add(id); // Siempre añadir el propio ID
+      // Si tiene subtareas, añadirlas también
+      if (task.subtasks && task.subtasks.length > 0) {
+        task.subtasks.forEach((subId: string) => {
+          const sub = tasks[subId];
+          if (sub && !sub.isDeleted) effectiveIds.add(subId);
+        });
+      }
+    });
+
     setTasks(prev => {
       const next = { ...prev };
-      selectedTaskIds.forEach(id => {
+      effectiveIds.forEach(id => {
         if (next[id]) {
           next[id] = { ...next[id], isDeleted: true, modifiedAt: timestamp };
         }
@@ -246,8 +284,7 @@ export default function App() {
       return next;
     });
 
-    // Persistir en Supabase
-    selectedTaskIds.forEach(id => {
+    effectiveIds.forEach(id => {
       supabase.from('tasks').update({
         is_deleted: true,
         modified_at: timestamp
@@ -258,6 +295,7 @@ export default function App() {
 
     setSelectedTaskIds(new Set());
     setSelectionMode(false);
+  };
   };
 
   const bulkDuplicateTasks = () => {
