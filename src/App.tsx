@@ -1945,6 +1945,7 @@ export default function App() {
                 meetings={meetings}
                 timeEntries={timeEntries}
                 onUpdateTask={handleUpdateTask}
+                onToggleTask={handleToggleStatus}
                 onUpdatePeople={setPeople}
                 onUpdateMeetings={setMeetings}
                 onAddTask={handleAddTask}

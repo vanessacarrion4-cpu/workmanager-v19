@@ -23,7 +23,7 @@ import {
 } from './components';
 import { getTaskRegisteredCombo, getTaskEstimatedCombo } from './utils';
 
-export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null }: any) {
+export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null }: any) {
   const [activeTab, setActiveTab] = useState<'tareas' | 'reuniones'>('tareas');
   const [filterPersonId, setFilterPersonId] = useState<string | null>(null);
   const [expandedPersons, setExpandedPersons] = useState<Set<string>>(new Set());
@@ -842,7 +842,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                         if (!task) return null;
                         const hasNote = item.note && item.note.trim().length > 0;
                         return (
-                          <div key={item.taskId} className={`rounded-xl border transition-all ${hasNote ? 'dark:border-border-main border-border-main-light' : 'dark:border-border-main/30 border-border-main-light/30 opacity-60'}`}>
+                          <div key={item.taskId} className={`rounded-xl border transition-all ${hasNote ? 'dark:border-border-main border-border-main-light' : 'dark:border-border-main/30 border-border-main-light/30'}`}>
                             <TaskCard
                               task={task}
                               variant="FULL"
@@ -850,25 +850,33 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                               people={people}
                               blocks={blocks}
                               timeEntries={timeEntries}
-                              onToggleStatus={onUpdateTask}
+                              onToggleStatus={onToggleTask}
                               onUpdateTask={onUpdateTask}
                               onEditTask={onEditTask}
                               onAddTask={onAddTask}
                               onReorderSubtasks={() => {}}
-                              hideCompleted={true}
+                              onToggleExpand={(taskId: string) => onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded })}
+                              hideCompleted={false}
                               inMeeting={true}
                               onDelete={onDeleteTask}
                             />
-                            {hasNote && (
-                              <div className="px-4 pb-3 border-t dark:border-border-main/30 border-border-main-light/30 mt-1 pt-2">
-                                <p className="text-sm dark:text-text-secondary text-text-secondary-light">{item.note}</p>
-                              </div>
-                            )}
-                            {!hasNote && (
-                              <div className="px-4 pb-2">
-                                <p className="text-[10px] dark:text-text-secondary/30 text-text-secondary-light/30 italic">Sin nota</p>
-                              </div>
-                            )}
+                            {/* Nota inline editable */}
+                            <div className="px-4 pb-3 border-t dark:border-border-main/30 border-border-main-light/30 pt-2">
+                              <textarea
+                                value={item.note || ''}
+                                onChange={e => {
+                                  const updatedItems = meeting.items.map((i: any) =>
+                                    i.taskId === item.taskId ? { ...i, note: e.target.value } : i
+                                  );
+                                  const updatedMeeting = { ...meeting, items: updatedItems };
+                                  onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
+                                }}
+                                placeholder="Nota sobre esta tarea..."
+                                rows={1}
+                                onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                                className="w-full dark:bg-transparent bg-transparent border-none text-sm dark:text-text-secondary text-text-secondary-light dark:placeholder:text-text-secondary/30 placeholder:text-text-secondary-light/40 outline-none resize-none overflow-hidden"
+                              />
+                            </div>
                           </div>
                         );
                       })}
