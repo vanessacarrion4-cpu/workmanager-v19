@@ -222,9 +222,18 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
         }
       });
 
-    // Pre-seleccionar solo las pendientes
+    // Pre-seleccionar solo pendientes: tareas huérfanas pendientes + contenedores con al menos una subtarea pendiente
     const pendingIds = new Set<string>(
-      parentIds.filter(id => allTasksMap[id]?.status !== 'completed')
+      parentIds.filter(id => {
+        const t = allTasksMap[id];
+        if (!t) return false;
+        if (t.status === 'completed') return false;
+        // Si es contenedor, verificar que tenga al menos una subtarea pendiente
+        if (t.subtasks && t.subtasks.length > 0) {
+          return t.subtasks.some((sid: string) => allTasksMap[sid]?.status !== 'completed');
+        }
+        return true;
+      })
     );
     setSelectorPersonId(personId);
     setMeetingSelectedIds(pendingIds);
@@ -233,12 +242,28 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
 
   const handleConfirmTaskSelection = () => {
     if (!selectorPersonId || meetingSelectedIds.size === 0) return;
-    const selectedTasks = Array.from(meetingSelectedIds).map(id => allTasksMap[id]).filter(Boolean);
+    const items: any[] = [];
+    Array.from(meetingSelectedIds).forEach(id => {
+      const task = allTasksMap[id];
+      if (!task) return;
+      const isContainer = task.subtasks && task.subtasks.length > 0;
+      if (isContainer) {
+        // Contenedor: añadir el contenedor + sus subtareas pendientes delegadas a esta persona
+        items.push({ taskId: task.id, note: '', isSubtask: false });
+        (task.subtasks || []).forEach((subId: string) => {
+          const sub = allTasksMap[subId];
+          if (!sub || sub.isDeleted || sub.status === 'completed') return;
+          items.push({ taskId: sub.id, note: '', isSubtask: true });
+        });
+      } else {
+        items.push({ taskId: task.id, note: '', isSubtask: !!task.parentTaskId });
+      }
+    });
     setNewMeeting({
       personId: selectorPersonId,
       date: formatLocalISO(new Date()),
       notes: '',
-      items: selectedTasks.map((t: any) => ({ taskId: t.id, note: '', isSubtask: !!t.parentTaskId }))
+      items
     });
     setShowTaskSelector(false);
     setShowNewMeeting(true);
@@ -939,7 +964,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                           const task = allTasksMap[item.taskId];
                           if (!task) return false;
                           // Ocultar completadas
-                          // Las completadas se muestran siempre en reuniones (registro histórico)
+                          if (task.status === 'completed') return false;
                           // No mostrar si es subtarea Y su contenedor padre también está en los items
                           if (task.parentTaskId) {
                             const parentInItems = meeting.items.some((i: any) => i.taskId === task.parentTaskId);
@@ -953,17 +978,10 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                         const hasNote = item.note && item.note.trim().length > 0;
                         const isContainer = task.subtasks && task.subtasks.length > 0;
                         const isContainerOpen = meetingExpanded.has(task.id);
-                        const isCompleted = task.status === 'completed';
                         // Para contenedores: inyectar isExpanded desde meetingExpandedContainers
                         const taskForCard = isContainer ? { ...task, isExpanded: isContainerOpen } : task;
                         return (
-                          <div key={item.taskId} className={`rounded-xl border transition-all ${isCompleted ? 'opacity-50' : ''} ${hasNote ? 'dark:border-border-main border-border-main-light' : 'dark:border-border-main/30 border-border-main-light/30'}`}>
-                            {isCompleted && (
-                              <div className="flex items-center gap-1.5 px-4 pt-2">
-                                <CheckCircle2 size={11} className="text-turquesa" />
-                                <span className="text-[9px] font-black text-turquesa uppercase tracking-widest">Completada</span>
-                              </div>
-                            )}
+                          <div key={item.taskId} className={`rounded-xl border transition-all ${hasNote ? 'dark:border-border-main border-border-main-light' : 'dark:border-border-main/30 border-border-main-light/30'}`}>
                             <TaskCard
                               task={taskForCard}
                               variant="FULL"
@@ -983,7 +1001,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                                   onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded });
                                 }
                               }}
-                              hideCompleted={false}
+                              hideCompleted={true}
                               inMeeting={true}
                               meetingItems={meeting.items}
                               onUpdateMeetingItems={(updatedItems: any[]) => {
@@ -1150,11 +1168,22 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                     });
 
                   return items
-                    .filter(({ task }: any) => task.status !== 'completed')
+                    .filter(({ task, subtitleIds }: any) => {
+                      // Excluir tareas huérfanas completadas
+                      if (!subtitleIds.length && task.status === 'completed') return false;
+                      // Excluir contenedores donde TODAS las subtareas delegadas están completadas
+                      if (subtitleIds.length > 0) {
+                        const pendingSubs = subtitleIds.filter((sid: string) => allTasksMap[sid]?.status !== 'completed');
+                        if (pendingSubs.length === 0 && task.status === 'completed') return false;
+                      }
+                      return true;
+                    })
                     .map(({ task, subtitleIds }: any) => {
                     const isSelected = meetingSelectedIds.has(task.id);
                     const isCompleted = task.status === 'completed';
-                    const subNames = subtitleIds.map((sid: string) => allTasksMap[sid]?.title).filter(Boolean);
+                    // Solo mostrar subtareas pendientes en la descripción
+                    const pendingSubIds = subtitleIds.filter((sid: string) => allTasksMap[sid]?.status !== 'completed');
+                    const subNames = pendingSubIds.map((sid: string) => allTasksMap[sid]?.title).filter(Boolean);
                     return (
                       <button
                         key={task.id}
