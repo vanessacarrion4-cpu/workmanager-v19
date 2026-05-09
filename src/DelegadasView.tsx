@@ -797,31 +797,29 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
       {activeTab === 'reuniones' && (
         <div className="space-y-4">
 
-          {/* Filtros reuniones: persona (ya existe arriba) + rango de fechas */}
-          <div className="flex flex-wrap items-center gap-3 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-2xl p-4">
+          {/* Filtros reuniones: rango de fechas */}
+          <div className="flex items-center gap-2 w-fit">
             <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest shrink-0">Rango</span>
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <input
-                type="date"
-                value={meetingDateRange.start}
-                onChange={e => setMeetingDateRange(prev => ({ ...prev, start: e.target.value }))}
-                className="flex-1 min-w-0 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-xs dark:text-white text-text-main-light outline-none focus:border-morado/50"
-              />
-              <span className="text-[10px] dark:text-text-secondary text-text-secondary-light shrink-0">→</span>
-              <input
-                type="date"
-                value={meetingDateRange.end}
-                onChange={e => setMeetingDateRange(prev => ({ ...prev, end: e.target.value }))}
-                className="flex-1 min-w-0 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-xs dark:text-white text-text-main-light outline-none focus:border-morado/50"
-              />
-            </div>
+            <input
+              type="date"
+              value={meetingDateRange.start}
+              onChange={e => setMeetingDateRange(prev => ({ ...prev, start: e.target.value }))}
+              className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl px-2 py-1 text-[11px] dark:text-white text-text-main-light outline-none focus:border-morado/50 w-32"
+            />
+            <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">→</span>
+            <input
+              type="date"
+              value={meetingDateRange.end}
+              onChange={e => setMeetingDateRange(prev => ({ ...prev, end: e.target.value }))}
+              className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl px-2 py-1 text-[11px] dark:text-white text-text-main-light outline-none focus:border-morado/50 w-32"
+            />
             {(meetingDateRange.start || meetingDateRange.end) && (
               <button
                 onClick={() => setMeetingDateRange({ start: '', end: '' })}
-                className="w-7 h-7 flex items-center justify-center text-rosa/60 hover:text-rosa hover:bg-rosa/10 rounded-lg transition-all shrink-0"
+                className="w-6 h-6 flex items-center justify-center text-rosa/60 hover:text-rosa hover:bg-rosa/10 rounded-lg transition-all"
                 title="Limpiar rango"
               >
-                <X size={13} />
+                <X size={11} />
               </button>
             )}
           </div>
@@ -955,87 +953,38 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                         const hasNote = item.note && item.note.trim().length > 0;
                         const isContainer = task.subtasks && task.subtasks.length > 0;
                         const isContainerOpen = meetingExpanded.has(task.id);
+                        // Para contenedores: inyectar isExpanded desde meetingExpandedContainers
+                        const taskForCard = isContainer ? { ...task, isExpanded: isContainerOpen } : task;
                         return (
                           <div key={item.taskId} className={`rounded-xl border transition-all ${hasNote ? 'dark:border-border-main border-border-main-light' : 'dark:border-border-main/30 border-border-main-light/30'}`}>
-                            {/* Si es contenedor: header propio con botón expandir */}
-                            {isContainer ? (
-                              <div>
-                                <div className="flex items-center gap-3 p-3">
-                                  <button
-                                    onClick={() => onToggleTask && onToggleTask(task.id)}
-                                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                                      task.status === 'completed' ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light hover:border-turquesa'
-                                    }`}
-                                  >
-                                    {task.status === 'completed' && <Check size={10} />}
-                                  </button>
-                                  <p className={`flex-1 font-bold dark:text-white text-text-main-light text-sm ${task.status === 'completed' ? 'line-through opacity-50' : ''}`}>{task.title}</p>
-                                  <button
-                                    onClick={() => toggleMeetingContainer(meeting.id, task.id)}
-                                    className="flex items-center gap-1 px-2 py-1 rounded-lg dark:bg-bg-main bg-gray-100 dark:border-border-main border-border-main-light border text-[9px] font-black dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:border-turquesa/50 transition-all uppercase tracking-widest"
-                                  >
-                                    {isContainerOpen ? <ChevronsUp size={11} /> : <ChevronsDown size={11} />}
-                                    <span>{isContainerOpen ? 'Comprimir' : 'Expandir'}</span>
-                                  </button>
-                                </div>
-                                <AnimatePresence>
-                                  {isContainerOpen && (
-                                    <motion.div
-                                      initial={{ height: 0, opacity: 0 }}
-                                      animate={{ height: 'auto', opacity: 1 }}
-                                      exit={{ height: 0, opacity: 0 }}
-                                      className="border-t dark:border-border-main/30 border-border-main-light/30"
-                                    >
-                                      <TaskCard
-                                        task={task}
-                                        variant="FULL"
-                                        allTasksMap={allTasksMap}
-                                        people={people}
-                                        blocks={blocks}
-                                        timeEntries={timeEntries}
-                                        onToggleStatus={onToggleTask}
-                                        onUpdateTask={onUpdateTask}
-                                        onEditTask={onEditTask}
-                                        onAddTask={onAddTask}
-                                        onReorderSubtasks={() => {}}
-                                        onToggleExpand={(taskId: string) => onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded })}
-                                        hideCompleted={true}
-                                        inMeeting={true}
-                                        meetingItems={meeting.items}
-                                        onUpdateMeetingItems={(updatedItems: any[]) => {
-                                          const updatedMeeting = { ...meeting, items: updatedItems };
-                                          onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
-                                        }}
-                                        onDelete={onDeleteTask}
-                                      />
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
-                              </div>
-                            ) : (
-                              <TaskCard
-                                task={task}
-                                variant="FULL"
-                                allTasksMap={allTasksMap}
-                                people={people}
-                                blocks={blocks}
-                                timeEntries={timeEntries}
-                                onToggleStatus={onToggleTask}
-                                onUpdateTask={onUpdateTask}
-                                onEditTask={onEditTask}
-                                onAddTask={onAddTask}
-                                onReorderSubtasks={() => {}}
-                                onToggleExpand={(taskId: string) => onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded })}
-                                hideCompleted={true}
-                                inMeeting={true}
-                                meetingItems={meeting.items}
-                                onUpdateMeetingItems={(updatedItems: any[]) => {
-                                  const updatedMeeting = { ...meeting, items: updatedItems };
-                                  onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
-                                }}
-                                onDelete={onDeleteTask}
-                              />
-                            )}
+                            <TaskCard
+                              task={taskForCard}
+                              variant="FULL"
+                              allTasksMap={allTasksMap}
+                              people={people}
+                              blocks={blocks}
+                              timeEntries={timeEntries}
+                              onToggleStatus={onToggleTask}
+                              onUpdateTask={onUpdateTask}
+                              onEditTask={onEditTask}
+                              onAddTask={onAddTask}
+                              onReorderSubtasks={() => {}}
+                              onToggleExpand={(taskId: string) => {
+                                if (isContainer && taskId === task.id) {
+                                  toggleMeetingContainer(meeting.id, task.id);
+                                } else {
+                                  onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded });
+                                }
+                              }}
+                              hideCompleted={true}
+                              inMeeting={true}
+                              meetingItems={meeting.items}
+                              onUpdateMeetingItems={(updatedItems: any[]) => {
+                                const updatedMeeting = { ...meeting, items: updatedItems };
+                                onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
+                              }}
+                              onDelete={onDeleteTask}
+                            />
                             {/* Nota inline editable */}
                             <div className="px-4 pb-3 border-t dark:border-border-main/30 border-border-main-light/30 pt-2">
                               <textarea
