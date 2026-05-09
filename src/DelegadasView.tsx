@@ -1106,23 +1106,20 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                       if (!task) return null;
                       return (
                         <div key={item.taskId} className="dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-xl overflow-hidden">
-                          {/* TaskCard row */}
-                          <div className="flex items-center gap-2 px-3 py-2">
-                            <TaskCard
-                              task={task}
-                              variant="FULL"
-                              allTasksMap={allTasksMap}
-                              people={people}
-                              blocks={blocks}
-                              timeEntries={timeEntries}
-                              onToggleStatus={onUpdateTask}
-                              onUpdateTask={onUpdateTask}
-                              onEditTask={onEditTask}
-                              onAddTask={onAddTask}
-                              onReorderSubtasks={() => {}}
-                              onDelete={() => setNewMeeting({ ...newMeeting, items: newMeeting.items.filter((_: any, i: number) => i !== idx) })}
-                            />
-                          </div>
+                          <TaskCard
+                            task={task}
+                            variant="FULL"
+                            allTasksMap={allTasksMap}
+                            people={people}
+                            blocks={blocks}
+                            timeEntries={timeEntries}
+                            onToggleStatus={onUpdateTask}
+                            onUpdateTask={onUpdateTask}
+                            onEditTask={onEditTask}
+                            onAddTask={onAddTask}
+                            onReorderSubtasks={() => {}}
+                            onDelete={() => setNewMeeting({ ...newMeeting, items: newMeeting.items.filter((_: any, i: number) => i !== idx) })}
+                          />
                           {/* Note textarea */}
                           <div className="px-3 pb-3 border-t dark:border-border-main/30 border-border-main-light/30 pt-2">
                             <textarea
