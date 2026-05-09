@@ -32,6 +32,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
   const [showNewMeeting, setShowNewMeeting] = useState(false);
   const [newMeeting, setNewMeeting] = useState<{ personId: string; date: string; notes: string; items: any[] } | null>(null);
   const [expandedMeetings, setExpandedMeetings] = useState<Set<string>>(new Set());
+  const [editingMeeting, setEditingMeeting] = useState<any | null>(null);
 
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(true);
@@ -242,7 +243,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
       personId: newMeeting.personId,
       date: newMeeting.date,
       notes: formattedNotes,
-      items: newMeeting.items.filter((i: any) => i.note.trim()),
+      items: newMeeting.items, // Guardar TODOS los items seleccionados, con o sin nota
       createdAt: new Date().toISOString()
     };
     // Añadir notas a cada tarea con timestamp día+hora
@@ -764,6 +765,13 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                   </button>
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => setEditingMeeting({ ...meeting })}
+                      className="w-8 h-8 flex items-center justify-center text-turquesa/60 hover:text-turquesa hover:bg-turquesa/10 rounded-xl transition-all"
+                      title="Editar reunión"
+                    >
+                      <Edit size={14} />
+                    </button>
+                    <button
                       onClick={() => {
                         if (confirm(`¿Eliminar la reunión con ${getPersonName(meeting.personId)}?`)) {
                           const updated = meetings.filter((m: any) => m.id !== meeting.id);
@@ -1043,7 +1051,9 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                       <button
                         key={p.id}
                         onClick={() => {
-                          setNewMeeting({ ...newMeeting, personId: p.id, items: [] });
+                          const personTasks = delegatedTasks.filter((t: any) => t.delegation?.personId === p.id);
+                          const allItems = personTasks.map((t: any) => ({ taskId: t.id, note: '', isSubtask: false }));
+                          setNewMeeting({ ...newMeeting, personId: p.id, items: allItems });
                         }}
                         className="flex items-center gap-2 px-3 py-2 dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl text-[11px] font-bold dark:text-white text-text-main-light hover:border-morado/50 transition-all"
                       >
@@ -1182,6 +1192,99 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                   className="flex-1 py-3 rounded-2xl bg-morado text-white font-black text-sm hover:bg-morado/80 transition-all"
                 >
                   Guardar reunión
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal editar reunión */}
+      <AnimatePresence>
+        {editingMeeting && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditingMeeting(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-3xl p-6 shadow-2xl w-full max-w-lg z-10 max-h-[85vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-black dark:text-white text-text-main-light uppercase tracking-widest">Editar Reunión</h3>
+                  <p className="text-[11px] text-morado font-black mt-0.5">{getPersonName(editingMeeting.personId)}</p>
+                </div>
+                <button onClick={() => setEditingMeeting(null)} className="w-8 h-8 flex items-center justify-center dark:text-text-secondary text-text-secondary-light dark:bg-bg-main bg-gray-100 rounded-xl border dark:border-border-main border-border-main-light">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block mb-2">Fecha</label>
+                  <input
+                    type="date"
+                    value={editingMeeting.date}
+                    onChange={e => setEditingMeeting({ ...editingMeeting, date: e.target.value })}
+                    className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2.5 text-sm dark:text-white text-text-main-light outline-none focus:border-morado/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block mb-2">Nota general</label>
+                  <textarea
+                    value={editingMeeting.notes}
+                    onChange={e => setEditingMeeting({ ...editingMeeting, notes: e.target.value })}
+                    rows={3}
+                    className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2.5 text-sm dark:text-white text-text-main-light outline-none focus:border-morado/50 resize-none"
+                  />
+                </div>
+
+                {editingMeeting.items.length > 0 && (
+                  <div>
+                    <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest block mb-2">Notas por tarea</label>
+                    <div className="space-y-2">
+                      {editingMeeting.items.map((item: any, idx: number) => {
+                        const task = allTasksMap[item.taskId];
+                        if (!task) return null;
+                        return (
+                          <div key={item.taskId} className="dark:bg-bg-main bg-gray-50 rounded-xl p-3 border dark:border-border-main border-border-main-light">
+                            <p className="text-[10px] font-black text-morado uppercase tracking-wider mb-1.5">{task.title}</p>
+                            <textarea
+                              value={item.note}
+                              onChange={e => {
+                                const newItems = [...editingMeeting.items];
+                                newItems[idx] = { ...item, note: e.target.value };
+                                setEditingMeeting({ ...editingMeeting, items: newItems });
+                              }}
+                              placeholder="Nota sobre esta tarea..."
+                              rows={2}
+                              className="w-full dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-lg px-2.5 py-2 text-sm dark:text-white text-text-main-light dark:placeholder:text-text-secondary/40 placeholder:text-text-secondary-light/40 outline-none focus:border-morado/50 resize-none"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setEditingMeeting(null)}
+                  className="flex-1 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all font-black text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    const updated = meetings.map((m: any) => m.id === editingMeeting.id ? editingMeeting : m);
+                    onUpdateMeetings(updated);
+                    setEditingMeeting(null);
+                  }}
+                  className="flex-1 py-3 rounded-2xl bg-morado text-white font-black text-sm hover:bg-morado/80 transition-all"
+                >
+                  Guardar cambios
                 </button>
               </div>
             </motion.div>
