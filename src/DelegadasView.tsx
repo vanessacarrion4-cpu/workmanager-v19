@@ -246,20 +246,20 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
       items: newMeeting.items,
       createdAt: new Date().toISOString()
     };
-    // Añadir notas a cada tarea con timestamp día+hora
+    // Añadir notas a cada tarea/subtarea con timestamp
     meeting.items.forEach((item: any) => {
+      if (!item.note?.trim()) return;
       const task = allTasksMap[item.taskId];
-      if (task && item.note.trim()) {
-        const now = new Date();
-        const dd = String(now.getDate()).padStart(2, '0');
-        const mm = String(now.getMonth() + 1).padStart(2, '0');
-        const yyyy = now.getFullYear();
-        const hh = String(now.getHours()).padStart(2, '0');
-        const min = String(now.getMinutes()).padStart(2, '0');
-        const timestamp = `${dd}/${mm}/${yyyy}, ${hh}:${min}`;
-        const existingNotes = task.notes || '';
-        const newNote = `[${timestamp}] Reunión ${personName} ${dd}/${mm}/${yyyy} - ${item.note}`;
-        onUpdateTask({ ...task, notes: existingNotes ? `${existingNotes}\n${newNote}` : newNote });
+      if (!task) return;
+      // Buscar el template real (si es instancia usar templateId, si es manual usar id)
+      const templateId = task.templateId || task.id;
+      const template = allTasksMap[templateId];
+      if (!template) return;
+      const now = new Date();
+      const dateLabel = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }).format(now);
+      const newNoteEntry = `\n--- Reunión con ${personName} - ${dateLabel} ---\n${item.note.trim()}`;
+      if (!(template.notes || '').includes(newNoteEntry.trim())) {
+        onUpdateTask({ ...template, notes: (template.notes || '') + newNoteEntry });
       }
     });
     onUpdateMeetings([meeting, ...(meetings || [])]);
@@ -879,6 +879,24 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                                   const updatedMeeting = { ...meeting, items: updatedItems };
                                   onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
                                 }}
+                                onBlur={e => {
+                                  const noteText = e.target.value.trim();
+                                  if (!noteText) return;
+                                  const task = allTasksMap[item.taskId];
+                                  if (!task) return;
+                                  // Buscar el template (si es instancia, usar templateId)
+                                  const templateId = task.templateId || task.id;
+                                  const template = allTasksMap[templateId];
+                                  if (!template) return;
+                                  const person = people.find((p: any) => p.id === meeting.personId);
+                                  const personName = person?.name || '';
+                                  const meetingDateStr = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }).format(parseLocalISO(meeting.date));
+                                  const newNoteEntry = `\n--- Reunión con ${personName} - ${meetingDateStr} ---\n${noteText}`;
+                                  // Solo añadir si no existe ya esta entrada
+                                  if (!(template.notes || '').includes(newNoteEntry.trim())) {
+                                    onUpdateTask({ ...template, notes: (template.notes || '') + newNoteEntry });
+                                  }
+                                }}
                                 placeholder="Nota sobre esta tarea..."
                                 rows={1}
                                 onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
@@ -1159,6 +1177,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                             onReorderSubtasks={() => {}}
                             hideCompleted={true}
                             inMeeting={true}
+                            meetingItems={newMeeting.items}
+                            onUpdateMeetingItems={(updatedItems: any[]) => setNewMeeting({ ...newMeeting, items: updatedItems })}
                             onDelete={() => setNewMeeting({ ...newMeeting, items: newMeeting.items.filter((_: any, i: number) => i !== idx) })}
                           />
                           {/* Note textarea */}
