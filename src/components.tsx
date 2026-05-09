@@ -358,6 +358,7 @@ export function TaskCard({
   selectionMode = false,
   selectedTaskIds = new Set(),
   onToggleTaskSelection = null,
+  inMeeting = false,
 }: any) {
   if (!task || task.isDeleted) return null;
   const currentRootId = rootTaskId || task.id;
@@ -631,7 +632,7 @@ export function TaskCard({
                         }} 
                       />
                     )}
-                  {!hasSubtasks && (
+                  {!hasSubtasks && !inMeeting && (
                     <TimePickerChip
                       value={task.dueTime || ''}
                       onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })}
@@ -732,23 +733,23 @@ export function TaskCard({
                       onRecurrenceDateChange={onRecurrenceDateChange}
                     />
                   )}
-                  <EstimatedTimeChip 
+                  {!inMeeting && <EstimatedTimeChip 
                     value={hasSubtasks ? totalEstimated : task.estimatedMinutes} 
                     onChange={(val: number) => { if (!hasSubtasks) onUpdateTask({ ...task, estimatedMinutes: val }); }} 
                     readonly={hasSubtasks}
                     variant={level > 1 ? 'mini' : 'default'}
-                  />
-                  <RegisteredTimeChip 
+                  />}
+                  {!inMeeting && <RegisteredTimeChip 
                     value={totalRegistered} 
                     estimated={totalEstimated}
                     onClick={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)} 
-                  />
-                  <button 
+                  />}
+                  {!inMeeting && <button 
                     onClick={() => isTimerRunning ? onStopTimer() : onStartTimer(currentRootId, level === 1 ? null : task.id)}
                     className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isTimerRunning ? 'bg-rosa text-white' : 'dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light text-turquesa hover:bg-turquesa/10'}`}
                   >
                     {isTimerRunning ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
-                  </button>
+                  </button>}
 
                   {/* Block picker - clickable chip to change context */}
                   {variant === 'FULL' ? (

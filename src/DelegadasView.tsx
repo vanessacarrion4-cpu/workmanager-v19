@@ -845,15 +845,18 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                           <div key={item.taskId} className={`rounded-xl border transition-all ${hasNote ? 'dark:border-border-main border-border-main-light' : 'dark:border-border-main/30 border-border-main-light/30 opacity-60'}`}>
                             <TaskCard
                               task={task}
-                              variant="COMPACT"
+                              variant="FULL"
                               allTasksMap={allTasksMap}
                               people={people}
                               blocks={blocks}
                               timeEntries={timeEntries}
-                              onToggleStatus={() => {}}
+                              onToggleStatus={onUpdateTask}
                               onUpdateTask={onUpdateTask}
                               onEditTask={onEditTask}
                               onAddTask={onAddTask}
+                              onReorderSubtasks={() => {}}
+                              hideCompleted={true}
+                              inMeeting={true}
                               onDelete={onDeleteTask}
                             />
                             {hasNote && (
@@ -1118,6 +1121,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                             onEditTask={onEditTask}
                             onAddTask={onAddTask}
                             onReorderSubtasks={() => {}}
+                            hideCompleted={true}
+                            inMeeting={true}
                             onDelete={() => setNewMeeting({ ...newMeeting, items: newMeeting.items.filter((_: any, i: number) => i !== idx) })}
                           />
                           {/* Note textarea */}
