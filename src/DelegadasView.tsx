@@ -939,7 +939,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                           const task = allTasksMap[item.taskId];
                           if (!task) return false;
                           // Ocultar completadas
-                          if (task.status === 'completed') return false;
+                          // Las completadas se muestran siempre en reuniones (registro histórico)
                           // No mostrar si es subtarea Y su contenedor padre también está en los items
                           if (task.parentTaskId) {
                             const parentInItems = meeting.items.some((i: any) => i.taskId === task.parentTaskId);
@@ -953,10 +953,17 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                         const hasNote = item.note && item.note.trim().length > 0;
                         const isContainer = task.subtasks && task.subtasks.length > 0;
                         const isContainerOpen = meetingExpanded.has(task.id);
+                        const isCompleted = task.status === 'completed';
                         // Para contenedores: inyectar isExpanded desde meetingExpandedContainers
                         const taskForCard = isContainer ? { ...task, isExpanded: isContainerOpen } : task;
                         return (
-                          <div key={item.taskId} className={`rounded-xl border transition-all ${hasNote ? 'dark:border-border-main border-border-main-light' : 'dark:border-border-main/30 border-border-main-light/30'}`}>
+                          <div key={item.taskId} className={`rounded-xl border transition-all ${isCompleted ? 'opacity-50' : ''} ${hasNote ? 'dark:border-border-main border-border-main-light' : 'dark:border-border-main/30 border-border-main-light/30'}`}>
+                            {isCompleted && (
+                              <div className="flex items-center gap-1.5 px-4 pt-2">
+                                <CheckCircle2 size={11} className="text-turquesa" />
+                                <span className="text-[9px] font-black text-turquesa uppercase tracking-widest">Completada</span>
+                              </div>
+                            )}
                             <TaskCard
                               task={taskForCard}
                               variant="FULL"
@@ -976,7 +983,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                                   onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded });
                                 }
                               }}
-                              hideCompleted={true}
+                              hideCompleted={false}
                               inMeeting={true}
                               meetingItems={meeting.items}
                               onUpdateMeetingItems={(updatedItems: any[]) => {
