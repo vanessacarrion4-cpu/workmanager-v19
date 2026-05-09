@@ -367,7 +367,7 @@ export function SearchView({
                             ? 'bg-turquesa text-white border-turquesa'
                             : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50'
                         }`}
-                      >{TAG_LABELS[tag as TagType] || tag}</button>
+                      >{TAG_LABELS[tag as TagType]?.label || tag}</button>
                     ))}
                   </div>
                 </div>
