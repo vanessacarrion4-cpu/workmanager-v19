@@ -19,6 +19,7 @@ interface UseSupabaseOptions {
   setTasks: (tasks: Record<string, Task>) => void;
   setPeople: (people: Person[]) => void;
   setMeetings: (meetings: any[]) => void;
+  setTimeEntries: (entries: any[]) => void;
   setIsDataLoaded: (loaded: boolean) => void;
 }
 
@@ -158,6 +159,7 @@ export function useSupabase({
   setTasks,
   setPeople,
   setMeetings,
+  setTimeEntries,
   setIsDataLoaded,
 }: UseSupabaseOptions): void {
   useEffect(() => {
@@ -192,6 +194,16 @@ export function useSupabase({
 
         if (personsError) {
           console.warn('[SUPABASE] Error loading persons:', personsError);
+        }
+
+        // Cargar time entries
+        const { data: timeEntriesData, error: timeEntriesError } = await supabase
+          .from('time_entries')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (timeEntriesError) {
+          console.warn('[SUPABASE] Error loading time entries:', timeEntriesError);
         }
 
         // Cargar reuniones
@@ -286,6 +298,22 @@ export function useSupabase({
           repairRecurringContainers(mappedTasks);
 
           setTasks(mappedTasks);
+        }
+
+        // Mapear time entries
+        if (timeEntriesData && timeEntriesData.length > 0) {
+          const mappedEntries = timeEntriesData.map((e: any) => ({
+            id: e.id,
+            taskId: e.task_id,
+            subtaskId: e.subtask_id,
+            date: e.date,
+            duration: e.duration,
+            note: e.note || '',
+            source: e.source || 'manual',
+            createdAt: e.created_at
+          }));
+          setTimeEntries(mappedEntries);
+          console.log('[SUPABASE] Loaded time entries:', mappedEntries.length);
         }
 
         // Mapear reuniones

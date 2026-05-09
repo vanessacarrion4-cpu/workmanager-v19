@@ -386,7 +386,7 @@ export default function App() {
  
   // --- Initialization & Sync ---
   // Carga inicial desde Supabase
-  useSupabase({ setBlocks, setTasks, setPeople, setMeetings, setIsDataLoaded });
+  useSupabase({ setBlocks, setTasks, setPeople, setMeetings, setTimeEntries, setIsDataLoaded });
  
   // Guardado automático desactivado - ahora se guarda directamente en Supabase en cada operación
   // useEffect(() => {
@@ -1559,6 +1559,20 @@ export default function App() {
  
     setTimeEntries(prev => [...prev, newEntry]);
     setActiveTimer(null);
+
+    // Persistir en Supabase
+    supabase.from('time_entries').insert({
+      id: newEntry.id,
+      task_id: newEntry.taskId,
+      subtask_id: newEntry.subtaskId || null,
+      date: newEntry.date,
+      duration: newEntry.duration,
+      note: newEntry.note || '',
+      source: newEntry.source,
+      created_at: newEntry.createdAt
+    }).then(({ error }) => {
+      if (error) console.error('[SUPABASE] Error saving time entry:', error);
+    });
   };
  
   const handleManualTimeEntry = (taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string) => {
@@ -1573,10 +1587,28 @@ export default function App() {
       source: 'manual'
     };
     setTimeEntries(prev => [...prev, newEntry]);
+
+    // Persistir en Supabase
+    supabase.from('time_entries').insert({
+      id: newEntry.id,
+      task_id: newEntry.taskId,
+      subtask_id: newEntry.subtaskId || null,
+      date: newEntry.date,
+      duration: newEntry.duration,
+      note: newEntry.note || '',
+      source: newEntry.source,
+      created_at: newEntry.createdAt
+    }).then(({ error }) => {
+      if (error) console.error('[SUPABASE] Error saving manual time entry:', error);
+    });
   };
  
   const handleDeleteTimeEntry = (entryId: string) => {
     setTimeEntries(prev => prev.filter(e => e.id !== entryId));
+    supabase.from('time_entries').delete().eq('id', entryId)
+      .then(({ error }) => {
+        if (error) console.error('[SUPABASE] Error deleting time entry:', error);
+      });
   };
  
   const handleUpdateTimeEntry = (id: string, updates: Partial<TimeEntry>) => {
