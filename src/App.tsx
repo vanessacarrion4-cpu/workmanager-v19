@@ -1882,9 +1882,8 @@ export default function App() {
                 setBulkDateModal={setBulkDateModal}
                 bulkTimeModal={bulkTimeModal}
                 setBulkTimeModal={setBulkTimeModal}
+                onDeleteTimeEntry={handleDeleteTimeEntry}
               />
-            )}
-            {currentView === 'blocks' && (
               <BlocksManagerView 
                 blocks={blocks} 
                 tasks={Object.values(tasks).filter((t: Task) => !t.isDeleted)}

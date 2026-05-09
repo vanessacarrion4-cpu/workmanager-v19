@@ -19,7 +19,8 @@ import {
   Zap,
   ArrowRight,
   X,
-  CalendarIcon
+  CalendarIcon,
+  Trash2
 } from 'lucide-react';
 import { Calendar as CalendarIcon2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -84,7 +85,8 @@ export function DashboardView({
   selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null,
   onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null,
   bulkDuplicateTasks = null, bulkDelegateModal = false, setBulkDelegateModal = null,
-  bulkDateModal = false, setBulkDateModal = null, bulkTimeModal = false, setBulkTimeModal = null
+  bulkDateModal = false, setBulkDateModal = null, bulkTimeModal = false, setBulkTimeModal = null,
+  onDeleteTimeEntry = null
 }: DashboardViewProps) {
 
   const [hideCompleted, setHideCompleted] = useState(true);
@@ -94,6 +96,7 @@ export function DashboardView({
   const [isFrozen, setIsFrozen] = useState(false);
   const frozenOrderRef = React.useRef<string[]>([]);
   const [localTagOrders, setLocalTagOrders] = useState<Record<string, string[]>>({});
+  const [showTimeHistory, setShowTimeHistory] = useState(false);
 
   const dayTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
@@ -336,6 +339,7 @@ export function DashboardView({
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* TAREAS */}
         <SummaryCard
           label="Tareas"
           value={stats.completed}
@@ -343,15 +347,21 @@ export function DashboardView({
           progress={(stats.completed / (stats.total || 1)) * 100}
           color="turquesa"
         />
+        {/* PENDIENTE */}
         <SummaryCard
           label="Pendiente"
           value={formatMinutes(stats.estimatedPending)}
+          subtitle={stats.estimatedTotal > 0 ? `de ${formatMinutes(stats.estimatedTotal)} estimado` : null}
+          progress={stats.estimatedTotal > 0 ? ((stats.estimatedTotal - stats.estimatedPending) / stats.estimatedTotal) * 100 : 0}
           color="azul"
         />
+        {/* REGISTRADO */}
         <SummaryCard
           label="Registrado"
           value={formatMinutes(stats.registered)}
           color="morado"
+          onClick={() => setShowTimeHistory(true)}
+          clickable={true}
         />
       </div>
 
@@ -523,6 +533,64 @@ export function DashboardView({
           </button>
         )}
       </div>
+
+      {/* Modal historial de tiempo registrado */}
+      {showTimeHistory && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowTimeHistory(false)} />
+          <div className="relative dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-3xl p-6 shadow-2xl w-full max-w-lg z-10 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-black dark:text-white text-text-main-light uppercase tracking-widest">Tiempo Registrado</h3>
+                <p className="text-[11px] text-morado font-black mt-0.5">{new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }).format(parseLocalISO(activeDate))}</p>
+              </div>
+              <button onClick={() => setShowTimeHistory(false)} className="w-8 h-8 flex items-center justify-center dark:text-text-secondary text-text-secondary-light dark:bg-bg-main bg-gray-100 rounded-xl border dark:border-border-main border-border-main-light">
+                <X size={16} />
+              </button>
+            </div>
+
+            {timeEntries.filter((e: any) => e.date === activeDate).length === 0 ? (
+              <div className="text-center py-12 dark:text-text-secondary text-text-secondary-light">
+                <Clock size={32} className="mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-bold">No hay tiempo registrado para hoy</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {timeEntries
+                  .filter((e: any) => e.date === activeDate)
+                  .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                  .map((entry: any) => {
+                    const task = allTasksMap[entry.subtaskId || entry.taskId];
+                    return (
+                      <div key={entry.id} className="flex items-center gap-3 p-3 dark:bg-bg-main bg-gray-50 rounded-xl border dark:border-border-main border-border-main-light group">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-black dark:text-white text-text-main-light truncate uppercase">
+                            {task?.title || entry.taskId}
+                          </p>
+                          {entry.note && <p className="text-[10px] dark:text-text-secondary text-text-secondary-light mt-0.5">{entry.note}</p>}
+                          <p className="text-[9px] dark:text-text-secondary/50 text-text-secondary-light/50 mt-0.5">
+                            {entry.source === 'timer' ? '⏱ Timer' : '✏️ Manual'}
+                          </p>
+                        </div>
+                        <span className="text-sm font-black text-morado shrink-0">{formatMinutes(entry.duration)}</span>
+                        <button
+                          onClick={() => onDeleteTimeEntry && onDeleteTimeEntry(entry.id)}
+                          className="w-6 h-6 flex items-center justify-center text-rosa/50 hover:text-rosa hover:bg-rosa/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                <div className="pt-3 border-t dark:border-border-main border-border-main-light flex justify-between items-center">
+                  <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Total</span>
+                  <span className="font-black text-morado">{formatMinutes(stats.registered)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -531,9 +599,12 @@ export function DashboardView({
 // Componentes auxiliares del Dashboard
 // ─────────────────────────────────────────────
 
-export function SummaryCard({ label, value, total, progress, color }: any) {
+export function SummaryCard({ label, value, total, progress, color, subtitle, clickable, onClick }: any) {
   return (
-    <div className="dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-[2rem] p-4 shadow-xl relative overflow-hidden group">
+    <div
+      onClick={clickable ? onClick : undefined}
+      className={`dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-[2rem] p-4 shadow-xl relative overflow-hidden group ${clickable ? 'cursor-pointer hover:border-morado/50 transition-all' : ''}`}
+    >
       <div className="relative z-10">
         <p className="text-[10px] font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em] mb-2">{label}</p>
         <div className="flex items-center justify-between gap-3">
@@ -544,6 +615,12 @@ export function SummaryCard({ label, value, total, progress, color }: any) {
             <span className={`text-xs font-black text-${color}`}>{Math.round(progress)}%</span>
           )}
         </div>
+        {subtitle && (
+          <p className="text-[10px] dark:text-text-secondary/60 text-text-secondary-light/60 mt-0.5">{subtitle}</p>
+        )}
+        {clickable && (
+          <p className="text-[9px] text-morado/60 mt-1 uppercase tracking-widest font-bold">Ver historial →</p>
+        )}
       </div>
 
       {progress !== undefined && (
@@ -551,7 +628,7 @@ export function SummaryCard({ label, value, total, progress, color }: any) {
           <div className="h-1.5 dark:bg-bg-main/50 bg-bg-main-light/30 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
+              animate={{ width: `${Math.min(progress, 100)}%` }}
               className={`h-full bg-${color}`}
             />
           </div>
