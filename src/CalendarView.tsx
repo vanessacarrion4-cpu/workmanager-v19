@@ -21,32 +21,6 @@ import {
   TaskTypeChip, TimerDisplay, BulkActionBar
 } from './components';
 
-/**
- * CalendarView.tsx
- * Vista de calendario mensual con drawer de día.
- * Extraído de App.tsx - Sesión 3 del refactor.
- */
-
-import React, { useState, useMemo } from 'react';
-import {
-  Plus,
-  ChevronRight,
-  ChevronLeft,
-  ChevronDown,
-  RefreshCw,
-  Eye,
-  EyeOff,
-  X,
-  Clock,
-  Calendar as CalendarIcon,
-  Tag
-} from 'lucide-react';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
-import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
-import { TAG_LABELS, COLORS } from './constants';
-import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { isTaskCompleted, getTaskEstimatedCombo, formatMinutes } from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
 
 export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, activeDate, onDateSelect, onAddTask, onToggleTask, onDelete, onReorderTasks, onReorderSubtasks, onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null }: any) {
   const [viewDate, setViewDate] = useState(() => parseLocalISO(activeDate));

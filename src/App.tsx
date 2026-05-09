@@ -238,10 +238,7 @@ export default function App() {
       }
     });
 
-    console.log('[BULK] selectedTaskIds:', Array.from(selectedTaskIds));
-    console.log('[BULK] effectiveIds:', Array.from(effectiveIds));
-    console.log('[BULK] updates:', updates);
-
+    // Actualizar estado local primero
     setTasks(prev => {
       const next = { ...prev };
       effectiveIds.forEach(id => {
@@ -252,52 +249,69 @@ export default function App() {
       return next;
     });
 
-    // Persistir via handleUpdateTask para cada tarea efectiva
-    // Esto garantiza que instancias recurrentes se manejen correctamente
-    effectiveIds.forEach(id => {
-      const task = tasks[id];
-      if (!task) return;
-      const updatedTask = { ...task, ...updates, modifiedAt: timestamp };
-      // Llamar a handleUpdateTask directamente para manejar instancias
-      const supabaseUpdates: any = { modified_at: timestamp };
-      if (updates.status !== undefined) supabaseUpdates.status = updates.status;
-      if (updates.completedAt !== undefined) supabaseUpdates.completed_at = updates.completedAt || null;
-      if (updates.dueDate !== undefined) supabaseUpdates.due_date = updates.dueDate || null;
-      if (updates.tags !== undefined) supabaseUpdates.tags = updates.tags;
-      if (updates.estimatedMinutes !== undefined) supabaseUpdates.estimated_minutes = updates.estimatedMinutes;
-      if (updates.delegation !== undefined) supabaseUpdates.delegation = updates.delegation || null;
+    // Persistir en Supabase usando la misma lógica que el chip inline
+    // Usamos setTimeout para que el setTasks anterior haya cerrado su ciclo
+    setTimeout(() => {
+      effectiveIds.forEach(id => {
+        const task = tasks[id];
+        if (!task) return;
+        const updatedTask = { ...task, ...updates, modifiedAt: timestamp };
 
-      if (task.templateId && !task.existsInSupabase) {
-        // Instancia generada en memoria - necesita upsert con isException
-        supabase.from('tasks').upsert({
-          id: task.id,
-          block_id: task.blockId,
-          parent_task_id: null,
-          template_id: task.templateId,
-          instance_date: task.instanceDate || task.dueDate,
-          title: task.title,
-          notes: task.notes || '',
-          priority: task.priority || 'media',
-          status: task.status,
-          due_date: task.dueDate || null,
-          estimated_minutes: task.estimatedMinutes || 0,
-          tags: task.tags || [],
-          is_template: false,
-          is_active: true,
-          is_exception: true,
-          is_deleted: false,
-          ...supabaseUpdates,
-          created_at: task.createdAt || timestamp,
-        }, { onConflict: 'id' }).then(({ error }) => {
-          if (error) console.error('[SUPABASE] Error bulk upsert instance:', error);
-          else setTasks(prev => ({ ...prev, [id]: { ...prev[id], existsInSupabase: true, isException: true } }));
-        });
-      } else {
-        supabase.from('tasks').update(supabaseUpdates).eq('id', id).then(({ error }) => {
-          if (error) console.error('[SUPABASE] Error bulk update:', error);
-        });
-      }
-    });
+        if (task.templateId && !task.existsInSupabase) {
+          // Instancia en memoria → upsert completo con is_exception: true
+          supabase.from('tasks').upsert({
+            id: task.id,
+            block_id: task.blockId,
+            parent_task_id: null,
+            template_id: task.templateId,
+            instance_date: task.instanceDate || task.dueDate || null,
+            title: task.title,
+            notes: task.notes || '',
+            priority: task.priority || 'media',
+            status: updatedTask.status,
+            due_date: task.dueDate || null,
+            due_time: task.dueTime || null,
+            completed_at: updatedTask.completedAt || null,
+            estimated_minutes: updatedTask.estimatedMinutes || 0,
+            actual_minutes: task.actualMinutes || 0,
+            tags: updatedTask.tags || [],
+            order: task.order || 0,
+            is_template: false,
+            is_active: true,
+            is_exception: true,
+            is_deleted: false,
+            is_expanded: task.isExpanded || false,
+            task_type: task.taskType || 'core',
+            recurrence: null,
+            delegation: updatedTask.delegation ?? null,
+            created_at: task.createdAt || timestamp,
+            modified_at: timestamp,
+          }, { onConflict: 'id' }).then(({ error }) => {
+            if (error) {
+              console.error('[BULK] Error upsert instancia:', task.id, error);
+            } else {
+              setTasks(prev => ({
+                ...prev,
+                [id]: { ...prev[id], existsInSupabase: true, isException: true }
+              }));
+            }
+          });
+        } else {
+          // Tarea normal o instancia ya persistida → update directo
+          const supabaseUpdates: Record<string, any> = { modified_at: timestamp };
+          if (updates.status !== undefined) supabaseUpdates.status = updatedTask.status;
+          if (updates.completedAt !== undefined) supabaseUpdates.completed_at = updatedTask.completedAt ?? null;
+          if (updates.dueDate !== undefined) supabaseUpdates.due_date = updatedTask.dueDate ?? null;
+          if (updates.tags !== undefined) supabaseUpdates.tags = updatedTask.tags;
+          if (updates.estimatedMinutes !== undefined) supabaseUpdates.estimated_minutes = updatedTask.estimatedMinutes;
+          if ('delegation' in updates) supabaseUpdates.delegation = updatedTask.delegation ?? null;
+
+          supabase.from('tasks').update(supabaseUpdates).eq('id', id).then(({ error }) => {
+            if (error) console.error('[BULK] Error update tarea:', id, error);
+          });
+        }
+      });
+    }, 0);
 
     setSelectedTaskIds(new Set());
     setSelectionMode(false);
@@ -3210,13 +3224,6 @@ function NavItem({ active, onClick, icon, label }: { active: boolean, onClick: (
 }
  
 
-const formatMinutes = (mins: number) => {
-  if (mins === 0) return '0m';
-  if (mins < 60) return `${mins}m`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-};
 
 // --- Bulk Delegate Modal ---
 function BulkDelegateModal({ people, onConfirm, onClose }: any) {
