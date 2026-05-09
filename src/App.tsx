@@ -234,13 +234,13 @@ export default function App() {
       return next;
     });
 
-    // Persistir en Supabase - solo tareas reales (no instancias generadas sin existsInSupabase)
+    // Persistir via handleUpdateTask para cada tarea efectiva
+    // Esto garantiza que instancias recurrentes se manejen correctamente
     effectiveIds.forEach(id => {
       const task = tasks[id];
       if (!task) return;
-      // Solo persistir si existe en Supabase o es una tarea manual
-      if (task.templateId && !task.existsInSupabase && !task.isException) return;
-      
+      const updatedTask = { ...task, ...updates, modifiedAt: timestamp };
+      // Llamar a handleUpdateTask directamente para manejar instancias
       const supabaseUpdates: any = { modified_at: timestamp };
       if (updates.status !== undefined) supabaseUpdates.status = updates.status;
       if (updates.completedAt !== undefined) supabaseUpdates.completed_at = updates.completedAt || null;
@@ -249,9 +249,36 @@ export default function App() {
       if (updates.estimatedMinutes !== undefined) supabaseUpdates.estimated_minutes = updates.estimatedMinutes;
       if (updates.delegation !== undefined) supabaseUpdates.delegation = updates.delegation || null;
 
-      supabase.from('tasks').update(supabaseUpdates).eq('id', id).then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error bulk update:', error);
-      });
+      if (task.templateId && !task.existsInSupabase) {
+        // Instancia generada en memoria - necesita upsert con isException
+        supabase.from('tasks').upsert({
+          id: task.id,
+          block_id: task.blockId,
+          parent_task_id: null,
+          template_id: task.templateId,
+          instance_date: task.instanceDate || task.dueDate,
+          title: task.title,
+          notes: task.notes || '',
+          priority: task.priority || 'media',
+          status: task.status,
+          due_date: task.dueDate || null,
+          estimated_minutes: task.estimatedMinutes || 0,
+          tags: task.tags || [],
+          is_template: false,
+          is_active: true,
+          is_exception: true,
+          is_deleted: false,
+          ...supabaseUpdates,
+          created_at: task.createdAt || timestamp,
+        }, { onConflict: 'id' }).then(({ error }) => {
+          if (error) console.error('[SUPABASE] Error bulk upsert instance:', error);
+          else setTasks(prev => ({ ...prev, [id]: { ...prev[id], existsInSupabase: true, isException: true } }));
+        });
+      } else {
+        supabase.from('tasks').update(supabaseUpdates).eq('id', id).then(({ error }) => {
+          if (error) console.error('[SUPABASE] Error bulk update:', error);
+        });
+      }
     });
 
     setSelectedTaskIds(new Set());
@@ -329,7 +356,15 @@ export default function App() {
     setTasks(prev => {
       const next = { ...prev };
       
-      selectedTaskIds.forEach(id => {
+      // Solo duplicar tareas raíz - si subtarea tiene padre seleccionado, ya se duplica con el padre
+      const rootIds = Array.from(selectedTaskIds).filter(id => {
+        const task = prev[id];
+        if (!task) return false;
+        if (!task.parentTaskId) return true;
+        return !selectedTaskIds.has(task.parentTaskId);
+      });
+
+      rootIds.forEach(id => {
         const original = prev[id];
         if (!original || original.isDeleted) return;
 
