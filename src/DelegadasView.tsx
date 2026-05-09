@@ -805,6 +805,30 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                   </button>
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => {
+                        // Guardar todas las notas de la reunión en los templates
+                        const person = people.find((p: any) => p.id === meeting.personId);
+                        const personName = person?.name || '';
+                        const dateLabel = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }).format(parseLocalISO(meeting.date));
+                        meeting.items.forEach((item: any) => {
+                          if (!item.note?.trim()) return;
+                          const task = allTasksMap[item.taskId];
+                          if (!task) return;
+                          const templateId = task.templateId || task.id;
+                          const template = allTasksMap[templateId];
+                          if (!template) return;
+                          const newNoteEntry = `\n--- Reunión con ${personName} - ${dateLabel} ---\n${item.note.trim()}`;
+                          if (!(template.notes || '').includes(item.note.trim())) {
+                            onUpdateTask({ ...template, notes: (template.notes || '') + newNoteEntry });
+                          }
+                        });
+                      }}
+                      className="flex items-center gap-1.5 px-3 h-8 rounded-xl bg-morado/10 text-morado hover:bg-morado hover:text-white transition-all text-[9px] font-black uppercase tracking-widest"
+                      title="Guardar notas en tareas"
+                    >
+                      <Check size={11} /> Guardar
+                    </button>
+                    <button
                       onClick={() => setEditingMeeting({ ...meeting })}
                       className="w-8 h-8 flex items-center justify-center text-turquesa/60 hover:text-turquesa hover:bg-turquesa/10 rounded-xl transition-all"
                       title="Editar reunión"
@@ -840,7 +864,18 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                           <p className="text-sm dark:text-white text-text-main-light">{meeting.notes}</p>
                         </div>
                       )}
-                      {meeting.items.map((item: any) => {
+                      {meeting.items
+                        .filter((item: any) => {
+                          const task = allTasksMap[item.taskId];
+                          if (!task) return false;
+                          // No mostrar si es subtarea Y su contenedor padre también está en los items
+                          if (task.parentTaskId) {
+                            const parentInItems = meeting.items.some((i: any) => i.taskId === task.parentTaskId);
+                            if (parentInItems) return false;
+                          }
+                          return true;
+                        })
+                        .map((item: any) => {
                         const task = allTasksMap[item.taskId];
                         if (!task) return null;
                         const hasNote = item.note && item.note.trim().length > 0;
@@ -878,24 +913,6 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                                   );
                                   const updatedMeeting = { ...meeting, items: updatedItems };
                                   onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
-                                }}
-                                onBlur={e => {
-                                  const noteText = e.target.value.trim();
-                                  if (!noteText) return;
-                                  const task = allTasksMap[item.taskId];
-                                  if (!task) return;
-                                  // Buscar el template (si es instancia, usar templateId)
-                                  const templateId = task.templateId || task.id;
-                                  const template = allTasksMap[templateId];
-                                  if (!template) return;
-                                  const person = people.find((p: any) => p.id === meeting.personId);
-                                  const personName = person?.name || '';
-                                  const meetingDateStr = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }).format(parseLocalISO(meeting.date));
-                                  const newNoteEntry = `\n--- Reunión con ${personName} - ${meetingDateStr} ---\n${noteText}`;
-                                  // Solo añadir si no existe ya esta entrada
-                                  if (!(template.notes || '').includes(newNoteEntry.trim())) {
-                                    onUpdateTask({ ...template, notes: (template.notes || '') + newNoteEntry });
-                                  }
                                 }}
                                 placeholder="Nota sobre esta tarea..."
                                 rows={1}
@@ -1175,6 +1192,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                             onEditTask={onEditTask}
                             onAddTask={onAddTask}
                             onReorderSubtasks={() => {}}
+                            onToggleExpand={(taskId: string) => onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded })}
                             hideCompleted={true}
                             inMeeting={true}
                             meetingItems={newMeeting.items}
