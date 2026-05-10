@@ -89,7 +89,7 @@ export function BlocksManagerView({
   onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(),
   onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null,
   bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null,
-  setBulkDateModal = null, setBulkTimeModal = null
+  setBulkDateModal = null, setBulkTimeModal = null, searchQuery = ''
 }: BlocksViewProps) {
 
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
