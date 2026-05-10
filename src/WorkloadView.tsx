@@ -12,7 +12,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { ChevronDown, ChevronUp, ChevronRight, Layers, Tag, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Layers, Tag, X } from 'lucide-react';
 import { Task, WorkBlock, TimeEntry } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { formatMinutes } from './utils';
@@ -777,74 +777,92 @@ export function WorkloadView({
         <div className="overflow-x-auto">
           <table className="w-full min-w-max border-collapse">
             <thead>
-              {/* Header meses */}
+              {/* FILA 1 — Meses con colspan */}
               <tr className="border-b dark:border-border-main border-border-main-light">
-                <th className="sticky left-0 dark:bg-bg-card bg-white z-20 px-4 py-3 text-left min-w-[220px]">
+                <th className="sticky left-0 dark:bg-bg-card bg-white z-20 px-4 py-3 text-left min-w-[220px]" rowSpan={2}>
                   <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Tarea</span>
                 </th>
                 {months.map(mo => {
                   const isExp = expandedMonths.has(mo.key);
                   const total = totalMonthMins[mo.key] || 0;
                   const pct = mo.capacityMins > 0 ? Math.round((total / mo.capacityMins) * 100) : 0;
+                  // colspan = 1 (mes) + semanas expandidas + días expandidos
+                  const colSpan = isExp
+                    ? mo.weeks.reduce((acc, w) =>
+                        acc + 1 + (expandedWeeks.has(w.key) ? buildDays(w, today).length : 0), 0)
+                    : 1;
                   return (
-                    <React.Fragment key={mo.key}>
-                      <th className="border-l dark:border-border-main/40 border-border-main-light/40 px-3 py-3 min-w-[120px]">
-                        <button onClick={() => toggleMonth(mo.key)} className="flex flex-col items-start gap-1 w-full group">
-                          <div className="flex items-center gap-2 w-full">
-                            <span className={`text-[11px] font-black transition-all ${isExp ? 'text-turquesa' : 'dark:text-white text-text-main-light'} uppercase tracking-widest`}>{mo.label}</span>
-                            <ChevronRight size={12} className={`transition-transform ml-auto ${isExp ? 'rotate-90 text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`} />
-                          </div>
+                    <th key={mo.key} colSpan={colSpan}
+                      className="border-l dark:border-border-main/40 border-border-main-light/40 px-3 py-3 min-w-[130px] text-left"
+                    >
+                      <button onClick={() => toggleMonth(mo.key)} className="flex flex-col items-start gap-1 w-full group">
+                        <div className="flex items-center gap-2 w-full">
+                          <span className={`text-[11px] font-black uppercase tracking-widest transition-all ${isExp ? 'text-turquesa' : 'dark:text-white text-text-main-light'}`}>
+                            {mo.label}
+                          </span>
                           {total > 0 && (
-                            <div className="flex items-center gap-2 w-full">
-                              <span className={`text-[10px] font-black ${getPctTextClass(pct)}`}>{pct}%</span>
-                              <div className="flex-1 h-1 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
-                                <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: getPctColor(pct) }} />
-                              </div>
-                            </div>
+                            <span className={`text-[11px] font-black ${getPctTextClass(pct)}`}>{formatMinutes(total)}</span>
                           )}
-                        </button>
-                      </th>
-
-                      {/* Headers semanas */}
-                      {isExp && mo.weeks.map(week => {
-                        const isWeekExp = expandedWeeks.has(week.key);
-                        const wTotal = totalWeekMins[week.key] || 0;
-                        const wPct = week.capacityMins > 0 ? Math.round((wTotal / week.capacityMins) * 100) : 0;
-                        return (
-                          <React.Fragment key={week.key}>
-                            <th className="border-l dark:border-border-main/20 border-border-main-light/20 px-2 py-3 min-w-[90px]">
-                              <button onClick={() => toggleWeek(week.key)} className="flex flex-col items-start gap-1 w-full group">
-                                <div className="flex items-center gap-1.5 w-full">
-                                  <span className={`text-[10px] font-black ${isWeekExp ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`}>{week.label}</span>
-                                  <ChevronRight size={10} className={`transition-transform ml-auto ${isWeekExp ? 'rotate-90 text-turquesa' : 'dark:text-text-secondary/50 text-text-secondary-light/50'}`} />
-                                </div>
-                                {wTotal > 0 && (
-                                  <div className="flex items-center gap-1.5 w-full">
-                                    <span className={`text-[9px] font-black ${getPctTextClass(wPct)}`}>{wPct}%</span>
-                                    <div className="flex-1 h-0.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
-                                      <div className="h-full rounded-full" style={{ width: `${Math.min(100, wPct)}%`, backgroundColor: getPctColor(wPct) }} />
-                                    </div>
-                                  </div>
-                                )}
-                              </button>
-                            </th>
-                            {/* Headers días */}
-                            {isWeekExp && buildDays(week, today).map(day => (
-                              <th key={day.date}
-                                className={`border-l dark:border-border-main/10 border-border-main-light/10 px-1 py-3 min-w-[64px] ${!day.isWorkday ? 'dark:bg-black/10 bg-gray-100/50' : ''} ${day.isToday ? 'dark:bg-turquesa/10 bg-turquesa/5' : ''}`}
-                              >
-                                <button onClick={() => onNavigateToDashboard(day.date)} className="flex flex-col items-center gap-0.5 w-full group">
-                                  <span className={`text-[9px] font-black ${day.isToday ? 'text-turquesa' : !day.isWorkday ? 'dark:text-text-secondary/30 text-text-secondary-light/30' : 'dark:text-text-secondary text-text-secondary-light group-hover:text-turquesa transition-all'}`}>
-                                    {day.label}
-                                  </span>
-                                </button>
-                              </th>
-                            ))}
-                          </React.Fragment>
-                        );
-                      })}
-                    </React.Fragment>
+                          <ChevronDown size={12} className={`ml-auto transition-transform ${isExp ? 'rotate-180 text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`} />
+                        </div>
+                        {total > 0 && (
+                          <div className="flex items-center gap-2 w-full">
+                            <span className={`text-[9px] font-bold ${getPctTextClass(pct)}`}>{pct}%</span>
+                            <div className="flex-1 h-1 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: getPctColor(pct) }} />
+                            </div>
+                          </div>
+                        )}
+                      </button>
+                    </th>
                   );
+                })}
+              </tr>
+
+              {/* FILA 2 — Semanas (solo meses expandidos) + Días (solo semanas expandidas) */}
+              <tr className="border-b-2 dark:border-border-main border-border-main-light">
+                {months.map(mo => {
+                  const isExp = expandedMonths.has(mo.key);
+                  if (!isExp) return null;
+                  return mo.weeks.map(week => {
+                    const isWeekExp = expandedWeeks.has(week.key);
+                    const wTotal = totalWeekMins[week.key] || 0;
+                    const wPct = week.capacityMins > 0 ? Math.round((wTotal / week.capacityMins) * 100) : 0;
+                    const days = buildDays(week, today);
+                    return (
+                      <React.Fragment key={week.key}>
+                        <th className="border-l dark:border-border-main/30 border-border-main-light/30 px-2 py-2 min-w-[90px] text-left">
+                          <button onClick={() => toggleWeek(week.key)} className="flex flex-col items-start gap-0.5 w-full group">
+                            <div className="flex items-center gap-1.5 w-full">
+                              <span className={`text-[10px] font-black ${isWeekExp ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`}>{week.label}</span>
+                              {wTotal > 0 && <span className={`text-[9px] font-bold ml-1 ${getPctTextClass(wPct)}`}>{formatMinutes(wTotal)}</span>}
+                              <ChevronDown size={10} className={`ml-auto transition-transform ${isWeekExp ? 'rotate-180 text-turquesa' : 'dark:text-text-secondary/50'}`} />
+                            </div>
+                            {wTotal > 0 && (
+                              <div className="flex items-center gap-1 w-full">
+                                <span className={`text-[8px] ${getPctTextClass(wPct)}`}>{wPct}%</span>
+                                <div className="flex-1 h-0.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, wPct)}%`, backgroundColor: getPctColor(wPct) }} />
+                                </div>
+                              </div>
+                            )}
+                          </button>
+                        </th>
+                        {/* Días */}
+                        {isWeekExp && days.map(day => (
+                          <th key={day.date}
+                            className={`border-l dark:border-border-main/10 border-border-main-light/10 px-1 py-2 min-w-[60px] text-center ${!day.isWorkday ? 'dark:bg-black/10 bg-gray-100/50' : ''} ${day.isToday ? 'dark:bg-turquesa/10 bg-turquesa/5' : ''}`}
+                          >
+                            <button onClick={() => onNavigateToDashboard(day.date)} className="w-full">
+                              <span className={`text-[9px] font-black block ${day.isToday ? 'text-turquesa' : !day.isWorkday ? 'dark:text-text-secondary/30 text-text-secondary-light/30' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa'}`}>
+                                {day.label}
+                              </span>
+                            </button>
+                          </th>
+                        ))}
+                      </React.Fragment>
+                    );
+                  });
                 })}
               </tr>
             </thead>
