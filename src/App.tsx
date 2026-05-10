@@ -58,7 +58,8 @@ import {
   Moon,
   Sun,
   Tag,
-  Copy
+  Copy,
+  BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { WorkBlock, Task, ViewType, TagType, SubtaskTemplate, Priority, TimeEntry, Person, DelegationMeeting } from './types';
@@ -95,6 +96,7 @@ import {
   TaskTypeChip, TimerDisplay, ToggleExpandButton, MonthDatePicker
 } from './components';
 import { SearchView } from './SearchView';
+import { WorkloadView } from './WorkloadView';
  
 // --- Storage Key ---
 const STORAGE_KEY = 'workmanager-v19-data-v1';
@@ -737,13 +739,16 @@ export default function App() {
 
     const toggleRecursive = (targetTask: Task, status: 'pending' | 'completed') => {
       const isInstance = !!targetTask.templateId;
+      const isRecurring = !!(targetTask.templateId || targetTask.recurrence);
       const updated = {
         ...targetTask,
         status,
         isException: isInstance ? true : targetTask.isException,
         existsInSupabase: true,
         modifiedAt: timestamp,
-        completedAt: status === 'completed' ? timestamp : undefined
+        completedAt: status === 'completed' ? timestamp : undefined,
+        // Marcar si era recurrente al completar (informativo, no se borra al descompletar)
+        wasRecurring: status === 'completed' && isRecurring ? true : targetTask.wasRecurring,
       };
       tasksToUpsert.push(updated);
 
@@ -797,6 +802,7 @@ export default function App() {
           task_type: t.taskType || 'core',
           recurrence: null,
           delegation: t.delegation || null,
+          was_recurring: t.wasRecurring || false,
           created_at: t.createdAt || timestamp,
           modified_at: timestamp,
         }, { onConflict: 'id' }).then(({ error }) => {
@@ -1890,6 +1896,12 @@ export default function App() {
             icon={<Search size={20} />} 
             label="Búsqueda" 
           />
+          <NavItem 
+            active={currentView === 'workload'} 
+            onClick={() => setCurrentView('workload')} 
+            icon={<BarChart2 size={20} />} 
+            label="Carga" 
+          />
         </div>
  
         <div className="mt-auto px-4">
@@ -2134,6 +2146,19 @@ export default function App() {
               />
             )}
             
+            {currentView === 'workload' && (
+              <WorkloadView
+                tasks={tasks}
+                allTasksMap={tasks}
+                blocks={blocks}
+                timeEntries={timeEntries}
+                onNavigateToDashboard={(date: string) => {
+                  setActiveDate(date);
+                  setCurrentView('dashboard');
+                }}
+              />
+            )}
+
             {currentView === 'search' && (
               <SearchView
                 tasks={Object.values(tasks).filter((t: Task) => !t.isDeleted)}

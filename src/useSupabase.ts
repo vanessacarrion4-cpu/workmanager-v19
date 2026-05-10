@@ -280,6 +280,7 @@ export function useSupabase({
               instanceDate: t.instance_date,
               recurrence: t.recurrence,
               delegation: t.delegation,
+              wasRecurring: t.was_recurring || false,
               createdAt: t.created_at,
               modifiedAt: t.modified_at,
               deletedAt: t.deleted_at,

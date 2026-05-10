@@ -25,7 +25,8 @@ interface UseGenerationOptions {
 }
 
 const MAX_GENERATION_CYCLES = 20;
-const DAYS_TO_PROJECT = 365;
+const DAYS_PAST = 30;      // 1 mes atrás
+const DAYS_FUTURE = 365;   // 12 meses adelante
 
 /**
  * Calcula una clave que solo cambia cuando se crean/modifican/borran templates reales.
@@ -63,21 +64,26 @@ export function useGeneration({ tasks, isDataLoaded, setTasks }: UseGenerationOp
     prevTemplateKeyRef.current = templateKey;
     console.log('[GENERATION] useEffect triggered #', generationCountRef.current);
 
-    const today = formatLocalISO(new Date());
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - DAYS_PAST);
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + DAYS_FUTURE);
+    const startStr = formatLocalISO(startDate);
+    const todayStr = formatLocalISO(today);
 
     setTasks(prev => {
       const cleaned = { ...prev };
       let deletedCount = 0;
 
-      // Limpiar instancias generadas en memoria que no son excepciones ni están en Supabase
-      // Solo limpiar instancias futuras (desde hoy) para no tocar el historial
+      // Limpiar instancias generadas en memoria fuera de la ventana
       Object.values(cleaned).forEach((t: Task) => {
         if (
           t.templateId &&
           !t.isException &&
           !t.isDeleted &&
           !t.existsInSupabase &&
-          t.dueDate && t.dueDate >= today
+          t.dueDate && (t.dueDate < startStr || t.dueDate > formatLocalISO(endDate))
         ) {
           delete cleaned[t.id];
           deletedCount++;
@@ -94,8 +100,8 @@ export function useGeneration({ tasks, isDataLoaded, setTasks }: UseGenerationOp
         preserved.map((t: Task) => `${t.id}:${t.status}${t.isDeleted ? ':DELETED' : ''}`)
       );
 
-      // Generar instancias nuevas
-      const instantiated = generateInstances(cleaned, today, DAYS_TO_PROJECT);
+      // Generar instancias nuevas dentro de la ventana
+      const instantiated = generateInstances(cleaned, startStr, DAYS_PAST + DAYS_FUTURE);
       console.log(`[GENERATION] Generated ${instantiated.length} instances`);
       if (instantiated.length === 0) return cleaned;
 

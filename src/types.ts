@@ -85,6 +85,7 @@ export interface Task {
   isActive?: boolean; // For templates, whether they should generate instances
   isException?: boolean; // True if edited individually
   isDeleted?: boolean; // For single instance deletion
+  wasRecurring?: boolean; // Marca informativa: era recurrente cuando se completó
   
   // Recurrence info - now on subtasks (if this Task is a subtask)
   recurrence?: {
@@ -115,7 +116,7 @@ export interface TimeEntry {
   source: 'manual' | 'timer';
 }
 
-export type ViewType = 'dashboard' | 'blocks' | 'calendar' | 'delegadas' | 'search';
+export type ViewType = 'dashboard' | 'blocks' | 'calendar' | 'delegadas' | 'search' | 'workload';
 
 export interface Person {
   id: string;
