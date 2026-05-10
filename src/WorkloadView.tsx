@@ -16,10 +16,9 @@
 
 import React, { useState, useMemo } from 'react';
 import {
-  ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
-  BarChart2, Layers, Tag, RotateCcw
+  ChevronDown, ChevronUp,
+  BarChart2, Layers, Tag, X
 } from 'lucide-react';
-import { AnimatePresence } from 'framer-motion';
 import { Task, WorkBlock, TimeEntry } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { formatMinutes } from './utils';
@@ -106,6 +105,13 @@ function getMonthLabel(year: number, month: number): string {
   return `${months[month]} ${year}`;
 }
 
+function getISOWeekNumber(monday: Date): number {
+  const jan4 = new Date(monday.getFullYear(), 0, 4);
+  const startOfWeek1 = getMondayOfWeek(jan4);
+  const diff = monday.getTime() - startOfWeek1.getTime();
+  return Math.round(diff / (7 * 86400000)) + 1;
+}
+
 function getWeeksForMonths(
   baseYear: number, baseMonth: number,
   numMonths: number, today: string, generatedEndDate: string
@@ -123,18 +129,17 @@ function getWeeksForMonths(
     const monthEnd = formatLocalISO(lastDay);
 
     let current = getMondayOfWeek(firstDay);
-    let weekNumInMonth = 0;
 
     while (formatLocalISO(current) <= monthEnd) {
       const key = getWeekKey(current);
       if (!seen.has(key)) {
         seen.add(key);
-        weekNumInMonth++;
         const monday = formatLocalISO(current);
         const sunday = addDays(monday, 6);
+        const weekNum = getISOWeekNumber(current);
         weeks.push({
           key,
-          label: `S${weekNumInMonth}`,
+          label: `W${weekNum}`,
           startDate: monday,
           endDate: sunday,
           monthLabel: getMonthLabel(year, month),
@@ -470,22 +475,9 @@ function GroupRow({
   expanded: Set<string>;
   onToggle: (key: string) => void;
 }) {
-  const isOpen = expanded.has(node.key) || (depth === 0 && !expanded.has(`__closed_${node.key}`));
-
-  const toggle = () => {
-    if (depth === 0) {
-      // nivel 0: por defecto abierto, toggle cierra
-      if (isOpen) {
-        onToggle(`__closed_${node.key}`);
-        onToggle(node.key);
-      } else {
-        onToggle(`__closed_${node.key}`);
-        onToggle(node.key);
-      }
-    } else {
-      onToggle(node.key);
-    }
-  };
+  // Contraído por defecto — solo se abre cuando el usuario hace click
+  const isOpen = expanded.has(node.key);
+  const toggle = () => onToggle(node.key);
 
   const pl = depth === 0 ? 'pl-5' : depth === 1 ? 'pl-9' : 'pl-14';
   const bg = depth === 0
@@ -554,9 +546,386 @@ function GroupRow({
   );
 }
 
+// ─── FilterChip (mismo patrón que SearchView) ────────────────────────────────
+
+function FilterChip({
+  label, count, options, selected, onToggle, onClear,
+}: {
+  label: string;
+  count: number;
+  options: { value: string; label: string; color?: string }[];
+  selected: string[];
+  onToggle: (v: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const isActive = selected.length > 0;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+          isActive
+            ? 'bg-turquesa text-white border-turquesa shadow-md shadow-turquesa/20'
+            : 'dark:bg-bg-card bg-white dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:dark:text-white hover:text-text-main-light'
+        }`}
+      >
+        {label}
+        {count > 0 && (
+          <span className="w-4 h-4 rounded-full bg-white/30 text-[9px] font-black flex items-center justify-center">{count}</span>
+        )}
+        <ChevronDown size={11} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-2 left-0 z-50 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl min-w-[180px] overflow-hidden">
+          <div className="py-1.5 max-h-60 overflow-y-auto">
+            {options.map(opt => (
+              <button key={opt.value} onClick={() => onToggle(opt.value)}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-left hover:dark:bg-white/5 hover:bg-gray-50 transition-all"
+              >
+                <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+                  selected.includes(opt.value) ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light'
+                }`}>
+                  {selected.includes(opt.value) && <span className="text-[9px]">✓</span>}
+                </div>
+                {opt.color && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
+                <span className={`text-[11px] font-bold truncate ${selected.includes(opt.value) ? 'dark:text-white text-text-main-light' : 'dark:text-text-secondary text-text-secondary-light'}`}>
+                  {opt.label}
+                </span>
+              </button>
+            ))}
+          </div>
+          {selected.length > 0 && (
+            <div className="border-t dark:border-border-main border-border-main-light">
+              <button onClick={() => { onClear(); setOpen(false); }}
+                className="w-full px-4 py-2 text-[10px] font-black uppercase tracking-widest text-rosa/70 hover:text-rosa transition-all text-left"
+              >Limpiar</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── WorkloadView ────────────────────────────────────────────────────────────
 
 export function WorkloadView({
+  tasks,
+  allTasksMap,
+  blocks,
+  timeEntries = [],
+  onNavigateToDashboard,
+}: {
+  tasks: Record<string, Task>;
+  allTasksMap: Record<string, Task>;
+  blocks: WorkBlock[];
+  timeEntries: TimeEntry[];
+  onNavigateToDashboard: (date: string) => void;
+}) {
+  const todayDate = new Date();
+  const today = formatLocalISO(todayDate);
+
+  const generatedEnd = new Date(todayDate);
+  generatedEnd.setDate(generatedEnd.getDate() + 365);
+  const generatedEndStr = formatLocalISO(generatedEnd);
+
+  // Vista fija: mes actual + 6 meses (7 meses total), scroll horizontal
+  const NUM_MONTHS = 7;
+  const [groupMode, setGroupMode] = useState<GroupMode>('block');
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Filtros multi-select
+  const [filterBlocks, setFilterBlocks] = useState<string[]>([]);
+  const [filterTypes, setFilterTypes] = useState<string[]>([]);
+
+  const weeks = useMemo(() => {
+    return getWeeksForMonths(
+      todayDate.getFullYear(), todayDate.getMonth(),
+      NUM_MONTHS, today, generatedEndStr
+    );
+  }, [today, generatedEndStr]);
+
+  const weekKeys = useMemo(() => weeks.map(w => w.key), [weeks]);
+
+  const weeksByMonth = useMemo(() => {
+    const map: Record<string, WeekInfo[]> = {};
+    weeks.forEach(w => {
+      if (!map[w.monthLabel]) map[w.monthLabel] = [];
+      map[w.monthLabel].push(w);
+    });
+    return Object.entries(map).map(([label, ws]) => ({ label, weeks: ws }));
+  }, [weeks]);
+
+  const registeredByKey = useMemo(() => {
+    const map: Record<string, number> = {};
+    timeEntries.forEach(te => {
+      const weekKey = getWeekKey(parseLocalISO(te.date));
+      const targetId = te.subtaskId || te.taskId;
+      const key = `${targetId}__${weekKey}`;
+      map[key] = (map[key] || 0) + te.duration;
+    });
+    return map;
+  }, [timeEntries]);
+
+  // Carga por día para el zoom (solo para semanas expandidas)
+  const registeredByDayTask = useMemo(() => {
+    const map: Record<string, number> = {}; // `${targetId}__${date}` → minutes
+    timeEntries.forEach(te => {
+      const targetId = te.subtaskId || te.taskId;
+      const key = `${targetId}__${te.date}`;
+      map[key] = (map[key] || 0) + te.duration;
+    });
+    return map;
+  }, [timeEntries]);
+
+  const allTaskLoads = useMemo(() =>
+    buildTaskLoads(allTasksMap, weeks, registeredByKey),
+    [allTasksMap, weeks, registeredByKey]
+  );
+
+  // Aplicar filtros
+  const taskLoads = useMemo(() => {
+    return allTaskLoads.filter(l => {
+      if (filterBlocks.length > 0 && !filterBlocks.includes(l.blockId)) return false;
+      if (filterTypes.length > 0 && !filterTypes.includes(l.taskType)) return false;
+      return true;
+    });
+  }, [allTaskLoads, filterBlocks, filterTypes]);
+
+  const totalByWeek = useMemo(() => sumWeeks(taskLoads, weekKeys), [taskLoads, weekKeys]);
+
+  const grouped = useMemo(() =>
+    groupTaskLoads(taskLoads, groupMode, blocks, weekKeys),
+    [taskLoads, groupMode, blocks, weekKeys]
+  );
+
+  const toggleWeek = (key: string) => setExpandedWeeks(prev => {
+    const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n;
+  });
+  const toggleGroup = (key: string) => setExpandedGroups(prev => {
+    const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n;
+  });
+
+  const blockOptions = blocks.map(b => ({ value: b.id, label: `${b.icon} ${b.name}`, color: b.color }));
+  const typeOptions = [
+    { value: 'core', label: 'Puesto (Core)' },
+    { value: 'adhoc', label: 'Puntual (Ad-hoc)' },
+  ];
+  const dayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+  // Carga por día para una semana expandida (suma todos los taskLoads)
+  const getDayLoad = (dateStr: string): number => {
+    let total = 0;
+    taskLoads.forEach(load => {
+      if (load.isContainer) return;
+      // Para cada hoja, sumar registrado si pasado, estimado si futuro
+      const week = weeks.find(w => dateStr >= w.startDate && dateStr <= w.endDate);
+      if (!week) return;
+      if (week.isPast) {
+        total += registeredByDayTask[`${load.taskId}__${dateStr}`] || 0;
+      } else {
+        // Calcular si esta tarea ocurre en este día concreto
+        const task = allTasksMap[load.taskId] as any;
+        if (!task) return;
+        if (task.recurrence) {
+          // Verificar si la recurrencia aplica este día
+          const count = countOccurrencesInWeek(task.recurrence, dateStr, dateStr);
+          total += count * (task.estimatedMinutes || 0);
+        } else if (task.dueDate === dateStr) {
+          total += task.estimatedMinutes || 0;
+        }
+      }
+    });
+    return total;
+  };
+
+  return (
+    <div className="max-w-full space-y-4 pb-32">
+
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-3xl font-black dark:text-white text-text-main-light">Carga de Trabajo</h2>
+          <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-1">
+            {taskLoads.length} tareas · {weeks.length} semanas
+          </p>
+        </div>
+
+        {/* Agrupación */}
+        <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
+          {([
+            { v: 'block' as GroupMode, icon: <Layers size={12} />, label: 'Bloque' },
+            { v: 'type' as GroupMode, icon: <Tag size={12} />, label: 'Tipo' },
+            { v: 'block-type' as GroupMode, icon: <Layers size={12} />, label: 'B→T' },
+            { v: 'type-block' as GroupMode, icon: <Tag size={12} />, label: 'T→B' },
+          ]).map(({ v, icon, label }) => (
+            <button key={v} onClick={() => setGroupMode(v)}
+              className={`flex items-center gap-1 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${
+                groupMode === v
+                  ? 'bg-morado text-white'
+                  : 'dark:bg-bg-card bg-white dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light'
+              }`}
+            >{icon}<span>{label}</span></button>
+          ))}
+        </div>
+      </div>
+
+      {/* Filtros chips */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <FilterChip label="Bloque" count={filterBlocks.length}
+          options={blockOptions} selected={filterBlocks}
+          onToggle={v => setFilterBlocks(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+          onClear={() => setFilterBlocks([])}
+        />
+        <FilterChip label="Tipo" count={filterTypes.length}
+          options={typeOptions} selected={filterTypes}
+          onToggle={v => setFilterTypes(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+          onClear={() => setFilterTypes([])}
+        />
+        {(filterBlocks.length > 0 || filterTypes.length > 0) && (
+          <button onClick={() => { setFilterBlocks([]); setFilterTypes([]); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-rosa hover:text-rosa transition-all text-[11px] font-black uppercase tracking-widest"
+          >
+            <X size={11} /> Limpiar
+          </button>
+        )}
+      </div>
+
+      {/* Tabla */}
+      <div className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-max border-collapse">
+            <thead>
+              {/* Meses */}
+              <tr className="border-b dark:border-border-main border-border-main-light">
+                <th className="text-left px-5 py-3 w-52 sticky left-0 dark:bg-bg-card bg-white z-10">
+                  <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Tarea</span>
+                </th>
+                {weeksByMonth.map(({ label, weeks: mw }) => (
+                  <th key={label} colSpan={mw.length}
+                    className="text-center px-3 py-3 border-l dark:border-border-main/40 border-border-main-light/40"
+                  >
+                    <span className="text-[11px] font-black dark:text-white text-text-main-light uppercase tracking-widest">{label}</span>
+                  </th>
+                ))}
+              </tr>
+
+              {/* Semanas + totales */}
+              <tr className="border-b-2 dark:border-border-main border-border-main-light">
+                <th className="text-left px-5 py-2 sticky left-0 dark:bg-bg-card bg-white z-10">
+                  <span className="text-[9px] dark:text-text-secondary text-text-secondary-light font-bold uppercase tracking-widest">Total</span>
+                </th>
+                {weeks.map((week, idx) => {
+                  const total = totalByWeek[week.key] || 0;
+                  const isFirst = idx === 0 || weeks[idx - 1].monthLabel !== week.monthLabel;
+                  const isExpanded = expandedWeeks.has(week.key);
+                  return (
+                    <th key={week.key}
+                      className={`text-center px-2 py-2 min-w-[80px] ${isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''} ${week.isPast ? 'dark:bg-bg-main/20 bg-gray-50/40' : ''}`}
+                    >
+                      <button onClick={() => toggleWeek(week.key)}
+                        className="flex flex-col items-center gap-0.5 w-full group"
+                        title={`${week.startDate} → ${week.endDate}`}
+                      >
+                        <span className={`text-[10px] font-black transition-all ${isExpanded ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light group-hover:dark:text-white group-hover:text-text-main-light'}`}>
+                          {week.label}
+                        </span>
+                        <span className={`text-[11px] font-black ${getWeekColorText(total)}`}>
+                          {total > 0 ? formatMinutes(total) : '—'}
+                        </span>
+                        {total > 0 && (
+                          <div className="w-7 h-1 rounded-full opacity-50" style={{ backgroundColor: getWeekColorHex(total) }} />
+                        )}
+                      </button>
+                    </th>
+                  );
+                })}
+              </tr>
+
+              {/* Zoom días — fila separada con carga por día */}
+              {weeks.some(w => expandedWeeks.has(w.key)) && (
+                <tr className="border-b dark:border-border-main/30 border-border-main-light/30 dark:bg-bg-main/30 bg-gray-50/50">
+                  <td className="px-5 py-2 sticky left-0 dark:bg-bg-main/30 bg-gray-50/50 z-10">
+                    <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Días</span>
+                  </td>
+                  {weeks.map((week, idx) => {
+                    const isFirst = idx === 0 || weeks[idx - 1].monthLabel !== week.monthLabel;
+                    if (!expandedWeeks.has(week.key)) {
+                      return <td key={week.key} className={isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''} />;
+                    }
+                    const days = Array.from({ length: 7 }, (_, i) => addDays(week.startDate, i));
+                    return (
+                      <td key={week.key}
+                        className={`px-1 py-2 ${isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''}`}
+                      >
+                        <div className="flex gap-1 justify-center">
+                          {days.map((day, di) => {
+                            const isToday = day === today;
+                            const dayLoad = getDayLoad(day);
+                            return (
+                              <button key={day} onClick={() => onNavigateToDashboard(day)}
+                                title={day}
+                                className={`flex flex-col items-center justify-center rounded-xl px-1 py-1.5 min-w-[36px] transition-all hover:bg-turquesa/10 ${isToday ? 'ring-2 ring-turquesa ring-offset-1' : ''}`}
+                              >
+                                <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light">{dayLabels[di]}</span>
+                                <span className="text-[9px] dark:text-text-secondary/60 text-text-secondary-light/60">{parseLocalISO(day).getDate()}</span>
+                                {dayLoad > 0 ? (
+                                  <span className={`text-[9px] font-black mt-0.5 ${getWeekColorText(dayLoad * 5)}`}>
+                                    {formatMinutes(dayLoad)}
+                                  </span>
+                                ) : (
+                                  <span className="text-[8px] dark:text-text-secondary/20 text-text-secondary-light/20 mt-0.5">—</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              )}
+            </thead>
+
+            <tbody>
+              {grouped.length > 0 ? grouped.map(node => (
+                <GroupRow
+                  key={node.key}
+                  node={node}
+                  weeks={weeks}
+                  depth={0}
+                  expanded={expandedGroups}
+                  onToggle={toggleGroup}
+                />
+              )) : (
+                <tr>
+                  <td colSpan={weeks.length + 1} className="text-center py-20">
+                    <BarChart2 size={40} className="mx-auto mb-4 dark:text-text-secondary text-text-secondary-light opacity-10" />
+                    <p className="text-sm font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest opacity-40">Sin datos de carga</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
   tasks,
   allTasksMap,
   blocks,
@@ -577,21 +946,22 @@ export function WorkloadView({
   generatedEnd.setDate(generatedEnd.getDate() + 365);
   const generatedEndStr = formatLocalISO(generatedEnd);
 
-  const [baseMonth, setBaseMonth] = useState(todayDate.getMonth());
-  const [baseYear, setBaseYear] = useState(todayDate.getFullYear());
-  const [numMonths, setNumMonths] = useState(1);
-  const [groupMode, setGroupMode] = useState<GroupMode>('block-type');
+  // Vista fija: mes actual + 6 meses (7 meses total), scroll horizontal
+  const NUM_MONTHS = 7;
+  const [groupMode, setGroupMode] = useState<GroupMode>('block');
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [extraPastMonths, setExtraPastMonths] = useState(0);
 
-  // ── Semanas visibles ──
+  // Filtros multi-select
+  const [filterBlocks, setFilterBlocks] = useState<string[]>([]);
+  const [filterTypes, setFilterTypes] = useState<string[]>([]);
+
   const weeks = useMemo(() => {
-    let startMonth = baseMonth - extraPastMonths;
-    let startYear = baseYear;
-    while (startMonth < 0) { startMonth += 12; startYear--; }
-    return getWeeksForMonths(startYear, startMonth, numMonths + extraPastMonths, today, generatedEndStr);
-  }, [baseYear, baseMonth, numMonths, extraPastMonths, today, generatedEndStr]);
+    return getWeeksForMonths(
+      todayDate.getFullYear(), todayDate.getMonth(),
+      NUM_MONTHS, today, generatedEndStr
+    );
+  }, [today, generatedEndStr]);
 
   const weekKeys = useMemo(() => weeks.map(w => w.key), [weeks]);
 
@@ -640,85 +1010,7 @@ export function WorkloadView({
   const toggleGroup = (key: string) => setExpandedGroups(prev => {
     const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n;
   });
-  const prevMonth = () => {
-    setExtraPastMonths(0);
-    if (baseMonth === 0) { setBaseMonth(11); setBaseYear(y => y - 1); }
-    else setBaseMonth(m => m - 1);
-  };
-  const nextMonth = () => {
-    setExtraPastMonths(0);
-    if (baseMonth === 11) { setBaseMonth(0); setBaseYear(y => y + 1); }
-    else setBaseMonth(m => m + 1);
-  };
-
-  const dayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-
-  return (
-    <div className="max-w-full space-y-5 pb-32">
-
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-3xl font-black dark:text-white text-text-main-light">Carga de Trabajo</h2>
-          <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-1">
-            {weeks.length} semanas · {taskLoads.length} tareas
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Toggle 1/2 meses */}
-          <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
-            {[1, 2].map(n => (
-              <button key={n} onClick={() => setNumMonths(n)}
-                className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${
-                  numMonths === n
-                    ? 'bg-turquesa text-white'
-                    : 'dark:bg-bg-card bg-white dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light'
-                }`}
-              >{n === 1 ? '1 mes' : '2 meses'}</button>
-            ))}
-          </div>
-
-          {/* Agrupación */}
-          <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
-            {([
-              { v: 'block' as GroupMode, icon: <Layers size={12} />, label: 'Bloque' },
-              { v: 'type' as GroupMode, icon: <Tag size={12} />, label: 'Tipo' },
-              { v: 'block-type' as GroupMode, icon: <Layers size={12} />, label: 'B→T' },
-              { v: 'type-block' as GroupMode, icon: <Tag size={12} />, label: 'T→B' },
-            ]).map(({ v, icon, label }) => (
-              <button key={v} onClick={() => setGroupMode(v)}
-                className={`flex items-center gap-1 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${
-                  groupMode === v
-                    ? 'bg-morado text-white'
-                    : 'dark:bg-bg-card bg-white dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light'
-                }`}
-              >{icon}<span>{label}</span></button>
-            ))}
-          </div>
-
-          {/* Navegación mes */}
-          <div className="flex items-center gap-1">
-            <button onClick={prevMonth}
-              className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 transition-all"
-            ><ChevronLeft size={16} /></button>
-            <span className="text-[11px] font-black dark:text-white text-text-main-light px-1 min-w-[80px] text-center">
-              {getMonthLabel(baseYear, baseMonth)}
-            </span>
-            <button onClick={nextMonth}
-              className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 transition-all"
-            ><ChevronRight size={16} /></button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Tabla ── */}
-      <div className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-max border-collapse">
-            <thead>
-              {/* Fila meses */}
-              <tr className="border-b dark:border-border-main border-border-main-light">
+  const toggleWeek = (key: string) => setExpandedWeeks(prev => {
                 <th className="text-left px-5 py-3 w-52 sticky left-0 dark:bg-bg-card bg-white z-10">
                   <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Tarea</span>
                 </th>
@@ -765,44 +1057,6 @@ export function WorkloadView({
               </tr>
 
               {/* Zoom días — cuando se expande una semana */}
-              {weeks.some(w => expandedWeeks.has(w.key)) && (
-                <tr className="border-b dark:border-border-main/30 border-border-main-light/30 dark:bg-bg-main/20 bg-gray-50/40">
-                  <td className="px-5 py-1.5 sticky left-0 dark:bg-bg-main/20 bg-gray-50/40 z-10">
-                    <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Días</span>
-                  </td>
-                  {weeks.map((week, idx) => {
-                    const isFirst = idx === 0 || weeks[idx - 1].monthLabel !== week.monthLabel;
-                    if (!expandedWeeks.has(week.key)) {
-                      return <td key={week.key} className={isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''} />;
-                    }
-                    const days = Array.from({ length: 7 }, (_, i) => addDays(week.startDate, i));
-                    return (
-                      <td key={week.key}
-                        className={`px-1 py-1.5 ${isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''}`}
-                      >
-                        <div className="flex gap-0.5 justify-center">
-                          {days.map((day, di) => {
-                            const isToday = day === today;
-                            return (
-                              <button key={day} onClick={() => onNavigateToDashboard(day)}
-                                title={day}
-                                className={`w-7 h-7 flex flex-col items-center justify-center rounded-lg transition-all text-[9px] font-black ${
-                                  isToday
-                                    ? 'bg-turquesa text-white'
-                                    : 'dark:text-text-secondary text-text-secondary-light hover:bg-turquesa hover:text-white'
-                                }`}
-                              >
-                                <span>{dayLabels[di]}</span>
-                                <span className="text-[8px] opacity-60">{parseLocalISO(day).getDate()}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              )}
             </thead>
 
             <tbody>
@@ -828,16 +1082,6 @@ export function WorkloadView({
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* ── Cargar más histórico ── */}
-      <div className="flex justify-center">
-        <button onClick={() => setExtraPastMonths(e => e + 3)}
-          className="flex items-center gap-2 px-4 py-2 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:dark:text-white hover:text-text-main-light transition-all text-[11px] font-black uppercase tracking-widest"
-        >
-          <RotateCcw size={13} />
-          Cargar 3 meses más atrás
-        </button>
       </div>
     </div>
   );
