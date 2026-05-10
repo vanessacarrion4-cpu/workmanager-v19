@@ -1,56 +1,121 @@
 /**
- * WorkloadView.tsx - Vista de carga de trabajo semanal.
+ * WorkloadView.tsx - Vista de carga de trabajo estilo ClickUp
+ *
+ * LAYOUT: filas = tareas, columnas = meses → expandible a semanas → días
+ * CAPACIDAD: 8h/día, 40h/semana (solo días laborables)
+ * COLORES: verde <60%, naranja 60-80%, morado 80-100%, rosa >100%
  *
  * TRES TRAMOS TEMPORALES:
- * ─ Pasado    → instancias Supabase (existsInSupabase) + time_entries reales
- * ─ Presente  → instancias generadas en memoria (allTasksMap, 12 meses)
+ * ─ Pasado    → time_entries reales
+ * ─ Presente  → instancias en memoria (12 meses)
  * ─ Futuro+12 → cálculo matemático desde templates
  */
 
 import React, { useState, useMemo } from 'react';
-import { ChevronDown, ChevronUp, BarChart2, Layers, Tag, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronRight, Layers, Tag, X } from 'lucide-react';
 import { Task, WorkBlock, TimeEntry } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { formatMinutes } from './utils';
 
-// ─── Colores ─────────────────────────────────────────────────────────────────
+// ─── Capacidad ────────────────────────────────────────────────────────────────
 
-function getWeekColorHex(m: number): string {
-  if (m === 0) return 'transparent';
-  if (m < 900) return '#10B981';
-  if (m < 1500) return '#F59E0B';
-  if (m < 2100) return '#A855F7';
+const HOURS_PER_DAY = 8;
+const MINS_PER_DAY = HOURS_PER_DAY * 60;   // 480
+const MINS_PER_WEEK = MINS_PER_DAY * 5;    // 2400
+
+function workdaysInMonth(year: number, month: number): number {
+  let count = 0;
+  const days = new Date(year, month + 1, 0).getDate();
+  for (let d = 1; d <= days; d++) {
+    const dow = new Date(year, month, d).getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count;
+}
+
+function workdaysInWeek(startDate: string, endDate: string): number {
+  let count = 0;
+  let current = startDate;
+  while (current <= endDate) {
+    const dow = parseLocalISO(current).getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    current = addDays(current, 1);
+  }
+  return count;
+}
+
+// ─── Colores por % de capacidad ──────────────────────────────────────────────
+
+function getPctColor(pct: number): string {
+  if (pct === 0) return 'transparent';
+  if (pct < 60) return '#10B981';
+  if (pct < 80) return '#F59E0B';
+  if (pct <= 100) return '#A855F7';
   return '#EC4899';
 }
-function getWeekColorText(m: number): string {
-  if (m === 0) return 'dark:text-text-secondary/30 text-text-secondary-light/30';
-  if (m < 900) return 'text-[#10B981]';
-  if (m < 1500) return 'text-[#F59E0B]';
-  if (m < 2100) return 'text-[#A855F7]';
+
+function getPctTextClass(pct: number): string {
+  if (pct === 0) return 'dark:text-text-secondary/30 text-text-secondary-light/30';
+  if (pct < 60) return 'text-[#10B981]';
+  if (pct < 80) return 'text-[#F59E0B]';
+  if (pct <= 100) return 'text-[#A855F7]';
   return 'text-[#EC4899]';
 }
 
-// ─── Tipos ───────────────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type GroupMode = 'block' | 'type' | 'block-type' | 'type-block';
+type GroupMode = 'block' | 'type';
+type ColLevel = 'month' | 'week' | 'day';
+
+interface MonthInfo {
+  key: string;       // 'YYYY-MM'
+  label: string;     // 'May 2026'
+  year: number;
+  month: number;
+  weeks: WeekInfo[];
+  capacityMins: number;
+}
 
 interface WeekInfo {
-  key: string; startDate: string; endDate: string;
-  label: string; monthLabel: string;
-  isPast: boolean; isGenerated: boolean;
+  key: string;
+  label: string;    // 'W20'
+  startDate: string;
+  endDate: string;
+  capacityMins: number;
+  isPast: boolean;
+  isGenerated: boolean;
+}
+
+interface DayInfo {
+  date: string;
+  label: string;  // 'L 12'
+  isWorkday: boolean;
+  isToday: boolean;
+  capacityMins: number;
 }
 
 interface TaskLoad {
-  taskId: string; title: string; blockId: string;
-  taskType: string; isContainer: boolean;
+  taskId: string;
+  title: string;
+  blockId: string;
+  taskType: string;
+  isContainer: boolean;
+  parentId?: string;
+  // minutos por clave (monthKey, weekKey, date)
+  monthMinutes: Record<string, number>;
   weekMinutes: Record<string, number>;
-  parentId?: string; // si es subtarea de un contenedor
+  dayMinutes: Record<string, number>;
 }
 
 interface GroupNode {
-  key: string; label: string; color?: string;
+  key: string;
+  label: string;
+  color?: string;
+  monthMinutes: Record<string, number>;
   weekMinutes: Record<string, number>;
-  children: GroupNode[]; isLeaf: boolean;
+  dayMinutes: Record<string, number>;
+  children: GroupNode[];
+  isLeaf: boolean;
 }
 
 // ─── Helpers fecha ────────────────────────────────────────────────────────────
@@ -68,10 +133,10 @@ function getWeekKey(date: Date): string {
   const year = monday.getFullYear();
   const jan1 = new Date(year, 0, 1);
   const weekNum = Math.ceil(((monday.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7);
-  return `${year}-${String(weekNum).padStart(2, '0')}`;
+  return `${year}-W${String(weekNum).padStart(2, '0')}`;
 }
 
-function getISOWeekNumber(monday: Date): number {
+function getISOWeekNum(monday: Date): number {
   const jan4 = new Date(monday.getFullYear(), 0, 4);
   const startW1 = getMondayOfWeek(jan4);
   return Math.round((monday.getTime() - startW1.getTime()) / (7 * 86400000)) + 1;
@@ -87,17 +152,24 @@ function getMonthLabel(year: number, month: number): string {
   return ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][month] + ' ' + year;
 }
 
-function getWeeksForMonths(
-  baseYear: number, baseMonth: number,
-  numMonths: number, today: string, generatedEndDate: string
-): WeekInfo[] {
-  const weeks: WeekInfo[] = [];
-  const seen = new Set<string>();
+const DAY_LABELS = ['D','L','M','X','J','V','S'];
+
+// ─── Construir estructura de columnas (7 meses) ───────────────────────────────
+
+function buildMonths(baseYear: number, baseMonth: number, numMonths: number, today: string, generatedEndStr: string): MonthInfo[] {
+  const months: MonthInfo[] = [];
+
   for (let m = 0; m < numMonths; m++) {
     let year = baseYear, month = baseMonth + m;
-    while (month > 11) { month -= 12; year++; }
+    while (month > 11) { month -= 12; year++ }
+
     const firstDay = new Date(year, month, 1);
-    const monthEnd = formatLocalISO(new Date(year, month + 1, 0));
+    const lastDay = new Date(year, month + 1, 0);
+    const monthEnd = formatLocalISO(lastDay);
+
+    // Semanas del mes
+    const weeks: WeekInfo[] = [];
+    const seen = new Set<string>();
     let current = getMondayOfWeek(firstDay);
     while (formatLocalISO(current) <= monthEnd) {
       const key = getWeekKey(current);
@@ -105,26 +177,54 @@ function getWeeksForMonths(
         seen.add(key);
         const monday = formatLocalISO(current);
         const sunday = addDays(monday, 6);
+        const wd = workdaysInWeek(monday, sunday);
         weeks.push({
-          key, label: `W${getISOWeekNumber(current)}`,
-          startDate: monday, endDate: sunday,
-          monthLabel: getMonthLabel(year, month),
+          key,
+          label: `W${getISOWeekNum(current)}`,
+          startDate: monday,
+          endDate: sunday,
+          capacityMins: wd * MINS_PER_DAY,
           isPast: sunday < today,
-          isGenerated: monday <= generatedEndDate,
+          isGenerated: monday <= generatedEndStr,
         });
       }
       current.setDate(current.getDate() + 7);
     }
+
+    const wd = workdaysInMonth(year, month);
+    months.push({
+      key: `${year}-${String(month + 1).padStart(2, '0')}`,
+      label: getMonthLabel(year, month),
+      year, month, weeks,
+      capacityMins: wd * MINS_PER_DAY,
+    });
   }
-  return weeks;
+  return months;
+}
+
+// ─── Días de una semana ───────────────────────────────────────────────────────
+
+function buildDays(week: WeekInfo, today: string): DayInfo[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(week.startDate, i);
+    const dow = parseLocalISO(date).getDay();
+    const isWorkday = dow !== 0 && dow !== 6;
+    return {
+      date,
+      label: `${DAY_LABELS[dow]} ${parseLocalISO(date).getDate()}`,
+      isWorkday,
+      isToday: date === today,
+      capacityMins: isWorkday ? MINS_PER_DAY : 0,
+    };
+  });
 }
 
 // ─── Cálculo recurrencia ──────────────────────────────────────────────────────
 
-function countOccurrencesInWeek(recurrence: any, weekStart: string, weekEnd: string): number {
+function countOccurrencesInRange(recurrence: any, startStr: string, endStr: string): number {
   if (!recurrence) return 0;
-  let count = 0, current = weekStart;
-  while (current <= weekEnd) {
+  let count = 0, current = startStr;
+  while (current <= endStr) {
     if (current < (recurrence.startDate || '')) { current = addDays(current, 1); continue; }
     if (recurrence.endDate && current > recurrence.endDate) break;
     const date = parseLocalISO(current);
@@ -142,111 +242,130 @@ function countOccurrencesInWeek(recurrence: any, weekStart: string, weekEnd: str
   return count;
 }
 
-// ─── Cálculo de carga ─────────────────────────────────────────────────────────
+// ─── Calcular minutos de una tarea hoja en un rango ──────────────────────────
 
-function calcLeafMinutes(
-  task: Task, week: WeekInfo,
+function calcRangeMinutes(
+  task: any, startStr: string, endStr: string,
+  isPast: boolean, isGenerated: boolean,
   allTasksMap: Record<string, Task>,
-  registeredByKey: Record<string, number>
+  registeredByDay: Record<string, number>
 ): number {
-  if (week.isPast) return registeredByKey[`${task.id}__${week.key}`] || 0;
-  if (week.isGenerated) {
+  if (isPast) {
+    // Sumar time_entries en el rango
+    let total = 0;
+    let current = startStr;
+    while (current <= endStr) {
+      total += registeredByDay[`${task.id}__${current}`] || 0;
+      current = addDays(current, 1);
+    }
+    return total;
+  }
+  if (task.recurrence) {
+    const count = countOccurrencesInRange(task.recurrence, startStr, endStr);
+    return count * (task.estimatedMinutes || 0);
+  }
+  if (isGenerated) {
     const instances = Object.values(allTasksMap).filter((t: any) =>
       t && t.templateId === task.id && !t.isDeleted &&
-      t.dueDate >= week.startDate && t.dueDate <= week.endDate
+      t.dueDate >= startStr && t.dueDate <= endStr
     );
     if (instances.length > 0)
-      return instances.reduce((acc, inst) => acc + ((inst as any).estimatedMinutes || (task as any).estimatedMinutes || 0), 0);
-    if ((task as any).recurrence)
-      return countOccurrencesInWeek((task as any).recurrence, week.startDate, week.endDate) * ((task as any).estimatedMinutes || 0);
-    if ((task as any).dueDate && (task as any).dueDate >= week.startDate && (task as any).dueDate <= week.endDate)
-      return (task as any).estimatedMinutes || 0;
-    return 0;
+      return instances.reduce((acc, inst) => acc + ((inst as any).estimatedMinutes || task.estimatedMinutes || 0), 0);
   }
-  if ((task as any).recurrence)
-    return countOccurrencesInWeek((task as any).recurrence, week.startDate, week.endDate) * ((task as any).estimatedMinutes || 0);
-  if ((task as any).dueDate && (task as any).dueDate >= week.startDate && (task as any).dueDate <= week.endDate)
-    return (task as any).estimatedMinutes || 0;
+  if (task.dueDate && task.dueDate >= startStr && task.dueDate <= endStr)
+    return task.estimatedMinutes || 0;
   return 0;
 }
 
-function calcNodeMinutes(
-  task: any, weeks: WeekInfo[],
-  allTasksMap: Record<string, Task>,
-  registeredByKey: Record<string, number>
-): Record<string, number> {
-  const wm: Record<string, number> = {};
-  weeks.forEach(w => { wm[w.key] = 0; });
-  if ((task.subtasks || []).length > 0 && task.isTemplate) {
-    (task.subtasks || []).forEach((subId: string) => {
-      const sub = allTasksMap[subId];
-      if (!sub || (sub as any).isDeleted) return;
-      weeks.forEach(week => { wm[week.key] += calcLeafMinutes(sub, week, allTasksMap, registeredByKey); });
-    });
-  } else {
-    weeks.forEach(week => { wm[week.key] = calcLeafMinutes(task, week, allTasksMap, registeredByKey); });
-  }
-  return wm;
-}
+// ─── buildTaskLoads ───────────────────────────────────────────────────────────
 
 function buildTaskLoads(
   allTasksMap: Record<string, Task>,
-  weeks: WeekInfo[],
-  registeredByKey: Record<string, number>
+  months: MonthInfo[],
+  registeredByDay: Record<string, number>,
+  generatedEndStr: string,
+  today: string
 ): TaskLoad[] {
   const loads: TaskLoad[] = [];
 
-  // Templates
-  Object.values(allTasksMap).filter((t: any) =>
-    t && t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId && t.isActive !== false
-  ).forEach((t: any) => {
-    const isContainer = (t.subtasks || []).length > 0;
-    loads.push({
-      taskId: t.id, title: t.title, blockId: t.blockId,
-      taskType: t.taskType || 'core',
-      isContainer,
-      weekMinutes: calcNodeMinutes(t, weeks, allTasksMap, registeredByKey),
-    });
-    // Añadir subtareas como loads separados para poder mostrarlas expandidas
+  const calcLoad = (task: any, startStr: string, endStr: string, isPast: boolean, isGen: boolean) =>
+    calcRangeMinutes(task, startStr, endStr, isPast, isGen, allTasksMap, registeredByDay);
+
+  const allWeeks = months.flatMap(m => m.weeks);
+
+  const processTask = (task: any, parentId?: string) => {
+    const isContainer = (task.subtasks || []).length > 0 && task.isTemplate;
+
+    const monthMinutes: Record<string, number> = {};
+    const weekMinutes: Record<string, number> = {};
+    const dayMinutes: Record<string, number> = {};
+
     if (isContainer) {
-      (t.subtasks || []).forEach((subId: string) => {
-        const sub = allTasksMap[subId] as any;
-        if (!sub || sub.isDeleted) return;
-        const subWm: Record<string, number> = {};
-        weeks.forEach(w => { subWm[w.key] = 0; });
-        weeks.forEach(week => { subWm[week.key] = calcLeafMinutes(sub, week, allTasksMap, registeredByKey); });
-        loads.push({
-          taskId: sub.id, title: sub.title, blockId: t.blockId,
-          taskType: t.taskType || 'core',
-          isContainer: false,
-          weekMinutes: subWm,
-          parentId: t.id,
+      // Contenedor: suma de subtareas
+      const subs = (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted);
+      months.forEach(mo => {
+        const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
+        const lastDay = formatLocalISO(new Date(mo.year, mo.month + 1, 0));
+        const isPast = lastDay < today;
+        monthMinutes[mo.key] = subs.reduce((acc: number, sub: any) =>
+          acc + calcLoad(sub, firstDay, lastDay, isPast, firstDay <= generatedEndStr), 0);
+      });
+      allWeeks.forEach(week => {
+        weekMinutes[week.key] = subs.reduce((acc: number, sub: any) =>
+          acc + calcLoad(sub, week.startDate, week.endDate, week.isPast, week.isGenerated), 0);
+      });
+      // Días (solo para semanas que se puedan expandir)
+      allWeeks.forEach(week => {
+        buildDays(week, today).forEach(day => {
+          dayMinutes[day.date] = subs.reduce((acc: number, sub: any) =>
+            acc + calcLoad(sub, day.date, day.date, week.isPast, week.isGenerated), 0);
+        });
+      });
+    } else {
+      months.forEach(mo => {
+        const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
+        const lastDay = formatLocalISO(new Date(mo.year, mo.month + 1, 0));
+        const isPast = lastDay < today;
+        monthMinutes[mo.key] = calcLoad(task, firstDay, lastDay, isPast, firstDay <= generatedEndStr);
+      });
+      allWeeks.forEach(week => {
+        weekMinutes[week.key] = calcLoad(task, week.startDate, week.endDate, week.isPast, week.isGenerated);
+      });
+      allWeeks.forEach(week => {
+        buildDays(week, today).forEach(day => {
+          dayMinutes[day.date] = calcLoad(task, day.date, day.date, week.isPast, week.isGenerated);
         });
       });
     }
-  });
+
+    loads.push({ taskId: task.id, title: task.title, blockId: task.blockId, taskType: task.taskType || 'core', isContainer, parentId, monthMinutes, weekMinutes, dayMinutes });
+
+    // Subtareas como loads separados
+    if (isContainer) {
+      (task.subtasks || []).forEach((subId: string) => {
+        const sub = allTasksMap[subId] as any;
+        if (!sub || sub.isDeleted) return;
+        processTask(sub, task.id);
+      });
+    }
+  };
+
+  // Templates raíz
+  Object.values(allTasksMap).filter((t: any) =>
+    t && t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId && t.isActive !== false
+  ).forEach((t: any) => processTask(t));
 
   // Tareas puntuales
   Object.values(allTasksMap).filter((t: any) =>
     t && !t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId && t.dueDate
   ).forEach((t: any) => {
-    const wm = calcNodeMinutes(t, weeks, allTasksMap, registeredByKey);
-    const inRange = weeks.some(w => t.dueDate >= w.startDate && t.dueDate <= w.endDate);
-    if (!Object.values(wm).some(m => m > 0) && !inRange) return;
-    loads.push({ taskId: t.id, title: t.title, blockId: t.blockId, taskType: t.taskType || 'adhoc', isContainer: false, weekMinutes: wm });
-  });
-
-  // Instancias pasadas sin template
-  Object.values(allTasksMap).filter((t: any) =>
-    t && t.existsInSupabase && t.templateId && !t.isDeleted && !t.parentTaskId && !allTasksMap[t.templateId]
-  ).forEach((t: any) => {
-    const wm: Record<string, number> = {};
-    weeks.forEach(w => { wm[w.key] = 0; });
-    if (t.dueDate) {
-      const week = weeks.find(w => t.dueDate >= w.startDate && t.dueDate <= w.endDate);
-      if (week && week.isPast) wm[week.key] = registeredByKey[`${t.id}__${week.key}`] || 0;
-    }
-    loads.push({ taskId: t.id, title: t.title, blockId: t.blockId, taskType: t.taskType || 'adhoc', isContainer: false, weekMinutes: wm });
+    const inRange = months.some(mo => {
+      const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
+      const lastDay = formatLocalISO(new Date(mo.year, mo.month + 1, 0));
+      return t.dueDate >= firstDay && t.dueDate <= lastDay;
+    });
+    if (!inRange) return;
+    processTask(t);
   });
 
   return loads;
@@ -254,33 +373,37 @@ function buildTaskLoads(
 
 // ─── Agrupación ───────────────────────────────────────────────────────────────
 
-function sumWeeks(loads: TaskLoad[], wks: string[]): Record<string, number> {
+function sumField(loads: TaskLoad[], field: 'monthMinutes' | 'weekMinutes' | 'dayMinutes', keys: string[]): Record<string, number> {
   const map: Record<string, number> = {};
-  wks.forEach(k => { map[k] = 0; });
-  // Solo sumar loads raíz (sin parentId) para evitar doble conteo
-  loads.forEach(l => { if (!l.parentId) wks.forEach(k => { map[k] += l.weekMinutes[k] || 0; }); });
+  keys.forEach(k => { map[k] = 0; });
+  loads.filter(l => !l.parentId).forEach(l => { keys.forEach(k => { map[k] += (l as any)[field][k] || 0; }); });
   return map;
 }
 
-function groupTaskLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[], wks: string[], allTasksMap: Record<string, Task>): GroupNode[] {
+function groupLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[], months: MonthInfo[]): GroupNode[] {
+  const monthKeys = months.map(m => m.key);
+  const allWeeks = months.flatMap(m => m.weeks);
+  const weekKeys = allWeeks.map(w => w.key);
+  const dayKeys = allWeeks.flatMap(w => buildDays(w, '').map(d => d.date));
+
   const tLabel = (t: string) => t === 'core' ? 'Puesto (Core)' : 'Puntual (Ad-hoc)';
   const tColor = (t: string) => t === 'core' ? '#10B981' : '#F59E0B';
 
-  // Solo agrupar loads raíz — las subtareas se muestran dentro de makeNode
-  const rootLoads = loads.filter(l => !l.parentId);
-  const makeNode = (l: TaskLoad): GroupNode => {
-    if (!l.isContainer) return { key: l.taskId, label: l.title, weekMinutes: l.weekMinutes, children: [], isLeaf: true };
-    // Contenedor: buscar sus subtareas en loads (tienen parentId === l.taskId)
+  const makeLeafNode = (l: TaskLoad): GroupNode => {
     const subLoads = loads.filter(sl => sl.parentId === l.taskId);
     const children: GroupNode[] = subLoads.map(sl => ({
-      key: `${l.taskId}__${sl.taskId}`,
-      label: sl.title,
-      weekMinutes: sl.weekMinutes,
-      children: [],
-      isLeaf: true,
+      key: `${l.taskId}__${sl.taskId}`, label: sl.title,
+      monthMinutes: sl.monthMinutes, weekMinutes: sl.weekMinutes, dayMinutes: sl.dayMinutes,
+      children: [], isLeaf: true,
     }));
-    return { key: l.taskId, label: l.title, weekMinutes: l.weekMinutes, children, isLeaf: children.length === 0 };
+    return {
+      key: l.taskId, label: l.title,
+      monthMinutes: l.monthMinutes, weekMinutes: l.weekMinutes, dayMinutes: l.dayMinutes,
+      children, isLeaf: children.length === 0,
+    };
   };
+
+  const rootLoads = loads.filter(l => !l.parentId);
 
   if (mode === 'block') {
     const bMap = new Map<string, Map<string, TaskLoad[]>>();
@@ -295,63 +418,72 @@ function groupTaskLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[],
       const all = Array.from(tm.values()).flat();
       return {
         key: bid, label: `${b?.icon||''} ${b?.name||bid}`, color: b?.color,
-        weekMinutes: sumWeeks(all, wks), isLeaf: false,
+        monthMinutes: sumField(all, 'monthMinutes', monthKeys),
+        weekMinutes: sumField(all, 'weekMinutes', weekKeys),
+        dayMinutes: sumField(all, 'dayMinutes', dayKeys),
+        isLeaf: false,
         children: Array.from(tm.entries()).map(([type, items]) => ({
           key: `${bid}-${type}`, label: tLabel(type), color: tColor(type),
-          weekMinutes: sumWeeks(items, wks), isLeaf: false,
-          children: items.map(makeNode),
-        }))
+          monthMinutes: sumField(items, 'monthMinutes', monthKeys),
+          weekMinutes: sumField(items, 'weekMinutes', weekKeys),
+          dayMinutes: sumField(items, 'dayMinutes', dayKeys),
+          isLeaf: false,
+          children: items.map(makeLeafNode),
+        })),
       };
     });
   }
-  if (mode === 'type') {
-    const map = new Map<string, TaskLoad[]>();
-    rootLoads.forEach(l => { if (!map.has(l.taskType)) map.set(l.taskType, []); map.get(l.taskType)!.push(l); });
-    return Array.from(map.entries()).map(([type, items]) => ({
-      key: type, label: tLabel(type), color: tColor(type),
-      weekMinutes: sumWeeks(items, wks), children: items.map(makeNode), isLeaf: false
-    }));
+
+  // type
+  const tMap = new Map<string, TaskLoad[]>();
+  rootLoads.forEach(l => { if (!tMap.has(l.taskType)) tMap.set(l.taskType, []); tMap.get(l.taskType)!.push(l); });
+  return Array.from(tMap.entries()).map(([type, items]) => ({
+    key: type, label: tLabel(type), color: tColor(type),
+    monthMinutes: sumField(items, 'monthMinutes', monthKeys),
+    weekMinutes: sumField(items, 'weekMinutes', weekKeys),
+    dayMinutes: sumField(items, 'dayMinutes', dayKeys),
+    isLeaf: false,
+    children: items.map(makeLeafNode),
+  }));
+}
+
+// ─── ProgressCell ─────────────────────────────────────────────────────────────
+
+function ProgressCell({ minutes, capacityMins, compact = false }: { minutes: number; capacityMins: number; compact?: boolean }) {
+  const pct = capacityMins > 0 ? Math.round((minutes / capacityMins) * 100) : 0;
+  const color = getPctColor(pct);
+  const textClass = getPctTextClass(pct);
+  const barPct = Math.min(100, pct);
+
+  if (minutes === 0) return <span className="text-[10px] dark:text-text-secondary/20 text-text-secondary-light/20">—</span>;
+
+  if (compact) {
+    return (
+      <div className="flex flex-col items-center gap-0.5 min-w-[64px]">
+        <span className={`text-[10px] font-black ${textClass}`}>{formatMinutes(minutes)}</span>
+        <div className="w-full h-1 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+          <div className="h-full rounded-full transition-all" style={{ width: `${barPct}%`, backgroundColor: color }} />
+        </div>
+      </div>
+    );
   }
-  if (mode === 'block-type') {
-    const bMap2 = new Map<string, Map<string, TaskLoad[]>>();
-    rootLoads.forEach(l => {
-      if (!bMap2.has(l.blockId)) bMap2.set(l.blockId, new Map());
-      const tm = bMap2.get(l.blockId)!;
-      if (!tm.has(l.taskType)) tm.set(l.taskType, []);
-      tm.get(l.taskType)!.push(l);
-    });
-    return Array.from(bMap2.entries()).map(([bid, tm]) => {
-      const b = blocks.find(b => b.id === bid);
-      const all = Array.from(tm.values()).flat();
-      return {
-        key: bid, label: `${b?.icon||''} ${b?.name||bid}`, color: b?.color,
-        weekMinutes: sumWeeks(all, wks), isLeaf: false,
-        children: Array.from(tm.entries()).map(([type, items]) => ({
-          key: `${bid}-${type}`, label: tLabel(type), color: tColor(type),
-          weekMinutes: sumWeeks(items, wks), children: items.map(makeNode), isLeaf: false,
-        }))
-      };
-    });
-  }
-  // type-block
-  const tMap = new Map<string, Map<string, TaskLoad[]>>();
-  rootLoads.forEach(l => {
-    if (!tMap.has(l.taskType)) tMap.set(l.taskType, new Map());
-    const bm = tMap.get(l.taskType)!;
-    if (!bm.has(l.blockId)) bm.set(l.blockId, []);
-    bm.get(l.blockId)!.push(l);
-  });
-  return Array.from(tMap.entries()).map(([type, bm]) => {
-    const all = Array.from(bm.values()).flat();
-    return {
-      key: type, label: tLabel(type), color: tColor(type),
-      weekMinutes: sumWeeks(all, wks), isLeaf: false,
-      children: Array.from(bm.entries()).map(([bid, items]) => {
-        const b = blocks.find(b => b.id === bid);
-        return { key: `${type}-${bid}`, label: `${b?.icon||''} ${b?.name||bid}`, color: b?.color, weekMinutes: sumWeeks(items, wks), children: items.map(makeNode), isLeaf: false };
-      })
-    };
-  });
+
+  return (
+    <div className="flex flex-col gap-1 min-w-[80px]">
+      <div className="flex items-center justify-between gap-2">
+        <span className={`text-[11px] font-black ${textClass}`}>{pct}%</span>
+        <span className={`text-[10px] font-bold ${textClass}`}>{formatMinutes(minutes)}</span>
+      </div>
+      <div className="w-full h-1.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+        <div className="h-full rounded-full transition-all" style={{ width: `${barPct}%`, backgroundColor: color }} />
+      </div>
+      {capacityMins > 0 && (
+        <span className="text-[9px] dark:text-text-secondary/40 text-text-secondary-light/40">
+          {formatMinutes(capacityMins - minutes)} libres
+        </span>
+      )}
+    </div>
+  );
 }
 
 // ─── FilterChip ───────────────────────────────────────────────────────────────
@@ -403,52 +535,102 @@ function FilterChip({ label, count, options, selected, onToggle, onClear }: {
   );
 }
 
-// ─── GroupRow ─────────────────────────────────────────────────────────────────
+// ─── WorkloadRow — fila recursiva ─────────────────────────────────────────────
 
-function GroupRow({ node, weeks, depth, expanded, onToggle }: {
-  node: GroupNode; weeks: WeekInfo[]; depth: number;
-  expanded: Set<string>; onToggle: (key: string) => void;
+function WorkloadRow({
+  node, months, expandedMonths, expandedWeeks, expandedGroups,
+  onToggleMonth, onToggleWeek, onToggleGroup, depth, today, onNavigate,
+}: {
+  node: GroupNode;
+  months: MonthInfo[];
+  expandedMonths: Set<string>;
+  expandedWeeks: Set<string>;
+  expandedGroups: Set<string>;
+  onToggleMonth: (key: string) => void;
+  onToggleWeek: (key: string) => void;
+  onToggleGroup: (key: string) => void;
+  depth: number;
+  today: string;
+  onNavigate: (date: string) => void;
 }) {
-  const isOpen = expanded.has(node.key);
-  const pl = depth === 0 ? 'pl-5' : depth === 1 ? 'pl-9' : 'pl-14';
-  const bg = depth === 0 ? 'dark:bg-white/[0.03] bg-gray-50/60' : depth === 1 ? '' : 'dark:bg-black/10';
-  const txt = depth === 0 ? 'text-[11px] dark:text-white text-text-main-light font-black'
-    : depth === 1 ? 'text-[10px] dark:text-text-secondary text-text-secondary-light font-bold'
-    : 'text-[10px] dark:text-text-secondary/70 text-text-secondary-light/70 font-medium';
+  const isOpen = expandedGroups.has(node.key);
+  const pl = depth === 0 ? 'pl-4' : depth === 1 ? 'pl-8' : depth === 2 ? 'pl-12' : 'pl-16';
+  const bgRow = depth === 0
+    ? 'dark:bg-white/[0.03] bg-gray-50/60'
+    : depth === 1 ? 'dark:bg-white/[0.015]' : '';
+  const txtCls = depth === 0
+    ? 'text-[11px] font-black dark:text-white text-text-main-light'
+    : depth === 1 ? 'text-[10px] font-bold dark:text-text-secondary text-text-secondary-light'
+    : 'text-[10px] font-medium dark:text-text-secondary/70 text-text-secondary-light/70';
+
   return (
     <>
-      <tr className={`border-b dark:border-border-main/20 border-border-main-light/20 ${bg} ${!node.isLeaf ? 'cursor-pointer hover:dark:bg-white/5 hover:bg-black/[0.03] transition-all' : ''}`}
-        onClick={!node.isLeaf ? () => onToggle(node.key) : undefined}
+      <tr className={`border-b dark:border-border-main/20 border-border-main-light/20 ${bgRow} ${!node.isLeaf ? 'cursor-pointer hover:dark:bg-white/5 hover:bg-black/[0.02] transition-all' : ''}`}
+        onClick={!node.isLeaf ? () => onToggleGroup(node.key) : undefined}
       >
-        <td className={`${pl} pr-3 py-2.5 max-w-[220px]`}>
+        {/* Nombre tarea */}
+        <td className={`${pl} pr-3 py-3 sticky left-0 dark:bg-inherit bg-inherit z-10 min-w-[220px] max-w-[280px]`}
+          style={{ backgroundColor: depth === 0 ? undefined : undefined }}
+        >
           <div className="flex items-center gap-2 min-w-0">
             {node.color && !node.isLeaf && <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: node.color }} />}
-            <span className={`${txt} truncate`}>{node.label}</span>
+            <span className={`${txtCls} truncate flex-1`}>{node.label}</span>
             {!node.isLeaf && (isOpen
-              ? <ChevronUp size={10} className="shrink-0 dark:text-text-secondary/50 text-text-secondary-light/50" />
-              : <ChevronDown size={10} className="shrink-0 dark:text-text-secondary/50 text-text-secondary-light/50" />
+              ? <ChevronUp size={10} className="shrink-0 opacity-40" />
+              : <ChevronDown size={10} className="shrink-0 opacity-40" />
             )}
           </div>
         </td>
-        {weeks.map((week, idx) => {
-          const mins = node.weekMinutes[week.key] || 0;
-          const isFirst = idx === 0 || weeks[idx - 1].monthLabel !== week.monthLabel;
+
+        {/* Columnas de meses */}
+        {months.map(mo => {
+          const mins = node.monthMinutes[mo.key] || 0;
+          const isMonthExp = expandedMonths.has(mo.key);
           return (
-            <td key={week.key} className={`text-center px-2 py-2.5 min-w-[72px] ${isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''}`}>
-              {mins > 0 ? (
-                <div className="flex flex-col items-center gap-0.5">
-                  <span className={`text-[11px] font-black ${getWeekColorText(mins)}`}>{formatMinutes(mins)}</span>
-                  {!node.isLeaf && <div className="w-6 h-0.5 rounded-full opacity-60" style={{ backgroundColor: getWeekColorHex(mins) }} />}
-                </div>
-              ) : (
-                <span className="text-[10px] dark:text-text-secondary/20 text-text-secondary-light/20">—</span>
-              )}
-            </td>
+            <React.Fragment key={mo.key}>
+              {/* Celda mes */}
+              <td className="px-3 py-2 border-l dark:border-border-main/30 border-border-main-light/30 min-w-[120px]">
+                <ProgressCell minutes={mins} capacityMins={mo.capacityMins} />
+              </td>
+
+              {/* Columnas de semanas (si el mes está expandido) */}
+              {isMonthExp && mo.weeks.map(week => {
+                const wMins = node.weekMinutes[week.key] || 0;
+                const isWeekExp = expandedWeeks.has(week.key);
+                return (
+                  <React.Fragment key={week.key}>
+                    <td className="px-2 py-2 border-l dark:border-border-main/20 border-border-main-light/20 min-w-[90px]">
+                      <ProgressCell minutes={wMins} capacityMins={week.capacityMins} compact />
+                    </td>
+                    {/* Columnas de días */}
+                    {isWeekExp && buildDays(week, today).map(day => {
+                      const dMins = node.dayMinutes[day.date] || 0;
+                      return (
+                        <td key={day.date}
+                          className={`px-1 py-2 border-l dark:border-border-main/10 border-border-main-light/10 min-w-[64px] text-center ${!day.isWorkday ? 'dark:bg-black/10 bg-gray-100/50' : ''} ${day.isToday ? 'dark:bg-turquesa/5 bg-turquesa/5' : ''}`}
+                        >
+                          {day.isWorkday
+                            ? <ProgressCell minutes={dMins} capacityMins={day.capacityMins} compact />
+                            : <span className="text-[9px] dark:text-text-secondary/20 text-text-secondary-light/20">—</span>
+                          }
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })}
+            </React.Fragment>
           );
         })}
       </tr>
+
+      {/* Hijos */}
       {!node.isLeaf && isOpen && node.children.map(child => (
-        <GroupRow key={child.key} node={child} weeks={weeks} depth={depth + 1} expanded={expanded} onToggle={onToggle} />
+        <WorkloadRow key={child.key} node={child} months={months}
+          expandedMonths={expandedMonths} expandedWeeks={expandedWeeks} expandedGroups={expandedGroups}
+          onToggleMonth={onToggleMonth} onToggleWeek={onToggleWeek} onToggleGroup={onToggleGroup}
+          depth={depth + 1} today={today} onNavigate={onNavigate}
+        />
       ))}
     </>
   );
@@ -472,32 +654,16 @@ export function WorkloadView({
   const generatedEndStr = formatLocalISO(generatedEnd);
 
   const [groupMode, setGroupMode] = useState<GroupMode>('block');
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
-  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set()); // meses expandidos → muestran semanas
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [filterBlocks, setFilterBlocks] = useState<string[]>([]);
   const [filterTypes, setFilterTypes] = useState<string[]>([]);
 
-  const weeks = useMemo(() =>
-    getWeeksForMonths(todayDate.getFullYear(), todayDate.getMonth(), 7, today, generatedEndStr),
+  const months = useMemo(() =>
+    buildMonths(todayDate.getFullYear(), todayDate.getMonth(), 7, today, generatedEndStr),
     [today, generatedEndStr]
   );
-  const weekKeys = useMemo(() => weeks.map(w => w.key), [weeks]);
-
-  const weeksByMonth = useMemo(() => {
-    const map: Record<string, WeekInfo[]> = {};
-    weeks.forEach(w => { if (!map[w.monthLabel]) map[w.monthLabel] = []; map[w.monthLabel].push(w); });
-    return Object.entries(map).map(([label, ws]) => ({ label, weeks: ws }));
-  }, [weeks]);
-
-  const registeredByKey = useMemo(() => {
-    const map: Record<string, number> = {};
-    timeEntries.forEach(te => {
-      const key = `${te.subtaskId || te.taskId}__${getWeekKey(parseLocalISO(te.date))}`;
-      map[key] = (map[key] || 0) + te.duration;
-    });
-    return map;
-  }, [timeEntries]);
 
   const registeredByDay = useMemo(() => {
     const map: Record<string, number> = {};
@@ -508,7 +674,10 @@ export function WorkloadView({
     return map;
   }, [timeEntries]);
 
-  const allLoads = useMemo(() => buildTaskLoads(allTasksMap, weeks, registeredByKey), [allTasksMap, weeks, registeredByKey]);
+  const allLoads = useMemo(() =>
+    buildTaskLoads(allTasksMap, months, registeredByDay, generatedEndStr, today),
+    [allTasksMap, months, registeredByDay, generatedEndStr, today]
+  );
 
   const taskLoads = useMemo(() => allLoads.filter(l => {
     if (filterBlocks.length > 0 && !filterBlocks.includes(l.blockId)) return false;
@@ -516,48 +685,38 @@ export function WorkloadView({
     return true;
   }), [allLoads, filterBlocks, filterTypes]);
 
-  const totalByWeek = useMemo(() => sumWeeks(taskLoads, weekKeys), [taskLoads, weekKeys]);
-  const grouped = useMemo(() => groupTaskLoads(taskLoads, groupMode, blocks, weekKeys, allTasksMap), [taskLoads, groupMode, blocks, weekKeys, allTasksMap]);
+  const grouped = useMemo(() =>
+    groupLoads(taskLoads, groupMode, blocks, months),
+    [taskLoads, groupMode, blocks, months]
+  );
 
+  // Totales globales por mes/semana para el header
+  const totalMonthMins = useMemo(() => {
+    const map: Record<string, number> = {};
+    taskLoads.filter(l => !l.parentId).forEach(l => {
+      Object.entries(l.monthMinutes).forEach(([k, v]) => { map[k] = (map[k] || 0) + v; });
+    });
+    return map;
+  }, [taskLoads]);
+
+  const totalWeekMins = useMemo(() => {
+    const map: Record<string, number> = {};
+    taskLoads.filter(l => !l.parentId).forEach(l => {
+      Object.entries(l.weekMinutes).forEach(([k, v]) => { map[k] = (map[k] || 0) + v; });
+    });
+    return map;
+  }, [taskLoads]);
+
+  const toggleMonth = (key: string) => setExpandedMonths(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleWeek = (key: string) => setExpandedWeeks(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
-  const toggleMonth = (label: string) => setExpandedMonths(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n; });
   const toggleGroup = (key: string) => setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleFilter = (arr: string[], setArr: (v: string[]) => void, v: string) =>
     setArr(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
 
-  // Carga total por mes
-  const totalByMonth = useMemo(() => {
-    const map: Record<string, number> = {};
-    weeksByMonth.forEach(({ label, weeks: mw }) => {
-      map[label] = mw.reduce((acc, w) => acc + (totalByWeek[w.key] || 0), 0);
-    });
-    return map;
-  }, [weeksByMonth, totalByWeek]);
-
-  const getDayLoad = (dateStr: string): number => {
-    const week = weeks.find(w => dateStr >= w.startDate && dateStr <= w.endDate);
-    if (!week) return 0;
-    let total = 0;
-    taskLoads.forEach(load => {
-      if (load.isContainer) return;
-      if (week.isPast) {
-        total += registeredByDay[`${load.taskId}__${dateStr}`] || 0;
-      } else {
-        const task = allTasksMap[load.taskId] as any;
-        if (!task) return;
-        if (task.recurrence) {
-          total += countOccurrencesInWeek(task.recurrence, dateStr, dateStr) * (task.estimatedMinutes || 0);
-        } else if (task.dueDate === dateStr) {
-          total += task.estimatedMinutes || 0;
-        }
-      }
-    });
-    return total;
-  };
-
   const blockOptions = blocks.map(b => ({ value: b.id, label: `${b.icon} ${b.name}`, color: b.color }));
   const typeOptions = [{ value: 'core', label: 'Puesto (Core)' }, { value: 'adhoc', label: 'Puntual (Ad-hoc)' }];
-  const dayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+  const rootLoads = taskLoads.filter(l => !l.parentId);
 
   return (
     <div className="max-w-full space-y-4 pb-32">
@@ -566,7 +725,9 @@ export function WorkloadView({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-3xl font-black dark:text-white text-text-main-light">Carga de Trabajo</h2>
-          <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-1">{taskLoads.length} tareas · {weeks.length} semanas</p>
+          <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-1">
+            {rootLoads.length} tareas · 8h/día · 40h/semana
+          </p>
         </div>
         <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
           {([
@@ -593,119 +754,101 @@ export function WorkloadView({
         )}
       </div>
 
-      {/* Vista por meses */}
-      <div className="space-y-2">
-        {weeksByMonth.map(({ label: monthLabel, weeks: monthWeeks }) => {
-          const monthTotal = totalByMonth[monthLabel] || 0;
-          const isMonthOpen = expandedMonths.has(monthLabel);
+      {/* Tabla */}
+      <div className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-max border-collapse">
+            <thead>
+              {/* Header meses */}
+              <tr className="border-b dark:border-border-main border-border-main-light">
+                <th className="sticky left-0 dark:bg-bg-card bg-white z-20 px-4 py-3 text-left min-w-[220px]">
+                  <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Tarea</span>
+                </th>
+                {months.map(mo => {
+                  const isExp = expandedMonths.has(mo.key);
+                  const total = totalMonthMins[mo.key] || 0;
+                  const pct = mo.capacityMins > 0 ? Math.round((total / mo.capacityMins) * 100) : 0;
+                  return (
+                    <React.Fragment key={mo.key}>
+                      <th className="border-l dark:border-border-main/40 border-border-main-light/40 px-3 py-3 min-w-[120px]">
+                        <button onClick={() => toggleMonth(mo.key)} className="flex flex-col items-start gap-1 w-full group">
+                          <div className="flex items-center gap-2 w-full">
+                            <span className={`text-[11px] font-black transition-all ${isExp ? 'text-turquesa' : 'dark:text-white text-text-main-light'} uppercase tracking-widest`}>{mo.label}</span>
+                            <ChevronRight size={12} className={`transition-transform ml-auto ${isExp ? 'rotate-90 text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`} />
+                          </div>
+                          {total > 0 && (
+                            <div className="flex items-center gap-2 w-full">
+                              <span className={`text-[10px] font-black ${getPctTextClass(pct)}`}>{pct}%</span>
+                              <div className="flex-1 h-1 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+                                <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: getPctColor(pct) }} />
+                              </div>
+                            </div>
+                          )}
+                        </button>
+                      </th>
 
-          return (
-            <div key={monthLabel} className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
-              {/* Header mes */}
-              <button
-                onClick={() => toggleMonth(monthLabel)}
-                className="w-full flex items-center justify-between px-6 py-4 hover:dark:bg-white/[0.02] hover:bg-gray-50/50 transition-all"
-              >
-                <div className="flex items-center gap-4">
-                  <span className="text-base font-black dark:text-white text-text-main-light uppercase tracking-wider">{monthLabel}</span>
-                  {monthTotal > 0 && (
-                    <span className={`text-sm font-black ${getWeekColorText(monthTotal / 4)}`}>
-                      {formatMinutes(monthTotal)}
-                    </span>
-                  )}
-                  {monthTotal > 0 && (
-                    <div className="w-24 h-1.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
-                      <div className="h-full rounded-full" style={{ backgroundColor: getWeekColorHex(monthTotal / 4), width: `${Math.min(100, (monthTotal / 4) / 21 * 100)}%` }} />
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] dark:text-text-secondary text-text-secondary-light font-bold">
-                    {monthWeeks.length} semanas
-                  </span>
-                  {isMonthOpen
-                    ? <ChevronUp size={16} className="dark:text-text-secondary text-text-secondary-light" />
-                    : <ChevronDown size={16} className="dark:text-text-secondary text-text-secondary-light" />
-                  }
-                </div>
-              </button>
-
-              {/* Tabla semanas del mes */}
-              {isMonthOpen && (
-                <div className="border-t dark:border-border-main border-border-main-light overflow-x-auto">
-                  <table className="w-full min-w-max border-collapse">
-                    <thead>
-                      {/* Semanas + totales */}
-                      <tr className="border-b dark:border-border-main/50 border-border-main-light/50">
-                        <th className="text-left px-5 py-2 w-52 sticky left-0 dark:bg-bg-card bg-white z-10">
-                          <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Tarea</span>
-                        </th>
-                        {monthWeeks.map(week => {
-                          const total = totalByWeek[week.key] || 0;
-                          const isExp = expandedWeeks.has(week.key);
-                          return (
-                            <th key={week.key} className={`text-center px-2 py-2 min-w-[80px] ${week.isPast ? 'dark:bg-bg-main/20 bg-gray-50/40' : ''}`}>
-                              <button onClick={() => toggleWeek(week.key)} className="flex flex-col items-center gap-0.5 w-full group" title={`${week.startDate} → ${week.endDate}`}>
-                                <span className={`text-[10px] font-black transition-all ${isExp ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light group-hover:dark:text-white'}`}>{week.label}</span>
-                                <span className={`text-[11px] font-black ${getWeekColorText(total)}`}>{total > 0 ? formatMinutes(total) : '—'}</span>
-                                {total > 0 && <div className="w-7 h-1 rounded-full opacity-50" style={{ backgroundColor: getWeekColorHex(total) }} />}
+                      {/* Headers semanas */}
+                      {isExp && mo.weeks.map(week => {
+                        const isWeekExp = expandedWeeks.has(week.key);
+                        const wTotal = totalWeekMins[week.key] || 0;
+                        const wPct = week.capacityMins > 0 ? Math.round((wTotal / week.capacityMins) * 100) : 0;
+                        return (
+                          <React.Fragment key={week.key}>
+                            <th className="border-l dark:border-border-main/20 border-border-main-light/20 px-2 py-3 min-w-[90px]">
+                              <button onClick={() => toggleWeek(week.key)} className="flex flex-col items-start gap-1 w-full group">
+                                <div className="flex items-center gap-1.5 w-full">
+                                  <span className={`text-[10px] font-black ${isWeekExp ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`}>{week.label}</span>
+                                  <ChevronRight size={10} className={`transition-transform ml-auto ${isWeekExp ? 'rotate-90 text-turquesa' : 'dark:text-text-secondary/50 text-text-secondary-light/50'}`} />
+                                </div>
+                                {wTotal > 0 && (
+                                  <div className="flex items-center gap-1.5 w-full">
+                                    <span className={`text-[9px] font-black ${getPctTextClass(wPct)}`}>{wPct}%</span>
+                                    <div className="flex-1 h-0.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+                                      <div className="h-full rounded-full" style={{ width: `${Math.min(100, wPct)}%`, backgroundColor: getPctColor(wPct) }} />
+                                    </div>
+                                  </div>
+                                )}
                               </button>
                             </th>
-                          );
-                        })}
-                      </tr>
-                      {/* Zoom días */}
-                      {monthWeeks.some(w => expandedWeeks.has(w.key)) && (
-                        <tr className="border-b dark:border-border-main/30 border-border-main-light/30 dark:bg-bg-main/30 bg-gray-50/50">
-                          <td className="px-5 py-2 sticky left-0 dark:bg-bg-main/30 bg-gray-50/50 z-10">
-                            <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Días</span>
-                          </td>
-                          {monthWeeks.map(week => {
-                            if (!expandedWeeks.has(week.key)) return <td key={week.key} />;
-                            const days = Array.from({ length: 7 }, (_, i) => addDays(week.startDate, i));
-                            return (
-                              <td key={week.key} className="px-1 py-2">
-                                <div className="flex gap-1 justify-center">
-                                  {days.map((day, di) => {
-                                    const isToday = day === today;
-                                    const dayLoad = getDayLoad(day);
-                                    return (
-                                      <button key={day} onClick={() => onNavigateToDashboard(day)} title={day}
-                                        className={`flex flex-col items-center justify-center rounded-xl px-1 py-1.5 min-w-[36px] transition-all hover:bg-turquesa/10 ${isToday ? 'ring-2 ring-turquesa' : ''}`}
-                                      >
-                                        <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light">{dayLabels[di]}</span>
-                                        <span className="text-[9px] dark:text-text-secondary/60 text-text-secondary-light/60">{parseLocalISO(day).getDate()}</span>
-                                        {dayLoad > 0
-                                          ? <span className={`text-[9px] font-black mt-0.5 ${getWeekColorText(dayLoad * 5)}`}>{formatMinutes(dayLoad)}</span>
-                                          : <span className="text-[8px] dark:text-text-secondary/20 text-text-secondary-light/20 mt-0.5">—</span>
-                                        }
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      )}
-                    </thead>
-                    <tbody>
-                      {grouped.length > 0 ? grouped.map(node => (
-                        <GroupRow key={node.key} node={node} weeks={monthWeeks} depth={0} expanded={expandedGroups} onToggle={toggleGroup} />
-                      )) : (
-                        <tr>
-                          <td colSpan={monthWeeks.length + 1} className="text-center py-10">
-                            <p className="text-sm dark:text-text-secondary text-text-secondary-light opacity-30">Sin tareas</p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                            {/* Headers días */}
+                            {isWeekExp && buildDays(week, today).map(day => (
+                              <th key={day.date}
+                                className={`border-l dark:border-border-main/10 border-border-main-light/10 px-1 py-3 min-w-[64px] ${!day.isWorkday ? 'dark:bg-black/10 bg-gray-100/50' : ''} ${day.isToday ? 'dark:bg-turquesa/10 bg-turquesa/5' : ''}`}
+                              >
+                                <button onClick={() => onNavigateToDashboard(day.date)} className="flex flex-col items-center gap-0.5 w-full group">
+                                  <span className={`text-[9px] font-black ${day.isToday ? 'text-turquesa' : !day.isWorkday ? 'dark:text-text-secondary/30 text-text-secondary-light/30' : 'dark:text-text-secondary text-text-secondary-light group-hover:text-turquesa transition-all'}`}>
+                                    {day.label}
+                                  </span>
+                                </button>
+                              </th>
+                            ))}
+                          </React.Fragment>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
+              </tr>
+            </thead>
+
+            <tbody>
+              {grouped.map(node => (
+                <WorkloadRow key={node.key} node={node} months={months}
+                  expandedMonths={expandedMonths} expandedWeeks={expandedWeeks} expandedGroups={expandedGroups}
+                  onToggleMonth={toggleMonth} onToggleWeek={toggleWeek} onToggleGroup={toggleGroup}
+                  depth={0} today={today} onNavigate={onNavigateToDashboard}
+                />
+              ))}
+              {grouped.length === 0 && (
+                <tr>
+                  <td colSpan={99} className="text-center py-20">
+                    <p className="text-sm font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest opacity-30">Sin datos de carga</p>
+                  </td>
+                </tr>
               )}
-            </div>
-          );
-        })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
