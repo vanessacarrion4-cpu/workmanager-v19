@@ -713,6 +713,19 @@ export function WorkloadView({
     return map;
   }, [taskLoads]);
 
+  // Total por día — suma de todos los loads raíz para cada fecha
+  const totalDayMins = useMemo(() => {
+    const map: Record<string, number> = {};
+    Object.entries(dayLoadCache).forEach(([key, mins]) => {
+      const date = key.split('__').pop()!;
+      // Solo contar loads raíz (sin parentId) para evitar doble conteo
+      const taskId = key.split('__')[0];
+      const load = taskLoads.find(l => l.taskId === taskId && !l.parentId);
+      if (load) map[date] = (map[date] || 0) + mins;
+    });
+    return map;
+  }, [dayLoadCache, taskLoads]);
+
   // Carga por día — calculada bajo demanda solo para semanas expandidas
   const dayLoadCache = useMemo(() => {
     const cache: Record<string, Record<string, number>> = {}; // nodeKey__date → mins
@@ -795,7 +808,7 @@ export function WorkloadView({
             <thead>
               {/* FILA 1 — Meses */}
               <tr className="border-b-2 dark:border-border-main border-border-main-light">
-                <th className="sticky left-0 dark:bg-bg-card bg-white z-20 px-5 py-4 text-left min-w-[240px]" rowSpan={3}>
+                <th className="sticky left-0 dark:bg-bg-card bg-white z-20 px-5 py-4 text-left min-w-[240px]" rowSpan={4}>
                   <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Tarea</span>
                 </th>
                 {months.map(mo => {
@@ -864,7 +877,7 @@ export function WorkloadView({
               </tr>
 
               {/* FILA 3 — Días */}
-              <tr className="border-b-2 dark:border-border-main border-border-main-light dark:bg-bg-main/30 bg-gray-50/70">
+              <tr className="border-b dark:border-border-main/30 border-border-main-light/30 dark:bg-bg-main/30 bg-gray-50/70">
                 {months.map(mo => {
                   if (!expandedMonths.has(mo.key)) return null;
                   return mo.weeks.map(week => {
@@ -880,6 +893,37 @@ export function WorkloadView({
                         </button>
                       </th>
                     ));
+                  });
+                })}
+              </tr>
+
+              {/* FILA 4 — Total por día */}
+              <tr className="border-b-2 dark:border-border-main border-border-main-light dark:bg-bg-main/40 bg-gray-100/60">
+                {months.map(mo => {
+                  if (!expandedMonths.has(mo.key)) return null;
+                  return mo.weeks.map(week => {
+                    if (!expandedWeeks.has(week.key)) return null;
+                    return buildDays(week, today).map(day => {
+                      const dTotal = totalDayMins[day.date] || 0;
+                      const dPct = day.capacityMins > 0 ? Math.round((dTotal / day.capacityMins) * 100) : 0;
+                      return (
+                        <td key={day.date}
+                          className={`border-l dark:border-border-main/10 border-border-main-light/10 px-1 py-2 min-w-[60px] text-center ${!day.isWorkday ? 'opacity-20' : ''} ${day.isToday ? 'dark:bg-turquesa/10 bg-turquesa/5' : ''}`}
+                        >
+                          {day.isWorkday && dTotal > 0 ? (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className={`text-[10px] font-black ${getPctTextClass(dPct)}`}>{dPct}%</span>
+                              <span className={`text-[9px] font-bold ${getPctTextClass(dPct)}`}>{formatMinutes(dTotal)}</span>
+                              <div className="w-full h-0.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+                                <div className="h-full rounded-full" style={{ width: `${Math.min(100, dPct)}%`, backgroundColor: getPctColor(dPct) }} />
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-[9px] dark:text-text-secondary/20 text-text-secondary-light/20">—</span>
+                          )}
+                        </td>
+                      );
+                    });
                   });
                 })}
               </tr>
