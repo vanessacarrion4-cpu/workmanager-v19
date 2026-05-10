@@ -663,7 +663,7 @@ export function WorkloadView({
         <div>
           <h2 className="text-3xl font-black dark:text-white text-text-main-light">Carga de Trabajo</h2>
           <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-1">
-            {taskLoads.filter(l => !l.parentId).length} tareas · 8h/día · 40h/semana
+            8h/día · 40h/semana
           </p>
         </div>
         <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
@@ -693,9 +693,9 @@ export function WorkloadView({
 
       {/* Tabla principal */}
       <div className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: '75vh' }}>
           <table className="w-full min-w-max border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-20">
               {/* FILA 1 — Meses */}
               <tr className="border-b dark:border-border-main border-border-main-light">
                 <th className="sticky left-0 dark:bg-bg-card bg-white z-20 px-5 py-4 text-left min-w-[220px]" rowSpan={4}>
@@ -892,8 +892,9 @@ function WorkloadRow({
         onClick={!node.isLeaf ? () => onToggleGroup(node.key) : undefined}
       >
         {/* Nombre */}
-        <td className={`${pl} pr-4 py-3 sticky left-0 z-10 min-w-[220px] max-w-[280px] ${bg}`}>
-          <div className="flex items-center gap-2 min-w-0">
+        <td className={`${pl} pr-4 py-3 sticky left-0 z-10 min-w-[220px] max-w-[280px]`}
+          style={{ backgroundColor: 'var(--bg-card, white)' }}
+        >          <div className="flex items-center gap-2 min-w-0">
             {node.color && (isGroup || isType) && (
               <div className={`rounded-full shrink-0 ${isGroup ? 'w-2.5 h-2.5' : 'w-2 h-2 opacity-70'}`} style={{ backgroundColor: node.color }} />
             )}
