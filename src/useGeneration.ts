@@ -140,15 +140,13 @@ export function useGeneration({ tasks, isDataLoaded, setTasks }: UseGenerationOp
       });
 
       // PASO 3: Para subtareas generadas, asegurarse que su contenedor padre las referencia.
-      // Soluciona: contenedor existente en Supabase con subtasks=[] cuando se generan
-      // subtareas nuevas que apuntan a él.
-      // CRÍTICO: Solo modificar si el padre es una INSTANCIA (tiene templateId).
       instantiated.forEach(t => {
-        if (!t.parentTaskId) return; // Solo subtareas
-        if (!t.templateId) return;   // Solo instancias
+        if (!t.parentTaskId) return;
+        if (!t.templateId) return;
 
         const parent = updated[t.parentTaskId];
         if (parent && parent.templateId && !parent.subtasks?.includes(t.id)) {
+          console.log('[GENERATION] PASO3 vinculando subtarea:', t.title, '→ padre:', parent.title, parent.id);
           updated[t.parentTaskId] = {
             ...parent,
             subtasks: [...(parent.subtasks || []), t.id]
