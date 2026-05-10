@@ -442,44 +442,7 @@ function groupLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[], mon
   }));
 }
 
-// ─── ProgressCell ─────────────────────────────────────────────────────────────
 
-function ProgressCell({ minutes, capacityMins, compact = false }: { minutes: number; capacityMins: number; compact?: boolean }) {
-  const pct = capacityMins > 0 ? Math.round((minutes / capacityMins) * 100) : 0;
-  const color = getPctColor(pct);
-  const textClass = getPctTextClass(pct);
-  const barPct = Math.min(100, pct);
-
-  if (minutes === 0) return <span className="text-[10px] dark:text-text-secondary/20 text-text-secondary-light/20">—</span>;
-
-  if (compact) {
-    // Semana/día: % + horas + barra fina
-    return (
-      <div className="flex flex-col items-start gap-0.5 min-w-[72px]">
-        <div className="flex items-center gap-1.5">
-          <span className={`text-[10px] font-black ${textClass}`}>{pct}%</span>
-          <span className={`text-[9px] font-bold dark:text-text-secondary text-text-secondary-light`}>{formatMinutes(minutes)}</span>
-        </div>
-        <div className="w-full h-0.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
-          <div className="h-full rounded-full" style={{ width: `${barPct}%`, backgroundColor: color }} />
-        </div>
-      </div>
-    );
-  }
-
-  // Mes: % + horas + barra
-  return (
-    <div className="flex flex-col gap-1 min-w-[100px]">
-      <div className="flex items-center gap-2">
-        <span className={`text-[13px] font-black ${textClass}`}>{pct}%</span>
-        <span className={`text-[11px] font-bold ${textClass}`}>{formatMinutes(minutes)}</span>
-      </div>
-      <div className="w-full h-1.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
-        <div className="h-full rounded-full" style={{ width: `${barPct}%`, backgroundColor: color }} />
-      </div>
-    </div>
-  );
-}
 
 
 // ─── ProgressCell ─────────────────────────────────────────────────────────────
