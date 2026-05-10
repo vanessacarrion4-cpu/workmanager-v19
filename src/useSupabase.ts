@@ -117,6 +117,9 @@ function reconstructExceptionContainerSubtasks(mappedTasks: Record<string, Task>
     }
   });
 }
+
+/**
+ * Reparación 1: Contenedores que tienen datos que solo deberían tener las subtareas
  * (dueDate, dueTime, tags, delegation). Los limpia y persiste en Supabase.
  */
 function repairContainersWithForbiddenData(mappedTasks: Record<string, Task>): void {
