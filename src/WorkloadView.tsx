@@ -44,6 +44,7 @@ interface TaskLoad {
   taskId: string; title: string; blockId: string;
   taskType: string; isContainer: boolean;
   weekMinutes: Record<string, number>;
+  parentId?: string; // si es subtarea de un contenedor
 }
 
 interface GroupNode {
@@ -199,12 +200,30 @@ function buildTaskLoads(
   Object.values(allTasksMap).filter((t: any) =>
     t && t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId && t.isActive !== false
   ).forEach((t: any) => {
+    const isContainer = (t.subtasks || []).length > 0;
     loads.push({
       taskId: t.id, title: t.title, blockId: t.blockId,
       taskType: t.taskType || 'core',
-      isContainer: (t.subtasks || []).length > 0,
+      isContainer,
       weekMinutes: calcNodeMinutes(t, weeks, allTasksMap, registeredByKey),
     });
+    // Añadir subtareas como loads separados para poder mostrarlas expandidas
+    if (isContainer) {
+      (t.subtasks || []).forEach((subId: string) => {
+        const sub = allTasksMap[subId] as any;
+        if (!sub || sub.isDeleted) return;
+        const subWm: Record<string, number> = {};
+        weeks.forEach(w => { subWm[w.key] = 0; });
+        weeks.forEach(week => { subWm[week.key] = calcLeafMinutes(sub, week, allTasksMap, registeredByKey); });
+        loads.push({
+          taskId: sub.id, title: sub.title, blockId: t.blockId,
+          taskType: t.taskType || 'core',
+          isContainer: false,
+          weekMinutes: subWm,
+          parentId: t.id,
+        });
+      });
+    }
   });
 
   // Tareas puntuales
@@ -238,33 +257,34 @@ function buildTaskLoads(
 function sumWeeks(loads: TaskLoad[], wks: string[]): Record<string, number> {
   const map: Record<string, number> = {};
   wks.forEach(k => { map[k] = 0; });
-  loads.forEach(l => { if (!l.isContainer) wks.forEach(k => { map[k] += l.weekMinutes[k] || 0; }); });
+  // Solo sumar loads raíz (sin parentId) para evitar doble conteo
+  loads.forEach(l => { if (!l.parentId) wks.forEach(k => { map[k] += l.weekMinutes[k] || 0; }); });
   return map;
 }
 
-function groupTaskLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[], wks: string[]): GroupNode[] {
+function groupTaskLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[], wks: string[], allTasksMap: Record<string, Task>): GroupNode[] {
   const tLabel = (t: string) => t === 'core' ? 'Puesto (Core)' : 'Puntual (Ad-hoc)';
   const tColor = (t: string) => t === 'core' ? '#10B981' : '#F59E0B';
-  const leaf = (l: TaskLoad): GroupNode => ({ key: l.taskId, label: l.title, weekMinutes: l.weekMinutes, children: [], isLeaf: true });
+
+  // Solo agrupar loads raíz — las subtareas se muestran dentro de makeNode
+  const rootLoads = loads.filter(l => !l.parentId);
+  const makeNode = (l: TaskLoad): GroupNode => {
+    if (!l.isContainer) return { key: l.taskId, label: l.title, weekMinutes: l.weekMinutes, children: [], isLeaf: true };
+    // Contenedor: buscar sus subtareas en loads (tienen parentId === l.taskId)
+    const subLoads = loads.filter(sl => sl.parentId === l.taskId);
+    const children: GroupNode[] = subLoads.map(sl => ({
+      key: `${l.taskId}__${sl.taskId}`,
+      label: sl.title,
+      weekMinutes: sl.weekMinutes,
+      children: [],
+      isLeaf: true,
+    }));
+    return { key: l.taskId, label: l.title, weekMinutes: l.weekMinutes, children, isLeaf: children.length === 0 };
+  };
 
   if (mode === 'block') {
-    const map = new Map<string, TaskLoad[]>();
-    loads.forEach(l => { if (!map.has(l.blockId)) map.set(l.blockId, []); map.get(l.blockId)!.push(l); });
-    return Array.from(map.entries()).map(([bid, items]) => {
-      const b = blocks.find(b => b.id === bid);
-      return { key: bid, label: `${b?.icon||''} ${b?.name||bid}`, color: b?.color, weekMinutes: sumWeeks(items, wks), children: items.map(leaf), isLeaf: false };
-    });
-  }
-  if (mode === 'type') {
-    const map = new Map<string, TaskLoad[]>();
-    loads.forEach(l => { if (!map.has(l.taskType)) map.set(l.taskType, []); map.get(l.taskType)!.push(l); });
-    return Array.from(map.entries()).map(([type, items]) => ({
-      key: type, label: tLabel(type), color: tColor(type), weekMinutes: sumWeeks(items, wks), children: items.map(leaf), isLeaf: false
-    }));
-  }
-  if (mode === 'block-type') {
     const bMap = new Map<string, Map<string, TaskLoad[]>>();
-    loads.forEach(l => {
+    rootLoads.forEach(l => {
       if (!bMap.has(l.blockId)) bMap.set(l.blockId, new Map());
       const tm = bMap.get(l.blockId)!;
       if (!tm.has(l.taskType)) tm.set(l.taskType, []);
@@ -278,14 +298,44 @@ function groupTaskLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[],
         weekMinutes: sumWeeks(all, wks), isLeaf: false,
         children: Array.from(tm.entries()).map(([type, items]) => ({
           key: `${bid}-${type}`, label: tLabel(type), color: tColor(type),
-          weekMinutes: sumWeeks(items, wks), children: items.map(leaf), isLeaf: false
+          weekMinutes: sumWeeks(items, wks), isLeaf: false,
+          children: items.map(makeNode),
+        }))
+      };
+    });
+  }
+  if (mode === 'type') {
+    const map = new Map<string, TaskLoad[]>();
+    rootLoads.forEach(l => { if (!map.has(l.taskType)) map.set(l.taskType, []); map.get(l.taskType)!.push(l); });
+    return Array.from(map.entries()).map(([type, items]) => ({
+      key: type, label: tLabel(type), color: tColor(type),
+      weekMinutes: sumWeeks(items, wks), children: items.map(makeNode), isLeaf: false
+    }));
+  }
+  if (mode === 'block-type') {
+    const bMap2 = new Map<string, Map<string, TaskLoad[]>>();
+    rootLoads.forEach(l => {
+      if (!bMap2.has(l.blockId)) bMap2.set(l.blockId, new Map());
+      const tm = bMap2.get(l.blockId)!;
+      if (!tm.has(l.taskType)) tm.set(l.taskType, []);
+      tm.get(l.taskType)!.push(l);
+    });
+    return Array.from(bMap2.entries()).map(([bid, tm]) => {
+      const b = blocks.find(b => b.id === bid);
+      const all = Array.from(tm.values()).flat();
+      return {
+        key: bid, label: `${b?.icon||''} ${b?.name||bid}`, color: b?.color,
+        weekMinutes: sumWeeks(all, wks), isLeaf: false,
+        children: Array.from(tm.entries()).map(([type, items]) => ({
+          key: `${bid}-${type}`, label: tLabel(type), color: tColor(type),
+          weekMinutes: sumWeeks(items, wks), children: items.map(makeNode), isLeaf: false,
         }))
       };
     });
   }
   // type-block
   const tMap = new Map<string, Map<string, TaskLoad[]>>();
-  loads.forEach(l => {
+  rootLoads.forEach(l => {
     if (!tMap.has(l.taskType)) tMap.set(l.taskType, new Map());
     const bm = tMap.get(l.taskType)!;
     if (!bm.has(l.blockId)) bm.set(l.blockId, []);
@@ -298,7 +348,7 @@ function groupTaskLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[],
       weekMinutes: sumWeeks(all, wks), isLeaf: false,
       children: Array.from(bm.entries()).map(([bid, items]) => {
         const b = blocks.find(b => b.id === bid);
-        return { key: `${type}-${bid}`, label: `${b?.icon||''} ${b?.name||bid}`, color: b?.color, weekMinutes: sumWeeks(items, wks), children: items.map(leaf), isLeaf: false };
+        return { key: `${type}-${bid}`, label: `${b?.icon||''} ${b?.name||bid}`, color: b?.color, weekMinutes: sumWeeks(items, wks), children: items.map(makeNode), isLeaf: false };
       })
     };
   });
@@ -423,6 +473,7 @@ export function WorkloadView({
 
   const [groupMode, setGroupMode] = useState<GroupMode>('block');
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set()); // meses expandidos → muestran semanas
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [filterBlocks, setFilterBlocks] = useState<string[]>([]);
   const [filterTypes, setFilterTypes] = useState<string[]>([]);
@@ -466,12 +517,22 @@ export function WorkloadView({
   }), [allLoads, filterBlocks, filterTypes]);
 
   const totalByWeek = useMemo(() => sumWeeks(taskLoads, weekKeys), [taskLoads, weekKeys]);
-  const grouped = useMemo(() => groupTaskLoads(taskLoads, groupMode, blocks, weekKeys), [taskLoads, groupMode, blocks, weekKeys]);
+  const grouped = useMemo(() => groupTaskLoads(taskLoads, groupMode, blocks, weekKeys, allTasksMap), [taskLoads, groupMode, blocks, weekKeys, allTasksMap]);
 
   const toggleWeek = (key: string) => setExpandedWeeks(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const toggleMonth = (label: string) => setExpandedMonths(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n; });
   const toggleGroup = (key: string) => setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleFilter = (arr: string[], setArr: (v: string[]) => void, v: string) =>
     setArr(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
+
+  // Carga total por mes
+  const totalByMonth = useMemo(() => {
+    const map: Record<string, number> = {};
+    weeksByMonth.forEach(({ label, weeks: mw }) => {
+      map[label] = mw.reduce((acc, w) => acc + (totalByWeek[w.key] || 0), 0);
+    });
+    return map;
+  }, [weeksByMonth, totalByWeek]);
 
   const getDayLoad = (dateStr: string): number => {
     const week = weeks.find(w => dateStr >= w.startDate && dateStr <= w.endDate);
@@ -511,8 +572,6 @@ export function WorkloadView({
           {([
             { v: 'block' as GroupMode, icon: <Layers size={12} />, label: 'Bloque' },
             { v: 'type' as GroupMode, icon: <Tag size={12} />, label: 'Tipo' },
-            { v: 'block-type' as GroupMode, icon: <Layers size={12} />, label: 'B→T' },
-            { v: 'type-block' as GroupMode, icon: <Tag size={12} />, label: 'T→B' },
           ]).map(({ v, icon, label }) => (
             <button key={v} onClick={() => setGroupMode(v)}
               className={`flex items-center gap-1 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${groupMode === v ? 'bg-morado text-white' : 'dark:bg-bg-card bg-white dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light'}`}
@@ -534,92 +593,119 @@ export function WorkloadView({
         )}
       </div>
 
-      {/* Tabla */}
-      <div className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-max border-collapse">
-            <thead>
-              {/* Meses */}
-              <tr className="border-b dark:border-border-main border-border-main-light">
-                <th className="text-left px-5 py-3 w-52 sticky left-0 dark:bg-bg-card bg-white z-10">
-                  <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Tarea</span>
-                </th>
-                {weeksByMonth.map(({ label, weeks: mw }) => (
-                  <th key={label} colSpan={mw.length} className="text-center px-3 py-3 border-l dark:border-border-main/40 border-border-main-light/40">
-                    <span className="text-[11px] font-black dark:text-white text-text-main-light uppercase tracking-widest">{label}</span>
-                  </th>
-                ))}
-              </tr>
-              {/* Semanas + totales */}
-              <tr className="border-b-2 dark:border-border-main border-border-main-light">
-                <th className="text-left px-5 py-2 sticky left-0 dark:bg-bg-card bg-white z-10">
-                  <span className="text-[9px] dark:text-text-secondary text-text-secondary-light font-bold uppercase tracking-widest">Total</span>
-                </th>
-                {weeks.map((week, idx) => {
-                  const total = totalByWeek[week.key] || 0;
-                  const isFirst = idx === 0 || weeks[idx - 1].monthLabel !== week.monthLabel;
-                  const isExp = expandedWeeks.has(week.key);
-                  return (
-                    <th key={week.key} className={`text-center px-2 py-2 min-w-[80px] ${isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''} ${week.isPast ? 'dark:bg-bg-main/20 bg-gray-50/40' : ''}`}>
-                      <button onClick={() => toggleWeek(week.key)} className="flex flex-col items-center gap-0.5 w-full group" title={`${week.startDate} → ${week.endDate}`}>
-                        <span className={`text-[10px] font-black transition-all ${isExp ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light group-hover:dark:text-white'}`}>{week.label}</span>
-                        <span className={`text-[11px] font-black ${getWeekColorText(total)}`}>{total > 0 ? formatMinutes(total) : '—'}</span>
-                        {total > 0 && <div className="w-7 h-1 rounded-full opacity-50" style={{ backgroundColor: getWeekColorHex(total) }} />}
-                      </button>
-                    </th>
-                  );
-                })}
-              </tr>
-              {/* Zoom días */}
-              {weeks.some(w => expandedWeeks.has(w.key)) && (
-                <tr className="border-b dark:border-border-main/30 border-border-main-light/30 dark:bg-bg-main/30 bg-gray-50/50">
-                  <td className="px-5 py-2 sticky left-0 dark:bg-bg-main/30 bg-gray-50/50 z-10">
-                    <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Días</span>
-                  </td>
-                  {weeks.map((week, idx) => {
-                    const isFirst = idx === 0 || weeks[idx - 1].monthLabel !== week.monthLabel;
-                    if (!expandedWeeks.has(week.key)) return <td key={week.key} className={isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''} />;
-                    const days = Array.from({ length: 7 }, (_, i) => addDays(week.startDate, i));
-                    return (
-                      <td key={week.key} className={`px-1 py-2 ${isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''}`}>
-                        <div className="flex gap-1 justify-center">
-                          {days.map((day, di) => {
-                            const isToday = day === today;
-                            const dayLoad = getDayLoad(day);
-                            return (
-                              <button key={day} onClick={() => onNavigateToDashboard(day)} title={day}
-                                className={`flex flex-col items-center justify-center rounded-xl px-1 py-1.5 min-w-[36px] transition-all hover:bg-turquesa/10 ${isToday ? 'ring-2 ring-turquesa' : ''}`}
-                              >
-                                <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light">{dayLabels[di]}</span>
-                                <span className="text-[9px] dark:text-text-secondary/60 text-text-secondary-light/60">{parseLocalISO(day).getDate()}</span>
-                                {dayLoad > 0
-                                  ? <span className={`text-[9px] font-black mt-0.5 ${getWeekColorText(dayLoad * 5)}`}>{formatMinutes(dayLoad)}</span>
-                                  : <span className="text-[8px] dark:text-text-secondary/20 text-text-secondary-light/20 mt-0.5">—</span>
-                                }
+      {/* Vista por meses */}
+      <div className="space-y-2">
+        {weeksByMonth.map(({ label: monthLabel, weeks: monthWeeks }) => {
+          const monthTotal = totalByMonth[monthLabel] || 0;
+          const isMonthOpen = expandedMonths.has(monthLabel);
+
+          return (
+            <div key={monthLabel} className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
+              {/* Header mes */}
+              <button
+                onClick={() => toggleMonth(monthLabel)}
+                className="w-full flex items-center justify-between px-6 py-4 hover:dark:bg-white/[0.02] hover:bg-gray-50/50 transition-all"
+              >
+                <div className="flex items-center gap-4">
+                  <span className="text-base font-black dark:text-white text-text-main-light uppercase tracking-wider">{monthLabel}</span>
+                  {monthTotal > 0 && (
+                    <span className={`text-sm font-black ${getWeekColorText(monthTotal / 4)}`}>
+                      {formatMinutes(monthTotal)}
+                    </span>
+                  )}
+                  {monthTotal > 0 && (
+                    <div className="w-24 h-1.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+                      <div className="h-full rounded-full" style={{ backgroundColor: getWeekColorHex(monthTotal / 4), width: `${Math.min(100, (monthTotal / 4) / 21 * 100)}%` }} />
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] dark:text-text-secondary text-text-secondary-light font-bold">
+                    {monthWeeks.length} semanas
+                  </span>
+                  {isMonthOpen
+                    ? <ChevronUp size={16} className="dark:text-text-secondary text-text-secondary-light" />
+                    : <ChevronDown size={16} className="dark:text-text-secondary text-text-secondary-light" />
+                  }
+                </div>
+              </button>
+
+              {/* Tabla semanas del mes */}
+              {isMonthOpen && (
+                <div className="border-t dark:border-border-main border-border-main-light overflow-x-auto">
+                  <table className="w-full min-w-max border-collapse">
+                    <thead>
+                      {/* Semanas + totales */}
+                      <tr className="border-b dark:border-border-main/50 border-border-main-light/50">
+                        <th className="text-left px-5 py-2 w-52 sticky left-0 dark:bg-bg-card bg-white z-10">
+                          <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Tarea</span>
+                        </th>
+                        {monthWeeks.map(week => {
+                          const total = totalByWeek[week.key] || 0;
+                          const isExp = expandedWeeks.has(week.key);
+                          return (
+                            <th key={week.key} className={`text-center px-2 py-2 min-w-[80px] ${week.isPast ? 'dark:bg-bg-main/20 bg-gray-50/40' : ''}`}>
+                              <button onClick={() => toggleWeek(week.key)} className="flex flex-col items-center gap-0.5 w-full group" title={`${week.startDate} → ${week.endDate}`}>
+                                <span className={`text-[10px] font-black transition-all ${isExp ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light group-hover:dark:text-white'}`}>{week.label}</span>
+                                <span className={`text-[11px] font-black ${getWeekColorText(total)}`}>{total > 0 ? formatMinutes(total) : '—'}</span>
+                                {total > 0 && <div className="w-7 h-1 rounded-full opacity-50" style={{ backgroundColor: getWeekColorHex(total) }} />}
                               </button>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                      {/* Zoom días */}
+                      {monthWeeks.some(w => expandedWeeks.has(w.key)) && (
+                        <tr className="border-b dark:border-border-main/30 border-border-main-light/30 dark:bg-bg-main/30 bg-gray-50/50">
+                          <td className="px-5 py-2 sticky left-0 dark:bg-bg-main/30 bg-gray-50/50 z-10">
+                            <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Días</span>
+                          </td>
+                          {monthWeeks.map(week => {
+                            if (!expandedWeeks.has(week.key)) return <td key={week.key} />;
+                            const days = Array.from({ length: 7 }, (_, i) => addDays(week.startDate, i));
+                            return (
+                              <td key={week.key} className="px-1 py-2">
+                                <div className="flex gap-1 justify-center">
+                                  {days.map((day, di) => {
+                                    const isToday = day === today;
+                                    const dayLoad = getDayLoad(day);
+                                    return (
+                                      <button key={day} onClick={() => onNavigateToDashboard(day)} title={day}
+                                        className={`flex flex-col items-center justify-center rounded-xl px-1 py-1.5 min-w-[36px] transition-all hover:bg-turquesa/10 ${isToday ? 'ring-2 ring-turquesa' : ''}`}
+                                      >
+                                        <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light">{dayLabels[di]}</span>
+                                        <span className="text-[9px] dark:text-text-secondary/60 text-text-secondary-light/60">{parseLocalISO(day).getDate()}</span>
+                                        {dayLoad > 0
+                                          ? <span className={`text-[9px] font-black mt-0.5 ${getWeekColorText(dayLoad * 5)}`}>{formatMinutes(dayLoad)}</span>
+                                          : <span className="text-[8px] dark:text-text-secondary/20 text-text-secondary-light/20 mt-0.5">—</span>
+                                        }
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </td>
                             );
                           })}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
+                        </tr>
+                      )}
+                    </thead>
+                    <tbody>
+                      {grouped.length > 0 ? grouped.map(node => (
+                        <GroupRow key={node.key} node={node} weeks={monthWeeks} depth={0} expanded={expandedGroups} onToggle={toggleGroup} />
+                      )) : (
+                        <tr>
+                          <td colSpan={monthWeeks.length + 1} className="text-center py-10">
+                            <p className="text-sm dark:text-text-secondary text-text-secondary-light opacity-30">Sin tareas</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               )}
-            </thead>
-            <tbody>
-              {grouped.length > 0 ? grouped.map(node => (
-                <GroupRow key={node.key} node={node} weeks={weeks} depth={0} expanded={expandedGroups} onToggle={toggleGroup} />
-              )) : (
-                <tr>
-                  <td colSpan={weeks.length + 1} className="text-center py-20">
-                    <BarChart2 size={40} className="mx-auto mb-4 dark:text-text-secondary text-text-secondary-light opacity-10" />
-                    <p className="text-sm font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest opacity-40">Sin datos de carga</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
