@@ -713,23 +713,11 @@ export function WorkloadView({
     return map;
   }, [taskLoads]);
 
-  // Total por día — suma de todos los loads raíz para cada fecha
-  const totalDayMins = useMemo(() => {
-    const map: Record<string, number> = {};
-    Object.entries(dayLoadCache).forEach(([key, mins]) => {
-      const date = key.split('__').pop()!;
-      // Solo contar loads raíz (sin parentId) para evitar doble conteo
-      const taskId = key.split('__')[0];
-      const load = taskLoads.find(l => l.taskId === taskId && !l.parentId);
-      if (load) map[date] = (map[date] || 0) + mins;
-    });
-    return map;
-  }, [dayLoadCache, taskLoads]);
-
-  // Carga por día — calculada bajo demanda solo para semanas expandidas
-  const dayLoadCache = useMemo(() => {
-    const cache: Record<string, Record<string, number>> = {}; // nodeKey__date → mins
-    if (expandedWeeks.size === 0) return cache;
+  // Carga por día + total por día — calculado bajo demanda para semanas expandidas
+  const { dayLoadCache, totalDayMins } = useMemo(() => {
+    const cache: Record<string, number> = {};
+    const totals: Record<string, number> = {};
+    if (expandedWeeks.size === 0) return { dayLoadCache: cache, totalDayMins: totals };
 
     const expandedWeekList = months.flatMap(m => m.weeks).filter(w => expandedWeeks.has(w.key));
 
@@ -747,12 +735,13 @@ export function WorkloadView({
           } else {
             mins = calcRangeMinutes(task, day.date, day.date, week.isPast, week.isGenerated, allTasksMap, registeredByDay);
           }
-          const key = `${load.taskId}__${day.date}`;
-          cache[key] = mins;
+          cache[`${load.taskId}__${day.date}`] = mins;
+          // Total del día solo para loads raíz (sin parentId)
+          if (!load.parentId) totals[day.date] = (totals[day.date] || 0) + mins;
         });
       });
     });
-    return cache;
+    return { dayLoadCache: cache, totalDayMins: totals };
   }, [taskLoads, expandedWeeks, allTasksMap, registeredByDay, months, today]);
   const toggleMonth = (key: string) => setExpandedMonths(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleWeek = (key: string) => setExpandedWeeks(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
