@@ -725,6 +725,7 @@ export function WorkloadView({
     });
     return cache;
   }, [taskLoads, expandedWeeks, allTasksMap, registeredByDay, months, today]);
+  const toggleMonth = (key: string) => setExpandedMonths(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleWeek = (key: string) => setExpandedWeeks(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleGroup = (key: string) => setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleFilter = (arr: string[], setArr: (v: string[]) => void, v: string) =>
