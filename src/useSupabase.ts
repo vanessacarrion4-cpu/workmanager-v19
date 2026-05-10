@@ -73,7 +73,50 @@ function reconstructInstanceHierarchy(mappedTasks: Record<string, Task>): void {
 }
 
 /**
- * Reparación 1: Contenedores que tienen datos que solo deberían tener las subtareas
+ * Tercera pasada: instancias excepción de contenedores (is_exception:true)
+ * que tienen subtasks:[] porque sus subtareas se generan en memoria.
+ * Las vincula con las instancias generadas por useGeneration.
+ * CRÍTICO: solo modificar instancias (templateId presente), NUNCA templates.
+ */
+function reconstructExceptionContainerSubtasks(mappedTasks: Record<string, Task>): void {
+  Object.values(mappedTasks).forEach(task => {
+    if (!task.templateId) return;        // Solo instancias
+    if (!task.isException) return;       // Solo excepciones
+    if (task.isDeleted) return;
+    if (task.parentTaskId) return;       // Solo contenedores raíz
+    if (task.subtasks && task.subtasks.length > 0) return; // Ya tiene subtareas
+
+    // Buscar el template padre para obtener sus subtareas template
+    const parentTemplate = mappedTasks[task.templateId];
+    if (!parentTemplate || !parentTemplate.subtasks || parentTemplate.subtasks.length === 0) return;
+
+    const instanceDate = task.instanceDate || task.dueDate;
+    if (!instanceDate) return;
+
+    // Para cada subtarea template del padre, buscar/crear la instancia correspondiente
+    const subInstanceIds: string[] = [];
+    parentTemplate.subtasks.forEach(subTemplateId => {
+      const subTemplate = mappedTasks[subTemplateId];
+      if (!subTemplate || subTemplate.isDeleted) return;
+
+      // La instancia generada tendrá id: inst-{subTemplateId}-{instanceDate}
+      const subInstanceId = `inst-${subTemplateId}-${instanceDate}`;
+      
+      // Si ya existe en mappedTasks, vincularla
+      if (mappedTasks[subInstanceId]) {
+        if (!mappedTasks[subInstanceId].parentTaskId) {
+          mappedTasks[subInstanceId] = { ...mappedTasks[subInstanceId], parentTaskId: task.id };
+        }
+        subInstanceIds.push(subInstanceId);
+      }
+      // Si no existe aún (se generará en useGeneration), el merge posterior la añadirá
+    });
+
+    if (subInstanceIds.length > 0) {
+      mappedTasks[task.id] = { ...task, subtasks: subInstanceIds };
+    }
+  });
+}
  * (dueDate, dueTime, tags, delegation). Los limpia y persiste en Supabase.
  */
 function repairContainersWithForbiddenData(mappedTasks: Record<string, Task>): void {
@@ -290,9 +333,10 @@ export function useSupabase({
             };
           });
 
-          // Reconstruir jerarquía (dos pasadas)
+          // Reconstruir jerarquía (tres pasadas)
           reconstructHierarchy(mappedTasks);
           reconstructInstanceHierarchy(mappedTasks);
+          reconstructExceptionContainerSubtasks(mappedTasks);
 
           // Reparaciones automáticas
           repairContainersWithForbiddenData(mappedTasks);
