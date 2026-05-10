@@ -481,6 +481,52 @@ function ProgressCell({ minutes, capacityMins, compact = false }: { minutes: num
   );
 }
 
+
+// ─── ProgressCell ─────────────────────────────────────────────────────────────
+
+function ProgressCell({ minutes, capacityMins, size = 'md' }: {
+  minutes: number; capacityMins: number; size?: 'sm' | 'md' | 'lg';
+}) {
+  const pct = capacityMins > 0 ? Math.round((minutes / capacityMins) * 100) : 0;
+  const color = getPctColor(pct);
+  const textClass = getPctTextClass(pct);
+  const barPct = Math.min(100, pct);
+  if (minutes === 0) return <span className="text-[10px] dark:text-text-secondary/20 text-text-secondary-light/20">—</span>;
+  if (size === 'sm') return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1">
+        <span className={`text-[10px] font-black ${textClass}`}>{pct}%</span>
+        <span className="text-[9px] dark:text-text-secondary text-text-secondary-light">{formatMinutes(minutes)}</span>
+      </div>
+      <div className="w-full h-0.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${barPct}%`, backgroundColor: color }} />
+      </div>
+    </div>
+  );
+  if (size === 'lg') return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <span className={`text-[20px] font-black leading-none ${textClass}`}>{pct}%</span>
+        <span className={`text-[13px] font-bold ${textClass}`}>{formatMinutes(minutes)}</span>
+      </div>
+      <div className="w-full h-2 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${barPct}%`, backgroundColor: color }} />
+      </div>
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <span className={`text-[12px] font-black ${textClass}`}>{pct}%</span>
+        <span className={`text-[11px] font-bold ${textClass}`}>{formatMinutes(minutes)}</span>
+      </div>
+      <div className="w-full h-1 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${barPct}%`, backgroundColor: color }} />
+      </div>
+    </div>
+  );
+}
+
 // ─── FilterChip ───────────────────────────────────────────────────────────────
 
 function FilterChip({ label, count, options, selected, onToggle, onClear }: {
@@ -530,118 +576,6 @@ function FilterChip({ label, count, options, selected, onToggle, onClear }: {
   );
 }
 
-// ─── WorkloadRow — fila recursiva ─────────────────────────────────────────────
-
-function WorkloadRow({
-  node, months, expandedMonths, expandedWeeks, expandedGroups,
-  onToggleMonth, onToggleWeek, onToggleGroup, depth, today, onNavigate, dayLoadCache,
-}: {
-  node: GroupNode;
-  months: MonthInfo[];
-  expandedMonths: Set<string>;
-  expandedWeeks: Set<string>;
-  expandedGroups: Set<string>;
-  onToggleMonth: (key: string) => void;
-  onToggleWeek: (key: string) => void;
-  onToggleGroup: (key: string) => void;
-  depth: number;
-  today: string;
-  onNavigate: (date: string) => void;
-  dayLoadCache: Record<string, number>;
-}) {
-  // Suma minutos de un día para este nodo (recursivo sobre hojas)
-  const getNodeDayMins = (n: GroupNode, date: string): number => {
-    if (n.isLeaf) {
-      const taskId = n.key.includes('__') ? n.key.split('__').pop()! : n.key;
-      return dayLoadCache[`${taskId}__${date}`] || 0;
-    }
-    return n.children.reduce((acc, child) => acc + getNodeDayMins(child, date), 0);
-  };
-  const isOpen = expandedGroups.has(node.key);
-  const pl = depth === 0 ? 'pl-5' : depth === 1 ? 'pl-9' : depth === 2 ? 'pl-13' : 'pl-16';
-  const bgRow = depth === 0
-    ? 'dark:bg-white/[0.04] bg-gray-50/80 border-t-2 dark:border-t-border-main/40 border-t-border-main-light/40'
-    : depth === 1 ? '' : 'dark:bg-black/[0.02]';
-  const txtCls = depth === 0
-    ? 'text-[12px] font-black dark:text-white text-text-main-light'
-    : depth === 1 ? 'text-[11px] font-bold dark:text-text-secondary text-text-secondary-light'
-    : depth === 2 ? 'text-[10px] font-semibold dark:text-text-secondary/80 text-text-secondary-light/80'
-    : 'text-[10px] font-medium dark:text-text-secondary/60 text-text-secondary-light/60';
-
-  return (
-    <>
-      <tr className={`border-b dark:border-border-main/15 border-border-main-light/15 ${bgRow} ${!node.isLeaf ? 'cursor-pointer hover:dark:bg-white/[0.06] hover:bg-black/[0.03] transition-all' : 'hover:dark:bg-white/[0.02] hover:bg-black/[0.01] transition-all'}`}
-        onClick={!node.isLeaf ? () => onToggleGroup(node.key) : undefined}
-      >
-        {/* Nombre tarea */}
-        <td className={`${pl} pr-4 py-3 sticky left-0 z-10 min-w-[240px] max-w-[300px]`}
-          style={{ backgroundColor: 'inherit' }}
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            {node.color && !node.isLeaf && depth <= 1 && <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: node.color }} />}
-            {node.color && !node.isLeaf && depth > 1 && <div className="w-1.5 h-1.5 rounded-full shrink-0 opacity-70" style={{ backgroundColor: node.color }} />}
-            <span className={`${txtCls} truncate flex-1`}>{node.label}</span>
-            {!node.isLeaf && (isOpen
-              ? <ChevronUp size={10} className="shrink-0 opacity-40" />
-              : <ChevronDown size={10} className="shrink-0 opacity-40" />
-            )}
-          </div>
-        </td>
-
-        {/* Columnas de meses */}
-        {months.map(mo => {
-          const mins = node.monthMinutes[mo.key] || 0;
-          const isMonthExp = expandedMonths.has(mo.key);
-          return (
-            <React.Fragment key={mo.key}>
-              {/* Celda mes */}
-              <td className="px-3 py-2 border-l dark:border-border-main/30 border-border-main-light/30 min-w-[120px]">
-                <ProgressCell minutes={mins} capacityMins={mo.capacityMins} />
-              </td>
-
-              {/* Columnas de semanas (si el mes está expandido) */}
-              {isMonthExp && mo.weeks.map(week => {
-                const wMins = node.weekMinutes[week.key] || 0;
-                const isWeekExp = expandedWeeks.has(week.key);
-                return (
-                  <React.Fragment key={week.key}>
-                    <td className="px-2 py-2 border-l dark:border-border-main/20 border-border-main-light/20 min-w-[90px]">
-                      <ProgressCell minutes={wMins} capacityMins={week.capacityMins} compact />
-                    </td>
-                    {/* Columnas de días */}
-                    {isWeekExp && buildDays(week, today).map(day => {
-                      const dMins = getNodeDayMins(node, day.date);
-                      return (
-                        <td key={day.date}
-                          className={`px-1 py-2 border-l dark:border-border-main/10 border-border-main-light/10 min-w-[64px] text-center ${!day.isWorkday ? 'dark:bg-black/10 bg-gray-100/50' : ''} ${day.isToday ? 'dark:bg-turquesa/5 bg-turquesa/5' : ''}`}
-                        >
-                          {day.isWorkday
-                            ? <ProgressCell minutes={dMins} capacityMins={day.capacityMins} compact />
-                            : <span className="text-[9px] dark:text-text-secondary/20 text-text-secondary-light/20">—</span>
-                          }
-                        </td>
-                      );
-                    })}
-                  </React.Fragment>
-                );
-              })}
-            </React.Fragment>
-          );
-        })}
-      </tr>
-
-      {/* Hijos */}
-      {!node.isLeaf && isOpen && node.children.map(child => (
-        <WorkloadRow key={child.key} node={child} months={months}
-          expandedMonths={expandedMonths} expandedWeeks={expandedWeeks} expandedGroups={expandedGroups}
-          onToggleMonth={onToggleMonth} onToggleWeek={onToggleWeek} onToggleGroup={onToggleGroup}
-          depth={depth + 1} today={today} onNavigate={onNavigate} dayLoadCache={dayLoadCache}
-        />
-      ))}
-    </>
-  );
-}
-
 // ─── WorkloadView ─────────────────────────────────────────────────────────────
 
 export function WorkloadView({
@@ -660,6 +594,7 @@ export function WorkloadView({
   const generatedEndStr = formatLocalISO(generatedEnd);
 
   const [groupMode, setGroupMode] = useState<GroupMode>('block');
+  // Por defecto todo contraído
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -696,7 +631,6 @@ export function WorkloadView({
     [taskLoads, groupMode, blocks, months]
   );
 
-  // Totales globales por mes/semana para el header
   const totalMonthMins = useMemo(() => {
     const map: Record<string, number> = {};
     taskLoads.filter(l => !l.parentId).forEach(l => {
@@ -713,14 +647,11 @@ export function WorkloadView({
     return map;
   }, [taskLoads]);
 
-  // Carga por día + total por día — calculado bajo demanda para semanas expandidas
   const { dayLoadCache, totalDayMins } = useMemo(() => {
     const cache: Record<string, number> = {};
     const totals: Record<string, number> = {};
     if (expandedWeeks.size === 0) return { dayLoadCache: cache, totalDayMins: totals };
-
     const expandedWeekList = months.flatMap(m => m.weeks).filter(w => expandedWeeks.has(w.key));
-
     taskLoads.forEach(load => {
       expandedWeekList.forEach(week => {
         buildDays(week, today).forEach(day => {
@@ -736,13 +667,13 @@ export function WorkloadView({
             mins = calcRangeMinutes(task, day.date, day.date, week.isPast, week.isGenerated, allTasksMap, registeredByDay);
           }
           cache[`${load.taskId}__${day.date}`] = mins;
-          // Total del día solo para loads raíz (sin parentId)
           if (!load.parentId) totals[day.date] = (totals[day.date] || 0) + mins;
         });
       });
     });
     return { dayLoadCache: cache, totalDayMins: totals };
   }, [taskLoads, expandedWeeks, allTasksMap, registeredByDay, months, today]);
+
   const toggleMonth = (key: string) => setExpandedMonths(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleWeek = (key: string) => setExpandedWeeks(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleGroup = (key: string) => setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
@@ -752,7 +683,14 @@ export function WorkloadView({
   const blockOptions = blocks.map(b => ({ value: b.id, label: `${b.icon} ${b.name}`, color: b.color }));
   const typeOptions = [{ value: 'core', label: 'Puesto (Core)' }, { value: 'adhoc', label: 'Puntual (Ad-hoc)' }];
 
-  const rootLoads = taskLoads.filter(l => !l.parentId);
+  // Función para obtener minutos de un nodo para un día
+  const getNodeDayMins = (node: GroupNode, date: string): number => {
+    if (node.isLeaf) {
+      const taskId = node.key.includes('__') ? node.key.split('__').pop()! : node.key;
+      return dayLoadCache[`${taskId}__${date}`] || 0;
+    }
+    return node.children.reduce((acc, child) => acc + getNodeDayMins(child, date), 0);
+  };
 
   return (
     <div className="max-w-full space-y-4 pb-32">
@@ -762,7 +700,7 @@ export function WorkloadView({
         <div>
           <h2 className="text-3xl font-black dark:text-white text-text-main-light">Carga de Trabajo</h2>
           <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-1">
-            {rootLoads.length} tareas · 8h/día · 40h/semana
+            {taskLoads.filter(l => !l.parentId).length} tareas · 8h/día · 40h/semana
           </p>
         </div>
         <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
@@ -790,14 +728,14 @@ export function WorkloadView({
         )}
       </div>
 
-      {/* Tabla */}
+      {/* Tabla principal */}
       <div className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full min-w-max border-collapse">
             <thead>
               {/* FILA 1 — Meses */}
-              <tr className="border-b-2 dark:border-border-main border-border-main-light">
-                <th className="sticky left-0 dark:bg-bg-card bg-white z-20 px-5 py-4 text-left min-w-[240px]" rowSpan={4}>
+              <tr className="border-b dark:border-border-main border-border-main-light">
+                <th className="sticky left-0 dark:bg-bg-card bg-white z-20 px-5 py-4 text-left min-w-[220px]" rowSpan={4}>
                   <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Tarea</span>
                 </th>
                 {months.map(mo => {
@@ -809,22 +747,22 @@ export function WorkloadView({
                     : 1;
                   return (
                     <th key={mo.key} colSpan={colSpan}
-                      className={`border-l dark:border-border-main/50 border-border-main-light/50 px-4 py-4 min-w-[140px] text-left align-middle ${isExp ? 'dark:bg-turquesa/5 bg-turquesa/5' : ''}`}
+                      className={`border-l dark:border-border-main/50 border-border-main-light/50 px-4 py-4 min-w-[160px] text-left align-middle transition-all ${isExp ? 'dark:bg-turquesa/5 bg-turquesa/5' : ''}`}
                     >
-                      <button onClick={() => toggleMonth(mo.key)} className="flex items-center gap-3 w-full group">
-                        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[12px] font-black uppercase tracking-wider ${isExp ? 'text-turquesa' : 'dark:text-white text-text-main-light'}`}>{mo.label}</span>
-                            {total > 0 && <span className={`text-[11px] font-black ${getPctTextClass(pct)}`}>{formatMinutes(total)}</span>}
+                      <button onClick={() => toggleMonth(mo.key)} className="flex items-start gap-3 w-full group">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className={`text-[12px] font-black uppercase tracking-wider transition-all ${isExp ? 'text-turquesa' : 'dark:text-white text-text-main-light group-hover:text-turquesa'}`}>{mo.label}</span>
+                            {total > 0 && <span className={`text-[13px] font-black ${getPctTextClass(pct)}`}>{formatMinutes(total)}</span>}
                             {total > 0 && <span className={`text-[10px] font-bold dark:text-text-secondary text-text-secondary-light`}>{pct}%</span>}
                           </div>
                           {total > 0 && (
                             <div className="w-full h-1.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: getPctColor(pct) }} />
+                              <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: getPctColor(pct) }} />
                             </div>
                           )}
                         </div>
-                        <ChevronDown size={14} className={`shrink-0 transition-transform ${isExp ? 'rotate-180 text-turquesa' : 'dark:text-text-secondary/50 text-text-secondary-light/50'}`} />
+                        <ChevronDown size={14} className={`shrink-0 mt-0.5 transition-transform ${isExp ? 'rotate-180 text-turquesa' : 'dark:text-text-secondary/40 text-text-secondary-light/40'}`} />
                       </button>
                     </th>
                   );
@@ -832,9 +770,9 @@ export function WorkloadView({
               </tr>
 
               {/* FILA 2 — Semanas */}
-              <tr className="border-b dark:border-border-main/40 border-border-main-light/40 dark:bg-bg-main/20 bg-gray-50/50">
+              <tr className="border-b dark:border-border-main/40 border-border-main-light/40">
                 {months.map(mo => {
-                  if (!expandedMonths.has(mo.key)) return null;
+                  if (!expandedMonths.has(mo.key)) return <td key={mo.key} className="border-l dark:border-border-main/20 border-border-main-light/20" />;
                   return mo.weeks.map(week => {
                     const isWeekExp = expandedWeeks.has(week.key);
                     const wTotal = totalWeekMins[week.key] || 0;
@@ -842,14 +780,14 @@ export function WorkloadView({
                     const colSpan = isWeekExp ? 1 + buildDays(week, today).length : 1;
                     return (
                       <th key={week.key} colSpan={colSpan}
-                        className={`border-l dark:border-border-main/20 border-border-main-light/20 px-3 py-2.5 min-w-[90px] text-left align-middle ${isWeekExp ? 'dark:bg-azul/5 bg-azul/5' : ''}`}
+                        className={`border-l dark:border-border-main/30 border-border-main-light/30 px-3 py-2.5 min-w-[110px] text-left dark:bg-bg-main/20 bg-gray-50/50 ${isWeekExp ? 'dark:bg-azul/5 bg-azul/5' : ''}`}
                       >
-                        <button onClick={() => toggleWeek(week.key)} className="flex items-center gap-2 w-full">
-                          <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-[10px] font-black ${isWeekExp ? 'text-azul' : 'dark:text-text-secondary text-text-secondary-light'}`}>{week.label}</span>
-                              {wTotal > 0 && <span className={`text-[9px] font-bold ${getPctTextClass(wPct)}`}>{formatMinutes(wTotal)}</span>}
-                              {wTotal > 0 && <span className={`text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50`}>{wPct}%</span>}
+                        <button onClick={() => toggleWeek(week.key)} className="flex items-center gap-2 w-full group">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className={`text-[10px] font-black uppercase tracking-wide ${isWeekExp ? 'text-azul' : 'dark:text-text-secondary text-text-secondary-light group-hover:dark:text-white'}`}>{week.label}</span>
+                              {wTotal > 0 && <span className={`text-[10px] font-bold ${getPctTextClass(wPct)}`}>{formatMinutes(wTotal)}</span>}
+                              {wTotal > 0 && <span className="text-[9px] dark:text-text-secondary/50 text-text-secondary-light/50">{wPct}%</span>}
                             </div>
                             {wTotal > 0 && (
                               <div className="w-full h-0.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
@@ -857,7 +795,7 @@ export function WorkloadView({
                               </div>
                             )}
                           </div>
-                          <ChevronDown size={11} className={`shrink-0 transition-transform ${isWeekExp ? 'rotate-180 text-azul' : 'dark:text-text-secondary/30'}`} />
+                          <ChevronDown size={10} className={`shrink-0 transition-transform ${isWeekExp ? 'rotate-180 text-azul' : 'dark:text-text-secondary/30'}`} />
                         </button>
                       </th>
                     );
@@ -866,17 +804,17 @@ export function WorkloadView({
               </tr>
 
               {/* FILA 3 — Días */}
-              <tr className="border-b dark:border-border-main/30 border-border-main-light/30 dark:bg-bg-main/30 bg-gray-50/70">
+              <tr className="border-b dark:border-border-main/30 border-border-main-light/30">
                 {months.map(mo => {
-                  if (!expandedMonths.has(mo.key)) return null;
+                  if (!expandedMonths.has(mo.key)) return <td key={mo.key} />;
                   return mo.weeks.map(week => {
-                    if (!expandedWeeks.has(week.key)) return null;
+                    if (!expandedWeeks.has(week.key)) return <td key={week.key} className="border-l dark:border-border-main/20" />;
                     return buildDays(week, today).map(day => (
                       <th key={day.date}
-                        className={`border-l dark:border-border-main/10 border-border-main-light/10 px-1 py-2 min-w-[60px] text-center ${!day.isWorkday ? 'opacity-30' : ''} ${day.isToday ? 'dark:bg-turquesa/15 bg-turquesa/10' : ''}`}
+                        className={`border-l dark:border-border-main/10 border-border-main-light/10 px-2 py-2 min-w-[64px] text-center ${!day.isWorkday ? 'dark:bg-black/10 bg-gray-100/40' : 'dark:bg-bg-main/30 bg-gray-50/60'} ${day.isToday ? 'dark:bg-turquesa/15 bg-turquesa/10' : ''}`}
                       >
                         <button onClick={() => onNavigateToDashboard(day.date)} className="w-full hover:text-turquesa transition-all">
-                          <span className={`text-[9px] font-black block ${day.isToday ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`}>
+                          <span className={`text-[9px] font-black block ${day.isToday ? 'text-turquesa' : !day.isWorkday ? 'dark:text-text-secondary/30 text-text-secondary-light/30' : 'dark:text-text-secondary text-text-secondary-light'}`}>
                             {day.label}
                           </span>
                         </button>
@@ -887,17 +825,17 @@ export function WorkloadView({
               </tr>
 
               {/* FILA 4 — Total por día */}
-              <tr className="border-b-2 dark:border-border-main border-border-main-light dark:bg-bg-main/40 bg-gray-100/60">
+              <tr className="border-b-2 dark:border-border-main border-border-main-light">
                 {months.map(mo => {
-                  if (!expandedMonths.has(mo.key)) return null;
+                  if (!expandedMonths.has(mo.key)) return <td key={mo.key} />;
                   return mo.weeks.map(week => {
-                    if (!expandedWeeks.has(week.key)) return null;
+                    if (!expandedWeeks.has(week.key)) return <td key={week.key} className="border-l dark:border-border-main/20" />;
                     return buildDays(week, today).map(day => {
                       const dTotal = totalDayMins[day.date] || 0;
                       const dPct = day.capacityMins > 0 ? Math.round((dTotal / day.capacityMins) * 100) : 0;
                       return (
                         <td key={day.date}
-                          className={`border-l dark:border-border-main/10 border-border-main-light/10 px-1 py-2 min-w-[60px] text-center ${!day.isWorkday ? 'opacity-20' : ''} ${day.isToday ? 'dark:bg-turquesa/10 bg-turquesa/5' : ''}`}
+                          className={`border-l dark:border-border-main/10 border-border-main-light/10 px-2 py-2 min-w-[64px] ${!day.isWorkday ? 'dark:bg-black/10 bg-gray-100/40' : 'dark:bg-bg-main/30 bg-gray-50/60'} ${day.isToday ? 'dark:bg-turquesa/10 bg-turquesa/5' : ''}`}
                         >
                           {day.isWorkday && dTotal > 0 ? (
                             <div className="flex flex-col items-center gap-0.5">
@@ -908,7 +846,7 @@ export function WorkloadView({
                               </div>
                             </div>
                           ) : (
-                            <span className="text-[9px] dark:text-text-secondary/20 text-text-secondary-light/20">—</span>
+                            <span className="text-[9px] dark:text-text-secondary/15 text-text-secondary-light/15 block text-center">—</span>
                           )}
                         </td>
                       );
@@ -919,16 +857,26 @@ export function WorkloadView({
             </thead>
 
             <tbody>
-              {grouped.map(node => (
-                <WorkloadRow key={node.key} node={node} months={months}
-                  expandedMonths={expandedMonths} expandedWeeks={expandedWeeks} expandedGroups={expandedGroups}
-                  onToggleMonth={toggleMonth} onToggleWeek={toggleWeek} onToggleGroup={toggleGroup}
-                  depth={0} today={today} onNavigate={onNavigateToDashboard} dayLoadCache={dayLoadCache}
+              {grouped.map((node, gi) => (
+                <WorkloadRow
+                  key={node.key}
+                  node={node}
+                  months={months}
+                  expandedMonths={expandedMonths}
+                  expandedWeeks={expandedWeeks}
+                  expandedGroups={expandedGroups}
+                  onToggleGroup={toggleGroup}
+                  depth={0}
+                  today={today}
+                  onNavigate={onNavigateToDashboard}
+                  dayLoadCache={dayLoadCache}
+                  getNodeDayMins={getNodeDayMins}
+                  isLastGroup={gi === grouped.length - 1}
                 />
               ))}
               {grouped.length === 0 && (
                 <tr>
-                  <td colSpan={99} className="text-center py-20">
+                  <td colSpan={99} className="text-center py-16">
                     <p className="text-sm font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest opacity-30">Sin datos de carga</p>
                   </td>
                 </tr>
@@ -938,5 +886,136 @@ export function WorkloadView({
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── WorkloadRow ──────────────────────────────────────────────────────────────
+
+function WorkloadRow({
+  node, months, expandedMonths, expandedWeeks, expandedGroups,
+  onToggleGroup, depth, today, onNavigate, dayLoadCache, getNodeDayMins, isLastGroup,
+}: {
+  node: GroupNode;
+  months: MonthInfo[];
+  expandedMonths: Set<string>;
+  expandedWeeks: Set<string>;
+  expandedGroups: Set<string>;
+  onToggleGroup: (key: string) => void;
+  depth: number;
+  today: string;
+  onNavigate: (date: string) => void;
+  dayLoadCache: Record<string, number>;
+  getNodeDayMins: (node: GroupNode, date: string) => number;
+  isLastGroup?: boolean;
+}) {
+  const isOpen = expandedGroups.has(node.key);
+  const isGroup = depth === 0;
+  const isType = depth === 1;
+  const isTask = depth >= 2;
+
+  // Estilos por nivel
+  const pl = isGroup ? 'pl-5' : isType ? 'pl-8' : 'pl-11';
+  const bg = isGroup ? 'dark:bg-white/[0.03] bg-gray-50/60' : isType ? 'dark:bg-white/[0.015] bg-white/80' : '';
+  const borderTop = isGroup && !isLastGroup ? 'dark:border-t-border-main/40 border-t-border-main-light/40' : '';
+  const txt = isGroup
+    ? 'text-[12px] font-black dark:text-white text-text-main-light'
+    : isType ? 'text-[11px] font-bold dark:text-text-secondary text-text-secondary-light'
+    : 'text-[11px] font-medium dark:text-text-secondary/80 text-text-secondary-light/80';
+
+  return (
+    <>
+      <tr
+        className={`border-b dark:border-border-main/15 border-border-main-light/15 ${bg} ${borderTop && 'border-t-2 ' + borderTop} ${!node.isLeaf ? 'cursor-pointer hover:dark:bg-white/[0.05] hover:bg-black/[0.02] transition-all' : 'hover:dark:bg-white/[0.02] transition-all'}`}
+        onClick={!node.isLeaf ? () => onToggleGroup(node.key) : undefined}
+      >
+        {/* Nombre */}
+        <td className={`${pl} pr-4 py-3 sticky left-0 z-10 min-w-[220px] max-w-[280px] ${bg}`}>
+          <div className="flex items-center gap-2 min-w-0">
+            {node.color && (isGroup || isType) && (
+              <div className={`rounded-full shrink-0 ${isGroup ? 'w-2.5 h-2.5' : 'w-2 h-2 opacity-70'}`} style={{ backgroundColor: node.color }} />
+            )}
+            <span className={`${txt} truncate flex-1`}>{node.label}</span>
+            {!node.isLeaf && (
+              isOpen
+                ? <ChevronUp size={10} className="shrink-0 dark:text-text-secondary/40 text-text-secondary-light/40" />
+                : <ChevronDown size={10} className="shrink-0 dark:text-text-secondary/40 text-text-secondary-light/40" />
+            )}
+          </div>
+          {/* Total mensual visible siempre para tareas */}
+          {isTask && (() => {
+            const totalAllMonths = months.reduce((acc, mo) => acc + (node.monthMinutes[mo.key] || 0), 0);
+            if (totalAllMonths === 0) return null;
+            return <div className="text-[9px] dark:text-text-secondary/50 text-text-secondary-light/50 mt-0.5 pl-0">{formatMinutes(totalAllMonths)} total</div>;
+          })()}
+        </td>
+
+        {/* Columnas de meses → semanas → días */}
+        {months.map(mo => {
+          const isMonthExp = expandedMonths.has(mo.key);
+          const mMins = node.monthMinutes[mo.key] || 0;
+
+          if (!isMonthExp) {
+            return (
+              <td key={mo.key} className="border-l dark:border-border-main/30 border-border-main-light/30 px-4 py-3 min-w-[160px] align-middle">
+                {mMins > 0
+                  ? <ProgressCell minutes={mMins} capacityMins={mo.capacityMins} size={isGroup ? 'md' : 'sm'} />
+                  : <span className="text-[10px] dark:text-text-secondary/20 text-text-secondary-light/20">—</span>
+                }
+              </td>
+            );
+          }
+
+          // Mes expandido → mostrar semanas
+          return mo.weeks.map(week => {
+            const isWeekExp = expandedWeeks.has(week.key);
+            const wMins = node.weekMinutes[week.key] || 0;
+
+            if (!isWeekExp) {
+              return (
+                <td key={week.key} className="border-l dark:border-border-main/20 border-border-main-light/20 px-3 py-3 min-w-[110px] align-middle dark:bg-bg-main/10">
+                  {wMins > 0
+                    ? <ProgressCell minutes={wMins} capacityMins={week.capacityMins} size="sm" />
+                    : <span className="text-[10px] dark:text-text-secondary/15 text-text-secondary-light/15">—</span>
+                  }
+                </td>
+              );
+            }
+
+            // Semana expandida → mostrar días
+            return buildDays(week, today).map(day => {
+              const dMins = getNodeDayMins(node, day.date);
+              return (
+                <td key={day.date}
+                  className={`border-l dark:border-border-main/10 border-border-main-light/10 px-2 py-3 min-w-[64px] align-middle text-center ${!day.isWorkday ? 'dark:bg-black/10 bg-gray-100/40 opacity-40' : ''} ${day.isToday ? 'dark:bg-turquesa/5 bg-turquesa/5' : ''}`}
+                >
+                  {day.isWorkday && dMins > 0
+                    ? <ProgressCell minutes={dMins} capacityMins={day.capacityMins} size="sm" />
+                    : <span className="text-[9px] dark:text-text-secondary/15 text-text-secondary-light/15">—</span>
+                  }
+                </td>
+              );
+            });
+          });
+        })}
+      </tr>
+
+      {/* Hijos */}
+      {!node.isLeaf && isOpen && node.children.map((child, ci) => (
+        <WorkloadRow
+          key={child.key}
+          node={child}
+          months={months}
+          expandedMonths={expandedMonths}
+          expandedWeeks={expandedWeeks}
+          expandedGroups={expandedGroups}
+          onToggleGroup={onToggleGroup}
+          depth={depth + 1}
+          today={today}
+          onNavigate={onNavigate}
+          dayLoadCache={dayLoadCache}
+          getNodeDayMins={getNodeDayMins}
+        />
+      ))}
+    </>
   );
 }
