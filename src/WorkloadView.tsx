@@ -251,7 +251,6 @@ function calcRangeMinutes(
   registeredByDay: Record<string, number>
 ): number {
   if (isPast) {
-    // Sumar time_entries en el rango
     let total = 0;
     let current = startStr;
     while (current <= endStr) {
@@ -260,18 +259,13 @@ function calcRangeMinutes(
     }
     return total;
   }
+  // Presente y futuro: usar cálculo matemático siempre que haya recurrence
+  // (más fiable y rápido que buscar instancias en memoria)
   if (task.recurrence) {
     const count = countOccurrencesInRange(task.recurrence, startStr, endStr);
     return count * (task.estimatedMinutes || 0);
   }
-  if (isGenerated) {
-    const instances = Object.values(allTasksMap).filter((t: any) =>
-      t && t.templateId === task.id && !t.isDeleted &&
-      t.dueDate >= startStr && t.dueDate <= endStr
-    );
-    if (instances.length > 0)
-      return instances.reduce((acc, inst) => acc + ((inst as any).estimatedMinutes || task.estimatedMinutes || 0), 0);
-  }
+  // Tarea puntual con fecha
   if (task.dueDate && task.dueDate >= startStr && task.dueDate <= endStr)
     return task.estimatedMinutes || 0;
   return 0;
@@ -543,6 +537,14 @@ function WorkloadRow({
   onNavigate: (date: string) => void;
   dayLoadCache: Record<string, number>;
 }) {
+  // Suma minutos de un día para este nodo (recursivo sobre hojas)
+  const getNodeDayMins = (n: GroupNode, date: string): number => {
+    if (n.isLeaf) {
+      const taskId = n.key.includes('__') ? n.key.split('__').pop()! : n.key;
+      return dayLoadCache[`${taskId}__${date}`] || 0;
+    }
+    return n.children.reduce((acc, child) => acc + getNodeDayMins(child, date), 0);
+  };
   const isOpen = expandedGroups.has(node.key);
   const pl = depth === 0 ? 'pl-4' : depth === 1 ? 'pl-8' : depth === 2 ? 'pl-12' : 'pl-16';
   const bgRow = depth === 0
@@ -594,7 +596,7 @@ function WorkloadRow({
                     </td>
                     {/* Columnas de días */}
                     {isWeekExp && buildDays(week, today).map(day => {
-                      const dMins = dayLoadCache[`${node.key.includes('__') ? node.key.split('__')[1] : node.key}__${day.date}`] || 0;
+                      const dMins = getNodeDayMins(node, day.date);
                       return (
                         <td key={day.date}
                           className={`px-1 py-2 border-l dark:border-border-main/10 border-border-main-light/10 min-w-[64px] text-center ${!day.isWorkday ? 'dark:bg-black/10 bg-gray-100/50' : ''} ${day.isToday ? 'dark:bg-turquesa/5 bg-turquesa/5' : ''}`}
