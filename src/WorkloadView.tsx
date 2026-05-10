@@ -926,18 +926,6 @@ export function WorkloadView({
     </div>
   );
 }
-  tasks,
-  allTasksMap,
-  blocks,
-  timeEntries = [],
-  onNavigateToDashboard,
-}: {
-  tasks: Record<string, Task>;
-  allTasksMap: Record<string, Task>;
-  blocks: WorkBlock[];
-  timeEntries: TimeEntry[];
-  onNavigateToDashboard: (date: string) => void;
-}) {
   const todayDate = new Date();
   const today = formatLocalISO(todayDate);
 
