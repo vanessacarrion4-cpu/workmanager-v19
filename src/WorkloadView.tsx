@@ -579,7 +579,7 @@ function WorkloadRow({
         >
           <div className="flex items-center gap-2 min-w-0">
             {node.color && !node.isLeaf && depth <= 1 && <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: node.color }} />}
-            {node.color && !node.isLeaf && depth > 1 && <div className="w-1.5 h-1.5 rounded-full shrink-0 opacity-70" style={{ backgroundColor: node.color }} />}}
+            {node.color && !node.isLeaf && depth > 1 && <div className="w-1.5 h-1.5 rounded-full shrink-0 opacity-70" style={{ backgroundColor: node.color }} />}
             <span className={`${txtCls} truncate flex-1`}>{node.label}</span>
             {!node.isLeaf && (isOpen
               ? <ChevronUp size={10} className="shrink-0 opacity-40" />
