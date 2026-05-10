@@ -298,10 +298,9 @@ function buildTaskLoads(
 
     const monthMinutes: Record<string, number> = {};
     const weekMinutes: Record<string, number> = {};
-    const dayMinutes: Record<string, number> = {};
+    // dayMinutes calculado bajo demanda — NO aquí
 
     if (isContainer) {
-      // Contenedor: suma de subtareas
       const subs = (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted);
       months.forEach(mo => {
         const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
@@ -314,13 +313,6 @@ function buildTaskLoads(
         weekMinutes[week.key] = subs.reduce((acc: number, sub: any) =>
           acc + calcLoad(sub, week.startDate, week.endDate, week.isPast, week.isGenerated), 0);
       });
-      // Días (solo para semanas que se puedan expandir)
-      allWeeks.forEach(week => {
-        buildDays(week, today).forEach(day => {
-          dayMinutes[day.date] = subs.reduce((acc: number, sub: any) =>
-            acc + calcLoad(sub, day.date, day.date, week.isPast, week.isGenerated), 0);
-        });
-      });
     } else {
       months.forEach(mo => {
         const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
@@ -331,16 +323,15 @@ function buildTaskLoads(
       allWeeks.forEach(week => {
         weekMinutes[week.key] = calcLoad(task, week.startDate, week.endDate, week.isPast, week.isGenerated);
       });
-      allWeeks.forEach(week => {
-        buildDays(week, today).forEach(day => {
-          dayMinutes[day.date] = calcLoad(task, day.date, day.date, week.isPast, week.isGenerated);
-        });
-      });
     }
 
-    loads.push({ taskId: task.id, title: task.title, blockId: task.blockId, taskType: task.taskType || 'core', isContainer, parentId, monthMinutes, weekMinutes, dayMinutes });
+    loads.push({
+      taskId: task.id, title: task.title, blockId: task.blockId,
+      taskType: task.taskType || 'core', isContainer, parentId,
+      monthMinutes, weekMinutes,
+      dayMinutes: {}, // vacío — se calcula bajo demanda
+    });
 
-    // Subtareas como loads separados
     if (isContainer) {
       (task.subtasks || []).forEach((subId: string) => {
         const sub = allTasksMap[subId] as any;
@@ -350,12 +341,10 @@ function buildTaskLoads(
     }
   };
 
-  // Templates raíz
   Object.values(allTasksMap).filter((t: any) =>
     t && t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId && t.isActive !== false
   ).forEach((t: any) => processTask(t));
 
-  // Tareas puntuales
   Object.values(allTasksMap).filter((t: any) =>
     t && !t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId && t.dueDate
   ).forEach((t: any) => {
@@ -539,7 +528,7 @@ function FilterChip({ label, count, options, selected, onToggle, onClear }: {
 
 function WorkloadRow({
   node, months, expandedMonths, expandedWeeks, expandedGroups,
-  onToggleMonth, onToggleWeek, onToggleGroup, depth, today, onNavigate,
+  onToggleMonth, onToggleWeek, onToggleGroup, depth, today, onNavigate, dayLoadCache,
 }: {
   node: GroupNode;
   months: MonthInfo[];
@@ -552,6 +541,7 @@ function WorkloadRow({
   depth: number;
   today: string;
   onNavigate: (date: string) => void;
+  dayLoadCache: Record<string, number>;
 }) {
   const isOpen = expandedGroups.has(node.key);
   const pl = depth === 0 ? 'pl-4' : depth === 1 ? 'pl-8' : depth === 2 ? 'pl-12' : 'pl-16';
@@ -604,7 +594,7 @@ function WorkloadRow({
                     </td>
                     {/* Columnas de días */}
                     {isWeekExp && buildDays(week, today).map(day => {
-                      const dMins = node.dayMinutes[day.date] || 0;
+                      const dMins = dayLoadCache[`${node.key.includes('__') ? node.key.split('__')[1] : node.key}__${day.date}`] || 0;
                       return (
                         <td key={day.date}
                           className={`px-1 py-2 border-l dark:border-border-main/10 border-border-main-light/10 min-w-[64px] text-center ${!day.isWorkday ? 'dark:bg-black/10 bg-gray-100/50' : ''} ${day.isToday ? 'dark:bg-turquesa/5 bg-turquesa/5' : ''}`}
@@ -629,7 +619,7 @@ function WorkloadRow({
         <WorkloadRow key={child.key} node={child} months={months}
           expandedMonths={expandedMonths} expandedWeeks={expandedWeeks} expandedGroups={expandedGroups}
           onToggleMonth={onToggleMonth} onToggleWeek={onToggleWeek} onToggleGroup={onToggleGroup}
-          depth={depth + 1} today={today} onNavigate={onNavigate}
+          depth={depth + 1} today={today} onNavigate={onNavigate} dayLoadCache={dayLoadCache}
         />
       ))}
     </>
@@ -707,7 +697,34 @@ export function WorkloadView({
     return map;
   }, [taskLoads]);
 
-  const toggleMonth = (key: string) => setExpandedMonths(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  // Carga por día — calculada bajo demanda solo para semanas expandidas
+  const dayLoadCache = useMemo(() => {
+    const cache: Record<string, Record<string, number>> = {}; // nodeKey__date → mins
+    if (expandedWeeks.size === 0) return cache;
+
+    const expandedWeekList = months.flatMap(m => m.weeks).filter(w => expandedWeeks.has(w.key));
+
+    taskLoads.forEach(load => {
+      expandedWeekList.forEach(week => {
+        buildDays(week, today).forEach(day => {
+          if (!day.isWorkday) return;
+          const task = allTasksMap[load.taskId] as any;
+          if (!task) return;
+          let mins = 0;
+          if (load.isContainer) {
+            const subs = (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted);
+            mins = subs.reduce((acc: number, sub: any) =>
+              acc + calcRangeMinutes(sub, day.date, day.date, week.isPast, week.isGenerated, allTasksMap, registeredByDay), 0);
+          } else {
+            mins = calcRangeMinutes(task, day.date, day.date, week.isPast, week.isGenerated, allTasksMap, registeredByDay);
+          }
+          const key = `${load.taskId}__${day.date}`;
+          cache[key] = mins;
+        });
+      });
+    });
+    return cache;
+  }, [taskLoads, expandedWeeks, allTasksMap, registeredByDay, months, today]);
   const toggleWeek = (key: string) => setExpandedWeeks(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleGroup = (key: string) => setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleFilter = (arr: string[], setArr: (v: string[]) => void, v: string) =>
@@ -836,7 +853,7 @@ export function WorkloadView({
                 <WorkloadRow key={node.key} node={node} months={months}
                   expandedMonths={expandedMonths} expandedWeeks={expandedWeeks} expandedGroups={expandedGroups}
                   onToggleMonth={toggleMonth} onToggleWeek={toggleWeek} onToggleGroup={toggleGroup}
-                  depth={0} today={today} onNavigate={onNavigateToDashboard}
+                  depth={0} today={today} onNavigate={onNavigateToDashboard} dayLoadCache={dayLoadCache}
                 />
               ))}
               {grouped.length === 0 && (
