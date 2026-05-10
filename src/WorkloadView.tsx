@@ -163,21 +163,33 @@ function buildMonths(baseYear: number, baseMonth: number, numMonths: number, tod
     let year = baseYear, month = baseMonth + m;
     while (month > 11) { month -= 12; year++ }
 
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const monthEnd = formatLocalISO(lastDay);
+    const firstDay = formatLocalISO(new Date(year, month, 1));
+    const lastDay = formatLocalISO(new Date(year, month + 1, 0));
 
-    // Semanas del mes
+    // Opción C: solo semanas cuyo LUNES está dentro del mes
     const weeks: WeekInfo[] = [];
     const seen = new Set<string>();
-    let current = getMondayOfWeek(firstDay);
-    while (formatLocalISO(current) <= monthEnd) {
+    let current = new Date(year, month, 1);
+
+    // Avanzar hasta el primer lunes del mes
+    while (current.getDay() !== 1) current.setDate(current.getDate() + 1);
+
+    while (formatLocalISO(current) <= lastDay) {
       const key = getWeekKey(current);
       if (!seen.has(key)) {
         seen.add(key);
         const monday = formatLocalISO(current);
         const sunday = addDays(monday, 6);
-        const wd = workdaysInWeek(monday, sunday);
+        // Capacidad solo cuenta días laborables dentro del mes
+        let wd = 0;
+        let d = monday;
+        while (d <= sunday) {
+          if (d >= firstDay && d <= lastDay) {
+            const dow = parseLocalISO(d).getDay();
+            if (dow !== 0 && dow !== 6) wd++;
+          }
+          d = addDays(d, 1);
+        }
         weeks.push({
           key,
           label: `W${getISOWeekNum(current)}`,
@@ -441,30 +453,30 @@ function ProgressCell({ minutes, capacityMins, compact = false }: { minutes: num
   if (minutes === 0) return <span className="text-[10px] dark:text-text-secondary/20 text-text-secondary-light/20">—</span>;
 
   if (compact) {
+    // Semana/día: % + horas + barra fina
     return (
-      <div className="flex flex-col items-center gap-0.5 min-w-[64px]">
-        <span className={`text-[10px] font-black ${textClass}`}>{formatMinutes(minutes)}</span>
-        <div className="w-full h-1 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
-          <div className="h-full rounded-full transition-all" style={{ width: `${barPct}%`, backgroundColor: color }} />
+      <div className="flex flex-col items-start gap-0.5 min-w-[72px]">
+        <div className="flex items-center gap-1.5">
+          <span className={`text-[10px] font-black ${textClass}`}>{pct}%</span>
+          <span className={`text-[9px] font-bold dark:text-text-secondary text-text-secondary-light`}>{formatMinutes(minutes)}</span>
+        </div>
+        <div className="w-full h-0.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+          <div className="h-full rounded-full" style={{ width: `${barPct}%`, backgroundColor: color }} />
         </div>
       </div>
     );
   }
 
+  // Mes: % + horas + barra
   return (
-    <div className="flex flex-col gap-1 min-w-[80px]">
-      <div className="flex items-center justify-between gap-2">
-        <span className={`text-[11px] font-black ${textClass}`}>{pct}%</span>
-        <span className={`text-[10px] font-bold ${textClass}`}>{formatMinutes(minutes)}</span>
+    <div className="flex flex-col gap-1 min-w-[100px]">
+      <div className="flex items-center gap-2">
+        <span className={`text-[13px] font-black ${textClass}`}>{pct}%</span>
+        <span className={`text-[11px] font-bold ${textClass}`}>{formatMinutes(minutes)}</span>
       </div>
       <div className="w-full h-1.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
-        <div className="h-full rounded-full transition-all" style={{ width: `${barPct}%`, backgroundColor: color }} />
+        <div className="h-full rounded-full" style={{ width: `${barPct}%`, backgroundColor: color }} />
       </div>
-      {capacityMins > 0 && (
-        <span className="text-[9px] dark:text-text-secondary/40 text-text-secondary-light/40">
-          {formatMinutes(capacityMins - minutes)} libres
-        </span>
-      )}
     </div>
   );
 }
@@ -546,26 +558,28 @@ function WorkloadRow({
     return n.children.reduce((acc, child) => acc + getNodeDayMins(child, date), 0);
   };
   const isOpen = expandedGroups.has(node.key);
-  const pl = depth === 0 ? 'pl-4' : depth === 1 ? 'pl-8' : depth === 2 ? 'pl-12' : 'pl-16';
+  const pl = depth === 0 ? 'pl-5' : depth === 1 ? 'pl-9' : depth === 2 ? 'pl-13' : 'pl-16';
   const bgRow = depth === 0
-    ? 'dark:bg-white/[0.03] bg-gray-50/60'
-    : depth === 1 ? 'dark:bg-white/[0.015]' : '';
+    ? 'dark:bg-white/[0.04] bg-gray-50/80 border-t-2 dark:border-t-border-main/40 border-t-border-main-light/40'
+    : depth === 1 ? '' : 'dark:bg-black/[0.02]';
   const txtCls = depth === 0
-    ? 'text-[11px] font-black dark:text-white text-text-main-light'
-    : depth === 1 ? 'text-[10px] font-bold dark:text-text-secondary text-text-secondary-light'
-    : 'text-[10px] font-medium dark:text-text-secondary/70 text-text-secondary-light/70';
+    ? 'text-[12px] font-black dark:text-white text-text-main-light'
+    : depth === 1 ? 'text-[11px] font-bold dark:text-text-secondary text-text-secondary-light'
+    : depth === 2 ? 'text-[10px] font-semibold dark:text-text-secondary/80 text-text-secondary-light/80'
+    : 'text-[10px] font-medium dark:text-text-secondary/60 text-text-secondary-light/60';
 
   return (
     <>
-      <tr className={`border-b dark:border-border-main/20 border-border-main-light/20 ${bgRow} ${!node.isLeaf ? 'cursor-pointer hover:dark:bg-white/5 hover:bg-black/[0.02] transition-all' : ''}`}
+      <tr className={`border-b dark:border-border-main/15 border-border-main-light/15 ${bgRow} ${!node.isLeaf ? 'cursor-pointer hover:dark:bg-white/[0.06] hover:bg-black/[0.03] transition-all' : 'hover:dark:bg-white/[0.02] hover:bg-black/[0.01] transition-all'}`}
         onClick={!node.isLeaf ? () => onToggleGroup(node.key) : undefined}
       >
         {/* Nombre tarea */}
-        <td className={`${pl} pr-3 py-3 sticky left-0 dark:bg-inherit bg-inherit z-10 min-w-[220px] max-w-[280px]`}
-          style={{ backgroundColor: depth === 0 ? undefined : undefined }}
+        <td className={`${pl} pr-4 py-3 sticky left-0 z-10 min-w-[240px] max-w-[300px]`}
+          style={{ backgroundColor: 'inherit' }}
         >
           <div className="flex items-center gap-2 min-w-0">
-            {node.color && !node.isLeaf && <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: node.color }} />}
+            {node.color && !node.isLeaf && depth <= 1 && <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: node.color }} />}
+            {node.color && !node.isLeaf && depth > 1 && <div className="w-1.5 h-1.5 rounded-full shrink-0 opacity-70" style={{ backgroundColor: node.color }} />}}
             <span className={`${txtCls} truncate flex-1`}>{node.label}</span>
             {!node.isLeaf && (isOpen
               ? <ChevronUp size={10} className="shrink-0 opacity-40" />
@@ -780,8 +794,8 @@ export function WorkloadView({
           <table className="w-full min-w-max border-collapse">
             <thead>
               {/* FILA 1 — Meses */}
-              <tr className="border-b dark:border-border-main/50 border-border-main-light/50">
-                <th className="sticky left-0 dark:bg-bg-card bg-white z-20 px-4 py-3 text-left min-w-[220px]" rowSpan={3}>
+              <tr className="border-b-2 dark:border-border-main border-border-main-light">
+                <th className="sticky left-0 dark:bg-bg-card bg-white z-20 px-5 py-4 text-left min-w-[240px]" rowSpan={3}>
                   <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Tarea</span>
                 </th>
                 {months.map(mo => {
@@ -793,22 +807,22 @@ export function WorkloadView({
                     : 1;
                   return (
                     <th key={mo.key} colSpan={colSpan}
-                      className="border-l dark:border-border-main/40 border-border-main-light/40 px-3 py-3 min-w-[130px] text-left align-top"
+                      className={`border-l dark:border-border-main/50 border-border-main-light/50 px-4 py-4 min-w-[140px] text-left align-middle ${isExp ? 'dark:bg-turquesa/5 bg-turquesa/5' : ''}`}
                     >
-                      <button onClick={() => toggleMonth(mo.key)} className="flex flex-col items-start gap-1 w-full">
-                        <div className="flex items-center gap-2 w-full">
-                          <span className={`text-[11px] font-black uppercase tracking-widest transition-all ${isExp ? 'text-turquesa' : 'dark:text-white text-text-main-light'}`}>{mo.label}</span>
-                          {total > 0 && <span className={`text-[11px] font-black ${getPctTextClass(pct)}`}>{formatMinutes(total)}</span>}
-                          <ChevronDown size={12} className={`ml-auto transition-transform ${isExp ? 'rotate-180 text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`} />
-                        </div>
-                        {total > 0 && (
-                          <div className="flex items-center gap-2 w-full">
-                            <span className={`text-[9px] font-bold ${getPctTextClass(pct)}`}>{pct}%</span>
-                            <div className="flex-1 h-1 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+                      <button onClick={() => toggleMonth(mo.key)} className="flex items-center gap-3 w-full group">
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[12px] font-black uppercase tracking-wider ${isExp ? 'text-turquesa' : 'dark:text-white text-text-main-light'}`}>{mo.label}</span>
+                            {total > 0 && <span className={`text-[11px] font-black ${getPctTextClass(pct)}`}>{formatMinutes(total)}</span>}
+                            {total > 0 && <span className={`text-[10px] font-bold dark:text-text-secondary text-text-secondary-light`}>{pct}%</span>}
+                          </div>
+                          {total > 0 && (
+                            <div className="w-full h-1.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
                               <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: getPctColor(pct) }} />
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                        <ChevronDown size={14} className={`shrink-0 transition-transform ${isExp ? 'rotate-180 text-turquesa' : 'dark:text-text-secondary/50 text-text-secondary-light/50'}`} />
                       </button>
                     </th>
                   );
@@ -816,7 +830,7 @@ export function WorkloadView({
               </tr>
 
               {/* FILA 2 — Semanas */}
-              <tr className="border-b dark:border-border-main/30 border-border-main-light/30">
+              <tr className="border-b dark:border-border-main/40 border-border-main-light/40 dark:bg-bg-main/20 bg-gray-50/50">
                 {months.map(mo => {
                   if (!expandedMonths.has(mo.key)) return null;
                   return mo.weeks.map(week => {
@@ -826,22 +840,22 @@ export function WorkloadView({
                     const colSpan = isWeekExp ? 1 + buildDays(week, today).length : 1;
                     return (
                       <th key={week.key} colSpan={colSpan}
-                        className="border-l dark:border-border-main/30 border-border-main-light/30 px-2 py-2 min-w-[90px] text-left align-top"
+                        className={`border-l dark:border-border-main/20 border-border-main-light/20 px-3 py-2.5 min-w-[90px] text-left align-middle ${isWeekExp ? 'dark:bg-azul/5 bg-azul/5' : ''}`}
                       >
-                        <button onClick={() => toggleWeek(week.key)} className="flex flex-col items-start gap-0.5 w-full">
-                          <div className="flex items-center gap-1.5 w-full">
-                            <span className={`text-[10px] font-black ${isWeekExp ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`}>{week.label}</span>
-                            {wTotal > 0 && <span className={`text-[9px] font-bold ${getPctTextClass(wPct)}`}>{formatMinutes(wTotal)}</span>}
-                            <ChevronDown size={10} className={`ml-auto transition-transform ${isWeekExp ? 'rotate-180 text-turquesa' : 'dark:text-text-secondary/50'}`} />
-                          </div>
-                          {wTotal > 0 && (
-                            <div className="flex items-center gap-1 w-full">
-                              <span className={`text-[8px] ${getPctTextClass(wPct)}`}>{wPct}%</span>
-                              <div className="flex-1 h-0.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+                        <button onClick={() => toggleWeek(week.key)} className="flex items-center gap-2 w-full">
+                          <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[10px] font-black ${isWeekExp ? 'text-azul' : 'dark:text-text-secondary text-text-secondary-light'}`}>{week.label}</span>
+                              {wTotal > 0 && <span className={`text-[9px] font-bold ${getPctTextClass(wPct)}`}>{formatMinutes(wTotal)}</span>}
+                              {wTotal > 0 && <span className={`text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50`}>{wPct}%</span>}
+                            </div>
+                            {wTotal > 0 && (
+                              <div className="w-full h-0.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
                                 <div className="h-full rounded-full" style={{ width: `${Math.min(100, wPct)}%`, backgroundColor: getPctColor(wPct) }} />
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
+                          <ChevronDown size={11} className={`shrink-0 transition-transform ${isWeekExp ? 'rotate-180 text-azul' : 'dark:text-text-secondary/30'}`} />
                         </button>
                       </th>
                     );
@@ -850,17 +864,17 @@ export function WorkloadView({
               </tr>
 
               {/* FILA 3 — Días */}
-              <tr className="border-b-2 dark:border-border-main border-border-main-light">
+              <tr className="border-b-2 dark:border-border-main border-border-main-light dark:bg-bg-main/30 bg-gray-50/70">
                 {months.map(mo => {
                   if (!expandedMonths.has(mo.key)) return null;
                   return mo.weeks.map(week => {
                     if (!expandedWeeks.has(week.key)) return null;
                     return buildDays(week, today).map(day => (
                       <th key={day.date}
-                        className={`border-l dark:border-border-main/10 border-border-main-light/10 px-1 py-2 min-w-[60px] text-center ${!day.isWorkday ? 'dark:bg-black/10 bg-gray-100/50' : ''} ${day.isToday ? 'dark:bg-turquesa/10 bg-turquesa/5' : ''}`}
+                        className={`border-l dark:border-border-main/10 border-border-main-light/10 px-1 py-2 min-w-[60px] text-center ${!day.isWorkday ? 'opacity-30' : ''} ${day.isToday ? 'dark:bg-turquesa/15 bg-turquesa/10' : ''}`}
                       >
-                        <button onClick={() => onNavigateToDashboard(day.date)} className="w-full">
-                          <span className={`text-[9px] font-black block ${day.isToday ? 'text-turquesa' : !day.isWorkday ? 'dark:text-text-secondary/30 text-text-secondary-light/30' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa'}`}>
+                        <button onClick={() => onNavigateToDashboard(day.date)} className="w-full hover:text-turquesa transition-all">
+                          <span className={`text-[9px] font-black block ${day.isToday ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`}>
                             {day.label}
                           </span>
                         </button>
