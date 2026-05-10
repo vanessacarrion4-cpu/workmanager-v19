@@ -998,20 +998,68 @@ export function WorkloadView({
   const toggleGroup = (key: string) => setExpandedGroups(prev => {
     const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n;
   });
-  const toggleWeek = (key: string) => setExpandedWeeks(prev => {
+
+  return (
+    <div className="max-w-full space-y-4 pb-32">
+
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-3xl font-black dark:text-white text-text-main-light">Carga de Trabajo</h2>
+          <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-1">
+            {taskLoads.length} tareas · {weeks.length} semanas
+          </p>
+        </div>
+        <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
+          {([
+            { v: 'block' as GroupMode, icon: <Layers size={12} />, label: 'Bloque' },
+            { v: 'type' as GroupMode, icon: <Tag size={12} />, label: 'Tipo' },
+            { v: 'block-type' as GroupMode, icon: <Layers size={12} />, label: 'B→T' },
+            { v: 'type-block' as GroupMode, icon: <Tag size={12} />, label: 'T→B' },
+          ]).map(({ v, icon, label }) => (
+            <button key={v} onClick={() => setGroupMode(v)}
+              className={`flex items-center gap-1 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${groupMode === v ? 'bg-morado text-white' : 'dark:bg-bg-card bg-white dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light'}`}
+            >{icon}<span>{label}</span></button>
+          ))}
+        </div>
+      </div>
+
+      {/* Filtros chips */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <FilterChip label="Bloque" count={filterBlocks.length}
+          options={blockOptions} selected={filterBlocks}
+          onToggle={v => setFilterBlocks(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+          onClear={() => setFilterBlocks([])}
+        />
+        <FilterChip label="Tipo" count={filterTypes.length}
+          options={typeOptions} selected={filterTypes}
+          onToggle={v => setFilterTypes(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+          onClear={() => setFilterTypes([])}
+        />
+        {(filterBlocks.length > 0 || filterTypes.length > 0) && (
+          <button onClick={() => { setFilterBlocks([]); setFilterTypes([]); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-rosa hover:text-rosa transition-all text-[11px] font-black uppercase tracking-widest"
+          ><X size={11} /> Limpiar</button>
+        )}
+      </div>
+
+      {/* Tabla */}
+      <div className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] overflow-hidden shadow-xl">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-max border-collapse">
+            <thead>
+              {/* Meses */}
+              <tr className="border-b dark:border-border-main border-border-main-light">
                 <th className="text-left px-5 py-3 w-52 sticky left-0 dark:bg-bg-card bg-white z-10">
                   <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Tarea</span>
                 </th>
                 {weeksByMonth.map(({ label, weeks: mw }) => (
-                  <th key={label} colSpan={mw.length}
-                    className="text-center px-3 py-3 border-l dark:border-border-main/40 border-border-main-light/40"
-                  >
+                  <th key={label} colSpan={mw.length} className="text-center px-3 py-3 border-l dark:border-border-main/40 border-border-main-light/40">
                     <span className="text-[11px] font-black dark:text-white text-text-main-light uppercase tracking-widest">{label}</span>
                   </th>
                 ))}
               </tr>
-
-              {/* Fila semanas + totales */}
+              {/* Semanas + totales */}
               <tr className="border-b-2 dark:border-border-main border-border-main-light">
                 <th className="text-left px-5 py-2 sticky left-0 dark:bg-bg-card bg-white z-10">
                   <span className="text-[9px] dark:text-text-secondary text-text-secondary-light font-bold uppercase tracking-widest">Total</span>
@@ -1019,51 +1067,62 @@ export function WorkloadView({
                 {weeks.map((week, idx) => {
                   const total = totalByWeek[week.key] || 0;
                   const isFirst = idx === 0 || weeks[idx - 1].monthLabel !== week.monthLabel;
+                  const isExpanded = expandedWeeks.has(week.key);
                   return (
-                    <th key={week.key}
-                      className={`text-center px-2 py-2 min-w-[72px] ${isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''}`}
-                    >
-                      <button
-                        onClick={() => toggleWeek(week.key)}
-                        className="flex flex-col items-center gap-0.5 w-full group"
-                        title={`${week.startDate} → ${week.endDate}`}
-                      >
-                        <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light group-hover:dark:text-white transition-all">
-                          {week.label}
-                        </span>
-                        <span className={`text-[11px] font-black ${getWeekColorText(total)}`}>
-                          {total > 0 ? formatMinutes(total) : '—'}
-                        </span>
-                        {total > 0 && (
-                          <div className="w-7 h-1 rounded-full opacity-50 transition-all"
-                            style={{ backgroundColor: getWeekColorHex(total) }} />
-                        )}
+                    <th key={week.key} className={`text-center px-2 py-2 min-w-[80px] ${isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''} ${week.isPast ? 'dark:bg-bg-main/20 bg-gray-50/40' : ''}`}>
+                      <button onClick={() => toggleWeek(week.key)} className="flex flex-col items-center gap-0.5 w-full group" title={`${week.startDate} → ${week.endDate}`}>
+                        <span className={`text-[10px] font-black transition-all ${isExpanded ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light group-hover:dark:text-white'}`}>{week.label}</span>
+                        <span className={`text-[11px] font-black ${getWeekColorText(total)}`}>{total > 0 ? formatMinutes(total) : '—'}</span>
+                        {total > 0 && <div className="w-7 h-1 rounded-full opacity-50" style={{ backgroundColor: getWeekColorHex(total) }} />}
                       </button>
                     </th>
                   );
                 })}
               </tr>
-
-              {/* Zoom días — cuando se expande una semana */}
+              {/* Zoom días */}
+              {weeks.some(w => expandedWeeks.has(w.key)) && (
+                <tr className="border-b dark:border-border-main/30 border-border-main-light/30 dark:bg-bg-main/30 bg-gray-50/50">
+                  <td className="px-5 py-2 sticky left-0 dark:bg-bg-main/30 bg-gray-50/50 z-10">
+                    <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Días</span>
+                  </td>
+                  {weeks.map((week, idx) => {
+                    const isFirst = idx === 0 || weeks[idx - 1].monthLabel !== week.monthLabel;
+                    if (!expandedWeeks.has(week.key)) return <td key={week.key} className={isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''} />;
+                    const days = Array.from({ length: 7 }, (_, i) => addDays(week.startDate, i));
+                    return (
+                      <td key={week.key} className={`px-1 py-2 ${isFirst ? 'border-l dark:border-border-main/40 border-border-main-light/40' : ''}`}>
+                        <div className="flex gap-1 justify-center">
+                          {days.map((day, di) => {
+                            const isToday = day === today;
+                            const dayLoad = getDayLoad(day);
+                            return (
+                              <button key={day} onClick={() => onNavigateToDashboard(day)} title={day}
+                                className={`flex flex-col items-center justify-center rounded-xl px-1 py-1.5 min-w-[36px] transition-all hover:bg-turquesa/10 ${isToday ? 'ring-2 ring-turquesa' : ''}`}
+                              >
+                                <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light">{dayLabels[di]}</span>
+                                <span className="text-[9px] dark:text-text-secondary/60 text-text-secondary-light/60">{parseLocalISO(day).getDate()}</span>
+                                {dayLoad > 0
+                                  ? <span className={`text-[9px] font-black mt-0.5 ${getWeekColorText(dayLoad * 5)}`}>{formatMinutes(dayLoad)}</span>
+                                  : <span className="text-[8px] dark:text-text-secondary/20 text-text-secondary-light/20 mt-0.5">—</span>
+                                }
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              )}
             </thead>
-
             <tbody>
               {grouped.length > 0 ? grouped.map(node => (
-                <GroupRow
-                  key={node.key}
-                  node={node}
-                  weeks={weeks}
-                  depth={0}
-                  expanded={expandedGroups}
-                  onToggle={toggleGroup}
-                />
+                <GroupRow key={node.key} node={node} weeks={weeks} depth={0} expanded={expandedGroups} onToggle={toggleGroup} />
               )) : (
                 <tr>
                   <td colSpan={weeks.length + 1} className="text-center py-20">
                     <BarChart2 size={40} className="mx-auto mb-4 dark:text-text-secondary text-text-secondary-light opacity-10" />
-                    <p className="text-sm font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest opacity-40">
-                      Sin datos de carga
-                    </p>
+                    <p className="text-sm font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest opacity-40">Sin datos de carga</p>
                   </td>
                 </tr>
               )}
