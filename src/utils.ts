@@ -121,7 +121,37 @@ export function generateInstances(
         const parentInstanceId = `inst-${parentTemplate.id}-${dateStr}`;
         
         // No regenerar si ya existe (incluyendo excepciones con fecha cambiada)
-        if (allTasks[parentInstanceId]) return;
+        if (allTasks[parentInstanceId]) {
+          // Si el contenedor ya existe (excepción guardada) pero sin subtareas,
+          // generar las subtareas que faltan y vincularlas
+          const existingContainer = allTasks[parentInstanceId];
+          if (existingContainer && (!existingContainer.subtasks || existingContainer.subtasks.length === 0)) {
+            children.forEach(childTemplate => {
+              if (childTemplate.recurrence && !matchesRecurrence(childTemplate.recurrence, current)) return;
+              if (!childTemplate.recurrence && childTemplate.dueDate && childTemplate.dueDate !== dateStr) return;
+              if (!childTemplate.recurrence && childTemplate.status === 'completed') return;
+
+              const childInstanceId = `inst-${childTemplate.id}-${dateStr}`;
+              if (allTasks[childInstanceId]) return; // Ya existe
+
+              const childInstance: Task = {
+                ...childTemplate,
+                id: childInstanceId,
+                templateId: childTemplate.id,
+                parentTaskId: parentInstanceId,
+                dueDate: dateStr,
+                instanceDate: dateStr,
+                isTemplate: false,
+                createdAt: new Date().toISOString(),
+                modifiedAt: new Date().toISOString(),
+                status: 'pending',
+                subtasks: []
+              };
+              newInstances.push(childInstance);
+            });
+          }
+          return;
+        }
         
         // No regenerar si ya hay una excepción para este template en este día
         const hasException = Object.values(allTasks).some(t => 
