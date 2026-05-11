@@ -113,6 +113,10 @@ export function useGeneration({ tasks, isDataLoaded, setTasks }: UseGenerationOp
         if (!updated[t.id]) {
           updated[t.id] = t;
           addedCount++;
+          // Debug: log subtareas que apuntan a Rutinas mañana
+          if (t.parentTaskId && t.parentTaskId.includes('1778445069239')) {
+            console.log('[GENERATION] SUBTAREA generada:', t.title, '→ parentTaskId:', t.parentTaskId, '→ padre existe:', !!updated[t.parentTaskId]);
+          }
         }
       });
 
