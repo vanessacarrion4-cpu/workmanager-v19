@@ -82,6 +82,7 @@ function getVisibleSubtasksForDay(
 ): Task[] {
   const containerTemplateId = container.templateId || container.id;
 
+  const seen = new Set<string>();
   return Object.values(allTasksMap).filter((task: Task) => {
     if (task.isDeleted) return false;
     if (task.dueDate !== activeDate) return false;
@@ -105,6 +106,8 @@ function getVisibleSubtasksForDay(
       if (!hasRealTag) return false;
     }
 
+    if (seen.has(task.id)) return false;
+    seen.add(task.id);
     return true;
   });
 }
