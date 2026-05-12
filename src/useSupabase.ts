@@ -244,8 +244,7 @@ export function useSupabase({
         // Cargar time entries
         const { data: timeEntriesData, error: timeEntriesError } = await supabase
           .from('time_entries')
-          .select('*')
-          .order('created_at', { ascending: false });
+          .select('*');
 
         if (timeEntriesError) {
           console.warn('[SUPABASE] Error loading time entries:', timeEntriesError);
@@ -254,8 +253,7 @@ export function useSupabase({
         // Cargar reuniones
         const { data: meetingsData, error: meetingsError } = await supabase
           .from('meetings')
-          .select('*')
-          .order('created_at', { ascending: false });
+          .select('*');
 
         if (meetingsError) {
           console.warn('[SUPABASE] Error loading meetings:', meetingsError);
