@@ -126,13 +126,17 @@ function repairContainersWithForbiddenData(mappedTasks: Record<string, Task>): v
   Object.values(mappedTasks).forEach(task => {
     if (!task.subtasks || task.subtasks.length === 0) return;
 
+    // CRÍTICO: Solo reparar contenedores recurrentes (isTemplate:true).
+    // Los contenedores manuales normales SÍ pueden tener dueDate, tags, etc.
+    // Tocarlos destruye tareas normales y las hace desaparecer del Dashboard.
+    if (!task.isTemplate) return;
+
     const hasForbiddenData = task.dueDate || task.dueTime ||
       (task.tags && task.tags.length > 0) ||
-      task.delegation ||
-      (task.recurrence && !task.isTemplate);
+      task.delegation;
 
     if (hasForbiddenData) {
-      console.log('[REPAIR] Limpiando contenedor con datos prohibidos:', task.title);
+      console.log('[REPAIR] Limpiando contenedor recurrente con datos prohibidos:', task.title);
       mappedTasks[task.id] = {
         ...task,
         dueDate: null,
@@ -344,6 +348,17 @@ export function useSupabase({
           // Reparaciones automáticas
           repairContainersWithForbiddenData(mappedTasks);
           repairRecurringContainers(mappedTasks);
+
+          // DIAGNÓSTICO: verificar tareas problemáticas
+          const debugIds = ['t-1777366500894','t-1777907133400','t-1777993148665','t-1777993577145','t-1778258675551'];
+          debugIds.forEach(id => {
+            const t = mappedTasks[id];
+            if (t) {
+              console.log('[DIAGNÓSTICO]', t.title, '→ dueDate:', t.dueDate, '| tags:', t.tags, '| isTemplate:', t.isTemplate, '| isDeleted:', t.isDeleted, '| subtasks:', t.subtasks?.length);
+            } else {
+              console.warn('[DIAGNÓSTICO] TAREA NO ENCONTRADA EN MEMORIA:', id);
+            }
+          });
 
           setTasks(mappedTasks);
         }
