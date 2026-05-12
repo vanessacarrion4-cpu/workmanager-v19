@@ -223,11 +223,23 @@ export function useSupabase({
 
         // Cargar tareas: templates/manuales + excepciones (instancias modificadas)
         // Las instancias normales se generan en memoria por useGeneration
-        const { data: tasksData, error: tasksError } = await supabase
-          .from('tasks')
-          .select('*')
-          .or('template_id.is.null,is_exception.eq.true')
-          .limit(10000);
+        // Cargar tareas con paginación para superar el límite de 1000 de PostgREST
+        let tasksData: any[] = [];
+        let tasksError = null;
+        let from = 0;
+        const PAGE_SIZE = 1000;
+        while (true) {
+          const { data, error } = await supabase
+            .from('tasks')
+            .select('*')
+            .or('template_id.is.null,is_exception.eq.true')
+            .range(from, from + PAGE_SIZE - 1);
+          if (error) { tasksError = error; break; }
+          if (!data || data.length === 0) break;
+          tasksData = [...tasksData, ...data];
+          if (data.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
 
         if (tasksError) throw tasksError;
 
