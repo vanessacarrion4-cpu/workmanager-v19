@@ -593,12 +593,22 @@ function TimeEntryItem({ entry, allTasksMap, onDelete, onUpdate }: any) {
   const [editMinutes, setEditMinutes] = React.useState(entry.duration);
   const [editNote, setEditNote] = React.useState(entry.note || '');
   const task = allTasksMap[entry.subtaskId || entry.taskId];
+  const getTaskTitle = () => {
+    if (entry.subtaskId && allTasksMap[entry.subtaskId]?.title) return allTasksMap[entry.subtaskId].title;
+    if (entry.taskId && allTasksMap[entry.taskId]) {
+      const t = allTasksMap[entry.taskId];
+      if (t.title && !t.id.startsWith('inst-')) return t.title;
+      if (t.templateId && allTasksMap[t.templateId]?.title) return allTasksMap[t.templateId].title;
+    }
+    return task?.title || entry.subtaskId || entry.taskId;
+  };
+  const taskTitle = getTaskTitle();
 
   if (!editing) {
     return (
       <div className="flex items-center gap-3 p-3 group">
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-black dark:text-white text-text-main-light truncate uppercase">{task?.title || entry.taskId}</p>
+          <p className="text-[11px] font-black dark:text-white text-text-main-light truncate uppercase">{taskTitle}</p>
           {entry.note && <p className="text-[10px] dark:text-text-secondary text-text-secondary-light mt-0.5">{entry.note}</p>}
           <p className="text-[9px] dark:text-text-secondary/50 text-text-secondary-light/50 mt-0.5">{entry.source === 'timer' ? '⏱ Timer' : '✏️ Manual'}</p>
         </div>
@@ -617,7 +627,7 @@ function TimeEntryItem({ entry, allTasksMap, onDelete, onUpdate }: any) {
 
   return (
     <div className="p-3 space-y-2">
-      <p className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">{task?.title || entry.taskId}</p>
+      <p className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">{taskTitle}</p>
       <div className="flex items-center gap-2">
         <label className="text-[9px] dark:text-text-secondary text-text-secondary-light font-bold uppercase">Min:</label>
         <input type="number" value={editMinutes} onChange={e => setEditMinutes(Number(e.target.value))} className="w-20 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-lg px-2 py-1 text-sm dark:text-white text-text-main-light outline-none focus:border-morado/50" min={1} />
