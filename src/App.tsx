@@ -1673,11 +1673,22 @@ export default function App() {
     setTimeEntries(prev => [...prev, newEntry]);
     setActiveTimer(null);
 
+    // Resolver IDs para Supabase (instancias en memoria → templateId)
+    const resolveId = (id: string | null): string | null => {
+      if (!id) return null;
+      if (!id.startsWith('inst-')) return id;
+      const t = tasks[id];
+      if (t?.templateId) return t.templateId;
+      const parts = id.replace('inst-', '').split('-');
+      parts.pop(); parts.pop(); parts.pop();
+      return parts.join('-');
+    };
+
     // Persistir en Supabase
     supabase.from('time_entries').insert({
       id: newEntry.id,
-      task_id: newEntry.taskId,
-      subtask_id: newEntry.subtaskId || null,
+      task_id: resolveId(newEntry.taskId),
+      subtask_id: resolveId(newEntry.subtaskId) || null,
       date: newEntry.date,
       duration: newEntry.duration,
       note: newEntry.note || '',
@@ -1701,11 +1712,29 @@ export default function App() {
     };
     setTimeEntries(prev => [...prev, newEntry]);
 
+    // Resolver IDs para Supabase: las instancias en memoria no existen en BD
+    // Si task_id es una instancia (inst-), usar el templateId del template
+    const resolveIdForDB = (id: string | null): string | null => {
+      if (!id) return null;
+      if (!id.startsWith('inst-')) return id;
+      const task = tasks[id];
+      if (task?.templateId) return task.templateId;
+      // Extraer templateId del ID: inst-{templateId}-{date}
+      const parts = id.replace('inst-', '').split('-');
+      parts.pop(); // remove year
+      parts.pop(); // remove month  
+      parts.pop(); // remove day
+      return parts.join('-');
+    };
+
+    const dbTaskId = resolveIdForDB(taskId);
+    const dbSubtaskId = resolveIdForDB(subtaskId);
+
     // Persistir en Supabase
     supabase.from('time_entries').insert({
       id: newEntry.id,
-      task_id: newEntry.taskId,
-      subtask_id: newEntry.subtaskId || null,
+      task_id: dbTaskId,
+      subtask_id: dbSubtaskId || null,
       date: newEntry.date,
       duration: newEntry.duration,
       note: newEntry.note || '',
