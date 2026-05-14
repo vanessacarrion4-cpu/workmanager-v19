@@ -920,20 +920,14 @@ export function TaskCard({
                         taskCount={visibleSubs.length}
                         onMoveUp={() => {
                           if (idx === 0) return;
-                          const allSubs = task.subtasks || [];
-                          const currentIdx = allSubs.indexOf(subId);
-                          if (currentIdx <= 0) return;
-                          const reordered = [...allSubs];
-                          [reordered[currentIdx - 1], reordered[currentIdx]] = [reordered[currentIdx], reordered[currentIdx - 1]];
+                          const reordered = [...visibleSubs];
+                          [reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]];
                           onReorderSubtasks(task.id, reordered);
                         }}
                         onMoveDown={() => {
                           if (idx === visibleSubs.length - 1) return;
-                          const allSubs = task.subtasks || [];
-                          const currentIdx = allSubs.indexOf(subId);
-                          if (currentIdx < 0 || currentIdx >= allSubs.length - 1) return;
-                          const reordered = [...allSubs];
-                          [reordered[currentIdx], reordered[currentIdx + 1]] = [reordered[currentIdx + 1], reordered[currentIdx]];
+                          const reordered = [...visibleSubs];
+                          [reordered[idx], reordered[idx + 1]] = [reordered[idx + 1], reordered[idx]];
                           onReorderSubtasks(task.id, reordered);
                         }}
                         searchQuery={searchQuery}
