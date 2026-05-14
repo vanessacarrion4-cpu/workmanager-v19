@@ -10,12 +10,13 @@ import {
   ChevronsUp, ChevronsDown, Zap, ArrowRight, X, CalendarIcon, Trash2, Edit
 } from 'lucide-react';
 import { Calendar as CalendarIcon2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { isTaskCompleted, getTaskEstimatedCombo, formatMinutes } from './utils';
 import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
+import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
 
 interface DashboardViewProps {
@@ -43,6 +44,7 @@ interface DashboardViewProps {
   onSetDate: (date: string) => void;
   onDayChange: (delta: number) => void;
   onReorderTasks: (tasks: Task[]) => void;
+  onBatchUpdateOrder?: (updates: { id: string, order: number }[]) => void;
   onReorderSubtasks: (parentId: string, subtaskIds: string[]) => void;
   onToggleExpand: (taskId: string) => void;
   onPromote?: (taskId: string) => void;
@@ -68,7 +70,7 @@ export function DashboardView({
   tasks, allTasksMap, blocks, people = [], onAddPerson, onRenamePerson, onDeletePerson,
   timeEntries = [], activeTimer, onStartTimer, onStopTimer, onToggle, onDelete, onAddTask,
   onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId,
-  onOpenTimePanel, activeDate, onSetDate, onDayChange, onReorderTasks, onReorderSubtasks,
+  onOpenTimePanel, activeDate, onSetDate, onDayChange, onReorderTasks, onReorderSubtasks, onBatchUpdateOrder,
   onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null,
   selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null,
   onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null,
@@ -85,7 +87,7 @@ export function DashboardView({
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set(['con_hora', 'focus', 'dirección', 'espera', 'resto']));
   const [isFrozen, setIsFrozen] = useState(false);
   const frozenOrderRef = React.useRef<string[]>([]);
-  const [localTagOrders, setLocalTagOrders] = useState<Record<string, string[]>>({});
+  const [dragOrders, setDragOrders] = useState<Record<string, string[]>>({});
   const [showTimeHistory, setShowTimeHistory] = useState(false);
 
   const dayTasks = useMemo(() => {
@@ -429,9 +431,9 @@ export function DashboardView({
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <div className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] shadow-xl overflow-hidden divide-y dark:divide-border-main divide-border-main-light">
+                    <div className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] shadow-xl overflow-hidden">
                       {(() => {
-                        const localOrder = localTagOrders[tag];
+                        const localOrder = dragOrders[tag];
                         let orderedEntries = tagEntries;
                         if (localOrder) {
                           const idMap: Record<string, any> = {};
@@ -439,66 +441,121 @@ export function DashboardView({
                           orderedEntries = localOrder.map((id: string) => idMap[id]).filter(Boolean);
                           tagEntries.forEach((e: any) => { if (!localOrder.includes(e.task.id)) orderedEntries.push(e); });
                         }
-                        return orderedEntries.map(({ task, subtasksForGroup }: any, idx: number) => (
-                          <div key={`${task.id}-${tag}`}>
-                            <TaskCard
-                              task={task}
-                              variant="DASHBOARD"
-                              allTasksMap={allTasksMap}
-                              people={people}
-                              onAddPerson={onAddPerson}
-                              onRenamePerson={onRenamePerson}
-                              onDeletePerson={onDeletePerson}
-                              blocks={blocks}
-                              timeEntries={timeEntries}
-                              activeTimer={activeTimer}
-                              onStartTimer={onStartTimer}
-                              onStopTimer={onStopTimer}
-                              onToggleStatus={onToggle}
-                              onUpdateTask={onUpdateTask}
-                              onEditTask={onEditTask}
-                              editingTaskId={editingTaskId}
-                              inlineEditingTaskId={inlineEditingTaskId}
-                              setInlineEditingTaskId={setInlineEditingTaskId}
-                              onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel && onOpenTimePanel(taskId, subtaskId)}
-                              onAddTask={onAddTask}
-                              onDelete={onDelete}
-                              onPromote={onPromote}
-                              onDemote={onDemote}
-                              onReorderSubtasks={onReorderSubtasks}
-                              onToggleExpand={(taskId: string) => {
-                                setExpandAll(null);
-                                onToggleExpand(taskId);
-                              }}
-                              onRecurrenceDateChange={onRecurrenceDateChange}
-                              hideCompleted={hideCompleted}
-                              subtasksForGroup={subtasksForGroup}
-                              forceExpanded={expandAll}
-                              taskIndex={idx}
-                              taskCount={orderedEntries.length}
-                              onMoveUp={() => {
-                                if (idx === 0) return;
-                                const newOrder = orderedEntries.map((e: any) => e.task.id);
-                                [newOrder[idx - 1], newOrder[idx]] = [newOrder[idx], newOrder[idx - 1]];
-                                setLocalTagOrders(prev => ({ ...prev, [tag]: newOrder }));
-                                onUpdateTask({ ...task, order: idx - 1, modifiedAt: new Date().toISOString() });
-                                onUpdateTask({ ...orderedEntries[idx - 1].task, order: idx, modifiedAt: new Date().toISOString() });
-                              }}
-                              onMoveDown={() => {
-                                if (idx === orderedEntries.length - 1) return;
-                                const newOrder = orderedEntries.map((e: any) => e.task.id);
-                                [newOrder[idx], newOrder[idx + 1]] = [newOrder[idx + 1], newOrder[idx]];
-                                setLocalTagOrders(prev => ({ ...prev, [tag]: newOrder }));
-                                onUpdateTask({ ...task, order: idx + 1, modifiedAt: new Date().toISOString() });
-                                onUpdateTask({ ...orderedEntries[idx + 1].task, order: idx, modifiedAt: new Date().toISOString() });
-                              }}
-                              selectionMode={selectionMode}
-                              selectedTaskIds={selectedTaskIds}
-                              onToggleTaskSelection={onToggleTaskSelection}
-                              searchQuery={searchQuery}
-                            />
-                          </div>
-                        ));
+                        const entryIds = orderedEntries.map((e: any) => e.task.id);
+                        return (
+                          <Reorder.Group
+                            axis="y"
+                            values={entryIds}
+                            onReorder={(newIds: string[]) => {
+                              setDragOrders(prev => ({ ...prev, [tag]: newIds }));
+                            }}
+                            className="divide-y dark:divide-border-main divide-border-main-light"
+                            as="div"
+                          >
+                            {orderedEntries.map(({ task, subtasksForGroup }: any, idx: number) => (
+                              <Reorder.Item
+                                key={task.id}
+                                value={task.id}
+                                dragListener={!selectionMode}
+                                onDragEnd={() => {
+                                  // Persistir orden en Supabase en batch
+                                  const currentOrder = dragOrders[tag] || entryIds;
+                                  const updates = currentOrder.map((id: string, i: number) => ({ id, order: i }));
+                                  // Actualizar estado global
+                                  const updatedTasks = updates.map(({ id, order }: any) => {
+                                    const t = allTasksMap[id] || tagEntries.find((e: any) => e.task.id === id)?.task;
+                                    return t ? { ...t, order } : null;
+                                  }).filter(Boolean);
+                                  if (updatedTasks.length > 0) onReorderTasks(updatedTasks);
+                                  // Persistir en Supabase
+                                  updates.forEach(({ id, order }: any) => {
+                                    supabase.from('tasks').update({ order }).eq('id', id).then(({ error }: any) => {
+                                      if (error) console.error('[ORDER] Error saving order:', error);
+                                    });
+                                  });
+                                }}
+                                style={{ cursor: selectionMode ? 'default' : 'grab' }}
+                                className="relative"
+                                whileDrag={{ scale: 1.02, zIndex: 50, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
+                              >
+                                <TaskCard
+                                  task={task}
+                                  variant="DASHBOARD"
+                                  allTasksMap={allTasksMap}
+                                  people={people}
+                                  onAddPerson={onAddPerson}
+                                  onRenamePerson={onRenamePerson}
+                                  onDeletePerson={onDeletePerson}
+                                  blocks={blocks}
+                                  timeEntries={timeEntries}
+                                  activeTimer={activeTimer}
+                                  onStartTimer={onStartTimer}
+                                  onStopTimer={onStopTimer}
+                                  onToggleStatus={onToggle}
+                                  onUpdateTask={onUpdateTask}
+                                  onEditTask={onEditTask}
+                                  editingTaskId={editingTaskId}
+                                  inlineEditingTaskId={inlineEditingTaskId}
+                                  setInlineEditingTaskId={setInlineEditingTaskId}
+                                  onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel && onOpenTimePanel(taskId, subtaskId)}
+                                  onAddTask={onAddTask}
+                                  onDelete={onDelete}
+                                  onPromote={onPromote}
+                                  onDemote={onDemote}
+                                  onReorderSubtasks={onReorderSubtasks}
+                                  onToggleExpand={(taskId: string) => {
+                                    setExpandAll(null);
+                                    onToggleExpand(taskId);
+                                  }}
+                                  onRecurrenceDateChange={onRecurrenceDateChange}
+                                  hideCompleted={hideCompleted}
+                                  subtasksForGroup={subtasksForGroup}
+                                  forceExpanded={expandAll}
+                                  taskIndex={idx}
+                                  taskCount={orderedEntries.length}
+                                  onMoveUp={() => {
+                                    if (idx === 0) return;
+                                    const newOrder = orderedEntries.map((e: any) => e.task.id);
+                                    [newOrder[idx - 1], newOrder[idx]] = [newOrder[idx], newOrder[idx - 1]];
+                                    setDragOrders(prev => ({ ...prev, [tag]: newOrder }));
+                                    const updates = newOrder.map((id: string, i: number) => ({ id, order: i }));
+                                    const updatedTasks = updates.map(({ id, order }: any) => {
+                                      const t = allTasksMap[id];
+                                      return t ? { ...t, order } : null;
+                                    }).filter(Boolean);
+                                    onReorderTasks(updatedTasks);
+                                    updates.forEach(({ id, order }: any) => {
+                                      supabase.from('tasks').update({ order }).eq('id', id).then(({ error }: any) => {
+                                        if (error) console.error('[ORDER] Error:', error);
+                                      });
+                                    });
+                                  }}
+                                  onMoveDown={() => {
+                                    if (idx === orderedEntries.length - 1) return;
+                                    const newOrder = orderedEntries.map((e: any) => e.task.id);
+                                    [newOrder[idx], newOrder[idx + 1]] = [newOrder[idx + 1], newOrder[idx]];
+                                    setDragOrders(prev => ({ ...prev, [tag]: newOrder }));
+                                    const updates = newOrder.map((id: string, i: number) => ({ id, order: i }));
+                                    const updatedTasks = updates.map(({ id, order }: any) => {
+                                      const t = allTasksMap[id];
+                                      return t ? { ...t, order } : null;
+                                    }).filter(Boolean);
+                                    onReorderTasks(updatedTasks);
+                                    updates.forEach(({ id, order }: any) => {
+                                      supabase.from('tasks').update({ order }).eq('id', id).then(({ error }: any) => {
+                                        if (error) console.error('[ORDER] Error:', error);
+                                      });
+                                    });
+                                  }}
+                                  selectionMode={selectionMode}
+                                  selectedTaskIds={selectedTaskIds}
+                                  onToggleTaskSelection={onToggleTaskSelection}
+                                  searchQuery={searchQuery}
+                                />
+                              </Reorder.Item>
+                            ))}
+                          </Reorder.Group>
+                        );
                       })()}
                     </div>
                   </motion.div>
