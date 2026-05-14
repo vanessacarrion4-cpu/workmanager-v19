@@ -672,6 +672,23 @@ export default function App() {
         modifiedAt: new Date().toISOString()
       }
     }));
+
+    // Persistir order de cada subtarea en Supabase
+    subtaskIds.forEach((subId, order) => {
+      const sub = tasks[subId];
+      if (!sub) return;
+      // Resolver ID para Supabase (instancias en memoria → templateId)
+      const dbId = subId.startsWith('inst-') ? (sub.templateId || subId) : subId;
+      supabase.from('tasks').update({ order }).eq('id', dbId).then(({ error }) => {
+        if (error) console.error('[ORDER] Error saving subtask order:', error);
+      });
+    });
+
+    // También persistir el array subtasks del padre
+    const parent = tasks[parentId];
+    if (parent && !parentId.startsWith('inst-')) {
+      supabase.from('tasks').update({ modified_at: new Date().toISOString() }).eq('id', parentId).then(() => {});
+    }
   };
  
   const handleEditTaskRequest = (taskId: string | null) => {

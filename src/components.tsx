@@ -864,8 +864,13 @@ export function TaskCard({
               {hasSubtasks && (
                 <Reorder.Group 
                   axis="y" 
-                  values={task.subtasks.map((sid: string) => allTasksMap[sid]).filter(Boolean)} 
-                  onReorder={(newSubtasks: any[]) => onReorderSubtasks(task.id, newSubtasks.map(t => t.id))}
+                  values={(subtasksForGroup || task.subtasks).filter((sid: string) => {
+                    if (!hideCompleted) return true;
+                    const sub = allTasksMap[sid];
+                    if (!sub) return true;
+                    return sub.status !== 'completed';
+                  })}
+                  onReorder={(newIds: string[]) => onReorderSubtasks(task.id, newIds)}
                   className="space-y-0 divide-y dark:divide-border-main/20 divide-border-main-light/20"
                 >
                   {(subtasksForGroup || task.subtasks)
@@ -876,7 +881,7 @@ export function TaskCard({
                       return sub.status !== 'completed';
                     })
                     .map((subId: string, idx: number, visibleSubs: string[]) => (
-                    <div key={subId}>
+                    <Reorder.Item key={subId} value={subId} as="div" whileDrag={{ scale: 1.01, zIndex: 50, boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }} style={{ cursor: 'grab' }}>
                       <TaskCard 
                         task={allTasksMap[subId]}
                         variant={variant}
@@ -953,7 +958,7 @@ export function TaskCard({
                           />
                         </div>
                       )}
-                    </div>
+                    </Reorder.Item>
                   ))}
                 </Reorder.Group>
               )}
