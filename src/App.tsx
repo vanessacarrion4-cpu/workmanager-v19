@@ -670,17 +670,23 @@ export default function App() {
         console.warn('[ORDER] parentId not found in tasks:', parentId);
         return prev;
       }
-      return {
-        ...prev,
-        [parentId]: {
-          ...existing,
-          subtasks: subtaskIds,
-          modifiedAt: new Date().toISOString()
-        }
+      const updated = { ...prev };
+      // Actualizar el array subtasks del padre
+      updated[parentId] = {
+        ...existing,
+        subtasks: subtaskIds,
+        modifiedAt: new Date().toISOString()
       };
+      // Actualizar el campo order de cada subtarea individualmente
+      subtaskIds.forEach((subId, order) => {
+        if (updated[subId]) {
+          updated[subId] = { ...updated[subId], order };
+        }
+      });
+      return updated;
     });
 
-    // Persistir order de cada subtarea en Supabase usando templateId para instancias
+    // Persistir order de cada subtarea en Supabase
     subtaskIds.forEach((subId, order) => {
       const sub = tasks[subId];
       if (!sub) return;
