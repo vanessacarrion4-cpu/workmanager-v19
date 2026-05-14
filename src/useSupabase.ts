@@ -125,6 +125,7 @@ function reconstructExceptionContainerSubtasks(mappedTasks: Record<string, Task>
 function repairContainersWithForbiddenData(mappedTasks: Record<string, Task>): void {
   Object.values(mappedTasks).forEach(task => {
     if (!task.subtasks || task.subtasks.length === 0) return;
+    if (!task.isTemplate) return; // Solo limpiar templates, nunca instancias ni tareas manuales
 
     const hasForbiddenData = task.dueDate || task.dueTime ||
       (task.tags && task.tags.length > 0) ||
