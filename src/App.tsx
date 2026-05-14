@@ -1772,6 +1772,16 @@ export default function App() {
   // --- Views ---
   const dashboardTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter(b => b && b.isActive).map(b => b.id));
+    // DEBUG DUPLICADOS - borrar después
+    const suspects = Object.values(tasks).filter((t: Task) => 
+      !t.isDeleted && !t.parentTaskId &&
+      (t.title?.toLowerCase().includes('cierre') || t.title?.toLowerCase().includes('rutinas'))
+    );
+    console.log('[DEBUG DUPLICADOS]', suspects.map((t: Task) => ({
+      id: t.id, title: t.title, isTemplate: t.isTemplate,
+      dueDate: t.dueDate, templateId: t.templateId,
+      isException: t.isException, subtasksCount: t.subtasks?.length
+    })));
     return filterTasksForDay(
       filteredTasks,
       tasks,
