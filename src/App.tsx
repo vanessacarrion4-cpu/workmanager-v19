@@ -1209,6 +1209,7 @@ export default function App() {
             instance_date: instanceDate,
             title: updatedTask.title,
             notes: updatedTask.notes || '',
+          attachments: updatedTask.attachments || [],
             priority: updatedTask.priority || 'media',
             status: updatedTask.status,
             due_date: instanceDate,
@@ -1751,6 +1752,28 @@ export default function App() {
     });
   };
  
+  // --- Attachment handlers ---
+  const handleUploadAttachment = async (taskId: string, file: File) => {
+    const ext = file.name.split('.').pop();
+    const path = `${taskId}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('task-attachments').upload(path, file);
+    if (error) { console.error('[ATTACHMENTS] Upload error:', error); return; }
+    const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(path);
+    const attachment = { id: `att-${Date.now()}`, name: file.name, url: urlData.publicUrl, type: file.type, size: file.size, path, createdAt: new Date().toISOString() };
+    const task = tasks[taskId];
+    if (!task) return;
+    const updatedAttachments = [...(task.attachments || []), attachment];
+    handleUpdateTask({ ...task, attachments: updatedAttachments });
+  };
+
+  const handleDeleteAttachment = async (taskId: string, attachmentId: string, path: string) => {
+    await supabase.storage.from('task-attachments').remove([path]);
+    const task = tasks[taskId];
+    if (!task) return;
+    const updatedAttachments = (task.attachments || []).filter((a: any) => a.id !== attachmentId);
+    handleUpdateTask({ ...task, attachments: updatedAttachments });
+  };
+
   const handleManualTimeEntry = (taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string, markComplete?: boolean) => {
     const newEntry: TimeEntry = {
       id: `te-${Date.now()}`,
@@ -2285,6 +2308,8 @@ export default function App() {
           onDeleteTask={handleDeleteTask}
           onEditTask={handleEditTaskRequest}
           blocks={blocks}
+          onUploadAttachment={handleUploadAttachment}
+          onDeleteAttachment={handleDeleteAttachment}
         />
       )}
  
@@ -2304,6 +2329,8 @@ export default function App() {
           onDeleteTask={handleDeleteTask}
           onEditTask={handleEditTaskRequest}
           blocks={blocks}
+          onUploadAttachment={handleUploadAttachment}
+          onDeleteAttachment={handleDeleteAttachment}
         />
       )}
  
@@ -2717,10 +2744,11 @@ function TimerStopModal({ minutes, taskTitle, onConfirm, onCancel }: {
 }
 
 // --- Task Modal ---
-function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask, onEditTask, blocks, people = [], onAddPerson, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null }: any) {
+function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask, onEditTask, blocks, people = [], onAddPerson, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, onUploadAttachment = null, onDeleteAttachment = null }: any) {
   const [localTask, setLocalTask] = useState<Task>(task);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
   const [showDateSelector, setShowDateSelector] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const tags: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
  
   useEffect(() => {
@@ -3361,6 +3389,68 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
               value={localTask.notes || ''}
               onChange={e => setLocalTask(prev => ({ ...prev, notes: e.target.value }))}
             />
+          </div>
+
+          {/* Adjuntos */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between pl-1">
+              <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Adjuntos</label>
+              <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer transition-all text-[10px] font-black uppercase tracking-widest ${uploading ? 'opacity-50 cursor-not-allowed' : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'}`}>
+                <Paperclip size={12} />
+                {uploading ? 'Subiendo...' : 'Adjuntar'}
+                <input
+                  type="file"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !onUploadAttachment) return;
+                    setUploading(true);
+                    await onUploadAttachment(localTask.id, file);
+                    setUploading(false);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+            {(localTask.attachments && localTask.attachments.length > 0) ? (
+              <div className="space-y-2">
+                {localTask.attachments.map((att: any) => {
+                  const isImage = att.type?.startsWith('image/');
+                  return (
+                    <div key={att.id} className="flex items-center gap-3 p-3 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl group">
+                      {isImage ? (
+                        <img src={att.url} alt={att.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0 cursor-pointer" onClick={() => window.open(att.url, '_blank')} />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg dark:bg-bg-card bg-gray-100 flex items-center justify-center flex-shrink-0">
+                          <Paperclip size={16} className="text-turquesa" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold dark:text-white text-text-main-light truncate">{att.name}</p>
+                        <p className="text-[10px] dark:text-text-secondary text-text-secondary-light">{att.size ? `${Math.round(att.size / 1024)}KB` : ''}</p>
+                      </div>
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <a href={att.url} target="_blank" rel="noopener noreferrer" className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/10 hover:bg-turquesa/20 rounded-lg transition-all">
+                          <Eye size={12} />
+                        </a>
+                        <button
+                          onClick={() => onDeleteAttachment && onDeleteAttachment(localTask.id, att.id, att.path)}
+                          className="w-7 h-7 flex items-center justify-center text-rosa bg-rosa/10 hover:bg-rosa/20 rounded-lg transition-all"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-6 text-center border-2 border-dashed dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light opacity-40">
+                <Paperclip size={20} className="mx-auto mb-2" />
+                <p className="text-[10px] font-bold uppercase tracking-widest">Sin adjuntos</p>
+              </div>
+            )}
           </div>
         </div>
  

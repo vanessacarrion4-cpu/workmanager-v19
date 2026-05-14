@@ -439,6 +439,12 @@ export function TaskCard({
           <div className="w-1.5 h-6 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
           <span className="text-[11px] font-bold dark:text-white text-text-main-light truncate flex-1 uppercase tracking-tight"><HighlightText text={task.title} /></span>
           {(task.templateId || task.recurrence) && <RefreshCw size={10} className="text-turquesa shrink-0" />}
+          {task.attachments && task.attachments.length > 0 && (
+            <span title={`${task.attachments.length} adjunto${task.attachments.length > 1 ? 's' : ''}`} className="flex items-center gap-0.5 shrink-0">
+              <Paperclip size={10} className="text-azul" />
+              {task.attachments.length > 1 && <span className="text-[9px] font-black text-azul">{task.attachments.length}</span>}
+            </span>
+          )}
           <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">
             {formatMinutes(totalEstimated)}
           </span>
