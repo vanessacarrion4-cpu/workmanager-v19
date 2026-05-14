@@ -342,7 +342,7 @@ export function useSupabase({
               deletedAt: t.deleted_at,
               existsInSupabase: true,
               subtasks: [],
-              attachments: []
+              attachments: t.attachments || []
             };
           });
 
