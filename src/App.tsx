@@ -1782,6 +1782,8 @@ export default function App() {
       dueDate: t.dueDate, templateId: t.templateId,
       isException: t.isException, subtasksCount: t.subtasks?.length
     })));
+    const suspectsFiltered = filteredTasks.filter((t: Task) => t.title?.toLowerCase().includes("cierre") || t.title?.toLowerCase().includes("rutinas"));
+    console.log("[DEBUG filteredTasks]", suspectsFiltered.map((t: Task) => ({ id: t.id, title: t.title, isTemplate: t.isTemplate, dueDate: t.dueDate, subtasksCount: t.subtasks?.length })));
     return filterTasksForDay(
       filteredTasks,
       tasks,
