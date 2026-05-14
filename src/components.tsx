@@ -922,6 +922,7 @@ export function TaskCard({
                           if (idx === 0) return;
                           const reordered = [...visibleSubs];
                           [reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]];
+                          console.log('[MOVE] MoveUp subtask', subId, 'parent:', task.id, 'reordered:', reordered);
                           onReorderSubtasks(task.id, reordered);
                         }}
                         onMoveDown={() => {
