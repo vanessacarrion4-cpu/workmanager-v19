@@ -623,6 +623,13 @@ export function TaskCard({
                         placeholder="Título de la tarea..."
                       />
                     </div>
+                    {/* Icono adjuntos */}
+                    {task.attachments && task.attachments.length > 0 && (
+                      <span title={`${task.attachments.length} adjunto${task.attachments.length > 1 ? 's' : ''}`} className="flex items-center gap-0.5 shrink-0">
+                        <Paperclip size={10} className="text-azul opacity-70" />
+                        {task.attachments.length > 1 && <span className="text-[9px] font-black text-azul">{task.attachments.length}</span>}
+                      </span>
+                    )}
                     {/* Badge circular subtareas pendientes */}
                     {hasSubtasks && (() => {
                       const subIds: string[] = subtasksForGroup || task.subtasks || [];
