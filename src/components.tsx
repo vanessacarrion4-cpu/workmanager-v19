@@ -1701,6 +1701,7 @@ export function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntrie
   const [newMinutes, setNewMinutes] = useState(30);
   const [newDate, setNewDate] = useState(formatLocalISO(new Date()));
   const [newNote, setNewNote] = useState('');
+  const [markComplete, setMarkComplete] = useState(false);
   
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editMinutes, setEditMinutes] = useState(0);
@@ -1822,11 +1823,23 @@ export function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntrie
                   </div>
                 </div>
  
+                <label className="flex items-center gap-3 cursor-pointer group px-1">
+                  <div
+                    onClick={() => setMarkComplete(v => !v)}
+                    className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all flex-shrink-0 ${markComplete ? 'bg-turquesa border-turquesa' : 'dark:border-border-main border-border-main-light'}`}
+                  >
+                    {markComplete && <Check size={12} className="text-white" strokeWidth={3} />}
+                  </div>
+                  <span className="text-xs font-bold dark:text-text-secondary text-text-secondary-light group-hover:dark:text-white group-hover:text-text-main-light transition-colors">
+                    Marcar tarea como completada
+                  </span>
+                </label>
+
                 <button 
                   onClick={() => {
-                    onAddEntry(taskId, subtaskId, newMinutes, newDate, newNote);
+                    onAddEntry(taskId, subtaskId, newMinutes, newDate, newNote, markComplete);
                     setNewNote('');
-                    // Removed setActiveTab('history') as per user request
+                    setMarkComplete(false);
                   }}
                   className="w-full py-3 bg-turquesa hover:bg-turquesa/90 text-bg-main font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-turquesa/20 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
                 >

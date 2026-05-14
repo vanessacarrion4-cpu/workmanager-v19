@@ -138,6 +138,7 @@ export default function App() {
     title: string;
   } | null>(null);
   const [showTimePanel, setShowTimePanel] = useState<{ taskId: string, subtaskId: string | null } | null>(null);
+  const [timerStopModal, setTimerStopModal] = useState<{ minutes: number, pendingEntry: any } | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [meetings, setMeetings] = useState<DelegationMeeting[]>([]);
 
@@ -1656,22 +1657,43 @@ export default function App() {
       }
     }
  
-    let note = prompt("Nota opcional para el registro de tiempo:", "");
-    if (note === null) note = ""; // If cancelled, just proceed with empty note
- 
+    // Mostrar modal con nota + opción de completar
+    setTimerStopModal({
+      minutes: Math.max(1, minutes),
+      pendingEntry: {
+        taskId: activeTimer.parentTaskId,
+        subtaskId: activeTimer.subtaskId,
+        date: formatLocalISO(new Date()),
+      }
+    });
+    setActiveTimer(null);
+  };
+
+  const handleTimerStopConfirm = (note: string, markComplete: boolean) => {
+    if (!timerStopModal) return;
+    const { minutes, pendingEntry } = timerStopModal;
+    setTimerStopModal(null);
+
     const newEntry: TimeEntry = {
       id: `te-${Date.now()}`,
-      taskId: activeTimer.parentTaskId,
-      subtaskId: activeTimer.subtaskId,
-      date: formatLocalISO(new Date()),
-      duration: Math.max(1, minutes),
+      taskId: pendingEntry.taskId,
+      subtaskId: pendingEntry.subtaskId,
+      date: pendingEntry.date,
+      duration: minutes,
       note,
       createdAt: new Date().toISOString(),
       source: 'timer'
     };
- 
     setTimeEntries(prev => [...prev, newEntry]);
-    setActiveTimer(null);
+
+    // Marcar tarea como completada si se pidió
+    if (markComplete && pendingEntry.subtaskId) {
+      const t = tasks[pendingEntry.subtaskId];
+      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
+    } else if (markComplete && pendingEntry.taskId) {
+      const t = tasks[pendingEntry.taskId];
+      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
+    }
 
     // Resolver IDs para Supabase (instancias en memoria → templateId)
     const resolveId = (id: string | null): string | null => {
@@ -1699,7 +1721,7 @@ export default function App() {
     });
   };
  
-  const handleManualTimeEntry = (taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string) => {
+  const handleManualTimeEntry = (taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string, markComplete?: boolean) => {
     const newEntry: TimeEntry = {
       id: `te-${Date.now()}`,
       taskId,
@@ -1711,6 +1733,13 @@ export default function App() {
       source: 'manual'
     };
     setTimeEntries(prev => [...prev, newEntry]);
+
+    // Marcar como completada si se pidió
+    if (markComplete) {
+      const targetId = subtaskId || taskId;
+      const t = tasks[targetId];
+      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
+    }
 
     // Resolver IDs para Supabase: las instancias en memoria no existen en BD
     // Si task_id es una instancia (inst-), usar el templateId del template
@@ -1772,18 +1801,6 @@ export default function App() {
   // --- Views ---
   const dashboardTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter(b => b && b.isActive).map(b => b.id));
-    // DEBUG DUPLICADOS - borrar después
-    const suspects = Object.values(tasks).filter((t: Task) => 
-      !t.isDeleted && !t.parentTaskId &&
-      (t.title?.toLowerCase().includes('cierre') || t.title?.toLowerCase().includes('rutinas'))
-    );
-    console.log('[DEBUG DUPLICADOS]', suspects.map((t: Task) => ({
-      id: t.id, title: t.title, isTemplate: t.isTemplate,
-      dueDate: t.dueDate, templateId: t.templateId,
-      isException: t.isException, subtasksCount: t.subtasks?.length
-    })));
-    const suspectsFiltered = filteredTasks.filter((t: Task) => t.title?.toLowerCase().includes("cierre") || t.title?.toLowerCase().includes("rutinas"));
-    console.log("[DEBUG filteredTasks]", suspectsFiltered.map((t: Task) => ({ id: t.id, title: t.title, isTemplate: t.isTemplate, dueDate: t.dueDate, subtasksCount: t.subtasks?.length })));
     return filterTasksForDay(
       filteredTasks,
       tasks,
@@ -2585,10 +2602,90 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* Modal Stop Timer */}
+      {timerStopModal && (
+        <TimerStopModal
+          minutes={timerStopModal.minutes}
+          taskTitle={tasks[timerStopModal.pendingEntry.subtaskId || timerStopModal.pendingEntry.taskId]?.title || ''}
+          onConfirm={handleTimerStopConfirm}
+          onCancel={() => setTimerStopModal(null)}
+        />
+      )}
     </div>
   );
 }
  
+// --- TimerStopModal ---
+function TimerStopModal({ minutes, taskTitle, onConfirm, onCancel }: {
+  minutes: number;
+  taskTitle: string;
+  onConfirm: (note: string, markComplete: boolean) => void;
+  onCancel: () => void;
+}) {
+  const [note, setNote] = React.useState('');
+  const [markComplete, setMarkComplete] = React.useState(false);
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="dark:bg-bg-secondary bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 flex flex-col gap-6"
+      >
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Registro de Tiempo</span>
+          <h2 className="text-xl font-black dark:text-white text-text-main-light">
+            {minutes} min registrados
+          </h2>
+          {taskTitle && (
+            <p className="text-sm dark:text-text-secondary text-text-secondary-light truncate">{taskTitle}</p>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Nota opcional</label>
+          <textarea
+            rows={3}
+            className="w-full p-4 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl text-sm font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20 resize-none placeholder:opacity-30"
+            placeholder="Añade un comentario..."
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        <label className="flex items-center gap-3 cursor-pointer group">
+          <div
+            onClick={() => setMarkComplete(v => !v)}
+            className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${markComplete ? 'bg-turquesa border-turquesa' : 'dark:border-border-main border-border-main-light'}`}
+          >
+            {markComplete && <Check size={14} className="text-white" strokeWidth={3} />}
+          </div>
+          <span className="text-sm font-bold dark:text-white text-text-main-light group-hover:opacity-80 transition-opacity">
+            Marcar tarea como completada
+          </span>
+        </label>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-4 rounded-2xl text-sm font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light dark:hover:bg-bg-main hover:bg-gray-100 transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onConfirm(note, markComplete)}
+            className="flex-[2] py-4 bg-gradient-to-r from-turquesa to-azul rounded-2xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-turquesa/20 hover:scale-[1.02] active:scale-95 transition-all"
+          >
+            Guardar
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // --- Task Modal ---
 function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask, onEditTask, blocks, people = [], onAddPerson, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null }: any) {
   const [localTask, setLocalTask] = useState<Task>(task);
@@ -2598,7 +2695,7 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
  
   useEffect(() => {
     setLocalTask(task);
-  }, [task]);
+  }, [task.id]);  // Solo resetear cuando cambia la tarea, no cuando cambian sus propiedades
  
   const subtasks = useMemo(() => {
     return (localTask.subtasks || [])
