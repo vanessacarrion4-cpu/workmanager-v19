@@ -1278,6 +1278,7 @@ export default function App() {
           instance_date: updatedTask.instanceDate || null,
           recurrence: isInstance ? null : (updatedTask.recurrence || null),
           delegation: updatedTask.delegation || null,
+          attachments: updatedTask.attachments || [],
           created_at: updatedTask.createdAt,
           modified_at: new Date().toISOString()
         };
@@ -2754,6 +2755,11 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
   useEffect(() => {
     setLocalTask(task);
   }, [task.id]);  // Solo resetear cuando cambia la tarea, no cuando cambian sus propiedades
+
+  // Sincronizar attachments cuando cambian externamente (después de upload)
+  useEffect(() => {
+    setLocalTask(prev => ({ ...prev, attachments: task.attachments || [] }));
+  }, [JSON.stringify(task.attachments)]);
  
   const subtasks = useMemo(() => {
     return (localTask.subtasks || [])
