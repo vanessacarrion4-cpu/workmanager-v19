@@ -109,7 +109,7 @@ function getVisibleSubtasksForDay(
     if (seen.has(task.id)) return false;
     seen.add(task.id);
     return true;
-  });
+  }).sort((a: Task, b: Task) => (a.order ?? 999) - (b.order ?? 999));
 }
 
 // ─────────────────────────────────────────────
