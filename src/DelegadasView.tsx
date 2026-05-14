@@ -749,9 +749,44 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                                   exit={{ height: 0, opacity: 0 }}
                                   className="border-t dark:border-border-main border-border-main-light/20 ml-20 border-l dark:border-l-border-main/30 border-l-border-main-light/30"
                                 >
-                                  {subtaskList.map((sub: any) => {
+                                  {subtaskList.map((sub: any, subIdx: number) => {
                                     return (
                                       <div key={sub.id} className="flex items-center gap-3 pl-4 pr-4 py-3 hover:dark:bg-white/2 hover:bg-gray-50 transition-all border-b dark:border-border-main border-border-main-light/10 last:border-0 group/subrow">
+                                        {/* Flechitas reordenar subtareas */}
+                                        <div className="flex flex-col gap-0.5 opacity-0 group-hover/subrow:opacity-100 transition-opacity shrink-0">
+                                          <button
+                                            onClick={() => {
+                                              if (subIdx === 0) return;
+                                              const newOrder = subtaskList.map((s: any) => s.id);
+                                              [newOrder[subIdx - 1], newOrder[subIdx]] = [newOrder[subIdx], newOrder[subIdx - 1]];
+                                              newOrder.forEach((id: string, i: number) => {
+                                                const s = allTasksMap[id];
+                                                if (s) onUpdateTask({ ...s, order: i, modifiedAt: new Date().toISOString() });
+                                                supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
+                                                  if (error) console.error('[ORDER] Error:', error);
+                                                });
+                                              });
+                                            }}
+                                            disabled={subIdx === 0}
+                                            className={`w-5 h-5 flex items-center justify-center rounded transition-all ${subIdx === 0 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
+                                          ><ChevronUp size={12} /></button>
+                                          <button
+                                            onClick={() => {
+                                              if (subIdx === subtaskList.length - 1) return;
+                                              const newOrder = subtaskList.map((s: any) => s.id);
+                                              [newOrder[subIdx], newOrder[subIdx + 1]] = [newOrder[subIdx + 1], newOrder[subIdx]];
+                                              newOrder.forEach((id: string, i: number) => {
+                                                const s = allTasksMap[id];
+                                                if (s) onUpdateTask({ ...s, order: i, modifiedAt: new Date().toISOString() });
+                                                supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
+                                                  if (error) console.error('[ORDER] Error:', error);
+                                                });
+                                              });
+                                            }}
+                                            disabled={subIdx === subtaskList.length - 1}
+                                            className={`w-5 h-5 flex items-center justify-center rounded transition-all ${subIdx === subtaskList.length - 1 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
+                                          ><ChevronDown size={12} /></button>
+                                        </div>
                                         {/* Checkbox completar subtarea */}
                                         <button
                                           onClick={() => onUpdateTask({ ...sub, status: sub.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
