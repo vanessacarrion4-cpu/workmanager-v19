@@ -23,6 +23,8 @@ import {
 } from './components';
 import { getTaskRegisteredCombo, getTaskEstimatedCombo } from './utils';
 
+import { supabase } from './supabaseClient';
+
 export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '' }: any) {
 
   // Highlight helper
@@ -598,10 +600,14 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                           const newOrder = allEntries.map((e: any) => e.task.id);
                           [newOrder[taskIdx - 1], newOrder[taskIdx]] = [newOrder[taskIdx], newOrder[taskIdx - 1]];
                           setLocalTaskOrders(prev => ({ ...prev, [person.id]: newOrder }));
-                          const prevEntry = allEntries[taskIdx - 1];
-                          const curr = task;
-                          onUpdateTask({ ...curr, order: taskIdx - 1, modifiedAt: new Date().toISOString() });
-                          onUpdateTask({ ...prevEntry.task, order: taskIdx, modifiedAt: new Date().toISOString() });
+                          // Actualizar order en estado y Supabase en batch
+                          newOrder.forEach((id: string, i: number) => {
+                            const t = allTasksMap[id];
+                            if (t) onUpdateTask({ ...t, order: i, modifiedAt: new Date().toISOString() });
+                            supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
+                              if (error) console.error('[ORDER] Error:', error);
+                            });
+                          });
                         };
                         const handleMoveDown = () => {
                           const allEntries = personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }));
@@ -609,10 +615,14 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                           const newOrder = allEntries.map((e: any) => e.task.id);
                           [newOrder[taskIdx], newOrder[taskIdx + 1]] = [newOrder[taskIdx + 1], newOrder[taskIdx]];
                           setLocalTaskOrders(prev => ({ ...prev, [person.id]: newOrder }));
-                          const nextEntry = allEntries[taskIdx + 1];
-                          const curr = task;
-                          onUpdateTask({ ...curr, order: taskIdx + 1, modifiedAt: new Date().toISOString() });
-                          onUpdateTask({ ...nextEntry.task, order: taskIdx, modifiedAt: new Date().toISOString() });
+                          // Actualizar order en estado y Supabase en batch
+                          newOrder.forEach((id: string, i: number) => {
+                            const t = allTasksMap[id];
+                            if (t) onUpdateTask({ ...t, order: i, modifiedAt: new Date().toISOString() });
+                            supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
+                              if (error) console.error('[ORDER] Error:', error);
+                            });
+                          });
                         };
                         const totalEntries = (personEntries || personTasks).length;
 

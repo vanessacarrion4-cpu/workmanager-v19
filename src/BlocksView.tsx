@@ -229,6 +229,7 @@ export function BlocksManagerView({
             <div className="grid grid-cols-1 gap-4">
               <Reorder.Group axis="y" values={adhocTasks} onReorder={onReorderTasks} className="grid grid-cols-1 gap-4">
                 {adhocTasks.map((t: Task, idx: number) => (
+                  <Reorder.Item key={t.id} value={t} whileDrag={{ scale: 1.01, zIndex: 50, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }} style={{ cursor: 'grab' }}>
                   <TaskCard
                     key={t.id}
                     task={t}
@@ -274,6 +275,7 @@ export function BlocksManagerView({
                     }}
                     searchQuery={searchQuery}
                   />
+                  </Reorder.Item>
                 ))}
               </Reorder.Group>
               {adhocTasks.length === 0 && (
@@ -297,6 +299,7 @@ export function BlocksManagerView({
             <div className="grid grid-cols-1 gap-4">
               <Reorder.Group axis="y" values={coreTasks} onReorder={onReorderTasks} className="grid grid-cols-1 gap-4">
                 {coreTasks.map((t: Task, idx: number) => (
+                  <Reorder.Item key={t.id} value={t} whileDrag={{ scale: 1.01, zIndex: 50, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }} style={{ cursor: 'grab' }}>
                   <TaskCard
                     key={t.id}
                     task={t}
@@ -342,6 +345,7 @@ export function BlocksManagerView({
                     }}
                     searchQuery={searchQuery}
                   />
+                  </Reorder.Item>
                 ))}
               </Reorder.Group>
               {coreTasks.length === 0 && (

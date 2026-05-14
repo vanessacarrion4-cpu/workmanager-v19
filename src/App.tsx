@@ -661,6 +661,13 @@ export default function App() {
       updated[t.id] = { ...updated[t.id], order: i, modifiedAt: new Date().toISOString() };
     });
     setTasks(updated);
+    // Persistir a Supabase
+    orderedTasks.forEach((t, i) => {
+      const dbId = t.id.startsWith('inst-') ? (t.templateId || t.id) : t.id;
+      supabase.from('tasks').update({ order: i }).eq('id', dbId).then(({ error }) => {
+        if (error) console.error('[ORDER] Error saving task order:', error);
+      });
+    });
   };
  
   const handleUpdateSubtasksOrder = (parentId: string, subtaskIds: string[]) => {
