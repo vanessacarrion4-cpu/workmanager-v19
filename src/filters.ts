@@ -167,11 +167,10 @@ export function filterTasksForDay(
         const visibleSubs = getVisibleSubtasksForDay(t, allTasksMap, activeDate, { hideDelegatedNoTag });
         if (visibleSubs.length === 0) return false;
 
-        // Si hideCompleted, el contenedor solo aparece si ≥1 subtarea está pendiente
-        if (hideCompleted) {
-          const hasPending = visibleSubs.some(sub => !isTaskCompleted(sub.id, allTasksMap));
-          return hasPending;
-        }
+        // Siempre verificar que haya ≥1 subtarea pendiente HOY (independiente de hideCompleted)
+        // Los contenedores con todas subtareas completadas no cuentan en stats
+        const hasPending = visibleSubs.some(sub => !isTaskCompleted(sub.id, allTasksMap));
+        if (hideCompleted && !hasPending) return false;
 
         return true;
       }
@@ -270,9 +269,10 @@ export function getStatsForDay(
 
   dayTasks.forEach((t: Task) => {
     if (!t.subtasks || t.subtasks.length === 0) {
-      addLeaf(t);
+      // Tarea simple: solo contar si es de hoy
+      if (t.dueDate === activeDate) addLeaf(t);
     } else {
-      // Contenedor: usar getVisibleSubtasksForDay que ya filtra por activeDate
+      // Contenedor: solo contar sus subtareas hoja de hoy
       const visibleSubs = getVisibleSubtasksForDay(t, allTasksMap, activeDate, {});
       visibleSubs.forEach((sub: Task) => {
         if (!sub.subtasks || sub.subtasks.length === 0) {
