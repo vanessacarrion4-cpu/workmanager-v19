@@ -64,6 +64,9 @@ export function useGeneration({ tasks, isDataLoaded, setTasks }: UseGenerationOp
     prevTemplateKeyRef.current = templateKey;
     console.log('[GENERATION] useEffect triggered #', generationCountRef.current);
 
+    // Diferir la regeneración para no bloquear el hilo principal
+    // Esto permite que los saves de Supabase terminen antes de regenerar
+    const timeoutId = setTimeout(() => {
     const today = new Date();
     const startDate = new Date(today);
     startDate.setDate(startDate.getDate() - DAYS_PAST);
@@ -161,5 +164,7 @@ export function useGeneration({ tasks, isDataLoaded, setTasks }: UseGenerationOp
       console.log(`[GENERATION] Added ${addedCount} new instances`);
       return updated;
     });
+    }, 50); // 50ms es suficiente para que Supabase guarde antes de regenerar
+    return () => clearTimeout(timeoutId);
   }, [isDataLoaded, templateKey]);
 }
