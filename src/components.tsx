@@ -1259,6 +1259,7 @@ export function DatePickerChip({ value, onChange, dropUp = false }: any) {
 export function RecurrencePickerChip({ value, onChange }: any) {
   const [show, setShow] = useState(false);
   const [modalPos, setModalPos] = useState({ top: 0, left: 0 });
+  const [localValue, setLocalValue] = useState<any>(value);
   const buttonRef = useRef<HTMLButtonElement>(null);
   
   const frequencies = [
@@ -1271,6 +1272,7 @@ export function RecurrencePickerChip({ value, onChange }: any) {
 
   const handleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setLocalValue(value); // sincronizar estado local al abrir
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - 20;
@@ -1281,6 +1283,14 @@ export function RecurrencePickerChip({ value, onChange }: any) {
       });
     }
     setShow(!show);
+  };
+
+  const handleClose = () => {
+    setShow(false);
+    // Solo llamar onChange al cerrar — evita regenerar instancias en cada clic
+    if (JSON.stringify(localValue) !== JSON.stringify(value)) {
+      onChange(localValue);
+    }
   };
  
   const getLabel = () => {
@@ -1308,11 +1318,11 @@ export function RecurrencePickerChip({ value, onChange }: any) {
   };
  
   const handleDayToggle = (day: number) => {
-    const current = value?.weekDays || [];
+    const current = localValue?.weekDays || [];
     const next = current.includes(day) 
       ? current.filter((d: number) => d !== day)
       : [...current, day];
-    onChange({ ...(value || { frequency: 'weekly', startDate: formatLocalISO(new Date()) }), weekDays: next });
+    setLocalValue({ ...(localValue || { frequency: 'weekly', startDate: formatLocalISO(new Date()) }), weekDays: next });
   };
  
   return (
@@ -1338,11 +1348,13 @@ export function RecurrencePickerChip({ value, onChange }: any) {
       <AnimatePresence>
         {show && (
           <>
-            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <div className="fixed inset-0 z-[210]" onClick={handleClose} />
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: -10 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
               className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-3 z-[220] min-w-[240px] space-y-3 overflow-y-auto"
               style={{
                 top: `${modalPos.top}px`,
@@ -1356,7 +1368,7 @@ export function RecurrencePickerChip({ value, onChange }: any) {
                     key={f.id}
                     onClick={() => {
                       const today = new Date();
-                      const baseRec = value || { frequency: f.id, startDate: formatLocalISO(today) };
+                      const baseRec = localValue || { frequency: f.id, startDate: formatLocalISO(today) };
                       const updates: any = { frequency: f.id };
                       if (f.id === 'weekly' && (!baseRec.weekDays || baseRec.weekDays.length === 0)) {
                         updates.weekDays = [(today.getDay() + 6) % 7];
@@ -1364,10 +1376,10 @@ export function RecurrencePickerChip({ value, onChange }: any) {
                       if (f.id === 'monthly' && !baseRec.monthDay) {
                         updates.monthDay = today.getDate();
                       }
-                      onChange({ ...baseRec, ...updates });
+                      setLocalValue({ ...baseRec, ...updates });
                     }}
                     className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-center ${
-                      value?.frequency === f.id 
+                      localValue?.frequency === f.id 
                         ? 'bg-azul text-white' 
                         : 'dark:text-text-secondary text-text-secondary-light dark:bg-white/5 bg-bg-main-light/50 dark:hover:text-white hover:text-text-main-light'
                     }`}
@@ -1377,13 +1389,13 @@ export function RecurrencePickerChip({ value, onChange }: any) {
                 ))}
               </div>
  
-              {value?.frequency === 'weekly' && (
+              {localValue?.frequency === 'weekly' && (
                 <div className="pt-2 border-t dark:border-border-main border-border-main-light">
                   <p className="text-[8px] font-black text-morado uppercase mb-2">Días de la semana:</p>
                   <div className="flex gap-1 justify-between">
                     {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d, i) => {
                       const dayNum = i;
-                      const isSelected = (value.weekDays || []).includes(dayNum);
+                      const isSelected = (localValue?.weekDays || []).includes(dayNum);
                       return (
                         <button
                           key={d}
@@ -1402,7 +1414,7 @@ export function RecurrencePickerChip({ value, onChange }: any) {
                 </div>
               )}
  
-              {value?.frequency === 'monthly' && (
+              {localValue?.frequency === 'monthly' && (
                 <div className="pt-2 border-t dark:border-border-main border-border-main-light">
                   <p className="text-[8px] font-black text-morado uppercase mb-2">Día del mes (1-31):</p>
                   <input 
@@ -1410,13 +1422,21 @@ export function RecurrencePickerChip({ value, onChange }: any) {
                     min="1"
                     max="31"
                     className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[12px] font-black text-morado outline-none text-center focus:ring-2 focus:ring-morado/20"
-                    value={value.monthDay || parseLocalISO(value.startDate || formatLocalISO(new Date())).getDate()}
-                    onChange={e => onChange({ ...value, monthDay: parseInt(e.target.value) || 1 })}
+                    value={localValue?.monthDay || parseLocalISO(localValue?.startDate || formatLocalISO(new Date())).getDate()}
+                    onMouseDown={e => e.stopPropagation()}
+                    onClick={e => e.stopPropagation()}
+                    onFocus={e => e.stopPropagation()}
+                    onChange={e => {
+                      const val = parseInt(e.target.value);
+                      if (!isNaN(val) && val >= 1 && val <= 31) {
+                        setLocalValue({ ...localValue, monthDay: val });
+                      }
+                    }}
                   />
                 </div>
               )}
 
-              {value?.frequency === 'yearly' && (
+              {localValue?.frequency === 'yearly' && (
                 <div className="pt-2 border-t dark:border-border-main border-border-main-light space-y-2">
                   <p className="text-[8px] font-black text-morado uppercase mb-2">Día del año:</p>
                   <div className="flex gap-2 items-center">
@@ -1427,8 +1447,8 @@ export function RecurrencePickerChip({ value, onChange }: any) {
                         min="1"
                         max="12"
                         className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[12px] font-black text-morado outline-none text-center focus:ring-2 focus:ring-morado/20"
-                        value={value.yearMonth || new Date().getMonth() + 1}
-                        onChange={e => onChange({ ...value, yearMonth: parseInt(e.target.value) || 1 })}
+                        value={localValue?.yearMonth || new Date().getMonth() + 1}
+                        onChange={e => setLocalValue({ ...localValue, yearMonth: parseInt(e.target.value) || 1 })}
                       />
                     </div>
                     <div className="flex-1">
@@ -1438,8 +1458,8 @@ export function RecurrencePickerChip({ value, onChange }: any) {
                         min="1"
                         max="31"
                         className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[12px] font-black text-morado outline-none text-center focus:ring-2 focus:ring-morado/20"
-                        value={value.yearDay || new Date().getDate()}
-                        onChange={e => onChange({ ...value, yearDay: parseInt(e.target.value) || 1 })}
+                        value={localValue?.yearDay || new Date().getDate()}
+                        onChange={e => setLocalValue({ ...localValue, yearDay: parseInt(e.target.value) || 1 })}
                       />
                     </div>
                   </div>
@@ -1447,23 +1467,23 @@ export function RecurrencePickerChip({ value, onChange }: any) {
               )}
  
               {/* Sección Termina */}
-              {value && (
+              {localValue && (
                 <div className="pt-2 border-t dark:border-border-main border-border-main-light space-y-2">
                   <p className="text-[8px] font-black text-azul uppercase mb-2">Termina:</p>
                   
                   {/* Nunca */}
                   <button
-                    onClick={() => onChange({ ...value, endDate: null })}
+                    onClick={() => setLocalValue({ ...localValue, endDate: null })}
                     className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                      !value.endDate
+                      !localValue?.endDate
                         ? 'bg-azul text-white'
                         : 'dark:bg-bg-main bg-white dark:text-text-secondary text-text-secondary-light border dark:border-border-main border-border-main-light'
                     }`}
                   >
                     <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
-                      !value.endDate ? 'border-white' : 'dark:border-border-main border-border-main-light'
+                      !localValue?.endDate ? 'border-white' : 'dark:border-border-main border-border-main-light'
                     }`}>
-                      {!value.endDate && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      {!localValue?.endDate && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                     </div>
                     Nunca
                   </button>
@@ -1473,17 +1493,17 @@ export function RecurrencePickerChip({ value, onChange }: any) {
                     <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light uppercase px-1">Fecha fin:</p>
                     <input
                       type="date"
-                      value={value.endDate || ''}
-                      onChange={e => onChange({ ...value, endDate: e.target.value || null })}
+                      value={localValue?.endDate || ''}
+                      onChange={e => setLocalValue({ ...localValue, endDate: e.target.value || null })}
                       onClick={() => {
-                        if (!value.endDate) {
+                        if (!localValue?.endDate) {
                           const sixMonthsLater = new Date();
                           sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
-                          onChange({ ...value, endDate: formatLocalISO(sixMonthsLater) });
+                          setLocalValue({ ...localValue, endDate: formatLocalISO(sixMonthsLater) });
                         }
                       }}
                       className={`w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[11px] font-black outline-none text-center transition-all ${
-                        value.endDate 
+                        localValue?.endDate 
                           ? 'text-azul focus:ring-2 focus:ring-azul/20' 
                           : 'dark:text-text-secondary/40 text-text-secondary-light/40'
                       }`}
@@ -1495,8 +1515,13 @@ export function RecurrencePickerChip({ value, onChange }: any) {
               <div className="h-px dark:bg-border-main bg-border-main-light" />
               <button
                 onClick={() => {
-                  onChange(value ? null : { frequency: 'daily', startDate: formatLocalISO(new Date()) });
-                  if (value) setShow(false);
+                  if (localValue) {
+                    onChange(null);
+                    setLocalValue(null);
+                    setShow(false);
+                  } else {
+                    setLocalValue({ frequency: 'daily', startDate: formatLocalISO(new Date()) });
+                  }
                 }}
                 className={`w-full text-center py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${value ? 'text-rosa border-rosa/20 hover:bg-rosa/10' : 'text-turquesa border-turquesa/20 hover:bg-turquesa/10'}`}
               >
@@ -1551,7 +1576,7 @@ export function TagPickerChip({ selectedTags = [], onChange }: any) {
       <AnimatePresence>
         {show && (
           <>
-            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <div className="fixed inset-0 z-[210]" onClick={handleClose} />
             <motion.div 
               initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[240px] overflow-y-auto"
@@ -1634,7 +1659,7 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
       <AnimatePresence>
         {show && !readonly && (
           <>
-            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <div className="fixed inset-0 z-[210]" onClick={handleClose} />
             <motion.div 
               initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               className="fixed bg-bg-card border border-border-main rounded-2xl shadow-2xl p-5 z-[220] min-w-[280px] overflow-y-auto"
@@ -2128,7 +2153,7 @@ export function BlockPickerChip({ value, blocks = [], onChange }: any) {
       <AnimatePresence>
         {show && (
           <>
-            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <div className="fixed inset-0 z-[210]" onClick={handleClose} />
             <motion.div
               initial={{ opacity: 0, y: -10 }} 
               animate={{ opacity: 1, y: 0 }} 
