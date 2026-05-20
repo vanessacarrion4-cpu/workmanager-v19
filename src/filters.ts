@@ -272,8 +272,8 @@ export function getStatsForDay(
       // Tarea simple: solo contar si es de hoy
       if (t.dueDate === activeDate) addLeaf(t);
     } else {
-      // Contenedor: solo contar sus subtareas hoja de hoy
-      const visibleSubs = getVisibleSubtasksForDay(t, allTasksMap, activeDate, {});
+      // Contenedor: solo contar sus subtareas hoja de hoy (mismo criterio que el dashboard)
+      const visibleSubs = getVisibleSubtasksForDay(t, allTasksMap, activeDate, { hideDelegatedNoTag: true });
       visibleSubs.forEach((sub: Task) => {
         if (!sub.subtasks || sub.subtasks.length === 0) {
           addLeaf(sub);
