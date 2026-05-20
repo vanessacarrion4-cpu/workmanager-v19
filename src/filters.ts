@@ -272,37 +272,13 @@ export function getStatsForDay(
     if (!t.subtasks || t.subtasks.length === 0) {
       addLeaf(t);
     } else {
-      // Contenedor: usar primero el array subtasks[] ya resuelto
-      const directSubIds = t.subtasks || [];
-      if (directSubIds.length > 0) {
-        directSubIds.forEach((subId: string) => {
-          const sub = allTasksMap[subId];
-          if (!sub || sub.isDeleted) return;
-          if (sub.dueDate !== activeDate) return;
-          // Solo hojas (sin subtareas propias)
-          if (!sub.subtasks || sub.subtasks.length === 0) {
-            addLeaf(sub);
-          }
-        });
-      } else {
-        // Fallback: buscar en allTasksMap por parentTaskId
-        const containerTemplateId = t.templateId || t.id;
-        Object.values(allTasksMap).forEach((sub: Task) => {
-          if (sub.isDeleted) return;
-          if (sub.dueDate !== activeDate) return;
-
-          if (sub.templateId) {
-            const subTemplate = allTasksMap[sub.templateId];
-            if (!subTemplate || subTemplate.parentTaskId !== containerTemplateId) return;
-          } else {
-            if (sub.parentTaskId !== t.id && sub.parentTaskId !== containerTemplateId) return;
-          }
-
-          if (!sub.subtasks || sub.subtasks.length === 0) {
-            addLeaf(sub);
-          }
-        });
-      }
+      // Contenedor: usar getVisibleSubtasksForDay que ya filtra por activeDate
+      const visibleSubs = getVisibleSubtasksForDay(t, allTasksMap, activeDate, {});
+      visibleSubs.forEach((sub: Task) => {
+        if (!sub.subtasks || sub.subtasks.length === 0) {
+          addLeaf(sub);
+        }
+      });
     }
   });
 
