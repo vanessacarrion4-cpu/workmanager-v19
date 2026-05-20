@@ -117,7 +117,11 @@ export function DashboardView({
   }, [dayTasks, hideCompleted, allTasksMap, searchQuery]);
 
   const stats = useMemo(() => {
-    return getStatsForDay(dayTasks, allTasksMap, timeEntries, activeDate);
+    const s = getStatsForDay(dayTasks, allTasksMap, timeEntries, activeDate);
+    console.log('[STATS DEBUG] dayTasks count:', dayTasks.length);
+    console.log('[STATS DEBUG] dayTasks:', dayTasks.map(t => ({ id: t.id, title: t.title, dueDate: t.dueDate, subtasksLen: t.subtasks?.length, status: t.status })));
+    console.log('[STATS DEBUG] stats result:', s);
+    return s;
   }, [dayTasks, allTasksMap, timeEntries, activeDate]);
 
   const groupedTasks = useMemo(() => {
