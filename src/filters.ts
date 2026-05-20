@@ -260,26 +260,49 @@ export function getStatsForDay(
   activeDate: string
 ): DayStats {
   const leafTasks: Task[] = [];
+  const seenIds = new Set<string>();
+
+  const addLeaf = (task: Task) => {
+    if (seenIds.has(task.id)) return;
+    seenIds.add(task.id);
+    leafTasks.push(task);
+  };
 
   dayTasks.forEach((t: Task) => {
     if (!t.subtasks || t.subtasks.length === 0) {
-      leafTasks.push(t);
+      addLeaf(t);
     } else {
-      // Contenedor: contar subtareas del día
-      const containerTemplateId = t.templateId || t.id;
-      Object.values(allTasksMap).forEach((sub: Task) => {
-        if (sub.isDeleted) return;
-        if (sub.dueDate !== activeDate) return;
+      // Contenedor: usar primero el array subtasks[] ya resuelto
+      const directSubIds = t.subtasks || [];
+      if (directSubIds.length > 0) {
+        directSubIds.forEach((subId: string) => {
+          const sub = allTasksMap[subId];
+          if (!sub || sub.isDeleted) return;
+          if (sub.dueDate !== activeDate) return;
+          // Solo hojas (sin subtareas propias)
+          if (!sub.subtasks || sub.subtasks.length === 0) {
+            addLeaf(sub);
+          }
+        });
+      } else {
+        // Fallback: buscar en allTasksMap por parentTaskId
+        const containerTemplateId = t.templateId || t.id;
+        Object.values(allTasksMap).forEach((sub: Task) => {
+          if (sub.isDeleted) return;
+          if (sub.dueDate !== activeDate) return;
 
-        if (sub.templateId) {
-          const subTemplate = allTasksMap[sub.templateId];
-          if (!subTemplate || subTemplate.parentTaskId !== containerTemplateId) return;
-        } else {
-          if (sub.parentTaskId !== t.id && sub.parentTaskId !== containerTemplateId) return;
-        }
+          if (sub.templateId) {
+            const subTemplate = allTasksMap[sub.templateId];
+            if (!subTemplate || subTemplate.parentTaskId !== containerTemplateId) return;
+          } else {
+            if (sub.parentTaskId !== t.id && sub.parentTaskId !== containerTemplateId) return;
+          }
 
-        leafTasks.push(sub);
-      });
+          if (!sub.subtasks || sub.subtasks.length === 0) {
+            addLeaf(sub);
+          }
+        });
+      }
     }
   });
 

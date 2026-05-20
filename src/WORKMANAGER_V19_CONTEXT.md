@@ -73,6 +73,9 @@ Task {
   isException?: boolean       // true = instancia modificada individualmente, guardada en Supabase
   recurrence?: {...}          // Configuración de recurrencia (en subtareas)
   
+  // Adjuntos
+  attachments?: Attachment[]  // Array de adjuntos subidos a Supabase Storage
+  
   // Otros
   isDeleted?: boolean         // Soft delete
   isActive?: boolean          // Si el template genera instancias
@@ -80,6 +83,16 @@ Task {
   estimatedMinutes: number
   delegation?: { personId, delegatedAt }
   order: number
+}
+
+Attachment {
+  id: string          // "att-{timestamp}"
+  name: string        // Nombre original del fichero
+  url: string         // URL pública de Supabase Storage
+  type: string        // MIME type (image/jpeg, application/pdf, etc.)
+  size: number        // Bytes
+  path: string        // Path en el bucket: "{taskId}/{timestamp}.{ext}"
+  createdAt: string   // ISO timestamp
 }
 ```
 
@@ -124,7 +137,7 @@ Carga inicial al montar la app:
 3. Reparaciones automáticas: `repairContainersWithForbiddenData`, `repairRecurringContainers`
 4. Limpieza automática: borra instancias `is_deleted:true` de más de 30 días
 
-**⚠️ IMPORTANTE**: `repairContainersWithForbiddenData` tiene un bug conocido — limpia `dueDate`, `tags`, etc. de CUALQUIER contenedor con subtareas. Debería limitar a `isTemplate:true` únicamente. **Fix pendiente de aplicar en producción.**
+**✅ FIX APLICADO**: `repairContainersWithForbiddenData` tiene guard `if (!task.isTemplate) return;` — solo limpia templates, nunca instancias ni tareas manuales.
 
 ### `useGeneration.ts`
 Se ejecuta cuando cambia `templateKey` (hash de los templates):
@@ -156,7 +169,7 @@ Obtiene subtareas visibles de un contenedor para un día. Busca por dos caminos:
 - Instancias recurrentes: `task.templateId` → `subtaskTemplate.parentTaskId === containerTemplateId`
 - Subtareas manuales: `task.parentTaskId === container.id || task.parentTaskId === containerTemplateId`
 
-**⚠️ BUG CONOCIDO**: Puede devolver subtareas duplicadas cuando una subtarea manual está dentro de un contenedor recurrente. Tiene un `Set` para dedup pero no siempre funciona en todos los casos.
+**✅ FIX APLICADO**: Añadido `.sort((a, b) => (a.order ?? 999) - (b.order ?? 999))` al final para respetar el campo `order`.
 
 ---
 
@@ -168,11 +181,13 @@ Obtiene subtareas visibles de un contenedor para un día. Busca por dos caminos:
 - Navegación por días con `activeDate`
 - Stats: tareas completadas, tiempo estimado, tiempo registrado
 - Modal "Tiempo Registrado" (`TimeEntryItem`) — muestra historial del día
+- **Drag & drop** con `Reorder` de framer-motion para reordenar tareas por tag
+- Persistencia de orden a Supabase en batch al soltar
 
 ### Bloques (`BlocksView.tsx`)
 - Gestión de tareas por bloque
 - Aquí se crean templates con subtareas recurrentes
-- Vista de árbol con drag & drop para reordenar
+- Vista de árbol con drag & drop (`Reorder.Item`) para reordenar
 
 ### Calendario (`CalendarView.tsx`)
 - Vista mensual con indicadores de carga por día
@@ -181,17 +196,15 @@ Obtiene subtareas visibles de un contenedor para un día. Busca por dos caminos:
 
 ### Delegadas (`DelegadasView.tsx`)
 - Accordion por persona
-- Tareas asignadas a cada persona
+- Tareas asignadas a cada persona con flechitas ▲▼ para reordenar (contenedores y subtareas)
 - Sistema de reuniones con notas formateadas
 
 ### Búsqueda (`SearchView.tsx`)
 - Búsqueda global con filtros avanzados
-- Filtros: tags, estado, tipo, fechas, recurrencia, tiempo estimado
 
 ### Carga de Trabajo (`WorkloadView.tsx`)
 - Vista por bloques con barras de carga
 - Meses como columnas expandibles → semanas → días
-- Por defecto contraído
 
 ---
 
@@ -202,6 +215,7 @@ Obtiene subtareas visibles de un contenedor para un día. Busca por dos caminos:
 // En App.tsx: handleToggleStatus, handleUpdateTask
 // Si es instancia normal → crear excepción (is_exception:true) y guardar
 // Si es template → actualizar directamente
+// IMPORTANTE: dbTask incluye el campo attachments
 ```
 
 ### Guardar time entries
@@ -212,12 +226,25 @@ Obtiene subtareas visibles de un contenedor para un día. Busca por dos caminos:
 const resolveIdForDB = (id: string) => {
   if (!id.startsWith('inst-')) return id;
   const task = tasks[id];
-  return task?.templateId || id; // usar templateId si existe
+  return task?.templateId || id;
 };
 ```
 
-### Error FK en time_entries
-**Error conocido**: `time_entries_task_id_fkey` — el `task_id` de una instancia generada en memoria no existe en la tabla `tasks`. Fix aplicado en `handleManualTimeEntry` y en el timer stop handler.
+### Reordenar tareas
+```typescript
+// handleUpdateTasksOrder — persiste order de cada tarea en Supabase
+// handleUpdateSubtasksOrder — persiste order de cada subtarea en Supabase
+// Ambos actualizan el campo order individualmente por tarea con supabase.from('tasks').update({ order })
+```
+
+### Adjuntos (Supabase Storage)
+```typescript
+// Bucket: 'task-attachments' (público)
+// Path: "{taskId}/{timestamp}.{ext}"
+// handleUploadAttachment(taskId, file) — sube fichero y actualiza task.attachments
+// handleDeleteAttachment(taskId, attachmentId, path) — borra de Storage y actualiza task.attachments
+// Los attachments se guardan como JSONB en la columna tasks.attachments
+```
 
 ---
 
@@ -254,20 +281,26 @@ const resolveIdForDB = (id: string) => {
 ### ✅ Resueltos en sesión 12/05/2026
 
 1. **Tareas que desaparecen** — PostgREST límite 1000 filas + `.order()` dejaba tareas fuera. **Fix**: paginación + sin `.order()` en query de tareas.
+2. **Time entries no se guardan en instancias recurrentes** — Error FK. **Fix**: `resolveIdForDB()`.
+3. **Títulos `INST-T-xxx` en modal Tiempo Registrado** — **Fix**: `getTaskTitle()` busca título real vía templateId.
+4. **`repairContainersWithForbiddenData` borraba datos de tareas normales** — **Fix**: guard `if (!task.isTemplate) return;`.
 
-2. **Time entries no se guardan en instancias recurrentes** — Error FK porque `task_id` era un ID de instancia en memoria. **Fix**: `resolveIdForDB()` en `handleManualTimeEntry` y timer stop.
+### ✅ Resueltos en sesión 14/05/2026
 
-3. **Títulos `INST-T-xxx` en modal Tiempo Registrado** — `TimeEntryItem` mostraba el ID de instancia. **Fix**: `getTaskTitle()` busca título real vía templateId.
+5. **Tareas duplicadas en Dashboard** — Instancias excepción con `due_date=null` (borrado por repair) aparecían cada día. **Fix**: UPDATE en Supabase `SET due_date = instance_date WHERE template_id IS NOT NULL AND is_exception = true AND due_date IS NULL`. También fix en `repairContainersWithForbiddenData` con guard `isTemplate`.
+6. **Notas no persistían** — `useEffect([task])` en TaskModal reseteaba `localTask` en cada re-render. **Fix**: `useEffect([task.id])`.
+7. **Timer stop usaba `prompt()` nativo** — Reemplazado por `TimerStopModal` con nota + checkbox "Marcar como completada".
+8. **Registro tiempo manual sin opción completar** — Añadido checkbox en `TimeManagementPanel`.
+9. **Reordenar subtareas no funcionaba** — `getVisibleSubtasksForDay` no ordenaba por `order`. **Fix**: `.sort()` añadido. También `handleUpdateSubtasksOrder` ahora actualiza `order` de cada subtarea individualmente.
+10. **Drag & drop en Dashboard** — Implementado con `Reorder.Group/Item` de framer-motion. Persiste a Supabase en batch.
+11. **Reordenar en Bloques** — `Reorder.Item` añadido en TaskCards de adhocTasks y coreTasks. `handleUpdateTasksOrder` persiste a Supabase.
+12. **Reordenar en Delegadas** — Flechitas ▲▼ para contenedores y subtareas, persistencia batch a Supabase.
+13. **Adjuntos no persistían al recargar** — `attachments` faltaba en `dbTask` del upsert y en el mapeo de `useSupabase.ts`. **Fix**: ambos corregidos.
 
-4. **`repairContainersWithForbiddenData` borraba datos de tareas normales** — Actuaba sobre cualquier contenedor con subtareas. **Fix**: añadir `if (!task.isTemplate) return;` al inicio de la función.
+### ⚠️ Bugs Pendientes
 
-### ⚠️ Bugs Pendientes / En Curso
-
-1. **Subtareas duplicadas en Dashboard** — Contenedores con mezcla de subtareas recurrentes + manuales pueden mostrar subtareas duplicadas. Causa: `getVisibleSubtasksForDay` encuentra la misma subtarea por dos caminos (ID directo + templateId). El `Set` de dedup no siempre funciona cuando la instancia del contenedor tiene `subtasks:[]`.
-
-2. **`repairContainersWithForbiddenData` sin fix isTemplate** — El `useSupabase.ts` en producción todavía tiene la versión sin el guard `if (!task.isTemplate) return;`. Hay que verificar si el fix está en el commit actual.
-
-3. **Contenedores recurrentes con subtareas manuales** — Cuando un template tiene subtareas recurrentes Y subtareas manuales con fecha fija, las manuales pueden generar instancias `inst-t-xxx-{fecha}` que no deberían existir. Fix en `utils.ts` `generateInstances()`: subtareas manuales con `dueDate === dateStr` deben añadirse directamente al `subtaskInstanceIds` sin crear instancia.
+1. **Subtareas duplicadas en Dashboard** — Contenedores con mezcla de subtareas recurrentes + manuales pueden mostrar subtareas duplicadas en casos edge.
+2. **Contenedores recurrentes con subtareas manuales** — Subtareas manuales con fecha fija dentro de template pueden generar instancias que no deberían. Fix pendiente en `utils.ts` `generateInstances()`.
 
 ---
 
@@ -278,20 +311,22 @@ const resolveIdForDB = (id: string) => {
 3. **Delegadas sin tag real se ocultan** — Solo las de tag 'resto' se filtran (hideDelegatedNoTag)
 4. **Contenedor desaparece cuando todas sus subtareas están completadas** — A menos que `hideCompleted:false`
 5. **Instancias no se guardan en Supabase** — Solo las excepciones (`isException:true`)
-6. **El `order` de las tareas se guarda en Supabase** — `handleUpdateTasksOrder` actualiza el campo
+6. **El `order` de las tareas se guarda en Supabase** — `handleUpdateTasksOrder` y `handleUpdateSubtasksOrder` actualizan el campo en batch
 7. **Zona horaria**: Barcelona UTC+2 (verano). Los timestamps de Supabase son UTC.
+8. **Los contenedores NUNCA tienen recurrencia propia** — La recurrencia va en las subtareas. Un contenedor con subtareas recurrentes se marca `isTemplate:true`.
 
 ---
 
 ## 12. Componentes Clave (`components.tsx`)
 
-- `TaskCard` — Tarjeta de tarea con chips de fecha, tags, tiempo, delegación
-- `TimeManagementPanel` — Panel de registro de tiempo con historial
-- `BlockModal` — Modal de creación/edición de bloques
+- `TaskCard` — Tarjeta de tarea con chips de fecha, tags, tiempo, delegación. Variantes: COMPACT, FULL/DASHBOARD. Muestra icono 📎 si hay adjuntos.
+- `TimeManagementPanel` — Panel de registro de tiempo con historial. Tiene checkbox "Marcar como completada".
+- `TimerStopModal` — Modal al parar el cronómetro: nota + checkbox completar (reemplaza el `prompt()` nativo).
+- `BlockModal` — Modal de creación/edición de bloques.
 - `RecurrenceChoiceModal` — "¿Editar solo esta instancia o todas?"
-- `DashboardHarmonicCalendar` — Mini calendario del header
-- `BulkActionBar` — Barra de acciones masivas (modo selección)
-- `MonthDatePicker` — Selector de fecha mensual
+- `DashboardHarmonicCalendar` — Mini calendario del header.
+- `BulkActionBar` — Barra de acciones masivas (modo selección).
+- `MonthDatePicker` — Selector de fecha mensual.
 
 ---
 
@@ -301,11 +336,34 @@ const resolveIdForDB = (id: string) => {
 - Templates: igual que manuales pero con `isTemplate:true`
 - Instancias: `inst-{templateId}-{YYYY-MM-DD}` ej: `inst-t-1778445069239-2026-05-13`
 - Time entries: `te-{Date.now()}` ej: `te-1778605149442`
+- Adjuntos: `att-{Date.now()}` ej: `att-1778794916575`
 - Bloques: `b{n}` para los iniciales, `b-{timestamp}` para los creados
 
 ---
 
-## 14. Flujo de Debugging
+## 14. Supabase Storage — Adjuntos
+
+- **Bucket**: `task-attachments` (público)
+- **Política**: Allow all operations, `true` (sin restricciones, uso personal)
+- **Columna en tasks**: `attachments JSONB DEFAULT '[]'`
+- **Estructura de cada adjunto**:
+```json
+{
+  "id": "att-1778794916575",
+  "name": "documento.pdf",
+  "url": "https://yewfmfoljidvrxvbrsdv.supabase.co/storage/v1/object/public/task-attachments/t-xxx/1778794915581.pdf",
+  "type": "application/pdf",
+  "size": 98806,
+  "path": "t-xxx/1778794915581.pdf",
+  "createdAt": "2026-05-14T21:41:56.575Z"
+}
+```
+- Las imágenes se muestran como miniatura en el modal. Los otros ficheros como icono + nombre + tamaño.
+- Carga bajo demanda (solo al abrir el modal), no al arrancar la app.
+
+---
+
+## 15. Flujo de Debugging
 
 Cuando algo no aparece en el Dashboard:
 1. Verificar en Supabase que la tarea existe y tiene los campos correctos
@@ -318,9 +376,13 @@ Cuando el tiempo registrado no se guarda:
 1. Filtrar consola por `SUPABASE` al guardar
 2. Si error FK `time_entries_task_id_fkey` → el `task_id` es una instancia en memoria, usar templateId
 
+Cuando el orden no persiste:
+1. Verificar que `handleUpdateTasksOrder` o `handleUpdateSubtasksOrder` se llama
+2. Verificar en Supabase que el campo `order` se actualiza en la tabla `tasks`
+
 ---
 
-## 15. Variables de Entorno (Vercel)
+## 16. Variables de Entorno (Vercel)
 
 ```
 VITE_SUPABASE_URL=https://yewfmfoljidvrxvbrsdv.supabase.co
@@ -329,28 +391,30 @@ VITE_SUPABASE_ANON_KEY={clave anon de Supabase}
 
 ---
 
-## 16. Estado Actual de Archivos (12/05/2026 22:35)
+## 17. Estado Actual de Archivos (14/05/2026)
 
 | Archivo | Última modificación | Estado |
 |---------|--------------------|----|
-| App.tsx | 12/05/2026 22:12 | Fix resolveIdForDB para time entries |
-| useSupabase.ts | 12/05/2026 21:54 | Fix paginación + sin .order() |
-| filters.ts | 12/05/2026 22:35 | Fix dedup Set en getVisibleSubtasksForDay |
-| utils.ts | 11/05/2026 8:07 | Fix subtareas manuales en contenedores recurrentes |
-| DashboardView.tsx | 12/05/2026 21:40 | Fix TimeEntryItem getTaskTitle() |
-| components.tsx | 10/05/2026 0:55 | Fix hasSubtasks null check |
-| BlocksView.tsx | 10/05/2026 22:25 | searchQuery añadido |
-| CalendarView.tsx | 09/05/2026 23:50 | Color coding, load indicators |
-| DelegadasView.tsx | 10/05/2026 0:51 | Vista delegadas completa |
-| WorkloadView.tsx | 10/05/2026 21:11 | Rediseño Opción A |
+| App.tsx | 14/05/2026 | Adjuntos, TimerStopModal, fix notas, fix order, fix duplicados |
+| useSupabase.ts | 14/05/2026 | Fix attachments mapeo, fix repairContainers isTemplate guard |
+| filters.ts | 14/05/2026 | Sort por order en getVisibleSubtasksForDay |
+| components.tsx | 14/05/2026 | Icono paperclip, checkbox completar en tiempo, drag subtareas |
+| DashboardView.tsx | 14/05/2026 | Drag & drop Reorder.Group/Item, persistencia Supabase |
+| BlocksView.tsx | 14/05/2026 | Reorder.Item en TaskCards |
+| DelegadasView.tsx | 14/05/2026 | Flechitas ▲▼ en subtareas, persistencia Supabase |
+| utils.ts | 11/05/2026 | Fix subtareas manuales en contenedores recurrentes |
+| CalendarView.tsx | 09/05/2026 | Color coding, load indicators |
+| WorkloadView.tsx | 10/05/2026 | Rediseño Opción A |
 
 ---
 
-## 17. Notas para el Asistente
+## 18. Notas para el Asistente
 
 - **Siempre pedir el archivo antes de modificarlo** — No asumir versión del archivo
 - **Aplicar cambios directamente sobre archivos subidos** — Output a `/mnt/user-data/outputs/`
 - **Usar inline styles con hex values** para colores condicionales (no Tailwind dinámico)
 - **No hacer cambios parciales** — Siempre entregar el archivo completo
 - **Antes de cualquier fix, verificar en Supabase** con SQL si el problema es de datos o de código
-- La app tiene ~3400 líneas en App.tsx — buscar funciones por nombre antes de editar
+- La app tiene ~3500 líneas en App.tsx — buscar funciones por nombre antes de editar
+- El TaskModal está en App.tsx (no en components.tsx)
+- `TimerStopModal` es un componente independiente al final de App.tsx
