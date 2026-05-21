@@ -1700,10 +1700,10 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
  
 export function RegisteredTimeChip({ value, estimated, onClick }: any) {
   const label = value === 0 ? '0m' : formatMinutes(value);
-  let colorClass = "text-turquesa bg-turquesa/10 border-turquesa/50";
+  let colorClass = "dark:text-turquesa text-teal-600 dark:bg-turquesa/10 bg-teal-50 dark:border-turquesa/50 border-teal-300";
   if (value > 0 && estimated > 0 && value > estimated) colorClass = "text-rosa bg-rosa/10 border-rosa/50 animate-pulse";
   else if (value > 0 && estimated > 0 && value >= estimated * 0.9) colorClass = "text-naranja bg-naranja/10 border-naranja/50";
-  else if (value === 0) colorClass = "text-text-secondary bg-transparent border-border-main dark:border-border-main border-border-main-light";
+  else if (value === 0) colorClass = "dark:text-text-secondary text-slate-400 bg-transparent dark:border-border-main border-slate-200";
  
   return (
     <button 
