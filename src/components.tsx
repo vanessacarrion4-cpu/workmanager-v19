@@ -408,7 +408,11 @@ export function TaskCard({
       }, 0);
     } else {
       // Bloques o tarea normal: sumar todo
-      return getTaskRegisteredCombo(task.id, allTasksMap, timeEntries);
+      const result = getTaskRegisteredCombo(task.id, allTasksMap, timeEntries);
+      if (task.id === 't-1779128215639') {
+        console.log('[DEBUG totalRegistered] task:', task.title, 'result:', result, 'timeEntries length:', timeEntries?.length, 'matching entries:', timeEntries?.filter((e:any) => e.subtaskId === task.id || e.taskId === task.id));
+      }
+      return result;
     }
   })();
   
@@ -1699,12 +1703,12 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
 }
  
 export function RegisteredTimeChip({ value, estimated, onClick }: any) {
-  console.log('[RegisteredTimeChip] value:', value, 'estimated:', estimated, 'type:', typeof value);
-  const label = (value === 0 || value === undefined || value === null || isNaN(value)) ? '0m' : formatMinutes(value);
+  const safeValue = (value === undefined || value === null || isNaN(value)) ? 0 : value;
+  const label = formatMinutes(safeValue);
   let colorClass = "dark:text-turquesa text-teal-600 dark:bg-turquesa/10 bg-teal-50 dark:border-turquesa/50 border-teal-300";
-  if (value > 0 && estimated > 0 && value > estimated) colorClass = "text-rosa bg-rosa/10 border-rosa/50 animate-pulse";
-  else if (value > 0 && estimated > 0 && value >= estimated * 0.9) colorClass = "text-naranja bg-naranja/10 border-naranja/50";
-  else if (value === 0) colorClass = "dark:text-text-secondary text-slate-400 bg-transparent dark:border-border-main border-slate-200";
+  if (safeValue > 0 && estimated > 0 && safeValue > estimated) colorClass = "text-rosa bg-rosa/10 border-rosa/50 animate-pulse";
+  else if (safeValue > 0 && estimated > 0 && safeValue >= estimated * 0.9) colorClass = "text-naranja bg-naranja/10 border-naranja/50";
+  else if (safeValue === 0) colorClass = "dark:text-slate-400 text-slate-500 bg-transparent dark:border-slate-600 border-slate-300";
  
   return (
     <button 
