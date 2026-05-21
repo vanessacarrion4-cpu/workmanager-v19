@@ -2799,9 +2799,9 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         key={localTask.id}
-        className="dark:bg-bg-card bg-white w-full max-w-2xl rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] border dark:border-border-main border-border-main-light overflow-hidden flex flex-col max-h-[90vh]"
+        className="dark:bg-bg-card bg-white w-full max-w-xl rounded-[1.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] border dark:border-border-main border-border-main-light overflow-hidden flex flex-col max-h-[85vh]"
       >
-        <div className="p-8 border-b dark:border-border-main border-border-main-light flex justify-between items-start dark:bg-bg-card bg-white">
+        <div className="p-4 border-b dark:border-border-main border-border-main-light flex justify-between items-start dark:bg-bg-card bg-white">
           <div className="flex-1 flex items-start gap-4">
             {localTask.parentTaskId && (
               <button 
@@ -2822,7 +2822,7 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
               </p>
               <input 
                 autoFocus
-                className="text-3xl font-black w-full bg-transparent outline-none placeholder:text-text-secondary dark:text-white text-text-main-light"
+                className="text-xl font-black w-full bg-transparent outline-none placeholder:text-text-secondary dark:text-white text-text-main-light"
                 value={localTask.title}
                 onChange={e => setLocalTask(prev => ({ ...prev, title: e.target.value }))}
                 placeholder="¿Qué hay que hacer?"
@@ -2834,21 +2834,21 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
           </button>
         </div>
  
-        <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
+        <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
           {/* Core/Ad-hoc Toggle */}
           <div className="space-y-3">
             <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Tipo de Tarea</label>
             <div className="flex gap-3 dark:bg-bg-main bg-white p-1 rounded-2xl border dark:border-border-main border-border-main-light">
               <button 
                 onClick={() => setLocalTask(prev => ({ ...prev, taskType: 'core' }))}
-                className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-xl transition-all ${localTask.taskType === 'core' || ((localTask.recurrence || localTask.isTemplate) && !localTask.taskType) ? 'bg-turquesa dark:text-white text-text-main-light shadow-lg' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition-all ${localTask.taskType === 'core' || ((localTask.recurrence || localTask.isTemplate) && !localTask.taskType) ? 'bg-turquesa dark:text-white text-text-main-light shadow-lg' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
               >
                 <Compass size={18} />
                 <span className="text-[11px] font-black uppercase tracking-widest">Puesto (CORE)</span>
               </button>
               <button 
                 onClick={() => setLocalTask(prev => ({ ...prev, taskType: 'adhoc' }))}
-                className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-xl transition-all ${localTask.taskType === 'adhoc' || ((!localTask.recurrence && !localTask.isTemplate) && !localTask.taskType) ? 'bg-rosa dark:text-white text-text-main-light shadow-lg' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition-all ${localTask.taskType === 'adhoc' || ((!localTask.recurrence && !localTask.isTemplate) && !localTask.taskType) ? 'bg-rosa dark:text-white text-text-main-light shadow-lg' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
               >
                 <div className="w-3 h-3 bg-current rounded-full mx-1 shadow-[0_0_8px_rgba(251,113,133,0.5)]" />
                 <span className="text-[11px] font-black uppercase tracking-widest">Puntual (AD-HOC)</span>
@@ -2875,11 +2875,11 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
           )}
 
           {/* Main Config Grid */}
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-3">
               <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Bloque / Contexto</label>
               <select 
-                className="w-full p-4 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl text-sm font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20 appearance-none cursor-pointer"
+                className="w-full p-2 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl text-sm font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20 appearance-none cursor-pointer"
                 value={localTask.blockId}
                 onChange={e => setLocalTask(prev => ({ ...prev, blockId: e.target.value }))}
               >
@@ -2894,7 +2894,7 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                 <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-turquesa" size={16} />
                 <input 
                   type="number"
-                  className="w-full pl-12 pr-4 py-4 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl text-sm font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20"
+                  className="w-full pl-10 pr-4 py-2 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl text-sm font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20"
                   value={localTask.estimatedMinutes || ''}
                   onChange={e => setLocalTask(prev => ({ ...prev, estimatedMinutes: parseInt(e.target.value) || 0 }))}
                 />

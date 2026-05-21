@@ -1777,11 +1777,11 @@ export function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntrie
     <div className="fixed inset-0 dark:bg-bg-main/80 bg-white/80 backdrop-blur-md z-[300] flex items-end justify-center">
       <motion.div 
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-        className="w-full max-w-xl dark:bg-bg-main bg-white border-t border-x dark:border-border-main border-border-main-light rounded-t-[40px] p-4 shadow-2xl flex flex-col max-h-[90vh]"
+        className="w-full max-w-xl dark:bg-bg-main bg-white border-t border-x dark:border-border-main border-border-main-light rounded-t-[28px] p-3 shadow-2xl flex flex-col max-h-[80vh]"
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <div>
-            <h2 className="text-xl font-black dark:text-white text-text-main-light uppercase tracking-tighter">
+            <h2 className="text-base font-black dark:text-white text-text-main-light uppercase tracking-tighter">
               {task?.title || 'Gestionar Tiempo'}
             </h2>
             <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">Panel de Control de Horas</p>
@@ -1792,7 +1792,7 @@ export function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntrie
         </div>
  
         {/* Tab Navigation */}
-        <div className="flex p-1 dark:bg-bg-card bg-gray-100 border dark:border-border-main border-border-main-light rounded-2xl mb-4">
+        <div className="flex p-1 dark:bg-bg-card bg-gray-100 border dark:border-border-main border-border-main-light rounded-2xl mb-2">
           <button 
             onClick={() => setActiveTab('register')}
             className={`flex-1 py-2 px-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'register' ? 'bg-turquesa text-white' : 'dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light'}`}
@@ -1809,13 +1809,13 @@ export function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntrie
  
         <div className="flex-1 overflow-hidden flex flex-col">
           {activeTab === 'register' ? (
-            <div className="space-y-4 overflow-y-auto custom-scrollbar px-1">
+            <div className="space-y-2 overflow-y-auto custom-scrollbar px-1">
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-4 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[24px] relative overflow-hidden group">
+                <div className="p-3 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[20px] relative overflow-hidden group">
                   <div className="absolute top-3 right-3 opacity-20"><Zap size={18} className="text-turquesa" /></div>
                   <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-1">Total Registrado</p>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-turquesa">{comboRegistered}</span>
+                    <span className="text-2xl font-black text-turquesa">{comboRegistered}</span>
                     <span className="text-xs font-black dark:text-text-secondary text-text-secondary-light uppercase">min</span>
                   </div>
                   {!subtaskId && hasSubtasks && (
@@ -1823,7 +1823,7 @@ export function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntrie
                   )}
                 </div>
  
-                <div className="p-4 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[24px]">
+                <div className="p-3 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[20px]">
                   <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest mb-3 text-center">Plan v Realidad</p>
                   <div className="flex items-center justify-center gap-4 mb-3">
                     <span className="text-lg font-black dark:text-text-secondary text-text-secondary-light">{estimated}m</span>
@@ -1839,7 +1839,7 @@ export function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntrie
                 </div>
               </div>
  
-              <div className="p-4 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[24px] space-y-4">
+              <div className="p-3 dark:bg-bg-card bg-gray-50 border dark:border-border-main border-border-main-light rounded-[20px] space-y-2">
                 <div className="space-y-3">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest ml-1">¿Qué hiciste en esta sesión?</label>
@@ -1847,7 +1847,7 @@ export function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntrie
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
                       placeholder="Describe brevemente tu progreso..."
-                      className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-3 text-sm font-medium dark:text-white text-text-main-light placeholder:text-text-secondary/30 outline-none focus:border-turquesa/50 transition-all resize-none h-20"
+                      className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-2 text-sm font-medium dark:text-white text-text-main-light placeholder:text-text-secondary/30 outline-none focus:border-turquesa/50 transition-all resize-none h-14"
                     />
                   </div>
  
@@ -1858,7 +1858,7 @@ export function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntrie
                         type="number"
                         value={newMinutes}
                         onChange={(e) => setNewMinutes(parseInt(e.target.value) || 0)}
-                        className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-3 text-xl font-black text-turquesa outline-none focus:border-turquesa/50 transition-all"
+                        className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-2 text-lg font-black text-turquesa outline-none focus:border-turquesa/50 transition-all"
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
@@ -1867,7 +1867,7 @@ export function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntrie
                         type="date"
                         value={newDate}
                         onChange={(e) => setNewDate(e.target.value)}
-                        className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-3 text-xs font-black dark:text-white text-text-main-light outline-none focus:border-turquesa/50 transition-all uppercase"
+                        className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl p-2 text-xs font-black dark:text-white text-text-main-light outline-none focus:border-turquesa/50 transition-all uppercase"
                       />
                     </div>
                   </div>
@@ -1891,7 +1891,7 @@ export function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntrie
                     setNewNote('');
                     setMarkComplete(false);
                   }}
-                  className="w-full py-3 bg-turquesa hover:bg-turquesa/90 text-bg-main font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-turquesa/20 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+                  className="w-full py-2 bg-turquesa hover:bg-turquesa/90 text-bg-main font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-turquesa/20 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
                 >
                   <Plus size={20} strokeWidth={3} />
                   Registrar Tiempo
