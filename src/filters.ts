@@ -97,6 +97,13 @@ function getVisibleSubtasksForDay(
       // CASO 2: Subtarea manual - parentTaskId apunta al contenedor o a su template
       const isDirectChild = task.parentTaskId === container.id || task.parentTaskId === containerTemplateId;
       if (!isDirectChild) return false;
+      
+      // Si el contenedor es una instancia (tiene templateId), excluir subtareas manuales
+      // que apuntan al template pero no son instancias recurrentes.
+      // Estas subtareas manuales pertenecen al template, no a esta instancia concreta.
+      if (container.templateId && task.parentTaskId === containerTemplateId && !task.templateId) {
+        return false;
+      }
     }
 
     // Filtro delegación
@@ -272,8 +279,8 @@ export function getStatsForDay(
       // Tarea simple: solo contar si es de hoy
       if (t.dueDate === activeDate) addLeaf(t);
     } else {
-      // Contenedor: solo contar sus subtareas hoja de hoy (mismo criterio que el dashboard)
-      const visibleSubs = getVisibleSubtasksForDay(t, allTasksMap, activeDate, { hideDelegatedNoTag: true });
+      // Contenedor: solo contar sus subtareas hoja de hoy
+      const visibleSubs = getVisibleSubtasksForDay(t, allTasksMap, activeDate, {});
       visibleSubs.forEach((sub: Task) => {
         if (!sub.subtasks || sub.subtasks.length === 0) {
           addLeaf(sub);
