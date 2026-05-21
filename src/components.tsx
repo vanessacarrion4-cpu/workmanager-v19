@@ -1576,7 +1576,7 @@ export function TagPickerChip({ selectedTags = [], onChange }: any) {
       <AnimatePresence>
         {show && (
           <>
-            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <div className="fixed inset-0 z-[210]" onClick={handleClose} />
             <motion.div 
               initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[240px] overflow-y-auto"
@@ -1659,7 +1659,7 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
       <AnimatePresence>
         {show && !readonly && (
           <>
-            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <div className="fixed inset-0 z-[210]" onClick={handleClose} />
             <motion.div 
               initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               className="fixed bg-bg-card border border-border-main rounded-2xl shadow-2xl p-5 z-[220] min-w-[280px] overflow-y-auto"
@@ -1699,15 +1699,16 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
 }
  
 export function RegisteredTimeChip({ value, estimated, onClick }: any) {
-  const label = formatMinutes(value);
+  const label = value === 0 ? '0m' : formatMinutes(value);
   let colorClass = "text-turquesa bg-turquesa/10 border-turquesa/50";
-  if (value > estimated) colorClass = "text-rosa bg-rosa/10 border-rosa/50 animate-pulse";
-  else if (value >= estimated * 0.9) colorClass = "text-naranja bg-naranja/10 border-naranja/50";
+  if (value > 0 && estimated > 0 && value > estimated) colorClass = "text-rosa bg-rosa/10 border-rosa/50 animate-pulse";
+  else if (value > 0 && estimated > 0 && value >= estimated * 0.9) colorClass = "text-naranja bg-naranja/10 border-naranja/50";
+  else if (value === 0) colorClass = "text-text-secondary bg-transparent border-border-main dark:border-border-main border-border-main-light";
  
   return (
     <button 
       onClick={onClick}
-      className={`h-6 px-2 py-0.5 rounded-lg font-black uppercase tracking-widest transition-all border-2 shadow-sm flex items-center gap-1 ${colorClass}`}
+      className={`h-6 px-2 py-0.5 rounded-lg font-black uppercase tracking-widest transition-all border shadow-sm flex items-center gap-1 ${colorClass}`}
     >
       <Target size={9} />
       <span className="text-[11px]">{label}</span>
@@ -2153,7 +2154,7 @@ export function BlockPickerChip({ value, blocks = [], onChange }: any) {
       <AnimatePresence>
         {show && (
           <>
-            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <div className="fixed inset-0 z-[210]" onClick={handleClose} />
             <motion.div
               initial={{ opacity: 0, y: -10 }} 
               animate={{ opacity: 1, y: 0 }} 
