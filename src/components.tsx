@@ -408,11 +408,7 @@ export function TaskCard({
       }, 0);
     } else {
       // Bloques o tarea normal: sumar todo
-      const result = getTaskRegisteredCombo(task.id, allTasksMap, timeEntries);
-      if (task.id === 't-1779128215639') {
-        console.log('[DEBUG totalRegistered] task:', task.title, 'result:', result, 'timeEntries length:', timeEntries?.length, 'matching entries:', timeEntries?.filter((e:any) => e.subtaskId === task.id || e.taskId === task.id));
-      }
-      return result;
+      return getTaskRegisteredCombo(task.id, allTasksMap, timeEntries);
     }
   })();
   
@@ -1705,15 +1701,25 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
 export function RegisteredTimeChip({ value, estimated, onClick }: any) {
   const safeValue = (value === undefined || value === null || isNaN(value)) ? 0 : value;
   const label = formatMinutes(safeValue);
-  let colorClass = "dark:text-turquesa text-teal-600 dark:bg-turquesa/10 bg-teal-50 dark:border-turquesa/50 border-teal-300";
-  if (safeValue > 0 && estimated > 0 && safeValue > estimated) colorClass = "text-rosa bg-rosa/10 border-rosa/50 animate-pulse";
-  else if (safeValue > 0 && estimated > 0 && safeValue >= estimated * 0.9) colorClass = "text-naranja bg-naranja/10 border-naranja/50";
-  else if (safeValue === 0) colorClass = "dark:text-slate-400 text-slate-500 bg-transparent dark:border-slate-600 border-slate-300";
+  
+  // Colores con estilos inline para garantizar visibilidad en light y dark mode
+  let color = '#14B8A6'; // turquesa
+  let bg = 'rgba(20,184,166,0.1)';
+  let border = 'rgba(20,184,166,0.5)';
+  
+  if (safeValue > 0 && estimated > 0 && safeValue > estimated) {
+    color = '#EC4899'; bg = 'rgba(236,72,153,0.1)'; border = 'rgba(236,72,153,0.5)'; // rosa
+  } else if (safeValue > 0 && estimated > 0 && safeValue >= estimated * 0.9) {
+    color = '#F97316'; bg = 'rgba(249,115,22,0.1)'; border = 'rgba(249,115,22,0.5)'; // naranja
+  } else if (safeValue === 0) {
+    color = '#94A3B8'; bg = 'transparent'; border = '#CBD5E1'; // slate
+  }
  
   return (
     <button 
       onClick={onClick}
-      className={`h-6 px-2 py-0.5 rounded-lg font-black uppercase tracking-widest transition-all border shadow-sm flex items-center gap-1 ${colorClass}`}
+      className="h-6 px-2 py-0.5 rounded-lg font-black uppercase tracking-widest transition-all border shadow-sm flex items-center gap-1"
+      style={{ color, backgroundColor: bg, borderColor: border }}
     >
       <Target size={9} />
       <span className="text-[11px]">{label}</span>
