@@ -1576,7 +1576,7 @@ export function TagPickerChip({ selectedTags = [], onChange }: any) {
       <AnimatePresence>
         {show && (
           <>
-            <div className="fixed inset-0 z-[210]" onClick={handleClose} />
+            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
             <motion.div 
               initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               className="fixed dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 z-[220] min-w-[240px] overflow-y-auto"
@@ -2165,7 +2165,7 @@ export function BlockPickerChip({ value, blocks = [], onChange }: any) {
       <AnimatePresence>
         {show && (
           <>
-            <div className="fixed inset-0 z-[210]" onClick={handleClose} />
+            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
             <motion.div
               initial={{ opacity: 0, y: -10 }} 
               animate={{ opacity: 1, y: 0 }} 
