@@ -521,8 +521,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                 onClick={() => setFilterPersonId(filterPersonId === p.id ? null : p.id)}
                 className="px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all"
                 style={isActive
-                  ? { backgroundColor: c.bg, borderColor: c.border, color: c.text }
-                  : { backgroundColor: 'transparent', borderColor: 'rgba(100,116,139,0.3)', color: '#64748b' }
+                  ? { backgroundColor: c.bg, borderColor: c.border, color: c.text, opacity: 1 }
+                  : { backgroundColor: 'transparent', borderColor: c.border, color: c.text, opacity: 0.45 }
                 }
               >
                 {p.name}
