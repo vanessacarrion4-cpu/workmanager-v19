@@ -437,24 +437,10 @@ function buildTaskLoads(
     processTask(t);
   });
 
-  // Mezclar datos pasados: añadir pastBlockLoads a los loads existentes por bloque
+  // Añadir pastLoads como entradas independientes — sumField los acumula por bloque
+  // NO fusionar con loads existentes para evitar multiplicación por número de tareas
   Object.values(pastLoadsByBlock).forEach(pastLoad => {
-    // Buscar si ya existe un load para este bloque y fusionar
-    const existing = loads.filter(l => l.blockId === pastLoad.blockId && !l.parentId);
-    if (existing.length > 0) {
-      // Añadir datos pasados a los loads existentes del bloque
-      existing.forEach(l => {
-        Object.entries(pastLoad.monthMinutes).forEach(([k, v]) => {
-          l.monthMinutes[k] = (l.monthMinutes[k] || 0) + v;
-        });
-        Object.entries(pastLoad.weekMinutes).forEach(([k, v]) => {
-          l.weekMinutes[k] = (l.weekMinutes[k] || 0) + v;
-        });
-      });
-    } else {
-      // No hay loads para este bloque — añadir el pastLoad como entrada independiente
-      loads.push(pastLoad);
-    }
+    loads.push(pastLoad);
   });
 
   return loads;
