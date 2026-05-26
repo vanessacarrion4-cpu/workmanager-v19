@@ -478,7 +478,7 @@ function groupLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[], mon
     };
   };
 
-  const rootLoads = loads.filter(l => !l.parentId);
+  const rootLoads = loads.filter(l => !l.parentId && !l.taskId.startsWith('__past__'));
 
   if (mode === 'block') {
     const bMap = new Map<string, Map<string, TaskLoad[]>>();
@@ -503,7 +503,7 @@ function groupLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[], mon
           weekMinutes: sumField(items, 'weekMinutes', weekKeys),
           dayMinutes: sumField(items, 'dayMinutes', dayKeys),
           isLeaf: false,
-          children: items.map(makeLeafNode),
+          children: items.filter(i => !i.taskId.startsWith('__past__')).map(makeLeafNode),
         })),
       };
     });
@@ -518,7 +518,7 @@ function groupLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[], mon
     weekMinutes: sumField(items, 'weekMinutes', weekKeys),
     dayMinutes: sumField(items, 'dayMinutes', dayKeys),
     isLeaf: false,
-    children: items.map(makeLeafNode),
+    children: items.filter(i => !i.taskId.startsWith('__past__')).map(makeLeafNode),
   }));
 }
 
