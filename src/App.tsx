@@ -1955,13 +1955,17 @@ export default function App() {
  
       {/* Sidebar Navigation */}
       <nav className={`w-full md:w-20 lg:w-72 ${isDarkMode ? 'bg-bg-secondary' : 'bg-bg-secondary-light'} border-r ${isDarkMode ? 'border-border-main' : 'border-border-main-light'} flex flex-col py-6 shrink-0 transition-all duration-300`}>
-        <div className="flex items-center gap-3 mb-6 px-6">
-          <div className="w-10 h-10 bg-gradient-to-br from-turquesa to-azul rounded-2xl flex items-center justify-center text-white shadow-xl shadow-turquesa/20">
-            <Zap size={22} fill="white" />
-          </div>
-          <div className="hidden lg:block overflow-hidden">
-            <h1 className={`text-xl font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-text-main-light'} whitespace-nowrap`}>WM v18</h1>
-            <p className={`text-[10px] ${isDarkMode ? 'text-text-secondary' : 'text-text-secondary-light'} uppercase font-bold tracking-widest leading-none`}>Enterprise Edition</p>
+        <div className="flex items-center gap-3 mb-4 px-5">
+          {/* Logo WM — 4 cuadritos con W en turquesa y M en rosa */}
+          <div className="shrink-0" style={{ width: 46, height: 46 }}>
+            <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="0" y="0" width="21" height="21" rx="5" fill="#14B8A6"/>
+              <text x="10.5" y="17" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="700" fontSize="19" fill="white" stroke="#0D9488" strokeWidth="1">W</text>
+              <rect x="25" y="0" width="21" height="21" rx="5" fill="#3B82F6"/>
+              <rect x="0" y="25" width="21" height="21" rx="5" fill="#A855F7"/>
+              <rect x="25" y="25" width="21" height="21" rx="5" fill="#EC4899"/>
+              <text x="35.5" y="42" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="700" fontSize="19" fill="white" stroke="#BE185D" strokeWidth="1">M</text>
+            </svg>
           </div>
         </div>
 

@@ -290,7 +290,13 @@ export function DashboardView({
                 </AnimatePresence>
               </div>
             </div>
-            <p className="text-[9px] font-bold text-text-secondary uppercase tracking-[0.2em]">{stats.completed} de {stats.total} completadas</p>
+            <motion.p
+              key={stats.completed}
+              initial={{ scale: 1.3, color: '#14B8A6' }}
+              animate={{ scale: 1, color: '' }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              className="text-[9px] font-bold text-text-secondary uppercase tracking-[0.2em]"
+            >{stats.completed} de {stats.total} completadas</motion.p>
           </div>
 
           <div className="flex items-center gap-2">

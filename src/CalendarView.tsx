@@ -6,7 +6,7 @@
 
 import React, { useState, useMemo } from 'react';
 import {
-  Plus, ChevronRight, ChevronLeft, ChevronDown, RefreshCw, Eye, EyeOff, X, Clock
+  Plus, ChevronRight, ChevronLeft, ChevronDown, RefreshCw, Eye, EyeOff, X, Clock, Calendar as CalendarIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';

@@ -166,13 +166,15 @@ function buildMonths(baseYear: number, baseMonth: number, numMonths: number, tod
     const firstDay = formatLocalISO(new Date(year, month, 1));
     const lastDay = formatLocalISO(new Date(year, month + 1, 0));
 
-    // Opción C: solo semanas cuyo LUNES está dentro del mes
+    // Semanas: incluir la semana del primer día del mes aunque el lunes esté en el mes anterior
     const weeks: WeekInfo[] = [];
     const seen = new Set<string>();
+    // Empezar desde el lunes de la semana que contiene el día 1 del mes
     let current = new Date(year, month, 1);
-
-    // Avanzar hasta el primer lunes del mes
-    while (current.getDay() !== 1) current.setDate(current.getDate() + 1);
+    const firstDow = current.getDay();
+    // Retroceder al lunes de esa semana
+    const backDays = firstDow === 0 ? 6 : firstDow - 1;
+    current.setDate(current.getDate() - backDays);
 
     while (formatLocalISO(current) <= lastDay) {
       const key = getWeekKey(current);
@@ -893,7 +895,7 @@ function WorkloadRow({
       >
         {/* Nombre */}
         <td className={`${pl} pr-4 py-3 sticky left-0 z-10 min-w-[220px] max-w-[280px]`}
-          style={{ backgroundColor: 'var(--bg-card, white)' }}
+          style={{ backgroundColor: 'var(--bg-card, transparent)' }}
         >          <div className="flex items-center gap-2 min-w-0">
             {node.color && (isGroup || isType) && (
               <div className={`rounded-full shrink-0 ${isGroup ? 'w-2.5 h-2.5' : 'w-2 h-2 opacity-70'}`} style={{ backgroundColor: node.color }} />

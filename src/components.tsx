@@ -1167,7 +1167,7 @@ export function DatePickerChip({ value, onChange, dropUp = false }: any) {
         onClick={handleToggle}
         className={`h-6 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all ${
           isSinFecha 
-            ? 'dark:bg-bg-main bg-white dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light' 
+            ? 'dark:bg-bg-main bg-white dark:border-border-main border-gray-400 dark:text-text-secondary text-text-secondary-light' 
             : 'bg-turquesa/10 border-turquesa text-turquesa shadow-sm'
         }`}
       >
@@ -1333,7 +1333,7 @@ export function RecurrencePickerChip({ value, onChange }: any) {
         className={`flex items-center justify-center transition-all group/rec h-6 rounded-lg ${
           value 
             ? 'px-2 py-0.5 bg-azul/10 border-2 border-azul text-azul hover:bg-azul/20 whitespace-nowrap shadow-sm' 
-            : 'w-6 dark:bg-bg-main bg-white dark:border-border-main border-gray-300 dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul border-2'
+            : 'w-6 dark:bg-bg-main bg-white dark:border-border-main border-gray-400 dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul border-2'
         }`}
         title={value ? "Cambiar Recurrencia" : "Activar Recurrencia"}
       >
@@ -1567,7 +1567,7 @@ export function TagPickerChip({ selectedTags = [], onChange }: any) {
             ))}
           </div>
         ) : (
-          <div className="w-6 h-6 rounded-lg dark:bg-bg-main bg-white border-2 dark:border-border-main/30 border-naranja/50 flex items-center justify-center opacity-40 hover:opacity-70 dark:hover:border-border-main hover:border-naranja transition-all" title="Sin categoría">
+          <div className="w-6 h-6 rounded-lg dark:bg-bg-main bg-white border-2 dark:border-border-main/30 border-naranja/70 flex items-center justify-center opacity-60 hover:opacity-90 dark:hover:border-border-main hover:border-naranja transition-all" title="Sin categoría">
             <span className="text-[11px]">🏷️</span>
           </div>
         )}
