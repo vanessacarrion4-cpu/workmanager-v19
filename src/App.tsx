@@ -783,6 +783,23 @@ export default function App() {
       };
       tasksToUpsert.push(updated);
 
+      // Si es instancia y su templateId apunta a una tarea manual (no template),
+      // también actualizar la original para que Bloques refleje el estado correcto
+      if (isInstance && targetTask.templateId && !targetTask.templateId.startsWith('inst-')) {
+        const originalTask = tasks[targetTask.templateId];
+        if (originalTask && !originalTask.isTemplate) {
+          const alreadyAdded = tasksToUpsert.some(t => t.id === originalTask.id);
+          if (!alreadyAdded) {
+            tasksToUpsert.push({
+              ...originalTask,
+              status,
+              modifiedAt: timestamp,
+              completedAt: status === 'completed' ? timestamp : undefined,
+            });
+          }
+        }
+      }
+
       // Buscar subtareas recursivamente
       (targetTask.subtasks || []).forEach(sid => {
         const sub = tasks[sid];
