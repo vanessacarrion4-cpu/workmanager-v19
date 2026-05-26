@@ -25,6 +25,20 @@ import { getTaskRegisteredCombo, getTaskEstimatedCombo } from './utils';
 
 import { supabase } from './supabaseClient';
 
+// ─── Colores por persona ─────────────────────────────────────────────────────
+const PERSON_COLORS = [
+  { main: '#14B8A6', bg: 'rgba(20,184,166,0.15)', border: 'rgba(20,184,166,0.5)' },   // turquesa
+  { main: '#A855F7', bg: 'rgba(168,85,247,0.15)', border: 'rgba(168,85,247,0.5)' },   // morado
+  { main: '#3B82F6', bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.5)' },   // azul
+  { main: '#EC4899', bg: 'rgba(236,72,153,0.15)', border: 'rgba(236,72,153,0.5)' },   // rosa
+  { main: '#F97316', bg: 'rgba(249,115,22,0.15)', border: 'rgba(249,115,22,0.5)' },   // naranja
+  { main: '#10B981', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.5)' },   // verde
+];
+function getPersonColor(people: any[], personId: string) {
+  const idx = people.findIndex((p: any) => p.id === personId);
+  return PERSON_COLORS[idx >= 0 ? idx % PERSON_COLORS.length : 0];
+}
+
 export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '' }: any) {
 
   // Highlight helper
@@ -521,8 +535,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                 onClick={() => setFilterPersonId(filterPersonId === p.id ? null : p.id)}
                 className="px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all"
                 style={isActive
-                  ? { backgroundColor: c.bg, borderColor: c.border, color: c.text, opacity: 1 }
-                  : { backgroundColor: 'transparent', borderColor: c.border, color: c.text, opacity: 0.45 }
+                  ? { backgroundColor: c.bg, borderColor: c.main, color: c.main, opacity: 1, fontWeight: '900' }
+                  : { backgroundColor: c.bg, borderColor: c.border, color: c.main, opacity: 0.8 }
                 }
               >
                 {p.name}
@@ -555,9 +569,15 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                   className="w-full flex items-center justify-between p-5 hover:bg-white/2 transition-all"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-2xl bg-morado/20 border border-morado/30 flex items-center justify-center text-morado font-black text-lg">
-                      {person.name.charAt(0).toUpperCase()}
-                    </div>
+                    {(() => {
+                      const pc = getPersonColor(people, person.id);
+                      return (
+                        <div className="w-10 h-10 rounded-2xl flex items-center justify-center font-black text-lg"
+                          style={{ backgroundColor: pc.bg, border: `1.5px solid ${pc.border}`, color: pc.main }}>
+                          {person.name.charAt(0).toUpperCase()}
+                        </div>
+                      );
+                    })()}
                     <div className="text-left">
                       <p className="font-black dark:text-white text-text-main-light uppercase tracking-widest text-sm">{person.name}</p>
                       <p className="text-[10px] dark:text-text-secondary text-text-secondary-light">{(personEntries || personTasks).length} elemento{(personEntries || personTasks).length !== 1 ? 's' : ''} delegado{(personEntries || personTasks).length !== 1 ? 's' : ''}</p>
@@ -576,7 +596,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                     )}
                     <button
                       onClick={(e) => { e.stopPropagation(); onAddTask && onAddTask(null, undefined, undefined, person.id); }}
-                      className="w-8 h-8 flex items-center justify-center bg-morado dark:text-white text-text-main-light rounded-xl hover:bg-morado/80 transition-all shadow-lg shadow-morado/20"
+                      className="w-8 h-8 flex items-center justify-center rounded-xl transition-all text-white"
+                      style={{ backgroundColor: getPersonColor(people, person.id).main }}
                       title={`Nueva tarea delegada a ${person.name}`}
                     >
                       <Plus size={14} />

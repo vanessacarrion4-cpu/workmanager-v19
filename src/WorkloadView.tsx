@@ -285,26 +285,95 @@ function calcRangeMinutes(
 
 // ─── buildTaskLoads ───────────────────────────────────────────────────────────
 
+/**
+ * Resuelve el blockId de una tarea subiendo por la jerarquía si es necesario.
+ * Una subtarea hereda el blockId de su contenedor padre.
+ */
+function resolveBlockId(task: any, allTasksMap: Record<string, Task>): string | null {
+  if (task.blockId) return task.blockId;
+  if (task.parentTaskId) {
+    const parent = allTasksMap[task.parentTaskId];
+    if (parent) return resolveBlockId(parent, allTasksMap);
+  }
+  return null;
+}
+
 function buildTaskLoads(
   allTasksMap: Record<string, Task>,
   months: MonthInfo[],
   registeredByDay: Record<string, number>,
   generatedEndStr: string,
-  today: string
+  today: string,
+  timeEntries: any[]
 ): TaskLoad[] {
   const loads: TaskLoad[] = [];
+  const allWeeks = months.flatMap(m => m.weeks);
 
+  // ── PASADO: construir desde time_entries directamente ──────────────────────
+  // Para cada time_entry, resolver a qué bloque pertenece y acumular por bloque/semana/mes
+  // Esto captura CUALQUIER registro de tiempo sin importar si la tarea tiene dueDate o no
+
+  const pastBlockLoads: Record<string, { monthMinutes: Record<string, number>; weekMinutes: Record<string, number> }> = {};
+
+  timeEntries.forEach((te: any) => {
+    if (!te.date || te.date >= today) return; // solo pasado
+
+    // Resolver la tarea: puede ser subtaskId o taskId
+    const taskId = te.subtaskId || te.taskId;
+    const task = allTasksMap[taskId];
+    if (!task) return;
+
+    const blockId = resolveBlockId(task, allTasksMap);
+    if (!blockId) return;
+
+    const duration = te.duration || 0;
+    if (duration === 0) return;
+
+    if (!pastBlockLoads[blockId]) {
+      pastBlockLoads[blockId] = { monthMinutes: {}, weekMinutes: {} };
+    }
+
+    // Asignar al mes correspondiente
+    const monthKey = te.date.substring(0, 7); // 'YYYY-MM'
+    const moMatch = months.find(m => m.key === monthKey);
+    if (moMatch) {
+      pastBlockLoads[blockId].monthMinutes[moMatch.key] = (pastBlockLoads[blockId].monthMinutes[moMatch.key] || 0) + duration;
+    }
+
+    // Asignar a la semana correspondiente
+    const teDate = parseLocalISO(te.date);
+    const weekKey = getWeekKey(teDate);
+    const wkMatch = allWeeks.find(w => w.key === weekKey);
+    if (wkMatch) {
+      pastBlockLoads[blockId].weekMinutes[wkMatch.key] = (pastBlockLoads[blockId].weekMinutes[wkMatch.key] || 0) + duration;
+    }
+  });
+
+  // Crear TaskLoad entries para bloques con datos pasados
+  // Estos son nodos especiales de solo-pasado que se mezclarán con los futuros
+  const pastLoadsByBlock: Record<string, TaskLoad> = {};
+  Object.entries(pastBlockLoads).forEach(([blockId, data]) => {
+    pastLoadsByBlock[blockId] = {
+      taskId: `__past__${blockId}`,
+      title: '__past__',
+      blockId,
+      taskType: 'core',
+      isContainer: false,
+      monthMinutes: data.monthMinutes,
+      weekMinutes: data.weekMinutes,
+      dayMinutes: {},
+    };
+  });
+
+  // ── FUTURO/PRESENTE: calcular desde tareas con recurrencia o dueDate ───────
   const calcLoad = (task: any, startStr: string, endStr: string, isPast: boolean, isGen: boolean) =>
     calcRangeMinutes(task, startStr, endStr, isPast, isGen, allTasksMap, registeredByDay);
-
-  const allWeeks = months.flatMap(m => m.weeks);
 
   const processTask = (task: any, parentId?: string) => {
     const isContainer = (task.subtasks || []).length > 0 && task.isTemplate;
 
     const monthMinutes: Record<string, number> = {};
     const weekMinutes: Record<string, number> = {};
-    // dayMinutes calculado bajo demanda — NO aquí
 
     if (isContainer) {
       const subs = (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted);
@@ -312,10 +381,13 @@ function buildTaskLoads(
         const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
         const lastDay = formatLocalISO(new Date(mo.year, mo.month + 1, 0));
         const isPast = lastDay < today;
+        // Para meses pasados, los datos vienen de pastBlockLoads — no duplicar
+        if (isPast) { monthMinutes[mo.key] = 0; return; }
         monthMinutes[mo.key] = subs.reduce((acc: number, sub: any) =>
           acc + calcLoad(sub, firstDay, lastDay, isPast, firstDay <= generatedEndStr), 0);
       });
       allWeeks.forEach(week => {
+        if (week.isPast) { weekMinutes[week.key] = 0; return; }
         weekMinutes[week.key] = subs.reduce((acc: number, sub: any) =>
           acc + calcLoad(sub, week.startDate, week.endDate, week.isPast, week.isGenerated), 0);
       });
@@ -324,9 +396,11 @@ function buildTaskLoads(
         const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
         const lastDay = formatLocalISO(new Date(mo.year, mo.month + 1, 0));
         const isPast = lastDay < today;
+        if (isPast) { monthMinutes[mo.key] = 0; return; }
         monthMinutes[mo.key] = calcLoad(task, firstDay, lastDay, isPast, firstDay <= generatedEndStr);
       });
       allWeeks.forEach(week => {
+        if (week.isPast) { weekMinutes[week.key] = 0; return; }
         weekMinutes[week.key] = calcLoad(task, week.startDate, week.endDate, week.isPast, week.isGenerated);
       });
     }
@@ -335,7 +409,7 @@ function buildTaskLoads(
       taskId: task.id, title: task.title, blockId: task.blockId,
       taskType: task.taskType || 'core', isContainer, parentId,
       monthMinutes, weekMinutes,
-      dayMinutes: {}, // vacío — se calcula bajo demanda
+      dayMinutes: {},
     });
 
     if (isContainer) {
@@ -361,6 +435,26 @@ function buildTaskLoads(
     });
     if (!inRange) return;
     processTask(t);
+  });
+
+  // Mezclar datos pasados: añadir pastBlockLoads a los loads existentes por bloque
+  Object.values(pastLoadsByBlock).forEach(pastLoad => {
+    // Buscar si ya existe un load para este bloque y fusionar
+    const existing = loads.filter(l => l.blockId === pastLoad.blockId && !l.parentId);
+    if (existing.length > 0) {
+      // Añadir datos pasados a los loads existentes del bloque
+      existing.forEach(l => {
+        Object.entries(pastLoad.monthMinutes).forEach(([k, v]) => {
+          l.monthMinutes[k] = (l.monthMinutes[k] || 0) + v;
+        });
+        Object.entries(pastLoad.weekMinutes).forEach(([k, v]) => {
+          l.weekMinutes[k] = (l.weekMinutes[k] || 0) + v;
+        });
+      });
+    } else {
+      // No hay loads para este bloque — añadir el pastLoad como entrada independiente
+      loads.push(pastLoad);
+    }
   });
 
   return loads;
@@ -579,8 +673,8 @@ export function WorkloadView({
   }, [timeEntries]);
 
   const allLoads = useMemo(() =>
-    buildTaskLoads(allTasksMap, months, registeredByDay, generatedEndStr, today),
-    [allTasksMap, months, registeredByDay, generatedEndStr, today]
+    buildTaskLoads(allTasksMap, months, registeredByDay, generatedEndStr, today, timeEntries),
+    [allTasksMap, months, registeredByDay, generatedEndStr, today, timeEntries]
   );
 
   const taskLoads = useMemo(() => allLoads.filter(l => {
