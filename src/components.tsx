@@ -1748,7 +1748,7 @@ export function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntrie
   const comboRegistered = subtaskId ? totalRegistered : getTaskRegisteredCombo(taskId, allTasksMap, timeEntries);
   const estimated = subtaskId ? task.estimatedMinutes : getTaskEstimatedCombo(taskId, allTasksMap);
  
-  const [newMinutes, setNewMinutes] = useState(30);
+  const [newMinutes, setNewMinutes] = useState(estimated || 30);
   const [newDate, setNewDate] = useState(formatLocalISO(new Date()));
   const [newNote, setNewNote] = useState('');
   const [markComplete, setMarkComplete] = useState(false);
