@@ -131,6 +131,9 @@ export function generateInstances(
               if (!childTemplate.recurrence && childTemplate.dueDate && childTemplate.dueDate !== dateStr) return;
               if (!childTemplate.recurrence && childTemplate.status === 'completed') return;
 
+              // Subtarea manual (isTemplate:false): es una tarea real, no instanciar
+              if (!childTemplate.isTemplate) return;
+
               const childInstanceId = `inst-${childTemplate.id}-${dateStr}`;
               if (allTasks[childInstanceId]) return; // Ya existe
 
@@ -168,6 +171,12 @@ export function generateInstances(
           if (childTemplate.recurrence && !matchesRecurrence(childTemplate.recurrence, current)) return;
           if (!childTemplate.recurrence && childTemplate.dueDate && childTemplate.dueDate !== dateStr) return;
           if (!childTemplate.recurrence && childTemplate.status === 'completed') return;
+
+          // Subtarea manual (isTemplate:false): es una tarea real, referenciar por su ID real
+          if (!childTemplate.isTemplate) {
+            subtaskInstanceIds.push(childTemplate.id);
+            return;
+          }
 
           const childInstanceId = `inst-${childTemplate.id}-${dateStr}`;
           const existingChild = allTasks[childInstanceId];

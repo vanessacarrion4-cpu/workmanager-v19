@@ -802,10 +802,7 @@ export default function App() {
     // Persistir en Supabase
     tasksToUpsert.forEach(t => {
       console.log('[STATUS] Guardando:', t.id, t.status, 'templateId:', t.templateId);
-      if (t.templateId) {
-        // Instancias subtarea (tienen parentTaskId): no guardar parent_task_id en BD
-        // Su jerarquía se reconstruye desde el contenedor padre al cargar
-        // Solo guardar parent_task_id si es una instancia raíz (sin padre)
+      if (t.templateId && t.id.startsWith('inst-')) {
         supabase.from('tasks').upsert({
           id: t.id,
           block_id: t.blockId,
