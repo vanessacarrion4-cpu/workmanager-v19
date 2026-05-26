@@ -292,10 +292,11 @@ export function DashboardView({
             </div>
             <motion.p
               key={stats.completed}
-              initial={{ scale: 1.3, color: '#14B8A6' }}
-              animate={{ scale: 1, color: '' }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
-              className="text-[9px] font-bold text-text-secondary uppercase tracking-[0.2em]"
+              initial={{ scale: 1.4, opacity: 0.6 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+              className="text-[9px] font-bold uppercase tracking-[0.2em]"
+              style={{ color: '#14B8A6' }}
             >{stats.completed} de {stats.total} completadas</motion.p>
           </div>
 

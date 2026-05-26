@@ -1967,6 +1967,9 @@ export default function App() {
               <text x="35.5" y="42" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="700" fontSize="19" fill="white" stroke="#BE185D" strokeWidth="1">M</text>
             </svg>
           </div>
+          <div className="hidden lg:block overflow-hidden">
+            <h1 className={`text-[15px] font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-text-main-light'} whitespace-nowrap`}>WorkManager</h1>
+          </div>
         </div>
 
         {/* Theme Toggle */}

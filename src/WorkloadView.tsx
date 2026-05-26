@@ -182,14 +182,12 @@ function buildMonths(baseYear: number, baseMonth: number, numMonths: number, tod
         seen.add(key);
         const monday = formatLocalISO(current);
         const sunday = addDays(monday, 6);
-        // Capacidad solo cuenta días laborables dentro del mes
+        // Capacidad cuenta TODOS los días laborables de la semana (no solo los del mes)
         let wd = 0;
         let d = monday;
         while (d <= sunday) {
-          if (d >= firstDay && d <= lastDay) {
-            const dow = parseLocalISO(d).getDay();
-            if (dow !== 0 && dow !== 6) wd++;
-          }
+          const dow = parseLocalISO(d).getDay();
+          if (dow !== 0 && dow !== 6) wd++;
           d = addDays(d, 1);
         }
         weeks.push({
