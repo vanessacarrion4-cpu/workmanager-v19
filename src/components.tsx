@@ -1659,7 +1659,7 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
       <AnimatePresence>
         {show && !readonly && (
           <>
-            <div className="fixed inset-0 z-[210]" onClick={handleClose} />
+            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
             <motion.div 
               initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
               className="fixed bg-bg-card border border-border-main rounded-2xl shadow-2xl p-5 z-[220] min-w-[280px] overflow-y-auto"
