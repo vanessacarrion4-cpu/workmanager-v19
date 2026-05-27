@@ -1959,9 +1959,9 @@ export default function App() {
           {/* Logo WM */}
           <div className="shrink-0" style={{ width: 64, height: 62 }}>
             <svg width="64" height="62" viewBox="0 0 64 62" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="32" y="46" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="53" fill="#10B981" letterSpacing="-3">W</text>
+              <text x="32" y="46" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="53" fill="#06B6D4" letterSpacing="-3">W</text>
               <text x="32" y="59" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="7" letterSpacing="4.2">
-                <tspan fill="#06B6D4">MAN</tspan><tspan fill="#EC4899">A</tspan><tspan fill="#06B6D4">GER</tspan>
+                <tspan fill="#10B981">MAN</tspan><tspan fill="#EC4899">A</tspan><tspan fill="#10B981">GER</tspan>
               </text>
             </svg>
           </div>
