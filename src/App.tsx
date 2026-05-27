@@ -1957,14 +1957,12 @@ export default function App() {
       <nav className={`w-full md:w-20 lg:w-72 ${isDarkMode ? 'bg-bg-secondary' : 'bg-bg-secondary-light'} border-r ${isDarkMode ? 'border-border-main' : 'border-border-main-light'} flex flex-col py-6 shrink-0 transition-all duration-300`}>
         <div className="flex items-center gap-3 mb-4 px-5">
           {/* Logo WM — 4 cuadritos con W en turquesa y M en rosa */}
-          <div className="shrink-0" style={{ width: 46, height: 46 }}>
-            <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="0" y="0" width="21" height="21" rx="5" fill="#14B8A6"/>
-              <text x="10.5" y="18" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="900" fontSize="22" fill="white">W</text>
-              <rect x="25" y="0" width="21" height="21" rx="5" fill="#3B82F6"/>
-              <rect x="0" y="25" width="21" height="21" rx="5" fill="#A855F7"/>
-              <rect x="25" y="25" width="21" height="21" rx="5" fill="#EC4899"/>
-              <text x="35.5" y="43" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="900" fontSize="22" fill="white">M</text>
+          <div className="shrink-0" style={{ width: 46, height: 54 }}>
+            <svg width="46" height="54" viewBox="0 0 46 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <text x="23" y="40" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="53" fill="#10B981" letterSpacing="-3">W</text>
+              <text x="23" y="53" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="6" letterSpacing="3.8">
+                <tspan fill="#06B6D4">MAN</tspan><tspan fill="#EC4899">A</tspan><tspan fill="#06B6D4">GER</tspan>
+              </text>
             </svg>
           </div>
           <div className="hidden lg:block overflow-hidden">
