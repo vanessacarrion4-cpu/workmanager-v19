@@ -1955,15 +1955,20 @@ export default function App() {
  
       {/* Sidebar Navigation */}
       <nav className={`w-full md:w-20 lg:w-72 ${isDarkMode ? 'bg-bg-secondary' : 'bg-bg-secondary-light'} border-r ${isDarkMode ? 'border-border-main' : 'border-border-main-light'} flex flex-col py-6 shrink-0 transition-all duration-300`}>
-        <div className="flex items-center mb-4 px-5">
-          {/* Logo WM */}
-          <div className="shrink-0" style={{ width: 64, height: 62 }}>
-            <svg width="64" height="62" viewBox="0 0 64 62" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="32" y="46" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="53" fill="#06B6D4" letterSpacing="-3">W</text>
-              <text x="32" y="59" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="7" letterSpacing="4.2">
-                <tspan fill="#10B981">MAN</tspan><tspan fill="#EC4899">A</tspan><tspan fill="#10B981">GER</tspan>
-              </text>
+        <div className="flex items-center gap-3 mb-4 px-5">
+          {/* Logo WM — 4 cuadritos */}
+          <div className="shrink-0" style={{ width: 46, height: 46 }}>
+            <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="0" y="0" width="21" height="21" rx="5" fill="#14B8A6"/>
+              <text x="10.5" y="18" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="900" fontSize="22" fill="white">W</text>
+              <rect x="25" y="0" width="21" height="21" rx="5" fill="#3B82F6"/>
+              <rect x="0" y="25" width="21" height="21" rx="5" fill="#A855F7"/>
+              <rect x="25" y="25" width="21" height="21" rx="5" fill="#EC4899"/>
+              <text x="35.5" y="43" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="900" fontSize="22" fill="white">M</text>
             </svg>
+          </div>
+          <div className="hidden lg:block overflow-hidden">
+            <h1 className={`text-[15px] font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-text-main-light'} whitespace-nowrap`}>WorkManager</h1>
           </div>
         </div>
 
