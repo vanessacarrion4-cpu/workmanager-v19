@@ -1955,18 +1955,15 @@ export default function App() {
  
       {/* Sidebar Navigation */}
       <nav className={`w-full md:w-20 lg:w-72 ${isDarkMode ? 'bg-bg-secondary' : 'bg-bg-secondary-light'} border-r ${isDarkMode ? 'border-border-main' : 'border-border-main-light'} flex flex-col py-6 shrink-0 transition-all duration-300`}>
-        <div className="flex items-center gap-3 mb-4 px-5">
-          {/* Logo WM — 4 cuadritos con W en turquesa y M en rosa */}
-          <div className="shrink-0" style={{ width: 46, height: 54 }}>
-            <svg width="46" height="54" viewBox="0 0 46 54" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <text x="23" y="40" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="53" fill="#10B981" letterSpacing="-3">W</text>
-              <text x="23" y="53" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="6" letterSpacing="3.8">
+        <div className="flex items-center mb-4 px-5">
+          {/* Logo WM */}
+          <div className="shrink-0" style={{ width: 64, height: 62 }}>
+            <svg width="64" height="62" viewBox="0 0 64 62" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <text x="32" y="46" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="53" fill="#10B981" letterSpacing="-3">W</text>
+              <text x="32" y="59" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="7" letterSpacing="4.2">
                 <tspan fill="#06B6D4">MAN</tspan><tspan fill="#EC4899">A</tspan><tspan fill="#06B6D4">GER</tspan>
               </text>
             </svg>
-          </div>
-          <div className="hidden lg:block overflow-hidden">
-            <h1 className={`text-[15px] font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-text-main-light'} whitespace-nowrap`}>WorkManager</h1>
           </div>
         </div>
 
