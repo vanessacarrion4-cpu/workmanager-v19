@@ -1960,11 +1960,11 @@ export default function App() {
           <div className="shrink-0" style={{ width: 46, height: 46 }}>
             <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="0" y="0" width="21" height="21" rx="5" fill="#14B8A6"/>
-              <text x="10.5" y="17" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="700" fontSize="19" fill="white" stroke="#0D9488" strokeWidth="1">W</text>
+              <text x="10.5" y="18" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="900" fontSize="22" fill="white">W</text>
               <rect x="25" y="0" width="21" height="21" rx="5" fill="#3B82F6"/>
               <rect x="0" y="25" width="21" height="21" rx="5" fill="#A855F7"/>
               <rect x="25" y="25" width="21" height="21" rx="5" fill="#EC4899"/>
-              <text x="35.5" y="42" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="700" fontSize="19" fill="white" stroke="#BE185D" strokeWidth="1">M</text>
+              <text x="35.5" y="43" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="900" fontSize="22" fill="white">M</text>
             </svg>
           </div>
           <div className="hidden lg:block overflow-hidden">

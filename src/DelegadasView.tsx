@@ -519,14 +519,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
             Todos
           </button>
           {people.map((p: any, idx: number) => {
-            const personColors = [
-              { bg: 'rgba(20,184,166,0.12)', border: '#14B8A6', text: '#14B8A6' },   // turquesa
-              { bg: 'rgba(168,85,247,0.12)', border: '#A855F7', text: '#A855F7' },   // morado
-              { bg: 'rgba(59,130,246,0.12)', border: '#3B82F6', text: '#3B82F6' },   // azul
-              { bg: 'rgba(236,72,153,0.12)', border: '#EC4899', text: '#EC4899' },   // rosa
-              { bg: 'rgba(249,115,22,0.12)', border: '#F97316', text: '#F97316' },   // naranja
-              { bg: 'rgba(16,185,129,0.12)', border: '#10B981', text: '#10B981' },   // verde
-            ];
+            const personColors = PERSON_COLORS;
             const c = personColors[idx % personColors.length];
             const isActive = filterPersonId === p.id;
             return (

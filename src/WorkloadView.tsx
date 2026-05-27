@@ -128,19 +128,21 @@ function getMondayOfWeek(date: Date): Date {
   return d;
 }
 
-function getWeekKey(date: Date): string {
-  const monday = getMondayOfWeek(date);
-  const year = monday.getFullYear();
-  const jan1 = new Date(year, 0, 1);
-  const weekNum = Math.ceil(((monday.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7);
-  return `${year}-W${String(weekNum).padStart(2, '0')}`;
-}
-
 function getISOWeekNum(monday: Date): number {
   const jan4 = new Date(monday.getFullYear(), 0, 4);
   const startW1 = getMondayOfWeek(jan4);
   return Math.round((monday.getTime() - startW1.getTime()) / (7 * 86400000)) + 1;
 }
+
+function getWeekKey(date: Date): string {
+  const monday = getMondayOfWeek(date);
+  const isoNum = getISOWeekNum(monday);
+  let year = monday.getFullYear();
+  if (isoNum === 1 && monday.getMonth() === 11) year += 1;
+  if (isoNum >= 52 && monday.getMonth() === 0) year -= 1;
+  return `${year}-W${String(isoNum).padStart(2, '0')}`;
+}
+
 
 function addDays(dateStr: string, days: number): string {
   const d = parseLocalISO(dateStr);
@@ -479,6 +481,7 @@ function groupLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[], mon
   };
 
   const rootLoads = loads.filter(l => !l.parentId && !l.taskId.startsWith('__past__'));
+  const pastLoads = loads.filter(l => l.taskId.startsWith('__past__'));
 
   if (mode === 'block') {
     const bMap = new Map<string, Map<string, TaskLoad[]>>();
@@ -488,23 +491,49 @@ function groupLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[], mon
       if (!tm.has(l.taskType)) tm.set(l.taskType, []);
       tm.get(l.taskType)!.push(l);
     });
+    // Bloques con solo datos pasados tambien deben aparecer
+    pastLoads.forEach(l => {
+      if (!bMap.has(l.blockId)) bMap.set(l.blockId, new Map());
+    });
     return Array.from(bMap.entries()).map(([bid, tm]) => {
       const b = blocks.find(b => b.id === bid);
       const all = Array.from(tm.values()).flat();
+      const pastForBlock = pastLoads.filter(p => p.blockId === bid);
+      // Sumar minutos pasados al bloque
+      const blockMonthMins = sumField(all, 'monthMinutes', monthKeys);
+      const blockWeekMins = sumField(all, 'weekMinutes', weekKeys);
+      const blockDayMins = sumField(all, 'dayMinutes', dayKeys);
+      pastForBlock.forEach(p => {
+        monthKeys.forEach(k => { blockMonthMins[k] = (blockMonthMins[k] || 0) + (p.monthMinutes[k] || 0); });
+        weekKeys.forEach(k => { blockWeekMins[k] = (blockWeekMins[k] || 0) + (p.weekMinutes[k] || 0); });
+      });
+      const tmEntries = Array.from(tm.entries());
       return {
         key: bid, label: `${b?.icon||''} ${b?.name||bid}`, color: b?.color,
-        monthMinutes: sumField(all, 'monthMinutes', monthKeys),
-        weekMinutes: sumField(all, 'weekMinutes', weekKeys),
-        dayMinutes: sumField(all, 'dayMinutes', dayKeys),
+        monthMinutes: blockMonthMins,
+        weekMinutes: blockWeekMins,
+        dayMinutes: blockDayMins,
         isLeaf: false,
-        children: Array.from(tm.entries()).map(([type, items]) => ({
-          key: `${bid}-${type}`, label: tLabel(type), color: tColor(type),
-          monthMinutes: sumField(items, 'monthMinutes', monthKeys),
-          weekMinutes: sumField(items, 'weekMinutes', weekKeys),
-          dayMinutes: sumField(items, 'dayMinutes', dayKeys),
-          isLeaf: false,
-          children: items.filter(i => !i.taskId.startsWith('__past__')).map(makeLeafNode),
-        })),
+        children: tmEntries.map(([type, items], tidx) => {
+          const typeMonthMins = sumField(items, 'monthMinutes', monthKeys);
+          const typeWeekMins = sumField(items, 'weekMinutes', weekKeys);
+          const typeDayMins = sumField(items, 'dayMinutes', dayKeys);
+          // Agregar minutos pasados al primer grupo de tipo
+          if (tidx === 0) {
+            pastForBlock.forEach(p => {
+              monthKeys.forEach(k => { typeMonthMins[k] = (typeMonthMins[k] || 0) + (p.monthMinutes[k] || 0); });
+              weekKeys.forEach(k => { typeWeekMins[k] = (typeWeekMins[k] || 0) + (p.weekMinutes[k] || 0); });
+            });
+          }
+          return {
+            key: `${bid}-${type}`, label: tLabel(type), color: tColor(type),
+            monthMinutes: typeMonthMins,
+            weekMinutes: typeWeekMins,
+            dayMinutes: typeDayMins,
+            isLeaf: false,
+            children: items.filter(i => !i.taskId.startsWith('__past__')).map(makeLeafNode),
+          };
+        }),
       };
     });
   }
