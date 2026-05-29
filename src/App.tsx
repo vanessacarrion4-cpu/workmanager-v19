@@ -1254,6 +1254,60 @@ export default function App() {
     // --- Sync to Supabase ---
     (async () => {
       try {
+        // CASO ESPECIAL: cambio de fecha en subtarea recurrente con padre.
+        // En setTasks se creó newSubtaskId con dueDate=newDate — hay que persistir ESE objeto,
+        // no updatedTask (que tiene el id y fecha antiguos).
+        const _isSubtaskDateChange = !!(
+          updatedTask.templateId &&
+          updatedTask.instanceDate &&
+          updatedTask.dueDate !== updatedTask.instanceDate &&
+          updatedTask.parentTaskId
+        );
+        if (_isSubtaskDateChange) {
+          const _newDate = updatedTask.dueDate;
+          const _oldDate = updatedTask.instanceDate;
+          const _newSubtaskId = `inst-${updatedTask.templateId}-${_newDate}`;
+          // Soft-delete la instancia antigua en Supabase
+          await supabase.from('tasks')
+            .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+            .eq('id', updatedTask.id);
+          // Upsert la nueva instancia con fecha correcta
+          const { error: errNew } = await supabase.from('tasks').upsert([{
+            id: _newSubtaskId,
+            block_id: updatedTask.blockId,
+            title: updatedTask.title || '',
+            notes: updatedTask.notes || '',
+            priority: updatedTask.priority,
+            status: updatedTask.status,
+            due_date: _newDate,
+            due_time: updatedTask.dueTime || null,
+            completed_at: updatedTask.completedAt || null,
+            estimated_minutes: updatedTask.estimatedMinutes || 0,
+            actual_minutes: updatedTask.actualMinutes || 0,
+            total_estimated_combo: updatedTask.totalEstimatedCombo || 0,
+            total_registered_combo: updatedTask.totalRegisteredCombo || 0,
+            tags: updatedTask.tags || [],
+            order: updatedTask.order || 0,
+            is_template: false,
+            is_active: true,
+            is_exception: true,
+            is_deleted: false,
+            is_expanded: updatedTask.isExpanded || false,
+            task_type: updatedTask.taskType || null,
+            parent_task_id: null,
+            template_id: updatedTask.templateId,
+            instance_date: _oldDate,
+            recurrence: null,
+            delegation: updatedTask.delegation || null,
+            attachments: updatedTask.attachments || [],
+            created_at: updatedTask.createdAt || new Date().toISOString(),
+            modified_at: new Date().toISOString()
+          }], { onConflict: 'id' });
+          if (errNew) console.error('[SUPABASE] Error guardando subtarea excepción nueva fecha:', errNew);
+          else console.log('[SUPABASE] Subtarea excepción guardada con nueva fecha:', _newSubtaskId);
+          return;
+        }
+
         const isInstance = !!updatedTask.templateId;
         
         // Si parentTaskId apunta a una instancia en memoria (empieza por 'inst-'),
