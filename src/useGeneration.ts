@@ -74,11 +74,19 @@ export function useGeneration({ tasks, isDataLoaded, setTasks }: UseGenerationOp
       let deletedCount = 0;
 
       // Limpiar instancias generadas en memoria fuera de la ventana
+      // También limpiar instancias borradas (isDeleted:true) para que generateInstances
+      // pueda regenerarlas correctamente sin considerar excepciones obsoletas.
       Object.values(cleaned).forEach((t: Task) => {
+        if (!t.templateId) return;
+        // Siempre eliminar de memoria si está borrada en Supabase
+        if (t.isDeleted) {
+          delete cleaned[t.id];
+          deletedCount++;
+          return;
+        }
+        // Eliminar instancias generadas (no excepciones) fuera de la ventana
         if (
-          t.templateId &&
           !t.isException &&
-          !t.isDeleted &&
           !(t as any).existsInSupabase &&
           t.dueDate && (t.dueDate < startStr || t.dueDate > endStr)
         ) {
