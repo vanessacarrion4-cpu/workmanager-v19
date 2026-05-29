@@ -156,13 +156,23 @@ export function generateInstances(
           return;
         }
         
-        // No regenerar si ya hay una excepción para este template en este día
-        const hasException = Object.values(allTasks).some(t => 
+        // No regenerar si ya hay una excepción para este template en este día.
+        // Puede existir como instanceDate === dateStr (no movida)
+        // o como dueDate === dateStr (movida a este día desde otro).
+        const exceptionForThisDay = Object.values(allTasks).find(t => 
           t && t.templateId === parentTemplate.id && 
-          t.instanceDate === dateStr && 
-          t.isException
+          t.isException &&
+          !t.isDeleted &&
+          (t.instanceDate === dateStr || t.dueDate === dateStr)
         );
-        if (hasException) return;
+        if (exceptionForThisDay) {
+          // Si la excepción fue movida a este día (dueDate===dateStr pero instanceDate!==dateStr),
+          // asegurarnos de que aparece incluyéndola como instancia con sus subtareas
+          if (exceptionForThisDay.dueDate === dateStr && exceptionForThisDay.instanceDate !== dateStr) {
+            // Ya está en allTasks con dueDate correcto, el filtro la encontrará. Solo salir.
+          }
+          return;
+        }
 
         const subtaskInstanceIds: string[] = [];
         const subtasksToCreate: Task[] = [];
@@ -189,13 +199,14 @@ export function generateInstances(
             return;
           }
           
-          // Buscar si hay una excepción de este hijo que fue movida a este día (dateStr)
-          // (instanceDate diferente, pero due_date === dateStr)
+          // Buscar si hay una excepción de este hijo para este día:
+          // - movida a este día (dueDate === dateStr) 
+          // - o no movida (instanceDate === dateStr)
           const movedExceptionToday = Object.values(allTasks).find(t =>
             t.templateId === childTemplate.id &&
             t.isException &&
-            t.dueDate === dateStr &&
-            !t.isDeleted
+            !t.isDeleted &&
+            (t.dueDate === dateStr || t.instanceDate === dateStr)
           );
           if (movedExceptionToday) {
             subtaskInstanceIds.push(movedExceptionToday.id);
