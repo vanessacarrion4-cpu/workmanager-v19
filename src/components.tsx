@@ -380,7 +380,9 @@ export function TaskCard({
     }
   }, [isHighlighted]);
   const block = blocks.find((b: any) => b.id === task.blockId) || blocks[0] || { color: '#14B8A6', icon: '📋', name: 'General' };
-  const hasSubtasks = (task.subtasks && task.subtasks.length > 0) || (subtasksForGroup && subtasksForGroup.length > 0);
+  // Ignorar instancias generadas (inst-...) al calcular hasSubtasks para chips de recurrencia
+  const realSubtasks = (task.subtasks || []).filter((id: string) => !id.startsWith('inst-'));
+  const hasSubtasks = (realSubtasks.length > 0) || (subtasksForGroup && subtasksForGroup.length > 0);
   const isExpanded = forceExpanded !== null ? forceExpanded : (task.isExpanded ?? true);
 
   // Highlight helper: resalta el texto coincidente con fondo amarillo
