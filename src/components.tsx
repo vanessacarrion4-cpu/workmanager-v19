@@ -7,7 +7,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   Plus, CheckCircle2, Circle, ChevronRight, ChevronLeft, ChevronDown, ChevronUp,
-  Trash2, Edit, Check, X, Clock, Eye, EyeOff, RefreshCw, GripVertical,
+  Trash2, Edit, Check, X, Clock, Eye, EyeOff, RefreshCw, GripVertical, Info,
   Paperclip, Maximize2, Minimize2, ArrowUpLeft, ArrowDownRight, ChevronsUp,
   ChevronsDown, Tag, Copy, Play, Pause, MoreVertical, User, Users, Zap,
   Target, ArrowRight, Calendar as CalendarIcon, Compass, Grid2X2,
@@ -17,7 +17,7 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { WorkBlock, Task, TagType, TimeEntry, Person } from './types';
 import { TAG_LABELS, COLORS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { isTaskCompleted, isTaskRepetitive, getTaskEstimatedCombo, getTaskEstimatedPending, getTaskRegisteredCombo, getTaskRegisteredSelf, formatMinutes } from './utils';
+import { isTaskCompleted, isTaskRepetitive, getTaskEstimatedCombo, getTaskEstimatedPending, getTaskRegisteredCombo, getTaskRegisteredSelf, formatMinutes, generateInstances } from './utils';
 import { supabase } from './supabaseClient';
 
 export function RecurrenceChoiceModal({ type, onClose, onConfirm }: { type: 'edit' | 'delete', onClose: () => void, onConfirm: (choice: 'instance' | 'series') => void }) {
@@ -351,6 +351,7 @@ export function TaskCard({
   onRenamePerson = null,
   onDeletePerson = null,
   onRecurrenceDateChange = null,
+  onViewInstances = null,
   taskIndex = null,
   taskCount = null,
   onMoveUp = null,
@@ -743,9 +744,20 @@ export function TaskCard({
                     }
                     else label = freq;
                     return (
-                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 shrink-0" title="Tarea recurrente">
-                        <RefreshCw size={9} className="text-turquesa shrink-0" />
-                        <span className="text-[10px] font-black text-turquesa uppercase tracking-wide">{label}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-lg border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5" title="Tarea recurrente">
+                          <RefreshCw size={9} className="text-turquesa shrink-0" />
+                          <span className="text-[10px] font-black text-turquesa uppercase tracking-wide">{label}</span>
+                        </div>
+                        {onViewInstances && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onViewInstances(task); }}
+                            className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors"
+                            title="Ver instancias generadas"
+                          >
+                            <Info size={10} className="text-turquesa" />
+                          </button>
+                        )}
                       </div>
                     );
                   })()}
@@ -2959,5 +2971,227 @@ export function ToggleExpandButton({ blockId, onExpandAll }: { blockId: string, 
         {expanded ? 'Contraer' : 'Expandir'}
       </span>
     </button>
+  );
+}
+
+// ─────────────────────────────────────────────
+// InstancesModal — Ver instancias de una tarea recurrente
+// ─────────────────────────────────────────────
+
+export function InstancesModal({ task, allTasksMap, onClose, onEditTask, onDelete }: {
+  task: Task;
+  allTasksMap: Record<string, Task>;
+  onClose: () => void;
+  onEditTask: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [showPast, setShowPast] = useState(false);
+  const today = formatLocalISO(new Date());
+
+  // Calcular instancias: ventana futuros 60 días, pasados 180 días
+  const allInstances = useMemo(() => {
+    const DAYS_FUTURE = 60;
+    const DAYS_PAST = 180;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - DAYS_PAST);
+    const startStr = formatLocalISO(startDate);
+
+    // Generar instancias en ventana completa usando solo templates
+    const templatesOnly = Object.fromEntries(
+      Object.entries(allTasksMap).filter(([, t]) => !t.templateId)
+    );
+    const generated = generateInstances(templatesOnly, startStr, DAYS_PAST + DAYS_FUTURE);
+
+    // Filtrar las que pertenecen a este template (subtarea directa)
+    const myInstances = generated.filter(t =>
+      t.templateId === task.id && !t.parentTaskId === false
+        ? false
+        : t.templateId === task.id
+    );
+
+    // También buscar excepciones guardadas en Supabase
+    const exceptions = Object.values(allTasksMap).filter(t =>
+      t.templateId === task.id && t.isException && !t.isDeleted
+    );
+    const deletedExceptions = Object.values(allTasksMap).filter(t =>
+      t.templateId === task.id && t.isException && t.isDeleted
+    );
+
+    // Construir mapa de fechas con su estado
+    const dateMap: Record<string, { date: string; instance: Task | null; exception: Task | null; deleted: Task | null }> = {};
+
+    myInstances.forEach(inst => {
+      const d = inst.dueDate || inst.instanceDate || '';
+      if (!d) return;
+      if (!dateMap[d]) dateMap[d] = { date: d, instance: inst, exception: null, deleted: null };
+    });
+
+    exceptions.forEach(exc => {
+      const origDate = exc.instanceDate || '';
+      const newDate = exc.dueDate || '';
+      const key = origDate || newDate;
+      if (!key) return;
+      if (!dateMap[key]) dateMap[key] = { date: key, instance: null, exception: exc, deleted: null };
+      else dateMap[key].exception = exc;
+    });
+
+    deletedExceptions.forEach(del => {
+      const key = del.instanceDate || del.dueDate || '';
+      if (!key) return;
+      if (!dateMap[key]) dateMap[key] = { date: key, instance: null, exception: null, deleted: del };
+      else dateMap[key].deleted = del;
+    });
+
+    return Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
+  }, [task.id, allTasksMap]);
+
+  const futureInstances = allInstances.filter(i => i.date >= today);
+  const pastInstances = allInstances.filter(i => i.date < today);
+  const displayed = showPast ? [...pastInstances.reverse(), ...futureInstances] : futureInstances;
+
+  const getStatus = (item: typeof displayed[0]) => {
+    if (item.deleted) return 'deleted';
+    if (item.exception) {
+      if (item.exception.status === 'completed') return 'completed';
+      if (item.exception.dueDate !== item.date) return 'moved';
+      return 'exception';
+    }
+    if (item.instance?.status === 'completed') return 'completed';
+    return 'pending';
+  };
+
+  const statusConfig = {
+    pending:   { label: 'Pendiente', bg: 'dark:bg-turquesa/10 bg-turquesa/5', text: 'text-turquesa', border: 'dark:border-turquesa/30 border-turquesa/40' },
+    exception: { label: 'Editada',   bg: 'dark:bg-azul/10 bg-azul/5',         text: 'text-azul',    border: 'dark:border-azul/30 border-azul/40' },
+    moved:     { label: 'Movida',    bg: 'dark:bg-yellow-500/10 bg-yellow-50', text: 'dark:text-yellow-400 text-yellow-700', border: 'dark:border-yellow-500/30 border-yellow-400/40' },
+    completed: { label: 'Completada',bg: 'dark:bg-green-500/10 bg-green-50',   text: 'dark:text-green-400 text-green-700',  border: 'dark:border-green-500/30 border-green-400/40' },
+    deleted:   { label: 'Borrada',   bg: 'dark:bg-red-500/10 bg-red-50',       text: 'dark:text-red-400 text-red-600',      border: 'dark:border-red-500/30 border-red-400/40' },
+  };
+
+  const formatDate = (d: string) => {
+    const date = parseLocalISO(d);
+    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      <div className="dark:bg-bg-card bg-white rounded-2xl border dark:border-border-main border-border-main-light w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b dark:border-border-main border-border-main-light shrink-0">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <RefreshCw size={12} className="text-turquesa" />
+              <span className="text-[10px] font-black text-turquesa uppercase tracking-wide">
+                {task.recurrence?.frequency === 'yearly' ? `Anual · ${String(task.recurrence.yearDay || '').padStart(2,'0')}-${String(task.recurrence.yearMonth || '').padStart(2,'0')}` :
+                 task.recurrence?.frequency === 'monthly' ? `Mensual · día ${task.recurrence.monthDay}` :
+                 task.recurrence?.frequency === 'weekly' ? 'Semanal' :
+                 task.recurrence?.frequency === 'daily' ? 'Diaria' : 'Recurrente'}
+              </span>
+            </div>
+            <p className="dark:text-text-main text-text-main-light font-semibold text-sm leading-tight">{task.title}</p>
+            <p className="dark:text-text-secondary text-text-secondary-light text-[11px] mt-0.5">
+              {futureInstances.length} instancias futuras · ventana 60 días
+            </p>
+          </div>
+          <button onClick={onClose} className="dark:text-text-secondary text-text-secondary-light hover:text-red-400 transition-colors mt-0.5 shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Toggle pasados/futuros */}
+        <div className="flex items-center gap-2 px-5 py-2.5 border-b dark:border-border-main border-border-main-light shrink-0">
+          <button
+            onClick={() => setShowPast(false)}
+            className={`text-[11px] font-bold px-3 py-1 rounded-full transition-colors ${!showPast ? 'bg-turquesa text-white' : 'dark:text-text-secondary text-text-secondary-light dark:hover:bg-turquesa/10 hover:bg-turquesa/5'}`}
+          >
+            Futuros ({futureInstances.length})
+          </button>
+          <button
+            onClick={() => setShowPast(true)}
+            className={`text-[11px] font-bold px-3 py-1 rounded-full transition-colors ${showPast ? 'bg-turquesa text-white' : 'dark:text-text-secondary text-text-secondary-light dark:hover:bg-turquesa/10 hover:bg-turquesa/5'}`}
+          >
+            Ver pasados ({pastInstances.length})
+          </button>
+        </div>
+
+        {/* Lista */}
+        <div className="overflow-y-auto flex-1">
+          {displayed.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <RefreshCw size={24} className="dark:text-text-secondary text-text-secondary-light opacity-30" />
+              <p className="dark:text-text-secondary text-text-secondary-light text-sm">No hay instancias en esta ventana</p>
+            </div>
+          ) : (
+            displayed.map((item, idx) => {
+              const status = getStatus(item);
+              const cfg = statusConfig[status];
+              const activeInstance = item.exception || item.instance;
+              const isDeleted = status === 'deleted';
+              const movedTo = status === 'moved' && item.exception ? item.exception.dueDate : null;
+
+              return (
+                <div
+                  key={item.date + idx}
+                  className={`flex items-center gap-3 px-5 py-3 border-b dark:border-border-main/50 border-border-main-light/50 last:border-0 ${isDeleted ? 'opacity-50' : ''}`}
+                >
+                  {/* Fecha */}
+                  <div className="shrink-0 w-24">
+                    <p className={`text-xs font-bold ${isDeleted ? 'line-through dark:text-text-secondary text-text-secondary-light' : 'dark:text-text-main text-text-main-light'}`}>
+                      {formatDate(item.date)}
+                    </p>
+                    {movedTo && (
+                      <p className="text-[10px] dark:text-yellow-400 text-yellow-700 mt-0.5">
+                        → {formatDate(movedTo)}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Badge estado */}
+                  <div className={`shrink-0 px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wide ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+                    {cfg.label}
+                  </div>
+
+                  {/* Spacer */}
+                  <div className="flex-1" />
+
+                  {/* Acciones */}
+                  {!isDeleted && activeInstance && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => { onEditTask(activeInstance.id); onClose(); }}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg border dark:border-border-main border-border-main-light dark:hover:bg-azul/10 hover:bg-azul/5 dark:text-text-secondary text-text-secondary-light hover:text-azul transition-colors"
+                        title="Editar"
+                      >
+                        <Edit size={12} />
+                      </button>
+                      <button
+                        onClick={() => { onDelete(activeInstance.id); }}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg border dark:border-border-main border-border-main-light dark:hover:bg-red-500/10 hover:bg-red-50 dark:text-text-secondary text-text-secondary-light hover:text-red-500 transition-colors"
+                        title="Borrar esta instancia"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-3 border-t dark:border-border-main border-border-main-light shrink-0">
+          <span className="text-[11px] dark:text-text-secondary text-text-secondary-light">
+            {allInstances.filter(i => i.exception || i.deleted).length} con excepción guardada
+          </span>
+          <button
+            onClick={onClose}
+            className="text-[12px] px-4 py-1.5 rounded-lg border dark:border-border-main border-border-main-light dark:text-text-main text-text-main-light dark:hover:bg-bg-main hover:bg-gray-50 transition-colors"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

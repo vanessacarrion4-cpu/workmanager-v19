@@ -93,7 +93,7 @@ import {
   BlockModal, TimeManagementPanel, getTagColor,
   DelegationChip, DatePickerChip, TagPickerChip, RecurrencePickerChip,
   EstimatedTimeChip, RegisteredTimeChip, BlockPickerChip, TimePickerChip,
-  TaskTypeChip, TimerDisplay, ToggleExpandButton, MonthDatePicker
+  TaskTypeChip, TimerDisplay, ToggleExpandButton, MonthDatePicker, InstancesModal
 } from './components';
 import { SearchView } from './SearchView';
 import { WorkloadView } from './WorkloadView';
@@ -126,6 +126,7 @@ export default function App() {
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [recurrenceAction, setRecurrenceAction] = useState<{ taskId: string, type: 'edit' | 'delete', ruleId: string } | null>(null);
+  const [instancesModalTask, setInstancesModalTask] = useState<Task | null>(null);
   const [pendingDateChange, setPendingDateChange] = useState<{ task: any, newDate: string } | null>(null);
   const [addSubtaskWarning, setAddSubtaskWarning] = useState<{ parentTaskId: string, blockId?: string, overrideDate?: string } | null>(null);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -2202,6 +2203,7 @@ export default function App() {
                 onReorderTasks={handleUpdateTasksOrder}
                 onReorderSubtasks={handleUpdateSubtasksOrder}
                 onToggleExpand={handleToggleExpandTask}
+                onViewInstances={(task: Task) => setInstancesModalTask(task)}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
                 selectionMode={selectionMode}
@@ -2260,6 +2262,7 @@ export default function App() {
                 onReorderSubtasks={handleUpdateSubtasksOrder}
                 onToggleExpand={handleToggleExpandTask}
                 onExpandAll={handleExpandAllInBlock}
+                onViewInstances={(task: Task) => setInstancesModalTask(task)}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
                 selectionMode={selectionMode}
@@ -2303,6 +2306,7 @@ export default function App() {
                 onReorderTasks={handleUpdateTasksOrder}
                 onReorderSubtasks={handleUpdateSubtasksOrder}
                 onToggleExpand={handleToggleExpandTask}
+                onViewInstances={(task: Task) => setInstancesModalTask(task)}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
               />
@@ -2654,6 +2658,16 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {instancesModalTask && (
+        <InstancesModal
+          task={instancesModalTask}
+          allTasksMap={tasks}
+          onClose={() => setInstancesModalTask(null)}
+          onEditTask={(id) => { setInstancesModalTask(null); handleEditTaskRequest(id); }}
+          onDelete={(id) => { handleDeleteTaskRequest(id); setInstancesModalTask(null); }}
+        />
       )}
 
       {recurrenceAction && (

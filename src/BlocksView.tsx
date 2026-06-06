@@ -58,6 +58,7 @@ interface BlocksViewProps {
   onToggleBlock: (blockId: string) => void;
   activeDate: string;
   onReorderSubtasks?: (parentId: string, subtaskIds: string[]) => void;
+  onViewInstances?: (task: any) => void;
   onReorderTasks: (tasks: Task[]) => void;
   onToggleExpand?: (taskId: string) => void;
   onExpandAll?: (blockId: string) => void;
@@ -85,7 +86,7 @@ export function BlocksManagerView({
   timeEntries, activeTimer, onStartTimer, onStopTimer, onAddTask, onAddRule, onToggleTask, onDelete,
   onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel,
   onEditRule, onToggleRule, onAddBlock, onEditBlock, onReorderBlocks, onToggleBlock, activeDate,
-  onReorderSubtasks, onReorderTasks, onToggleExpand, onExpandAll, onPromote, onDemote,
+  onReorderSubtasks, onReorderTasks, onToggleExpand, onExpandAll, onViewInstances, onPromote, onDemote,
   onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(),
   onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null,
   bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null,
@@ -254,6 +255,7 @@ export function BlocksManagerView({
                     onPromote={onPromote}
                     onDemote={onDemote}
                     onReorderSubtasks={onReorderSubtasks}
+                    onViewInstances={onViewInstances}
                     onToggleExpand={onToggleExpand}
                     hideCompleted={hideCompleted}
                     selectionMode={selectionMode}
@@ -324,6 +326,7 @@ export function BlocksManagerView({
                     onPromote={onPromote}
                     onDemote={onDemote}
                     onReorderSubtasks={onReorderSubtasks}
+                    onViewInstances={onViewInstances}
                     onToggleExpand={onToggleExpand}
                     hideCompleted={hideCompleted}
                     selectionMode={selectionMode}
