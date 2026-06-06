@@ -700,11 +700,12 @@ export function TaskCard({
                       label = `Mes ${day || ''}`;
                     }
                     else if (freq === 'yearly') {
-                      if (rec.startDate) {
-                        const d = new Date(rec.startDate + 'T12:00:00');
-                        const dd = String(d.getDate()).padStart(2, '0');
-                        const mm = String(d.getMonth() + 1).padStart(2, '0');
-                        label = `Año ${dd}-${mm}`;
+                      const yd = rec.yearDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : null);
+                      const ym = rec.yearMonth || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getMonth() + 1 : null);
+                      if (yd && ym) {
+                        const dd = String(yd).padStart(2, '0');
+                        const mm = String(ym).padStart(2, '0');
+                        label = `Año -`;
                       } else label = 'Año';
                     }
                     else label = freq;
@@ -732,11 +733,12 @@ export function TaskCard({
                       label = `Mes ${day || ''}`;
                     }
                     else if (freq === 'yearly') {
-                      if (rec.startDate) {
-                        const d = new Date(rec.startDate + 'T12:00:00');
-                        const dd = String(d.getDate()).padStart(2, '0');
-                        const mm = String(d.getMonth() + 1).padStart(2, '0');
-                        label = `Año ${dd}-${mm}`;
+                      const yd = rec.yearDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : null);
+                      const ym = rec.yearMonth || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getMonth() + 1 : null);
+                      if (yd && ym) {
+                        const dd = String(yd).padStart(2, '0');
+                        const mm = String(ym).padStart(2, '0');
+                        label = `Año -`;
                       } else label = 'Año';
                     }
                     else label = freq;

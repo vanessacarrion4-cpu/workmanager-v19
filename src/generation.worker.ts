@@ -99,6 +99,12 @@ function matchesRecurrence(recurrence: any, date: Date): boolean {
       return recurrence.weekDays?.includes(specDay) || false;
     case 'monthly':
       return recurrence.monthDay === dayOfMonth;
+    case 'yearly': {
+      const targetDay = recurrence.yearDay ?? (recurrence.startDate ? parseLocalISO(recurrence.startDate).getDate() : null);
+      const targetMonth = recurrence.yearMonth ?? (recurrence.startDate ? parseLocalISO(recurrence.startDate).getMonth() + 1 : null);
+      if (targetDay === null || targetMonth === null) return false;
+      return date.getDate() === targetDay && (date.getMonth() + 1) === targetMonth;
+    }
     default:
       return false;
   }

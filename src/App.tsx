@@ -3137,9 +3137,11 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                   return `Mensual — día ${day}`;
                 }
                 if (freq === 'yearly') {
-                  if (rec.startDate) {
-                    const d = new Date(rec.startDate + 'T12:00:00');
-                    return `Anual — ${d.getDate()} de ${d.toLocaleDateString('es-ES', { month: 'long' })}`;
+                  const yd = rec.yearDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : null);
+                  const ym = rec.yearMonth || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getMonth() + 1 : null);
+                  if (yd && ym) {
+                    const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+                    return `Anual — ${yd} de ${months[ym - 1]}`;
                   }
                   return 'Anual';
                 }

@@ -33,9 +33,11 @@ export interface SubtaskTemplate {
   
   // Recurrence for subtasks
   recurrence?: {
-    frequency: 'daily' | 'weekdays' | 'weekly' | 'monthly';
+    frequency: 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'yearly';
     weekDays?: number[]; // [0=lunes...6=domingo]
     monthDay?: number; // 1-31
+    yearDay?: number; // 1-31 (día del mes para recurrencia anual)
+    yearMonth?: number; // 1-12 (mes para recurrencia anual)
     startDate: string; // YYYY-MM-DD
     endDate?: string | null;
   };
@@ -89,9 +91,11 @@ export interface Task {
   
   // Recurrence info - now on subtasks (if this Task is a subtask)
   recurrence?: {
-    frequency: 'daily' | 'weekdays' | 'weekly' | 'monthly';
+    frequency: 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'yearly';
     weekDays?: number[];
     monthDay?: number;
+    yearDay?: number; // 1-31 (día del mes para recurrencia anual)
+    yearMonth?: number; // 1-12 (mes para recurrencia anual)
     startDate: string;
     endDate?: string | null;
   };
