@@ -2667,6 +2667,17 @@ export default function App() {
           onClose={() => setInstancesModalTask(null)}
           onEditTask={(id) => { setInstancesModalTask(null); handleEditTaskRequest(id); }}
           onDelete={(id) => { handleDeleteTaskRequest(id); setInstancesModalTask(null); }}
+          onRestore={(deletedTaskId) => {
+            // Borrar la excepción is_deleted de Supabase → la instancia se regenerará
+            supabase.from('tasks').delete().eq('id', deletedTaskId).then(({ error }) => {
+              if (error) console.error('[RESTORE] Error restoring instance:', error);
+            });
+            setTasks(prev => {
+              const next = { ...prev };
+              delete next[deletedTaskId];
+              return next;
+            });
+          }}
         />
       )}
 

@@ -7,7 +7,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   Plus, CheckCircle2, Circle, ChevronRight, ChevronLeft, ChevronDown, ChevronUp,
-  Trash2, Edit, Check, X, Clock, Eye, EyeOff, RefreshCw, GripVertical, Info,
+  Trash2, Edit, Check, X, Clock, Eye, EyeOff, RefreshCw, GripVertical, Info, RotateCcw,
   Paperclip, Maximize2, Minimize2, ArrowUpLeft, ArrowDownRight, ChevronsUp,
   ChevronsDown, Tag, Copy, Play, Pause, MoreVertical, User, Users, Zap,
   Target, ArrowRight, Calendar as CalendarIcon, Compass, Grid2X2,
@@ -2979,12 +2979,13 @@ export function ToggleExpandButton({ blockId, onExpandAll }: { blockId: string, 
 // InstancesModal — Ver instancias de una tarea recurrente
 // ─────────────────────────────────────────────
 
-export function InstancesModal({ task, allTasksMap, onClose, onEditTask, onDelete }: {
+export function InstancesModal({ task, allTasksMap, onClose, onEditTask, onDelete, onRestore }: {
   task: Task;
   allTasksMap: Record<string, Task>;
   onClose: () => void;
   onEditTask: (id: string) => void;
   onDelete: (id: string) => void;
+  onRestore?: (deletedTaskId: string) => void;
 }) {
   const [showPast, setShowPast] = useState(false);
   const today = formatLocalISO(new Date());
@@ -3044,7 +3045,7 @@ export function InstancesModal({ task, allTasksMap, onClose, onEditTask, onDelet
 
   const futureInstances = allInstances.filter(i => i.date >= today);
   const pastInstances = allInstances.filter(i => i.date < today);
-  const displayed = showPast ? [...pastInstances.reverse(), ...futureInstances] : futureInstances;
+  const displayed = showPast ? [...pastInstances].reverse() : futureInstances;
 
   const getStatus = (item: typeof displayed[0]) => {
     if (item.deleted) return 'deleted';
@@ -3152,6 +3153,17 @@ export function InstancesModal({ task, allTasksMap, onClose, onEditTask, onDelet
                   <div className="flex-1" />
 
                   {/* Acciones */}
+                  {isDeleted && item.deleted && onRestore && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => onRestore(item.deleted!.id)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 dark:hover:bg-turquesa/20 hover:bg-turquesa/10 text-turquesa transition-colors"
+                        title="Restaurar esta instancia"
+                      >
+                        <RotateCcw size={12} />
+                      </button>
+                    </div>
+                  )}
                   {!isDeleted && activeInstance && (
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
