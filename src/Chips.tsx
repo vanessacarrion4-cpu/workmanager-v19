@@ -6,9 +6,9 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Clock, X, RefreshCw, Check, ChevronLeft, ChevronRight,
+  Clock, X, RefreshCw, Check, ChevronLeft, ChevronRight, ChevronDown,
   Compass, Target, Grid2X2, User, Users, Globe, PlusCircle,
-  Trash2, Edit, Zap, Tag
+  Trash2, Edit, Zap, Tag, Plus, Calendar as CalendarIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WorkBlock, Task, TagType, Person } from './types';
@@ -16,6 +16,7 @@ import { TAG_LABELS, COLORS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { formatMinutes } from './utils';
 import { supabase } from './supabaseClient';
+import { MonthDatePicker } from './TimeComponents';
 
 export function TaskTypeChip({ value, onChange, isCompact = false }: any) {
   const [show, setShow] = useState(false);

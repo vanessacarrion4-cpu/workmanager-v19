@@ -3,7 +3,7 @@
  * RecurrenceChoiceModal, BlockModal, InstancesModal
  */
 import React, { useState, useMemo } from 'react';
-import { Edit, Trash2, X, RefreshCw, RotateCcw, Check } from 'lucide-react';
+import { Edit, Trash2, X, RefreshCw, RotateCcw, Check, Circle, CheckCircle2, LayoutDashboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WorkBlock, Task } from './types';
 import { COLORS } from './constants';
