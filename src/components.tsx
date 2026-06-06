@@ -543,10 +543,11 @@ export function TaskCard({
         <div
           className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''} ${selectionMode && selectedTaskIds.has(task.id) ? 'dark:bg-azul/15 bg-azul/10 rounded-[1.5rem]' : ''} ${selectionMode ? 'cursor-pointer' : ''} ${searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) ? 'dark:bg-yellow-400/5 bg-yellow-400/10 rounded-2xl' : ''} ${isHighlighted ? 'rounded-2xl' : ''}`}
           style={isHighlighted ? {
-            outline: '2px solid #14B8A6',
-            outlineOffset: '-1px',
+            outline: '3px solid #14B8A6',
+            outlineOffset: '2px',
             borderRadius: '1rem',
-            backgroundColor: 'rgba(20,184,166,0.08)'
+            backgroundColor: 'rgba(20,184,166,0.15)',
+            boxShadow: '0 0 0 6px rgba(20,184,166,0.12)'
           } : selectionMode && selectedTaskIds.has(task.id) ? { 
             outline: '3px solid #3B82F6', 
             outlineOffset: '-1px', 
