@@ -370,6 +370,7 @@ export function TaskCard({
   if (!task || task.isDeleted) return null;
   const currentRootId = rootTaskId || task.id;
   const isHighlighted = highlightTaskId === task.id;
+  if (task.title?.includes('Picking')) console.log('[PICKING DEBUG] id:', task.id, 'isTemplate:', task.isTemplate, 'templateId:', task.templateId, 'recurrence:', !!task.recurrence);
   const highlightRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (isHighlighted && highlightRef.current) {
@@ -750,6 +751,7 @@ export function TaskCard({
                     );
                   })()}
                   {/* Chip recurrencia para templates (Delegadas, Vista Bloques) */}
+                  {task.isTemplate && task.recurrence && !task.templateId && console.log('[CHIP DEBUG]', task.title, 'isTemplate:', task.isTemplate, 'recurrence:', !!task.recurrence, 'templateId:', task.templateId, 'onGoToTemplate:', !!onGoToTemplate)}
                   {task.isTemplate && task.recurrence && !task.templateId && (() => {
                     const rec = task.recurrence;
                     const freq = rec.frequency || rec.type;
