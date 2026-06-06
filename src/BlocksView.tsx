@@ -4,7 +4,7 @@
  * Extraído de App.tsx - Sesión 3 del refactor.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect } { useState, useMemo } from 'react';
 import {
   Plus,
   CheckCircle2,
@@ -59,6 +59,8 @@ interface BlocksViewProps {
   activeDate: string;
   onReorderSubtasks?: (parentId: string, subtaskIds: string[]) => void;
   onViewInstances?: (task: any) => void;
+  highlightTaskId?: string | null;
+  onClearHighlight?: () => void;
   onReorderTasks: (tasks: Task[]) => void;
   onToggleExpand?: (taskId: string) => void;
   onExpandAll?: (blockId: string) => void;
@@ -87,11 +89,21 @@ export function BlocksManagerView({
   onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel,
   onEditRule, onToggleRule, onAddBlock, onEditBlock, onReorderBlocks, onToggleBlock, activeDate,
   onReorderSubtasks, onReorderTasks, onToggleExpand, onExpandAll, onViewInstances, onPromote, onDemote,
+  highlightTaskId, onClearHighlight,
   onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(),
   onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null,
   bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null,
   setBulkDateModal = null, setBulkTimeModal = null, searchQuery = ''
-}: BlocksViewProps) {
+}
+  // Scroll al template resaltado cuando cambia highlightTaskId
+  React.useEffect(() => {
+    if (!highlightTaskId) return;
+    const el = document.querySelector(`[data-task-id="${highlightTaskId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightTaskId]);
+: BlocksViewProps) {
 
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -256,6 +268,7 @@ export function BlocksManagerView({
                     onDemote={onDemote}
                     onReorderSubtasks={onReorderSubtasks}
                     onViewInstances={onViewInstances}
+                    highlightTaskId={highlightTaskId}
                     onToggleExpand={onToggleExpand}
                     hideCompleted={hideCompleted}
                     selectionMode={selectionMode}
@@ -327,6 +340,7 @@ export function BlocksManagerView({
                     onDemote={onDemote}
                     onReorderSubtasks={onReorderSubtasks}
                     onViewInstances={onViewInstances}
+                    highlightTaskId={highlightTaskId}
                     onToggleExpand={onToggleExpand}
                     hideCompleted={hideCompleted}
                     selectionMode={selectionMode}

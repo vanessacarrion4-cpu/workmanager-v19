@@ -39,7 +39,7 @@ function getPersonColor(people: any[], personId: string) {
   return PERSON_COLORS[idx >= 0 ? idx % PERSON_COLORS.length : 0];
 }
 
-export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '' }: any) {
+export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '', onGoToTemplate = null }: any) {
 
   // Highlight helper
   const HighlightText = ({ text }: { text: string }) => {
@@ -1091,6 +1091,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                               onEditTask={onEditTask}
                               onAddTask={onAddTask}
                               onReorderSubtasks={() => {}}
+                              onGoToTemplate={onGoToTemplate}
                               onToggleExpand={(taskId: string) => {
                                 if (isContainer && taskId === task.id) {
                                   toggleMeetingContainer(meeting.id, task.id);
@@ -1407,6 +1408,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                             onEditTask={onEditTask}
                             onAddTask={onAddTask}
                             onReorderSubtasks={() => {}}
+                            onGoToTemplate={onGoToTemplate}
                             onToggleExpand={(taskId: string) => onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded })}
                             hideCompleted={true}
                             inMeeting={true}

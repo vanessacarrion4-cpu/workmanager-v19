@@ -127,6 +127,7 @@ export default function App() {
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [recurrenceAction, setRecurrenceAction] = useState<{ taskId: string, type: 'edit' | 'delete', ruleId: string } | null>(null);
   const [instancesModalTask, setInstancesModalTask] = useState<Task | null>(null);
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
   const [pendingDateChange, setPendingDateChange] = useState<{ task: any, newDate: string } | null>(null);
   const [addSubtaskWarning, setAddSubtaskWarning] = useState<{ parentTaskId: string, blockId?: string, overrideDate?: string } | null>(null);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -733,6 +734,14 @@ export default function App() {
     });
   };
  
+  const handleGoToTemplate = (templateId: string) => {
+    // Navegar a Bloques y resaltar el template
+    setCurrentView('blocks');
+    setHighlightTaskId(templateId);
+    // Auto-limpiar el highlight después de 3 segundos
+    setTimeout(() => setHighlightTaskId(null), 3000);
+  };
+
   const handleEditTaskRequest = (taskId: string | null) => {
     if (taskId === null) {
       setEditingTaskId(null);
@@ -2204,6 +2213,7 @@ export default function App() {
                 onReorderSubtasks={handleUpdateSubtasksOrder}
                 onToggleExpand={handleToggleExpandTask}
                 onViewInstances={(task: Task) => setInstancesModalTask(task)}
+                onGoToTemplate={(templateId: string) => handleGoToTemplate(templateId)}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
                 selectionMode={selectionMode}
@@ -2222,10 +2232,13 @@ export default function App() {
                 onDeleteTimeEntry={handleDeleteTimeEntry}
                 onUpdateTimeEntry={handleUpdateTimeEntry}
                 searchQuery={searchQuery}
+                onGoToTemplate={(templateId: string) => handleGoToTemplate(templateId)}
               />
             )}
             {currentView === 'blocks' && (
               <BlocksManagerView 
+                highlightTaskId={highlightTaskId}
+                onClearHighlight={() => setHighlightTaskId(null)}
                 blocks={blocks} 
                 tasks={Object.values(tasks).filter((t: Task) => !t.isDeleted)}
                 allTasksMap={tasks}
@@ -2263,6 +2276,7 @@ export default function App() {
                 onToggleExpand={handleToggleExpandTask}
                 onExpandAll={handleExpandAllInBlock}
                 onViewInstances={(task: Task) => setInstancesModalTask(task)}
+                onGoToTemplate={(templateId: string) => handleGoToTemplate(templateId)}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
                 selectionMode={selectionMode}
@@ -2307,6 +2321,7 @@ export default function App() {
                 onReorderSubtasks={handleUpdateSubtasksOrder}
                 onToggleExpand={handleToggleExpandTask}
                 onViewInstances={(task: Task) => setInstancesModalTask(task)}
+                onGoToTemplate={(templateId: string) => handleGoToTemplate(templateId)}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
               />

@@ -352,6 +352,8 @@ export function TaskCard({
   onDeletePerson = null,
   onRecurrenceDateChange = null,
   onViewInstances = null,
+  onGoToTemplate = null,
+  highlightTaskId = null,
   taskIndex = null,
   taskCount = null,
   onMoveUp = null,
@@ -366,6 +368,7 @@ export function TaskCard({
 }: any) {
   if (!task || task.isDeleted) return null;
   const currentRootId = rootTaskId || task.id;
+  const isHighlighted = highlightTaskId === task.id;
   const block = blocks.find((b: any) => b.id === task.blockId) || blocks[0] || { color: '#14B8A6', icon: '📋', name: 'General' };
   const hasSubtasks = (task.subtasks && task.subtasks.length > 0) || (subtasksForGroup && subtasksForGroup.length > 0);
   const isExpanded = forceExpanded !== null ? forceExpanded : (task.isExpanded ?? true);
@@ -535,11 +538,16 @@ export function TaskCard({
   }
  
   return (
-    <div className="group relative">
+    <div className="group relative" data-task-id={task.id}>
       <div>
         <div
-          className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''} ${selectionMode && selectedTaskIds.has(task.id) ? 'dark:bg-azul/15 bg-azul/10 rounded-[1.5rem]' : ''} ${selectionMode ? 'cursor-pointer' : ''} ${searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) ? 'dark:bg-yellow-400/5 bg-yellow-400/10 rounded-2xl' : ''}`}
-          style={selectionMode && selectedTaskIds.has(task.id) ? { 
+          className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''} ${selectionMode && selectedTaskIds.has(task.id) ? 'dark:bg-azul/15 bg-azul/10 rounded-[1.5rem]' : ''} ${selectionMode ? 'cursor-pointer' : ''} ${searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) ? 'dark:bg-yellow-400/5 bg-yellow-400/10 rounded-2xl' : ''} ${isHighlighted ? 'rounded-2xl' : ''}`}
+          style={isHighlighted ? {
+            outline: '2px solid #14B8A6',
+            outlineOffset: '-1px',
+            borderRadius: '1rem',
+            backgroundColor: 'rgba(20,184,166,0.08)'
+          } : selectionMode && selectedTaskIds.has(task.id) ? { 
             outline: '3px solid #3B82F6', 
             outlineOffset: '-1px', 
             borderRadius: '1.5rem'
@@ -711,9 +719,20 @@ export function TaskCard({
                     }
                     else label = freq;
                     return (
-                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 shrink-0" title="Tarea recurrente">
-                        <RefreshCw size={9} className="text-turquesa shrink-0" />
-                        <span className="text-[10px] font-black text-turquesa uppercase tracking-wide">{label}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-lg border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5" title="Tarea recurrente">
+                          <RefreshCw size={9} className="text-turquesa shrink-0" />
+                          <span className="text-[10px] font-black text-turquesa uppercase tracking-wide">{label}</span>
+                        </div>
+                        {onGoToTemplate && task.templateId && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId!); }}
+                            className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors"
+                            title="Ir al template en Bloques"
+                          >
+                            <ArrowUpRight size={10} className="text-turquesa" />
+                          </button>
+                        )}
                       </div>
                     );
                   })()}
@@ -743,23 +762,15 @@ export function TaskCard({
                       } else label = 'Año';
                     }
                     else label = freq;
-                    return (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <div className="flex items-center gap-1 px-2 py-1 rounded-lg border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5" title="Tarea recurrente">
-                          <RefreshCw size={9} className="text-turquesa shrink-0" />
-                          <span className="text-[10px] font-black text-turquesa uppercase tracking-wide">{label}</span>
-                        </div>
-                        {onViewInstances && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onViewInstances(task); }}
-                            className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors"
-                            title="Ver instancias generadas"
-                          >
-                            <Info size={10} className="text-turquesa" />
-                          </button>
-                        )}
-                      </div>
-                    );
+                    return onViewInstances ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onViewInstances(task); }}
+                        className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors shrink-0"
+                        title="Ver instancias generadas"
+                      >
+                        <Info size={10} className="text-turquesa" />
+                      </button>
+                    ) : null;
                   })()}
                   {!hasSubtasks && !task.templateId && (
                     <RecurrencePickerChip 
@@ -933,6 +944,8 @@ export function TaskCard({
                         onDemote={onDemote}
                         onReorderSubtasks={onReorderSubtasks}
                         onViewInstances={onViewInstances}
+                        onGoToTemplate={onGoToTemplate}
+                        highlightTaskId={highlightTaskId}
                         onToggleExpand={onToggleExpand}
                         onRecurrenceDateChange={onRecurrenceDateChange}
                         level={level + 1}
