@@ -4,7 +4,7 @@
  * Extraído de App.tsx - Sesión 3 del refactor.
  */
 
-import React, { useEffect } { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Plus,
   CheckCircle2,

@@ -2232,7 +2232,6 @@ export default function App() {
                 onDeleteTimeEntry={handleDeleteTimeEntry}
                 onUpdateTimeEntry={handleUpdateTimeEntry}
                 searchQuery={searchQuery}
-                onGoToTemplate={(templateId: string) => handleGoToTemplate(templateId)}
               />
             )}
             {currentView === 'blocks' && (
