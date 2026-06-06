@@ -798,7 +798,7 @@ export function TaskCard({
                       </div>
                     );
                   })()}
-                  {!hasSubtasks && !task.templateId && (
+                  {!hasSubtasks && !task.templateId && !task.isTemplate && (
                     <RecurrencePickerChip 
                       value={task.recurrence}
                       onChange={(rec: any) => onUpdateTask({ 
