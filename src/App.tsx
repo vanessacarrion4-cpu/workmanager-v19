@@ -735,11 +735,28 @@ export default function App() {
   };
  
   const handleGoToTemplate = (templateId: string) => {
-    // Navegar a Bloques y resaltar el template
+    const targetTask = tasks[templateId];
+    if (!targetTask) return;
+
+    // Si la tarea tiene padre (es subtarea), expandir el contenedor padre
+    if (targetTask.parentTaskId) {
+      const parent = tasks[targetTask.parentTaskId];
+      if (parent && !parent.isExpanded) {
+        const timestamp = new Date().toISOString();
+        setTasks(prev => ({
+          ...prev,
+          [targetTask.parentTaskId!]: { ...prev[targetTask.parentTaskId!], isExpanded: true, modifiedAt: timestamp }
+        }));
+        supabase.from('tasks').update({ is_expanded: true, modified_at: timestamp })
+          .eq('id', targetTask.parentTaskId).then(() => {});
+      }
+    }
+
+    // Navegar a Bloques y resaltar
     setCurrentView('blocks');
     setHighlightTaskId(templateId);
-    // Auto-limpiar el highlight después de 3 segundos
-    setTimeout(() => setHighlightTaskId(null), 3000);
+    // Auto-limpiar highlight después de 4 segundos
+    setTimeout(() => setHighlightTaskId(null), 4000);
   };
 
   const handleEditTaskRequest = (taskId: string | null) => {
