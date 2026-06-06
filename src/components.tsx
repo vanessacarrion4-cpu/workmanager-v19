@@ -777,6 +777,7 @@ export function TaskCard({
                       } else label = 'Año';
                     }
                     else label = freq;
+                    if (task.title?.includes('Picking')) console.log('[CHIP RENDER] Picking chip rendering, onGoToTemplate:', !!onGoToTemplate, 'label:', label);
                     return (
                       <div className="flex items-center gap-1 shrink-0">
                         {onGoToTemplate && (
