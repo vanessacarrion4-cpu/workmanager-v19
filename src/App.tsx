@@ -880,6 +880,51 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Modal cambio de fecha en instancia recurrente */}
+      {pendingDateChange && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 dark:bg-black/60 bg-black/40 backdrop-blur-sm">
+          <div className="dark:bg-bg-card bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border dark:border-border-main border-border-main-light space-y-4">
+            <h3 className="font-black dark:text-white text-text-main-light text-base uppercase tracking-widest">Cambiar fecha</h3>
+            <p className="text-sm dark:text-text-secondary text-text-secondary-light">¿Qué quieres cambiar?</p>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  const { task, newDate } = pendingDateChange;
+                  handleUpdateTask({ ...task, dueDate: newDate });
+                  setPendingDateChange(null);
+                }}
+                className="w-full py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/80 transition-all"
+              >
+                Solo este día
+              </button>
+              <button
+                onClick={() => {
+                  const { task, newDate } = pendingDateChange;
+                  const templateId = task.templateId;
+                  if (templateId && tasks[templateId]) {
+                    const template = tasks[templateId];
+                    handleUpdateTask({
+                      ...template,
+                      recurrence: template.recurrence ? { ...template.recurrence, startDate: newDate } : template.recurrence
+                    });
+                  }
+                  setPendingDateChange(null);
+                }}
+                className="w-full py-3 rounded-2xl dark:bg-bg-secondary bg-gray-100 dark:text-white text-text-main-light font-black text-sm hover:opacity-80 transition-all"
+              >
+                Toda la serie (cambia el inicio)
+              </button>
+              <button
+                onClick={() => setPendingDateChange(null)}
+                className="w-full py-3 rounded-2xl text-rosa font-black text-sm hover:bg-rosa/10 transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TimerStopModal */}
       {timerStopModal && (
         <TimerStopModal

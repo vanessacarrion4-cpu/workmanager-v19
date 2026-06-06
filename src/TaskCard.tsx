@@ -396,17 +396,17 @@ export function TaskCard({
                     isCompact={true}
                   />
                   {!hasSubtasks && (
-                    <DatePickerChip 
-                        value={task.dueDate} 
-                        onChange={(date: string) => {
-                          if (task.templateId) {
-                            onRecurrenceDateChange && onRecurrenceDateChange(task, date);
-                          } else {
-                            onUpdateTask({ ...task, dueDate: date });
-                          }
-                        }} 
-                      />
-                    )}
+                    <DatePickerChip
+                      value={task.dueDate}
+                      onChange={(date: string) => {
+                        if (task.templateId) {
+                          onRecurrenceDateChange && onRecurrenceDateChange(task, date);
+                        } else {
+                          onUpdateTask({ ...task, dueDate: date });
+                        }
+                      }}
+                    />
+                  )}
                   {!hasSubtasks && !inMeeting && (
                     <TimePickerChip
                       value={task.dueTime || ''}
