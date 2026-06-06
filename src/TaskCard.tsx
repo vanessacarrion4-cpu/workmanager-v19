@@ -716,6 +716,7 @@ export function TaskCard({
                         showDelegationDates={showDelegationDates}
                         onToggleExpand={onToggleExpand}
                         onRecurrenceDateChange={onRecurrenceDateChange}
+                        forceExpanded={forceExpanded !== null ? false : null}
                         level={level + 1}
                         rootTaskId={currentRootId}
                         hideCompleted={hideCompleted}
