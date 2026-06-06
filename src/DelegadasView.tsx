@@ -606,317 +606,72 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                   </div>
                 </button>
 
-                {/* Tasks list */}
+                {/* Tasks list - usando TaskCard */}
                 {isOpen && (
-                  <div className="border-t dark:border-border-main border-border-main-light/50 divide-y dark:divide-border-main divide-border-main-light">
-                      {(personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }))).map(({ task, subtasksForGroup: delegatedSubIds }: any, taskIdx: number) => {
-                        const block = getBlock(task.blockId);
-                        const tag = task.tags?.[0];
-                        // Si hay subtasksForGroup (contenedor con subtareas delegadas), mostrar solo esas subtareas
-                        const isContainerWithDelegatedSubs = delegatedSubIds && delegatedSubIds.length > 0;
-                        const hasSubtasks = isContainerWithDelegatedSubs || (task.subtasks && task.subtasks.length > 0);
-                        const isTaskOpen = expandedTasks.has(task.id);
-                        const subtaskList = isContainerWithDelegatedSubs
-                          ? delegatedSubIds.map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted)
-                          : hasSubtasks
-                            ? (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted)
-                            : [];
-
-                        const handleMoveUp = () => {
-                          if (taskIdx === 0) return;
-                          const allEntries = personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }));
-                          const newOrder = allEntries.map((e: any) => e.task.id);
-                          [newOrder[taskIdx - 1], newOrder[taskIdx]] = [newOrder[taskIdx], newOrder[taskIdx - 1]];
-                          setLocalTaskOrders(prev => ({ ...prev, [person.id]: newOrder }));
-                          // Actualizar order en estado y Supabase en batch
-                          newOrder.forEach((id: string, i: number) => {
-                            const t = allTasksMap[id];
-                            if (t) onUpdateTask({ ...t, order: i, modifiedAt: new Date().toISOString() });
-                            supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
-                              if (error) console.error('[ORDER] Error:', error);
-                            });
+                  <div className="border-t dark:border-border-main border-border-main-light/50">
+                    {(personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }))).map(({ task, subtasksForGroup: delegatedSubIds }: any, taskIdx: number) => {
+                      const allEntries = personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }));
+                      const totalEntries = allEntries.length;
+                      const handleMoveUp = () => {
+                        if (taskIdx === 0) return;
+                        const newOrder = allEntries.map((e: any) => e.task.id);
+                        [newOrder[taskIdx - 1], newOrder[taskIdx]] = [newOrder[taskIdx], newOrder[taskIdx - 1]];
+                        setLocalTaskOrders(prev => ({ ...prev, [person.id]: newOrder }));
+                        newOrder.forEach((id: string, i: number) => {
+                          const t = allTasksMap[id];
+                          if (t) onUpdateTask({ ...t, order: i, modifiedAt: new Date().toISOString() });
+                          supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
+                            if (error) console.error('[ORDER] Error:', error);
                           });
-                        };
-                        const handleMoveDown = () => {
-                          const allEntries = personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }));
-                          if (taskIdx === allEntries.length - 1) return;
-                          const newOrder = allEntries.map((e: any) => e.task.id);
-                          [newOrder[taskIdx], newOrder[taskIdx + 1]] = [newOrder[taskIdx + 1], newOrder[taskIdx]];
-                          setLocalTaskOrders(prev => ({ ...prev, [person.id]: newOrder }));
-                          // Actualizar order en estado y Supabase en batch
-                          newOrder.forEach((id: string, i: number) => {
-                            const t = allTasksMap[id];
-                            if (t) onUpdateTask({ ...t, order: i, modifiedAt: new Date().toISOString() });
-                            supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
-                              if (error) console.error('[ORDER] Error:', error);
-                            });
+                        });
+                      };
+                      const handleMoveDown = () => {
+                        if (taskIdx === totalEntries - 1) return;
+                        const newOrder = allEntries.map((e: any) => e.task.id);
+                        [newOrder[taskIdx], newOrder[taskIdx + 1]] = [newOrder[taskIdx + 1], newOrder[taskIdx]];
+                        setLocalTaskOrders(prev => ({ ...prev, [person.id]: newOrder }));
+                        newOrder.forEach((id: string, i: number) => {
+                          const t = allTasksMap[id];
+                          if (t) onUpdateTask({ ...t, order: i, modifiedAt: new Date().toISOString() });
+                          supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
+                            if (error) console.error('[ORDER] Error:', error);
                           });
-                        };
-                        const totalEntries = (personEntries || personTasks).length;
-
-                        return (
-                          <div key={task.id} className={`border-b dark:border-border-main border-border-main-light/30 last:border-0 ${task.status === 'completed' ? 'opacity-50' : ''}`}>
-                            {/* Task row */}
-                            <div className="flex items-center gap-3 px-4 py-3 hover:dark:bg-white/2 hover:bg-gray-50 transition-all group/trow">
-
-                              {/* Flechitas reordenar - hover */}
-                              <div className="flex flex-col gap-0.5 opacity-0 group-hover/trow:opacity-100 transition-opacity shrink-0">
-                                <button onClick={handleMoveUp} disabled={taskIdx === 0} className={`w-5 h-5 flex items-center justify-center rounded transition-all ${taskIdx === 0 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`} title="Subir"><ChevronUp size={12} /></button>
-                                <button onClick={handleMoveDown} disabled={taskIdx === totalEntries - 1} className={`w-5 h-5 flex items-center justify-center rounded transition-all ${taskIdx === totalEntries - 1 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`} title="Bajar"><ChevronDown size={12} /></button>
-                              </div>
-
-                              {/* Barra color bloque */}
-                              <div className="w-1 h-full min-h-[2.5rem] rounded-full shrink-0" style={{ backgroundColor: block?.color || '#666' }} />
-
-                              {/* Checkbox - turquesa normal, azul en modo selección */}
-                              {selectionMode && onToggleTaskSelection ? (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onToggleTaskSelection(task.id, false);
-                                  }}
-                                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                                    selectedTaskIds.has(task.id)
-                                      ? 'bg-azul border-azul text-white'
-                                      : 'dark:border-border-main border-border-main-light hover:border-azul'
-                                  }`}
-                                >
-                                  {selectedTaskIds.has(task.id) && <Check size={10} />}
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => onUpdateTask({ ...task, status: task.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
-                                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${task.status === 'completed' ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light hover:border-turquesa'}`}
-                                >
-                                  {task.status === 'completed' && <Check size={10} />}
-                                </button>
-                              )}
-
-                              {/* Título + info */}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <p className={`font-black dark:text-white text-text-main-light text-[13px] truncate capitalize tracking-normal flex-1 ${task.status === 'completed' ? 'line-through' : ''}`}><HighlightText text={task.title} /></p>
-                                  {/* Badge circular subtareas - junto al título como Dashboard */}
-                                  {hasSubtasks && (() => {
-                                    const pendingCount = subtaskList.filter((s: any) => s && !s.isDeleted && s.status !== 'completed').length;
-                                    return (
-                                      <button
-                                        onClick={() => toggleTask(task.id)}
-                                        className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30"
-                                      >
-                                        {String(pendingCount)}
-                                      </button>
-                                    );
-                                  })()}
-                                </div>
-                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                  {/* Contenedor: solo bloque + recurrencia */}
-                                  {isContainerWithDelegatedSubs ? (
-                                    <>
-                                      {task.recurrence && (
-                                        <span className="flex items-center gap-1 text-[8px] font-black text-morado uppercase">
-                                          <RefreshCw size={9} />
-                                          {task.recurrence.frequency === 'daily' ? 'Diaria' : task.recurrence.frequency === 'weekdays' ? 'L-V' : task.recurrence.frequency === 'weekly' ? 'Semanal' : task.recurrence.frequency === 'monthly' ? 'Mensual' : 'Anual'}
-                                        </span>
-                                      )}
-                                      {onGoToTemplate && (task.templateId || task.isTemplate) && (
-                                        <button onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId || task.id); }} className="flex items-center justify-center w-4 h-4 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors" title="Ir al template en Bloques"><ArrowUpRight size={9} className="text-turquesa" /></button>
-                                      )}
-                                      {/* Badge bloque */}
-                                      {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
-                                    </>
-                                  ) : (
-                                    <>
-                                      {task.recurrence && (
-                                        <span className="flex items-center gap-1 text-[8px] font-black text-morado uppercase">
-                                          <RefreshCw size={9} />
-                                          {task.recurrence.frequency === 'daily' ? 'Diaria' : task.recurrence.frequency === 'weekdays' ? 'L-V' : task.recurrence.frequency === 'weekly' ? 'Semanal' : task.recurrence.frequency === 'monthly' ? 'Mensual' : 'Anual'}
-                                        </span>
-                                      )}
-                                      {onGoToTemplate && (task.templateId || task.isTemplate) && (
-                                        <button onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId || task.id); }} className="flex items-center justify-center w-4 h-4 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors" title="Ir al template en Bloques"><ArrowUpRight size={9} className="text-turquesa" /></button>
-                                      )}
-                                      {!task.isTemplate && <TimePickerChip value={task.dueTime || ''} onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })} />}
-                                      {!task.isTemplate && <DatePickerChip value={task.dueDate} onChange={(date: string) => onUpdateTask({ ...task, dueDate: date })} />}
-                                      <TagPickerChip selectedTags={task.tags} onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} />
-                                      <DelegationChip delegation={task.delegation} people={people || []} onChange={(delegation: any) => onUpdateTask({ ...task, delegation })} onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])} onRenamePerson={onRenamePerson} onDeletePerson={onDeletePerson} />
-                                      <EstimatedTimeChip value={task.estimatedMinutes} onChange={(val: number) => onUpdateTask({ ...task, estimatedMinutes: val })} variant="mini" />
-                                      {(() => { const reg = getTaskRegisteredCombo(task.id, allTasksMap, timeEntries || []); return reg > 0 ? <RegisteredTimeChip value={reg} estimated={task.estimatedMinutes || 0} onClick={() => {}} /> : null; })()}
-                                      {/* Badge bloque al final */}
-                                      {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Fechas - solo para tareas huérfanas */}
-                              {!isContainerWithDelegatedSubs && (
-                                <div className="flex items-center gap-3 shrink-0">
-                                  {task.dueDate && (
-                                    <div className="text-right">
-                                      <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Ejec.</p>
-                                      <p className="text-[10px] font-bold text-turquesa">{new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(parseLocalISO(task.dueDate))}</p>
-                                    </div>
-                                  )}
-                                  {task.delegation?.delegatedAt && (
-                                    <div className="text-right">
-                                      <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Deleg.</p>
-                                      <p className="text-[10px] font-bold text-morado">{new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(parseLocalISO(task.delegation.delegatedAt))}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Edit/Delete - hover, PARA TODOS (contenedores y huérfanas) */}
-                              <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/trow:opacity-100 transition-all">
-                                <button onClick={() => onEditTask && onEditTask(task.id)} className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/15 rounded-lg border border-turquesa/20 transition-all" title="Editar"><Edit size={12} /></button>
-                                <button onClick={() => onDeleteTask && onDeleteTask(task.id)} className="w-7 h-7 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/15 rounded-lg border border-rosa/20 transition-all" title="Eliminar"><Trash2 size={12} /></button>
-                              </div>
-
-                            </div>
-                            {/* Subtasks expandable */}
-                            <AnimatePresence>
-                              {isTaskOpen && hasSubtasks && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: 'auto', opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  className="border-t dark:border-border-main border-border-main-light/20 ml-20 border-l dark:border-l-border-main/30 border-l-border-main-light/30"
-                                >
-                                  {subtaskList.map((sub: any, subIdx: number) => {
-                                    return (
-                                      <div key={sub.id} className="flex items-center gap-3 pl-4 pr-4 py-3 hover:dark:bg-white/2 hover:bg-gray-50 transition-all border-b dark:border-border-main border-border-main-light/10 last:border-0 group/subrow">
-                                        {/* Flechitas reordenar subtareas */}
-                                        <div className="flex flex-col gap-0.5 opacity-0 group-hover/subrow:opacity-100 transition-opacity shrink-0">
-                                          <button
-                                            onClick={() => {
-                                              if (subIdx === 0) return;
-                                              const newOrder = subtaskList.map((s: any) => s.id);
-                                              [newOrder[subIdx - 1], newOrder[subIdx]] = [newOrder[subIdx], newOrder[subIdx - 1]];
-                                              newOrder.forEach((id: string, i: number) => {
-                                                const s = allTasksMap[id];
-                                                if (s) onUpdateTask({ ...s, order: i, modifiedAt: new Date().toISOString() });
-                                                supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
-                                                  if (error) console.error('[ORDER] Error:', error);
-                                                });
-                                              });
-                                            }}
-                                            disabled={subIdx === 0}
-                                            className={`w-5 h-5 flex items-center justify-center rounded transition-all ${subIdx === 0 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
-                                          ><ChevronUp size={12} /></button>
-                                          <button
-                                            onClick={() => {
-                                              if (subIdx === subtaskList.length - 1) return;
-                                              const newOrder = subtaskList.map((s: any) => s.id);
-                                              [newOrder[subIdx], newOrder[subIdx + 1]] = [newOrder[subIdx + 1], newOrder[subIdx]];
-                                              newOrder.forEach((id: string, i: number) => {
-                                                const s = allTasksMap[id];
-                                                if (s) onUpdateTask({ ...s, order: i, modifiedAt: new Date().toISOString() });
-                                                supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
-                                                  if (error) console.error('[ORDER] Error:', error);
-                                                });
-                                              });
-                                            }}
-                                            disabled={subIdx === subtaskList.length - 1}
-                                            className={`w-5 h-5 flex items-center justify-center rounded transition-all ${subIdx === subtaskList.length - 1 ? 'dark:text-text-secondary/20 text-text-secondary-light/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
-                                          ><ChevronDown size={12} /></button>
-                                        </div>
-                                        {/* Checkbox completar subtarea */}
-                                        <button
-                                          onClick={() => onUpdateTask({ ...sub, status: sub.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
-                                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                                            sub.status === 'completed'
-                                              ? 'bg-turquesa border-turquesa text-white'
-                                              : 'dark:border-border-main border-border-main-light hover:border-turquesa'
-                                          }`}
-                                        >
-                                          {sub.status === 'completed' && <Check size={10} />}
-                                        </button>
-                                        <div className="flex-1 min-w-0">
-                                          <p className={`font-bold dark:text-white text-text-main-light text-xs truncate capitalize tracking-normal mb-1 ${sub.status === 'completed' ? 'line-through' : ''}`}>{sub.title}</p>
-                                          <div className="flex flex-wrap items-center gap-1.5">
-                                            {/* TimePickerChip - subtareas pueden tener hora */}
-                                            {!sub.isTemplate && sub.dueDate && (
-                                              <TimePickerChip
-                                                value={sub.dueTime || ''}
-                                                onChange={(time: string) => onUpdateTask({ ...sub, dueTime: time })}
-                                              />
-                                            )}
-                                            {/* DatePickerChip */}
-                                            {!sub.isTemplate && (
-                                              <DatePickerChip
-                                                value={sub.dueDate}
-                                                onChange={(date: string) => onUpdateTask({ ...sub, dueDate: date })}
-                                              />
-                                            )}
-                                            {/* Botón ir al template en Bloques */}
-                                            {onGoToTemplate && (sub.templateId || sub.isTemplate) && (
-                                              <button onClick={(e) => { e.stopPropagation(); onGoToTemplate(sub.templateId || sub.id); }} className="flex items-center justify-center w-4 h-4 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors" title="Ir al template en Bloques"><ArrowUpRight size={9} className="text-turquesa" /></button>
-                                            )}
-                                            {/* RecurrencePickerChip - subtareas pueden ser recurrentes */}
-                                            {!sub.subtasks || sub.subtasks.length === 0 ? (
-                                              <RecurrencePickerChip 
-                                                value={sub.recurrence}
-                                                onChange={(rec: any) => {
-                                                  onUpdateTask({ 
-                                                    ...sub, 
-                                                    recurrence: rec || undefined,
-                                                    isTemplate: !!rec,
-                                                    dueDate: rec ? null : (sub.dueDate || formatLocalISO(new Date())),
-                                                    dueTime: sub.dueTime
-                                                  });
-                                                  // Si la subtarea tiene recurrencia, marcar el padre como isTemplate y dueDate:null
-                                                  if (rec && sub.parentTaskId && allTasksMap[sub.parentTaskId]) {
-                                                    const parent = allTasksMap[sub.parentTaskId];
-                                                    if (!parent.isTemplate || parent.dueDate) {
-                                                      onUpdateTask({ ...parent, isTemplate: true, dueDate: null });
-                                                    }
-                                                  }
-                                                }}
-                                              />
-                                            ) : null}
-                                            <TagPickerChip
-                                              selectedTags={sub.tags}
-                                              onChange={(tags: TagType[]) => onUpdateTask({ ...sub, tags })}
-                                            />
-                                            <DelegationChip
-                                              delegation={sub.delegation}
-                                              people={people || []}
-                                              onChange={(delegation: any) => onUpdateTask({ ...sub, delegation })}
-                                              onAddPerson={(p: any) => onUpdatePeople((prev: any[]) => [...prev, p])}
-                                              onRenamePerson={onRenamePerson}
-                                              onDeletePerson={onDeletePerson}
-                                            />
-                                            <EstimatedTimeChip
-                                              value={sub.estimatedMinutes}
-                                              onChange={(val: number) => onUpdateTask({ ...sub, estimatedMinutes: val })}
-                                              variant="mini"
-                                            />
-                                            {(() => { const reg = getTaskRegisteredCombo(sub.id, allTasksMap, timeEntries || []); return reg > 0 ? <RegisteredTimeChip value={reg} estimated={sub.estimatedMinutes || 0} onClick={() => {}} /> : null; })()}
-                                          </div>
-                                        </div>
-                                        {/* Fecha delegación subtarea */}
-                                        {sub.delegation?.delegatedAt && (
-                                          <div className="text-right shrink-0">
-                                            <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Deleg.</p>
-                                            <p className="text-[10px] font-bold text-morado">
-                                              {new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(parseLocalISO(sub.delegation.delegatedAt))}
-                                            </p>
-                                          </div>
-                                        )}
-                                        <div className="flex items-center gap-1 opacity-0 group-hover/subrow:opacity-100 transition-all">
-                                          <button onClick={() => onEditTask && onEditTask(sub.id)} className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/15 rounded-lg border border-turquesa/20 transition-all"><Edit size={12} /></button>
-                                          <button onClick={() => onDeleteTask && onDeleteTask(sub.id)} className="w-7 h-7 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/15 rounded-lg border border-rosa/20 transition-all"><Trash2 size={12} /></button>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        );
-                      })}
+                        });
+                      };
+                      return (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          variant="FULL"
+                          allTasksMap={allTasksMap}
+                          people={people}
+                          blocks={blocks}
+                          timeEntries={timeEntries}
+                          onToggleStatus={(id: string) => {
+                            const t = allTasksMap[id];
+                            if (t) onUpdateTask({ ...t, status: t.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() });
+                          }}
+                          onUpdateTask={onUpdateTask}
+                          onEditTask={onEditTask}
+                          onAddTask={onAddTask}
+                          onDelete={onDeleteTask}
+                          onReorderSubtasks={() => {}}
+                          onGoToTemplate={onGoToTemplate}
+                          onToggleExpand={(taskId: string) => onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded })}
+                          showDelegationDates={true}
+                          subtasksForGroup={delegatedSubIds}
+                          hideCompleted={false}
+                          selectionMode={selectionMode}
+                          selectedTaskIds={selectedTaskIds}
+                          onToggleTaskSelection={onToggleTaskSelection}
+                          taskIndex={taskIdx}
+                          taskCount={totalEntries}
+                          onMoveUp={handleMoveUp}
+                          onMoveDown={handleMoveDown}
+                          searchQuery={searchQuery}
+                        />
+                      );
+                    })}
                   </div>
                 )}
               </div>

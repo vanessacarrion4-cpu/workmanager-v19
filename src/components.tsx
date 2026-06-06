@@ -362,6 +362,7 @@ export function TaskCard({
   selectedTaskIds = new Set(),
   onToggleTaskSelection = null,
   inMeeting = false,
+  showDelegationDates = false,
   meetingItems = null,
   onUpdateMeetingItems = null,
   searchQuery = '',
@@ -848,6 +849,24 @@ export function TaskCard({
                 </div>
               </div>
             </div>
+
+            {/* Fechas delegación - solo en vista Delegadas */}
+            {showDelegationDates && (task.dueDate || task.delegation?.delegatedAt) && (
+              <div className="flex flex-col items-end gap-0.5 shrink-0 mr-1">
+                {task.dueDate && (
+                  <div className="text-right">
+                    <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Ejec.</p>
+                    <p className="text-[10px] font-bold text-turquesa">{new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(new Date(task.dueDate + 'T12:00:00'))}</p>
+                  </div>
+                )}
+                {task.delegation?.delegatedAt && (
+                  <div className="text-right">
+                    <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Deleg.</p>
+                    <p className="text-[10px] font-bold text-morado">{new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(new Date(task.delegation.delegatedAt + 'T12:00:00'))}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Botones acción - una sola fila */}
             <div className="flex flex-col gap-1 shrink-0">
