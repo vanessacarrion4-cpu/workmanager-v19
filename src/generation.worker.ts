@@ -227,6 +227,17 @@ function generateInstances(
             return;
           }
 
+          // Si existe una excepción de esta subtarea con instanceDate=dateStr pero dueDate diferente,
+          // significa que fue movida DESDE este día → no generar instancia para este día
+          const movedAwayException = Object.values(allTasks).find(t =>
+            t.templateId === childTemplate.id &&
+            t.isException &&
+            t.instanceDate === dateStr &&
+            t.dueDate !== dateStr &&
+            !t.isDeleted
+          );
+          if (movedAwayException) return;
+
           const movedExceptionToday = Object.values(allTasks).find(t =>
             t.templateId === childTemplate.id &&
             t.isException &&
