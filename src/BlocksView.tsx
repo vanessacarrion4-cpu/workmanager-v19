@@ -96,13 +96,24 @@ export function BlocksManagerView({
   setBulkDateModal = null, setBulkTimeModal = null, searchQuery = ''
 }: BlocksViewProps) {
 
-  // Scroll al template resaltado cuando cambia highlightTaskId
+  // Seleccionar bloque y hacer scroll al template resaltado
   React.useEffect(() => {
     if (!highlightTaskId) return;
-    const el = document.querySelector(`[data-task-id="${highlightTaskId}"]`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Encontrar la tarea template en allTasksMap
+    const targetTask = allTasksMap[highlightTaskId];
+    if (!targetTask) return;
+    // Seleccionar el bloque correcto si no está ya seleccionado
+    const targetBlock = blocks.find((b: any) => b.id === targetTask.blockId);
+    if (targetBlock) {
+      setSelectedBlock(targetBlock);
     }
+    // Scroll después de que React renderice el bloque seleccionado
+    setTimeout(() => {
+      const el = document.querySelector(`[data-task-id="${highlightTaskId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 150);
   }, [highlightTaskId]);
 
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
