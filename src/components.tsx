@@ -932,6 +932,7 @@ export function TaskCard({
                         onPromote={onPromote}
                         onDemote={onDemote}
                         onReorderSubtasks={onReorderSubtasks}
+                        onViewInstances={onViewInstances}
                         onToggleExpand={onToggleExpand}
                         onRecurrenceDateChange={onRecurrenceDateChange}
                         level={level + 1}
