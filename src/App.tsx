@@ -404,8 +404,11 @@ export default function App() {
         const original = prev[id];
         if (!original || original.isDeleted) return;
 
-        // Duplicar tarea raíz
-        const rootDuplicate = duplicateTaskRecursive(original);
+        // Si la tarea tiene padre (es subtarea), duplicar al mismo nivel
+        const effectiveParentId = original.parentTaskId || null;
+
+        // Duplicar tarea con su parentTaskId real si lo tiene
+        const rootDuplicate = duplicateTaskRecursive(original, effectiveParentId);
         if (!rootDuplicate) return;
 
         next[rootDuplicate.id] = rootDuplicate;
@@ -429,6 +432,23 @@ export default function App() {
 
           rootDuplicate.subtasks = newSubtaskIds;
           next[rootDuplicate.id] = rootDuplicate;
+        }
+
+        // Si tiene padre, insertar la copia justo después del original en las subtareas del padre
+        if (effectiveParentId && next[effectiveParentId]) {
+          const parentTask = next[effectiveParentId];
+          const currentSubtasks = parentTask.subtasks || [];
+          const originalIndex = currentSubtasks.indexOf(original.id);
+          const newSubtasks = [...currentSubtasks];
+          if (originalIndex >= 0) {
+            newSubtasks.splice(originalIndex + 1, 0, rootDuplicate.id);
+          } else {
+            newSubtasks.push(rootDuplicate.id);
+          }
+          next[effectiveParentId] = { ...parentTask, subtasks: newSubtasks };
+          // Persistir padre actualizado en Supabase
+          supabase.from('tasks').update({ subtasks: newSubtasks })
+            .eq('id', effectiveParentId).then(() => {});
         }
       });
 
