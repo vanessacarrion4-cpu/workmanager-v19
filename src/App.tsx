@@ -368,7 +368,9 @@ export default function App() {
     const idMapping = new Map<string, string>(); // oldId -> newId
 
     // Función recursiva para duplicar tarea y sus subtareas
-    const duplicateTaskRecursive = (original: Task, newParentId: string | null = null): Task | null => {
+    // isRoot=true: es la tarea que el usuario seleccionó → siempre añade (copia)
+    // isRoot=false: es una subtarea hija duplicada recursivamente → no añade (copia)
+    const duplicateTaskRecursive = (original: Task, newParentId: string | null = null, isRoot: boolean = true): Task | null => {
       if (!original || original.isDeleted) return null;
 
       const newId = `t-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -377,7 +379,7 @@ export default function App() {
       const duplicate: Task = {
         ...original,
         id: newId,
-        title: newParentId ? original.title : `${original.title} (copia)`, // Solo añadir (copia) a la raíz
+        title: isRoot ? `${original.title} (copia)` : original.title,
         parentTaskId: newParentId,
         status: 'pending',
         createdAt: timestamp,
@@ -422,7 +424,7 @@ export default function App() {
             const subOriginal = prev[subId];
             if (!subOriginal) return;
 
-            const subDuplicate = duplicateTaskRecursive(subOriginal, rootDuplicate.id);
+            const subDuplicate = duplicateTaskRecursive(subOriginal, rootDuplicate.id, false);
             if (!subDuplicate) return;
 
             newSubtaskIds.push(subDuplicate.id);
