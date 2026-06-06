@@ -372,9 +372,10 @@ export function TaskCard({
   const highlightRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (isHighlighted && highlightRef.current) {
+      // Esperar a que el layout esté completamente pintado
       setTimeout(() => {
         highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 50);
+      }, 500);
     }
   }, [isHighlighted]);
   const block = blocks.find((b: any) => b.id === task.blockId) || blocks[0] || { color: '#14B8A6', icon: '📋', name: 'General' };
