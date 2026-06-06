@@ -168,7 +168,17 @@ function generateInstances(
         )
       );
 
-      const shouldAppear = parentMatchesToday || recurringChildrenToday.length > 0 || nonRecurringForceToday.length > 0 || hasMovedExceptionsToday;
+      // También aparecer si alguna subtarea tiene excepción movida A este día
+      const hasExceptionMovedToThisDay = children.some(c =>
+        Object.values(allTasks).some(t =>
+          t.templateId === c.id &&
+          t.isException &&
+          t.dueDate === dateStr &&
+          !t.isDeleted
+        )
+      );
+
+      const shouldAppear = parentMatchesToday || recurringChildrenToday.length > 0 || nonRecurringForceToday.length > 0 || hasMovedExceptionsToday || hasExceptionMovedToThisDay;
 
       if (shouldAppear) {
         const parentInstanceId = `inst-${parentTemplate.id}-${dateStr}`;
@@ -214,6 +224,29 @@ function generateInstances(
         const subtasksToCreate: Task[] = [];
 
         children.forEach(childTemplate => {
+          // PRIMERO: comprobar si hay una excepción movida A este día (aunque la recurrencia no corresponda)
+          const movedExceptionToday = Object.values(allTasks).find(t =>
+            t.templateId === childTemplate.id &&
+            t.isException &&
+            t.dueDate === dateStr &&
+            !t.isDeleted
+          );
+          if (movedExceptionToday) {
+            subtaskInstanceIds.push(movedExceptionToday.id);
+            return;
+          }
+
+          // Si existe una excepción con instanceDate=dateStr pero dueDate diferente,
+          // fue movida DESDE este día → no generar instancia para este día
+          const movedAwayException = Object.values(allTasks).find(t =>
+            t.templateId === childTemplate.id &&
+            t.isException &&
+            t.instanceDate === dateStr &&
+            t.dueDate !== dateStr &&
+            !t.isDeleted
+          );
+          if (movedAwayException) return;
+
           if (childTemplate.recurrence && !matchesRecurrence(childTemplate.recurrence, current)) return;
           if (!childTemplate.recurrence && childTemplate.dueDate && childTemplate.dueDate !== dateStr) return;
           if (!childTemplate.recurrence && childTemplate.status === 'completed') return;
@@ -224,28 +257,6 @@ function generateInstances(
           if (existingChild) {
             if (existingChild.isException && existingChild.dueDate !== dateStr) return;
             subtaskInstanceIds.push(childInstanceId);
-            return;
-          }
-
-          // Si existe una excepción de esta subtarea con instanceDate=dateStr pero dueDate diferente,
-          // significa que fue movida DESDE este día → no generar instancia para este día
-          const movedAwayException = Object.values(allTasks).find(t =>
-            t.templateId === childTemplate.id &&
-            t.isException &&
-            t.instanceDate === dateStr &&
-            t.dueDate !== dateStr &&
-            !t.isDeleted
-          );
-          if (movedAwayException) return;
-
-          const movedExceptionToday = Object.values(allTasks).find(t =>
-            t.templateId === childTemplate.id &&
-            t.isException &&
-            t.dueDate === dateStr &&
-            !t.isDeleted
-          );
-          if (movedExceptionToday) {
-            subtaskInstanceIds.push(movedExceptionToday.id);
             return;
           }
 
