@@ -369,6 +369,14 @@ export function TaskCard({
   if (!task || task.isDeleted) return null;
   const currentRootId = rootTaskId || task.id;
   const isHighlighted = highlightTaskId === task.id;
+  const highlightRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isHighlighted && highlightRef.current) {
+      setTimeout(() => {
+        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 50);
+    }
+  }, [isHighlighted]);
   const block = blocks.find((b: any) => b.id === task.blockId) || blocks[0] || { color: '#14B8A6', icon: '📋', name: 'General' };
   const hasSubtasks = (task.subtasks && task.subtasks.length > 0) || (subtasksForGroup && subtasksForGroup.length > 0);
   const isExpanded = forceExpanded !== null ? forceExpanded : (task.isExpanded ?? true);
@@ -538,7 +546,7 @@ export function TaskCard({
   }
  
   return (
-    <div className="group relative" data-task-id={task.id}>
+    <div className="group relative" data-task-id={task.id} ref={highlightRef}>
       <div>
         <div
           className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''} ${selectionMode && selectedTaskIds.has(task.id) ? 'dark:bg-azul/15 bg-azul/10 rounded-[1.5rem]' : ''} ${selectionMode ? 'cursor-pointer' : ''} ${searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) ? 'dark:bg-yellow-400/5 bg-yellow-400/10 rounded-2xl' : ''} ${isHighlighted ? 'rounded-2xl' : ''}`}

@@ -113,18 +113,7 @@ export function BlocksManagerView({
     // También expandir la propia tarea si tiene subtareas
     setExpandedIds(prev => new Set([...prev, highlightTaskId]));
 
-    // Scroll con reintentos
-    let attempts = 0;
-    const tryScroll = () => {
-      const el = document.querySelector(`[data-task-id="${highlightTaskId}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else if (attempts < 15) {
-        attempts++;
-        setTimeout(tryScroll, 100);
-      }
-    };
-    setTimeout(tryScroll, 150);
+    // El scroll lo hace el propio TaskCard via ref cuando isHighlighted=true
   }, [highlightTaskId]);
 
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
