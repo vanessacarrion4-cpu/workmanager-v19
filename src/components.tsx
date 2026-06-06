@@ -750,7 +750,7 @@ export function TaskCard({
                     );
                   })()}
                   {/* Chip recurrencia para templates (Delegadas, Vista Bloques) */}
-                  {task.isTemplate && task.recurrence && !task.templateId && !hasSubtasks && (() => {
+                  {task.isTemplate && task.recurrence && !task.templateId && (() => {
                     const rec = task.recurrence;
                     const freq = rec.frequency || rec.type;
                     const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
