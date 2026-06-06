@@ -2999,16 +2999,12 @@ export function InstancesModal({ task, allTasksMap, onClose, onEditTask, onDelet
 
     // Generar instancias en ventana completa usando solo templates
     const templatesOnly = Object.fromEntries(
-      Object.entries(allTasksMap).filter(([, t]) => !t.templateId)
+      Object.entries(allTasksMap).filter(([, t]) => !t.templateId && !t.isDeleted)
     );
     const generated = generateInstances(templatesOnly, startStr, DAYS_PAST + DAYS_FUTURE);
 
-    // Filtrar las que pertenecen a este template (subtarea directa)
-    const myInstances = generated.filter(t =>
-      t.templateId === task.id && !t.parentTaskId === false
-        ? false
-        : t.templateId === task.id
-    );
+    // Filtrar instancias que pertenecen a este template concreto
+    const myInstances = generated.filter(t => t.templateId === task.id);
 
     // También buscar excepciones guardadas en Supabase
     const exceptions = Object.values(allTasksMap).filter(t =>
