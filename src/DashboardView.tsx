@@ -71,7 +71,7 @@ export function DashboardView({
   timeEntries = [], activeTimer, onStartTimer, onStopTimer, onToggle, onDelete, onAddTask,
   onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId,
   onOpenTimePanel, activeDate, onSetDate, onDayChange, onReorderTasks, onReorderSubtasks, onBatchUpdateOrder,
-  onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null,
+  onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null, onGoToTemplate = null,
   selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null,
   onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null,
   bulkDuplicateTasks = null, bulkDelegateModal = false, setBulkDelegateModal = null,
@@ -536,6 +536,7 @@ export function DashboardView({
                                   onPromote={onPromote}
                                   onDemote={onDemote}
                                   onReorderSubtasks={onReorderSubtasks}
+                                  onGoToTemplate={onGoToTemplate}
                                   onToggleExpand={(taskId: string) => {
                                     setExpandAll(null);
                                     onToggleExpand(taskId);

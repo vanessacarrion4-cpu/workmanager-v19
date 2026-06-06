@@ -765,10 +765,10 @@ export function TaskCard({
                     return onViewInstances ? (
                       <button
                         onClick={(e) => { e.stopPropagation(); onViewInstances(task); }}
-                        className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors shrink-0"
+                        className="flex items-center justify-center w-5 h-5 rounded border dark:border-azul/30 border-azul/40 dark:bg-azul/10 bg-azul/5 hover:bg-azul/20 transition-colors shrink-0"
                         title="Ver instancias generadas"
                       >
-                        <Info size={10} className="text-turquesa" />
+                        <Info size={10} className="text-azul" />
                       </button>
                     ) : null;
                   })()}
