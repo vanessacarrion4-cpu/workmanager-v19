@@ -26,6 +26,7 @@ interface UseSupabaseOptions {
 /**
  * Reconstruye el array subtasks[] de cada tarea a partir de parentTaskId.
  * Primera pasada: relaciones directas (parentTaskId → padre)
+ * Al final ordena cada array subtasks[] por el campo order de cada subtarea.
  */
 function reconstructHierarchy(mappedTasks: Record<string, Task>): void {
   Object.values(mappedTasks).forEach(task => {
@@ -34,9 +35,20 @@ function reconstructHierarchy(mappedTasks: Record<string, Task>): void {
         mappedTasks[task.parentTaskId].subtasks = [];
       }
       // NO añadir subtareas borradas al array del padre
-      if (!task.isDeleted && !mappedTasks[task.parentTaskId].subtasks.includes(task.id)) {
-        mappedTasks[task.parentTaskId].subtasks.push(task.id);
+      if (!task.isDeleted && !mappedTasks[task.parentTaskId].subtasks!.includes(task.id)) {
+        mappedTasks[task.parentTaskId].subtasks!.push(task.id);
       }
+    }
+  });
+
+  // Ordenar subtasks[] de cada tarea por el campo order de las subtareas
+  Object.values(mappedTasks).forEach(task => {
+    if (task.subtasks && task.subtasks.length > 1) {
+      task.subtasks.sort((a, b) => {
+        const orderA = mappedTasks[a]?.order ?? 9999;
+        const orderB = mappedTasks[b]?.order ?? 9999;
+        return orderA - orderB;
+      });
     }
   });
 }
