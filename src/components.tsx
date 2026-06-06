@@ -864,22 +864,33 @@ export function TaskCard({
             </div>
 
             {/* Fechas delegación - solo en vista Delegadas */}
-            {showDelegationDates && (task.dueDate || task.delegation?.delegatedAt) && (
-              <div className="flex flex-col items-end gap-0.5 shrink-0 mr-1">
-                {task.dueDate && (
-                  <div className="text-right">
-                    <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Ejec.</p>
-                    <p className="text-[10px] font-bold text-turquesa">{new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(new Date(task.dueDate + 'T12:00:00'))}</p>
-                  </div>
-                )}
-                {task.delegation?.delegatedAt && (
-                  <div className="text-right">
-                    <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Deleg.</p>
-                    <p className="text-[10px] font-bold text-morado">{new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(new Date(task.delegation.delegatedAt + 'T12:00:00'))}</p>
-                  </div>
-                )}
-              </div>
-            )}
+            {showDelegationDates && (task.dueDate || task.delegation?.delegatedAt) && (() => {
+              const fmtDate = (d: string | null | undefined) => {
+                if (!d) return null;
+                const dt = new Date(d + 'T12:00:00');
+                if (isNaN(dt.getTime())) return null;
+                return new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }).format(dt);
+              };
+              const execStr = fmtDate(task.dueDate);
+              const delegStr = fmtDate(task.delegation?.delegatedAt);
+              if (!execStr && !delegStr) return null;
+              return (
+                <div className="flex flex-col items-end gap-0.5 shrink-0 mr-1">
+                  {execStr && (
+                    <div className="text-right">
+                      <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Ejec.</p>
+                      <p className="text-[10px] font-bold text-turquesa">{execStr}</p>
+                    </div>
+                  )}
+                  {delegStr && (
+                    <div className="text-right">
+                      <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Deleg.</p>
+                      <p className="text-[10px] font-bold text-morado">{delegStr}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Botones acción - una sola fila */}
             <div className="flex flex-col gap-1 shrink-0">
