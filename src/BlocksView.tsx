@@ -23,6 +23,7 @@ import { Reorder } from 'framer-motion';
 import { WorkBlock, Task } from './types';
 import { isTaskRepetitive } from './utils';
 import { TaskCard, BulkActionBar, ToggleExpandButton } from './components';
+import { StickyActionBar } from './StickyActionBar';
 
 // Componentes compartidos importados desde App.tsx vía props
 // (TaskCard, BulkActionBar, ToggleExpandButton se pasan como props o se importarán
@@ -195,78 +196,47 @@ export function BlocksManagerView({
   if (selectedBlock) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32">
-        <div className="flex items-center justify-between dark:bg-bg-card bg-bg-card-light p-6 rounded-[2rem] border dark:border-border-main border-border-main-light shadow-xl">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setSelectedBlock(null)} className="p-3 dark:hover:bg-bg-main hover:bg-gray-100 rounded-2xl transition-all">
-              <ChevronRight size={20} className="rotate-180 dark:text-white text-text-main-light" />
+        <div className="sticky top-0 z-20 dark:bg-bg-secondary bg-bg-secondary-light rounded-[2rem] border dark:border-border-main border-border-main-light shadow-xl overflow-hidden">
+          {/* Header del bloque */}
+          <div className="flex items-center gap-3 p-4">
+            <button onClick={() => setSelectedBlock(null)} className="p-2 dark:hover:bg-bg-main hover:bg-gray-100 rounded-xl transition-all shrink-0">
+              <ChevronRight size={18} className="rotate-180 dark:text-white text-text-main-light" />
             </button>
-            <div className="w-12 h-12 rounded-2xl dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light flex items-center justify-center text-3xl shadow-inner">
-               {selectedBlock.icon}
+            <div className="w-9 h-9 rounded-xl dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light flex items-center justify-center text-xl shadow-inner shrink-0">
+              {selectedBlock.icon}
             </div>
-            <div>
-              <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-black dark:text-white text-text-main-light">{selectedBlock.name}</h2>
-                <button
-                  onClick={() => onEditBlock(selectedBlock.id)}
-                  className="p-1.5 bg-turquesa/10 text-turquesa hover:bg-turquesa/20 rounded-lg transition-all"
-                >
-                  <Edit size={14} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black dark:text-white text-text-main-light truncate">{selectedBlock.name}</h2>
+                <button onClick={() => onEditBlock(selectedBlock.id)} className="p-1 bg-turquesa/10 text-turquesa hover:bg-turquesa/20 rounded-lg transition-all shrink-0">
+                  <Edit size={12} />
                 </button>
               </div>
-              <p className="text-[10px] font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">Gestión de contexto</p>
+              <p className="text-[10px] font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">
+                {coreTasks.length + adhocTasks.length} tareas
+              </p>
             </div>
           </div>
-          <div className="flex gap-3">
-            {onToggleSelectionMode && (
-              <button
-                onClick={() => onToggleSelectionMode()}
-                className={`flex items-center gap-1.5 px-3 h-10 rounded-2xl border-2 transition-all text-[10px] font-black uppercase tracking-widest ${
-                  selectionMode
-                    ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30'
-                    : 'bg-azul/10 border-azul text-azul hover:bg-azul hover:text-white'
-                }`}
-                title={selectionMode ? 'Salir de selección' : 'Seleccionar múltiple'}
-              >
-                <CheckCircle2 size={14} />
-                <span className="hidden sm:inline">{selectionMode ? 'Cancelar' : 'Seleccionar'}</span>
-              </button>
-            )}
-            <button
-              onClick={() => setHideCompleted(!hideCompleted)}
-              className={`w-9 h-9 flex items-center justify-center rounded-full border-2 transition-all relative group ${
-                hideCompleted
-                  ? 'bg-turquesa text-white border-turquesa shadow-lg shadow-turquesa/30'
-                  : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'
-              }`}
-              title={hideCompleted ? 'Mostrar completadas' : 'Ocultar completadas'}
-            >
-              {hideCompleted ? <EyeOff size={14} /> : <Eye size={14} />}
-              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-lg text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                {hideCompleted ? 'Mostrar' : 'Ocultar'}
-              </span>
-            </button>
-            <ToggleExpandButton blockId={selectedBlock.id} onExpandAll={onExpandAll} />
-            <button
-              onClick={() => onAddTask(null, selectedBlock.id)}
-              className="px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 bg-white/5 dark:text-white text-text-main-light border border-white/10 hover:bg-white/15 hover:scale-[1.02] active:scale-95 shadow-xl backdrop-blur-md"
-              style={{ borderColor: `${selectedBlock.color}44` }}
-            >
-              <Plus size={16} /> Tarea
-            </button>
-          </div>
-        </div>
-
-        {/* Bulk Actions Bar */}
-        {selectionMode && selectedTaskIds.size > 0 && bulkUpdateTasks && (
-          <BulkActionBar
-            count={selectedTaskIds.size}
-            onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
-            onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
-            onComplete={() => {
-              if (bulkUpdateTasks) {
-                bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() });
+          {/* StickyActionBar integrada */}
+          <StickyActionBar
+            selectionMode={selectionMode}
+            selectedCount={selectedTaskIds.size}
+            onToggleSelectionMode={() => onToggleSelectionMode && onToggleSelectionMode()}
+            onAddTask={() => onAddTask(null, selectedBlock.id)}
+            hideCompleted={hideCompleted}
+            onToggleHideCompleted={() => setHideCompleted(!hideCompleted)}
+            expanded={expandedIds.size > 0}
+            onToggleExpand={() => {
+              if (expandedIds.size > 0) {
+                setExpandedIds(new Set());
+              } else {
+                const allIds = new Set([...coreTasks.map((t: any) => t.id), ...adhocTasks.map((t: any) => t.id)]);
+                setExpandedIds(allIds);
               }
             }}
+            onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
+            onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
+            onComplete={() => bulkUpdateTasks && bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
             onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
             onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
             onDelete={() => {
@@ -274,10 +244,8 @@ export function BlocksManagerView({
                 bulkDeleteTasks && bulkDeleteTasks();
               }
             }}
-            onCancel={onToggleSelectionMode}
-            isMobile={window.innerWidth < 768}
           />
-        )}
+        </div>
 
         <div className="space-y-12">
           {/* Ad-hoc Tasks Section */}

@@ -18,6 +18,7 @@ import { isTaskCompleted, getTaskEstimatedCombo, formatMinutes } from './utils';
 import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
+import { StickyActionBar } from './StickyActionBar';
 
 interface DashboardViewProps {
   tasks: Task[];
@@ -171,28 +172,25 @@ export function DashboardView({
       exit={{ opacity: 0, y: -20 }}
       className="space-y-10"
     >
-      {/* Bulk Action Bar */}
-      {selectionMode && selectedTaskIds.size > 0 && bulkUpdateTasks && (
-        <BulkActionBar
-          count={selectedTaskIds.size}
-          onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
-          onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
-          onComplete={() => {
-            if (bulkUpdateTasks) {
-              bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() });
-            }
-          }}
-          onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
-          onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
-          onDelete={() => {
-            if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) {
-              bulkDeleteTasks && bulkDeleteTasks();
-            }
-          }}
-          onCancel={onToggleSelectionMode}
-          isMobile={window.innerWidth < 768}
-        />
-      )}
+      {/* StickyActionBar — selección y acciones */}
+      <StickyActionBar
+        selectionMode={selectionMode}
+        selectedCount={selectedTaskIds.size}
+        onToggleSelectionMode={() => onToggleSelectionMode && onToggleSelectionMode()}
+        onAddTask={() => onAddTask()}
+        hideCompleted={hideCompleted}
+        onToggleHideCompleted={() => setHideCompleted(!hideCompleted)}
+        onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
+        onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
+        onComplete={() => bulkUpdateTasks && bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
+        onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
+        onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
+        onDelete={() => {
+          if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) {
+            bulkDeleteTasks && bulkDeleteTasks();
+          }
+        }}
+      />
 
       {/* Date Header */}
       <div className="flex flex-col gap-6">
@@ -302,19 +300,6 @@ export function DashboardView({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => onToggleSelectionMode && onToggleSelectionMode()}
-              className={`flex items-center gap-1.5 px-3 h-10 rounded-2xl border-2 transition-all text-[10px] font-black uppercase tracking-widest ${
-                selectionMode
-                  ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30'
-                  : 'bg-azul/10 border-azul text-azul hover:bg-azul hover:text-white'
-              }`}
-              title={selectionMode ? 'Salir de selección' : 'Seleccionar múltiple'}
-            >
-              <CheckCircle2 size={14} />
-              <span className="hidden sm:inline">{selectionMode ? 'Cancelar' : 'Seleccionar'}</span>
-            </button>
-
-            <button
               onClick={() => setExpandAll(prev => prev === true ? false : true)}
               className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-all relative group ${
                 expandAll === true
@@ -347,28 +332,7 @@ export function DashboardView({
               </span>
             </button>
 
-            <button
-              onClick={() => setHideCompleted(!hideCompleted)}
-              className={`w-10 h-10 flex items-center justify-center rounded-2xl border transition-all relative group ${
-                hideCompleted
-                  ? 'bg-turquesa text-white border-turquesa'
-                  : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa dark:hover:bg-turquesa/10 hover:bg-turquesa/5'
-              }`}
-              title={hideCompleted ? 'Ver completadas' : 'Ocultar completadas'}
-            >
-              {hideCompleted ? <Eye size={16} /> : <EyeOff size={16} />}
-              <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-xl text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                {hideCompleted ? 'Ver completadas' : 'Ocultar completadas'}
-              </span>
-            </button>
 
-            <button
-              onClick={() => onAddTask()}
-              className="bg-azul hover:bg-azul/90 text-white w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg shadow-azul/20 transition-all"
-              title="Añadir tarea"
-            >
-              <Plus size={20} />
-            </button>
           </div>
         </div>
       </div>

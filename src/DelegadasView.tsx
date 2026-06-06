@@ -24,6 +24,7 @@ import {
 import { getTaskRegisteredCombo, getTaskEstimatedCombo } from './utils';
 
 import { supabase } from './supabaseClient';
+import { StickyActionBar } from './StickyActionBar';
 
 // ─── Colores por persona ─────────────────────────────────────────────────────
 const PERSON_COLORS = [
@@ -401,20 +402,20 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32">
 
-      {/* Bulk Action Bar Delegadas */}
-      {selectionMode && selectedTaskIds.size > 0 && bulkUpdateTasks && (
-        <BulkActionBar
-          count={selectedTaskIds.size}
-          onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
-          onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
-          onComplete={() => bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
-          onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
-          onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
-          onDelete={() => { if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) { bulkDeleteTasks && bulkDeleteTasks(); } }}
-          onCancel={onToggleSelectionMode}
-          isMobile={window.innerWidth < 768}
-        />
-      )}
+      {/* StickyActionBar — selección y acciones */}
+      <StickyActionBar
+        selectionMode={selectionMode}
+        selectedCount={selectedTaskIds.size}
+        onToggleSelectionMode={() => onToggleSelectionMode && onToggleSelectionMode()}
+        hideCompleted={hideCompletedDelegadas}
+        onToggleHideCompleted={() => setHideCompletedDelegadas(!hideCompletedDelegadas)}
+        onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
+        onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
+        onComplete={() => bulkUpdateTasks && bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
+        onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
+        onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
+        onDelete={() => { if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) { bulkDeleteTasks && bulkDeleteTasks(); } }}
+      />
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -423,48 +424,6 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
           <p className="text-text-secondary text-sm mt-1">{delegatedTasks.length} tareas · {people.length} personas</p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Seleccionar */}
-          <button
-            onClick={() => onToggleSelectionMode && onToggleSelectionMode()}
-            className={`flex items-center gap-1.5 px-3 h-10 rounded-2xl border-2 transition-all text-[10px] font-black uppercase tracking-widest ${
-              selectionMode
-                ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30'
-                : 'bg-azul/10 border-azul text-azul hover:bg-azul hover:text-white'
-            }`}
-          >
-            <CheckCircle2 size={14} />
-            <span className="hidden sm:inline">{selectionMode ? 'Cancelar' : 'Seleccionar'}</span>
-          </button>
-          {/* Expandir/Contraer - igual que Dashboard */}
-          <button
-            onClick={toggleAllPersons}
-            className={`w-10 h-10 flex items-center justify-center rounded-full border-2 transition-all relative group ${
-              allExpanded
-                ? 'bg-azul text-white border-azul shadow-lg shadow-azul/30'
-                : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul dark:hover:bg-azul/10 hover:bg-azul/5'
-            }`}
-            title={allExpanded ? 'Contraer personas' : 'Expandir personas'}
-          >
-            {allExpanded ? <ChevronsUp size={15} /> : <ChevronsDown size={15} />}
-            <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-xl text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-              {allExpanded ? 'Contraer personas' : 'Expandir personas'}
-            </span>
-          </button>
-          {/* Ver/Ocultar completadas - igual que Dashboard */}
-          <button
-            onClick={() => setHideCompletedDelegadas(!hideCompletedDelegadas)}
-            className={`w-10 h-10 flex items-center justify-center rounded-2xl border transition-all relative group ${
-              hideCompletedDelegadas
-                ? 'bg-turquesa text-white border-turquesa'
-                : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa dark:hover:bg-turquesa/10 hover:bg-turquesa/5'
-            }`}
-            title={hideCompletedDelegadas ? 'Ver completadas' : 'Ocultar completadas'}
-          >
-            {hideCompletedDelegadas ? <Eye size={16} /> : <EyeOff size={16} />}
-            <span className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-xl text-[9px] font-bold dark:text-white text-text-main-light whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-              {hideCompletedDelegadas ? 'Ver completadas' : 'Ocultar completadas'}
-            </span>
-          </button>
           <button
             onClick={() => { 
               setShowNewMeeting(true); 

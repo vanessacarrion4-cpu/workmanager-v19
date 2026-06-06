@@ -20,6 +20,7 @@ import {
   EstimatedTimeChip, RegisteredTimeChip, BlockPickerChip, TimePickerChip,
   TaskTypeChip, TimerDisplay, BulkActionBar
 } from './components';
+import { StickyActionBar } from './StickyActionBar';
 
 
 export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, activeDate, onDateSelect, onAddTask, onToggleTask, onDelete, onReorderTasks, onReorderSubtasks, onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null }: any) {
