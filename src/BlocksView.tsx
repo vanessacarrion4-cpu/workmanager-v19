@@ -96,32 +96,51 @@ export function BlocksManagerView({
   setBulkDateModal = null, setBulkTimeModal = null, searchQuery = ''
 }: BlocksViewProps) {
 
-  // Seleccionar bloque y hacer scroll al template resaltado
+  // Seleccionar bloque, expandir padre y hacer scroll al template resaltado
   React.useEffect(() => {
     if (!highlightTaskId) return;
     const targetTask = allTasksMap[highlightTaskId];
     if (!targetTask) return;
+
+    // Seleccionar bloque correcto
     const targetBlock = blocks.find((b: any) => b.id === targetTask.blockId);
-    if (targetBlock) {
-      setSelectedBlock(targetBlock);
+    if (targetBlock) setSelectedBlock(targetBlock);
+
+    // Expandir el padre si la tarea es subtarea
+    if (targetTask.parentTaskId) {
+      setExpandedIds(prev => new Set([...prev, targetTask.parentTaskId!]));
     }
-    // Reintentar scroll hasta encontrar el elemento (el bloque puede tardar en renderizarse)
+    // También expandir la propia tarea si tiene subtareas
+    setExpandedIds(prev => new Set([...prev, highlightTaskId]));
+
+    // Scroll con reintentos
     let attempts = 0;
     const tryScroll = () => {
       const el = document.querySelector(`[data-task-id="${highlightTaskId}"]`);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else if (attempts < 10) {
+      } else if (attempts < 15) {
         attempts++;
         setTimeout(tryScroll, 100);
       }
     };
-    setTimeout(tryScroll, 100);
+    setTimeout(tryScroll, 150);
   }, [highlightTaskId]);
 
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [hideCompleted, setHideCompleted] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Toggle expand local (no persiste, solo para vista Bloques)
+  const handleLocalToggleExpand = (taskId: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
 
   const coreTasks = useMemo(() => {
     if (!selectedBlock) return [];
@@ -283,7 +302,8 @@ export function BlocksManagerView({
                     onReorderSubtasks={onReorderSubtasks}
                     onViewInstances={onViewInstances}
                     highlightTaskId={highlightTaskId}
-                    onToggleExpand={onToggleExpand}
+                    forceExpanded={expandedIds.has(t.id) ? true : (expandedIds.size > 0 ? false : undefined)}
+                    onToggleExpand={handleLocalToggleExpand}
                     hideCompleted={hideCompleted}
                     selectionMode={selectionMode}
                     selectedTaskIds={selectedTaskIds}
@@ -355,7 +375,8 @@ export function BlocksManagerView({
                     onReorderSubtasks={onReorderSubtasks}
                     onViewInstances={onViewInstances}
                     highlightTaskId={highlightTaskId}
-                    onToggleExpand={onToggleExpand}
+                    forceExpanded={expandedIds.has(t.id) ? true : (expandedIds.size > 0 ? false : undefined)}
+                    onToggleExpand={handleLocalToggleExpand}
                     hideCompleted={hideCompleted}
                     selectionMode={selectionMode}
                     selectedTaskIds={selectedTaskIds}
