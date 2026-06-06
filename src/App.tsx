@@ -715,6 +715,12 @@ export default function App() {
       return updated;
     });
 
+    // Persistir el array subtasks del padre en Supabase (orden canónico)
+    const parentDbId = parentId.startsWith('inst-') ? (tasks[parentId]?.templateId || parentId) : parentId;
+    supabase.from('tasks').update({ subtasks: subtaskIds }).eq('id', parentDbId).then(({ error }) => {
+      if (error) console.error('[ORDER] Error saving parent subtasks array:', error);
+    });
+
     // Persistir order de cada subtarea en Supabase
     subtaskIds.forEach((subId, order) => {
       const sub = tasks[subId];
