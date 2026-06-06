@@ -890,7 +890,14 @@ export default function App() {
               <button
                 onClick={() => {
                   const { task, newDate } = pendingDateChange;
-                  handleUpdateTask({ ...task, dueDate: newDate });
+                  // instanceDate es la fecha original de la serie — si no existe, usamos dueDate actual
+                  handleUpdateTask({
+                    ...task,
+                    dueDate: newDate,
+                    instanceDate: task.instanceDate || task.dueDate,
+                    isException: true,
+                    existsInSupabase: true,
+                  });
                   setPendingDateChange(null);
                 }}
                 className="w-full py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/80 transition-all"
