@@ -94,7 +94,8 @@ export function BlocksManagerView({
   onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null,
   bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null,
   setBulkDateModal = null, setBulkTimeModal = null, searchQuery = ''
-}
+}: BlocksViewProps) {
+
   // Scroll al template resaltado cuando cambia highlightTaskId
   React.useEffect(() => {
     if (!highlightTaskId) return;
@@ -103,7 +104,6 @@ export function BlocksManagerView({
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [highlightTaskId]);
-: BlocksViewProps) {
 
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
