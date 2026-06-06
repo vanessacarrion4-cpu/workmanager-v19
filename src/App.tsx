@@ -2393,6 +2393,7 @@ export default function App() {
                 setBulkDateModal={setBulkDateModal}
                 setBulkTimeModal={setBulkTimeModal}
                 searchQuery={searchQuery}
+                onGoToTemplate={(templateId: string) => handleGoToTemplate(templateId)}
               />
             )}
             
