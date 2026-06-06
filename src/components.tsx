@@ -705,7 +705,7 @@ export function TaskCard({
                       if (yd && ym) {
                         const dd = String(yd).padStart(2, '0');
                         const mm = String(ym).padStart(2, '0');
-                        label = `Año -`;
+                        label = `Año ${dd}-${mm}`;
                       } else label = 'Año';
                     }
                     else label = freq;
@@ -738,7 +738,7 @@ export function TaskCard({
                       if (yd && ym) {
                         const dd = String(yd).padStart(2, '0');
                         const mm = String(ym).padStart(2, '0');
-                        label = `Año -`;
+                        label = `Año ${dd}-${mm}`;
                       } else label = 'Año';
                     }
                     else label = freq;
