@@ -131,33 +131,60 @@ export function BlocksManagerView({
     });
   };
 
+  // Comprueba si una tarea o alguna de sus subtareas coincide con searchQuery
+  const taskMatchesSearch = (t: any, query: string): boolean => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    if ((t.title || '').toLowerCase().includes(q)) return true;
+    if ((t.notes || '').toLowerCase().includes(q)) return true;
+    return (t.subtasks || []).some((subId: string) => {
+      const sub = allTasksMap[subId];
+      return sub && ((sub.title || '').toLowerCase().includes(q) || (sub.notes || '').toLowerCase().includes(q));
+    });
+  };
+
   const coreTasks = useMemo(() => {
     if (!selectedBlock) return [];
-    // Solo tareas reales (no instancias generadas: templateId es null)
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id) return false;
-      if (t.parentTaskId) return false;  // No subtareas
-      if (t.templateId) return false;    // No instancias generadas
-      if (t.isDeleted) return false;     // No borradas
+      if (t.parentTaskId) return false;
+      if (t.templateId) return false;
+      if (t.isDeleted) return false;
       if (hideCompleted && t.status === 'completed') return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
-      return type === 'core';
+      if (type !== 'core') return false;
+      return taskMatchesSearch(t, searchQuery);
     }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap, hideCompleted]);
+  }, [selectedBlock, allTasksMap, hideCompleted, searchQuery]);
 
   const adhocTasks = useMemo(() => {
     if (!selectedBlock) return [];
-    // Solo tareas reales (no instancias generadas: templateId es null)
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id) return false;
-      if (t.parentTaskId) return false;  // No subtareas
-      if (t.templateId) return false;    // No instancias generadas
-      if (t.isDeleted) return false;     // No borradas
+      if (t.parentTaskId) return false;
+      if (t.templateId) return false;
+      if (t.isDeleted) return false;
       if (hideCompleted && t.status === 'completed') return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
-      return type === 'adhoc';
+      if (type !== 'adhoc') return false;
+      return taskMatchesSearch(t, searchQuery);
     }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap, hideCompleted]);
+  }, [selectedBlock, allTasksMap, hideCompleted, searchQuery]);
+
+  // Cuando hay búsqueda activa, expandir automáticamente contenedores con coincidencias en subtareas
+  useEffect(() => {
+    if (!searchQuery) return;
+    const toExpand = new Set<string>();
+    [...coreTasks, ...adhocTasks].forEach((t: any) => {
+      if (!(t.subtasks && t.subtasks.length > 0)) return;
+      const hasSubMatch = (t.subtasks || []).some((subId: string) => {
+        const sub = allTasksMap[subId];
+        return sub && (sub.title || '').toLowerCase().includes(searchQuery.toLowerCase());
+      });
+      if (hasSubMatch) toExpand.add(t.id);
+    });
+    if (toExpand.size > 0) setExpandedIds(prev => new Set([...prev, ...toExpand]));
+  }, [searchQuery, coreTasks, adhocTasks]);
 
   const filteredBlocks = useMemo(() => {
     if (filter === 'active') return blocks.filter(b => b.isActive);
@@ -291,7 +318,7 @@ export function BlocksManagerView({
                     onReorderSubtasks={onReorderSubtasks}
                     onViewInstances={onViewInstances}
                     highlightTaskId={highlightTaskId}
-                    forceExpanded={expandedIds.has(t.id) ? true : (expandedIds.size > 0 ? false : undefined)}
+                    forceExpanded={expandedIds.has(t.id) ? true : false}
                     onToggleExpand={handleLocalToggleExpand}
                     hideCompleted={hideCompleted}
                     selectionMode={selectionMode}
@@ -364,7 +391,7 @@ export function BlocksManagerView({
                     onReorderSubtasks={onReorderSubtasks}
                     onViewInstances={onViewInstances}
                     highlightTaskId={highlightTaskId}
-                    forceExpanded={expandedIds.has(t.id) ? true : (expandedIds.size > 0 ? false : undefined)}
+                    forceExpanded={expandedIds.has(t.id) ? true : false}
                     onToggleExpand={handleLocalToggleExpand}
                     hideCompleted={hideCompleted}
                     selectionMode={selectionMode}
