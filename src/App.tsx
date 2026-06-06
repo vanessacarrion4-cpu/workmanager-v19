@@ -2,134 +2,66 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
- 
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { 
-  Plus, 
-  LayoutDashboard, 
-  Grid2X2, 
-  Calendar as CalendarIcon, 
-  Settings, 
-  Bell, 
-  Search, 
-  CheckCircle2, 
-  Circle,
-  Compass, 
-  Clock, 
-  ChevronRight,
-  ChevronLeft, 
-  ChevronDown,
-  ChevronUp,
-  Trash2,
-  Edit,
-  Check,
-  History,
-  ArrowRight,
-  MoreVertical,
-  X,
-  PlusCircle,
-  Briefcase,
-  Layers,
-  Users,
-  CreditCard,
-  Megaphone,
-  User,
-  Zap,
-  Target,
-  ArrowUpRight,
-  Pause,
-  Play,
-  Hammer,
-  Coffee,
-  Globe,
-  LifeBuoy,
-  Eye,
-  EyeOff,
-  RefreshCw,
-  GripVertical,
-  Paperclip,
-  Maximize2,
-  Minimize2,
-  Dot,
-  ArrowUpLeft,
-  ArrowDownRight,
-  ChevronsUp,
-  ChevronsDown,
-  Moon,
-  Sun,
-  Tag,
-  Copy,
-  BarChart2
+import {
+  LayoutDashboard, Grid2X2, Calendar as CalendarIcon, Settings,
+  Search, Users, Zap, Moon, Sun, ChevronRight, BarChart2
 } from 'lucide-react';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
-import { WorkBlock, Task, ViewType, TagType, SubtaskTemplate, Priority, TimeEntry, Person, DelegationMeeting } from './types';
-import { INITIAL_BLOCKS, TAG_LABELS, MOCK_TASKS, COLORS } from './constants';
+import { motion, AnimatePresence } from 'framer-motion';
+import { WorkBlock, Task, ViewType, TagType, TimeEntry, Person, DelegationMeeting } from './types';
+import { INITIAL_BLOCKS, COLORS, MOCK_TASKS } from './constants';
 import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { 
-  getTaskLevel, 
-  generateInstances, 
-  isTaskCompleted, 
-  isTaskRepetitive,
-  projectLoad, 
-  projectLoadForDay,
-  getTaskEstimatedCombo,
-  getTaskEstimatedPending,
-  getTaskRegisteredSelf,
-  getTaskRegisteredCombo,
-  formatMinutes,
-  isTaskVisible,
-  isTaskInstance
-} from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
+import { filterTasksForDay } from './filters';
 import { useSupabase } from './useSupabase';
 import { useGeneration } from './useGeneration';
+import { useTaskCRUD } from './useTaskCRUD';
+import { useTaskOrdering } from './useTaskOrdering';
+import { useBlockHandlers } from './useBlockHandlers';
+import { useTimerHandlers } from './useTimerHandlers';
+import { useBulkActions } from './useBulkActions';
 import { BlocksManagerView } from './BlocksView';
 import { DashboardView } from './DashboardView';
 import { CalendarView } from './CalendarView';
 import { DelegadasView } from './DelegadasView';
-import { 
-  TaskCard, BulkActionBar, DashboardHarmonicCalendar, RecurrenceChoiceModal,
-  BlockModal, TimeManagementPanel, getTagColor,
-  DelegationChip, DatePickerChip, TagPickerChip, RecurrencePickerChip,
-  EstimatedTimeChip, RegisteredTimeChip, BlockPickerChip, TimePickerChip,
-  TaskTypeChip, TimerDisplay, ToggleExpandButton, MonthDatePicker, InstancesModal
-} from './components';
 import { SearchView } from './SearchView';
 import { WorkloadView } from './WorkloadView';
- 
-// --- Storage Key ---
+import { TaskModal } from './TaskModal';
+import {
+  BlockModal, TimeManagementPanel, RecurrenceChoiceModal,
+  TimerDisplay, InstancesModal
+} from './components';
+
 const STORAGE_KEY = 'workmanager-v19-data-v1';
- 
+
 export default function App() {
-  // --- State ---
+  // --- Core State ---
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('workmanager-theme');
-    return saved !== 'light'; // Por defecto dark mode
+    return saved !== 'light';
   });
   const [blocks, setBlocks] = useState<WorkBlock[]>([]);
   const [tasks, setTasks] = useState<Record<string, Task>>({});
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-
-  // Resetear modo selección al cambiar de vista
-  useEffect(() => {
-    setSelectionMode(false);
-    setSelectedTaskIds(new Set());
-  }, [currentView]);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const todayLocal = formatLocalISO(new Date());
   const [activeDate, setActiveDate] = useState(todayLocal);
+
+  // --- UI State ---
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [inlineEditingTaskId, setInlineEditingTaskId] = useState<string | null>(null);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
-  const [recurrenceAction, setRecurrenceAction] = useState<{ taskId: string, type: 'edit' | 'delete', ruleId: string } | null>(null);
+  const [recurrenceAction, setRecurrenceAction] = useState<{ taskId: string; type: 'edit' | 'delete'; ruleId: string } | null>(null);
   const [instancesModalTask, setInstancesModalTask] = useState<Task | null>(null);
   const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
-  const [pendingDateChange, setPendingDateChange] = useState<{ task: any, newDate: string } | null>(null);
-  const [addSubtaskWarning, setAddSubtaskWarning] = useState<{ parentTaskId: string, blockId?: string, overrideDate?: string } | null>(null);
+  const [pendingDateChange, setPendingDateChange] = useState<{ task: any; newDate: string } | null>(null);
+  const [addSubtaskWarning, setAddSubtaskWarning] = useState<{ parentTaskId: string; blockId?: string; overrideDate?: string } | null>(null);
+
+  // --- Timer & Time State ---
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [activeTimer, setActiveTimer] = useState<{
     entityId: string;
@@ -139,58 +71,60 @@ export default function App() {
     accumulatedSeconds: number;
     title: string;
   } | null>(null);
-  const [showTimePanel, setShowTimePanel] = useState<{ taskId: string, subtaskId: string | null } | null>(null);
-  const [timerStopModal, setTimerStopModal] = useState<{ minutes: number, pendingEntry: any } | null>(null);
+  const [showTimePanel, setShowTimePanel] = useState<{ taskId: string; subtaskId: string | null } | null>(null);
+  const [timerStopModal, setTimerStopModal] = useState<{ minutes: number; pendingEntry: any } | null>(null);
+
+  // --- People & Meetings ---
   const [people, setPeople] = useState<Person[]>([]);
   const [meetings, setMeetings] = useState<DelegationMeeting[]>([]);
 
-  // --- Selection Mode State ---
+  // --- Selection State ---
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [bulkDelegateModal, setBulkDelegateModal] = useState(false);
   const [bulkDateModal, setBulkDateModal] = useState(false);
   const [bulkTimeModal, setBulkTimeModal] = useState(false);
-  
-  // Search filters
-  const [searchText, setSearchText] = useState('');
-  const [searchFilters, setSearchFilters] = useState({
-    tags: [] as string[],
-    status: 'all' as 'all' | 'pending' | 'completed',
-    taskType: 'all' as 'all' | 'core' | 'adhoc',
-    dueDateRange: { start: '', end: '' },
-    createdRange: { start: '', end: '' },
-    completedRange: { start: '', end: '' },
-    recurrence: 'all' as 'all' | 'recurring' | 'instances' | 'manual',
-    hasEstimatedTime: false,
-    estimatedTimeRange: { min: 0, max: 999 }
-  });
 
-  // Helper: Toggle selection mode
+  // Reset selection on view change
+  useEffect(() => {
+    setSelectionMode(false);
+    setSelectedTaskIds(new Set());
+  }, [currentView]);
+
+  // Theme effect
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    if (isDarkMode) {
+      root.classList.remove('light'); root.classList.add('dark');
+      body.classList.remove('light'); body.classList.add('dark');
+    } else {
+      root.classList.remove('dark'); root.classList.add('light');
+      body.classList.remove('dark'); body.classList.add('light');
+    }
+    localStorage.setItem('workmanager-theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
+
+  // Selection helpers
   const toggleSelectionMode = () => {
     setSelectionMode(prev => {
-      if (prev) {
-        // Salir de modo selección → limpiar seleccionados
-        setSelectedTaskIds(new Set());
-      }
+      if (prev) setSelectedTaskIds(new Set());
       return !prev;
     });
   };
 
-  // Helper: Toggle task selection
   const toggleTaskSelection = useCallback((taskId: string, autoSelectSubtasks = false) => {
     setSelectedTaskIds(prev => {
       const next = new Set(prev);
       if (next.has(taskId)) {
         next.delete(taskId);
         const task = tasks[taskId];
-        if (task?.subtasks) {
-          task.subtasks.forEach(subId => next.delete(subId));
-        }
+        if (task?.subtasks) task.subtasks.forEach(subId => next.delete(subId));
       } else {
         next.add(taskId);
         if (autoSelectSubtasks) {
           const task = tasks[taskId];
-          if (task?.subtasks && task.subtasks.length > 0) {
+          if (task?.subtasks?.length > 0) {
             task.subtasks.forEach(subId => {
               const sub = tasks[subId];
               if (sub && !sub.isDeleted) next.add(subId);
@@ -202,426 +136,129 @@ export default function App() {
     });
   }, [tasks]);
 
-  // Helper: Bulk actions
-  const bulkUpdateTasks = (updates: Partial<Task>) => {
-    const timestamp = new Date().toISOString();
-    
-    const isContainerSafeUpdate = updates.status !== undefined;
-    
-    const effectiveIds = new Set<string>();
-    selectedTaskIds.forEach(id => {
-      const task = tasks[id];
-      if (!task) return;
-      const isContainer = task.subtasks && task.subtasks.length > 0;
-      if (isContainer && !isContainerSafeUpdate) {
-        // Buscar subtareas visibles del contenedor
-        const instanceDate = task.instanceDate || task.dueDate;
-        Object.values(tasks).forEach((t: Task) => {
-          if (t.isDeleted) return;
-          // Caso 1: subtarea directa (tarea manual con parentTaskId = id)
-          if (t.parentTaskId === id) { effectiveIds.add(t.id); return; }
-          // Caso 2: instancia cuyo template tiene parentTaskId = id (template del contenedor)
-          if (t.templateId && instanceDate) {
-            const tmpl = tasks[t.templateId];
-            if (tmpl && tmpl.parentTaskId === id) { effectiveIds.add(t.id); return; }
-            // Caso 3: instancia cuyo template tiene parentTaskId = templateId del contenedor
-            if (task.templateId) {
-              if (tmpl && tmpl.parentTaskId === task.templateId && t.dueDate === instanceDate) {
-                effectiveIds.add(t.id); return;
-              }
-            }
-          }
-        });
-        // Si no encontró subtareas, también añadir las que están en task.subtasks directamente
-        if (effectiveIds.size === 0 && task.subtasks) {
-          task.subtasks.forEach((subId: string) => {
-            const sub = tasks[subId];
-            if (sub && !sub.isDeleted) effectiveIds.add(subId);
-          });
-        }
-      } else {
-        effectiveIds.add(id);
-      }
-    });
-
-    // Actualizar estado local primero
-    setTasks(prev => {
-      const next = { ...prev };
-      effectiveIds.forEach(id => {
-        if (next[id]) {
-          next[id] = { ...next[id], ...updates, modifiedAt: timestamp };
-        }
-      });
-      return next;
-    });
-
-    // Persistir en Supabase usando la misma lógica que el chip inline
-    // Usamos setTimeout para que el setTasks anterior haya cerrado su ciclo
-    setTimeout(() => {
-      effectiveIds.forEach(id => {
-        const task = tasks[id];
-        if (!task) return;
-        const updatedTask = { ...task, ...updates, modifiedAt: timestamp };
-
-        if (task.templateId && !task.existsInSupabase) {
-          // Instancia en memoria → upsert completo con is_exception: true
-          supabase.from('tasks').upsert({
-            id: task.id,
-            block_id: task.blockId,
-            parent_task_id: null,
-            template_id: task.templateId,
-            instance_date: task.instanceDate || task.dueDate || null,
-            title: task.title,
-            notes: task.notes || '',
-            priority: task.priority || 'media',
-            status: updatedTask.status,
-            due_date: task.dueDate || null,
-            due_time: task.dueTime || null,
-            completed_at: updatedTask.completedAt || null,
-            estimated_minutes: updatedTask.estimatedMinutes || 0,
-            actual_minutes: task.actualMinutes || 0,
-            tags: updatedTask.tags || [],
-            order: task.order || 0,
-            is_template: false,
-            is_active: true,
-            is_exception: true,
-            is_deleted: false,
-            is_expanded: task.isExpanded || false,
-            task_type: task.taskType || 'core',
-            recurrence: null,
-            delegation: updatedTask.delegation ?? null,
-            created_at: task.createdAt || timestamp,
-            modified_at: timestamp,
-          }, { onConflict: 'id' }).then(({ error }) => {
-            if (error) {
-              console.error('[BULK] Error upsert instancia:', task.id, error);
-            } else {
-              setTasks(prev => ({
-                ...prev,
-                [id]: { ...prev[id], existsInSupabase: true, isException: true }
-              }));
-            }
-          });
-        } else {
-          // Tarea normal o instancia ya persistida → update directo
-          const supabaseUpdates: Record<string, any> = { modified_at: timestamp };
-          if (updates.status !== undefined) supabaseUpdates.status = updatedTask.status;
-          if (updates.completedAt !== undefined) supabaseUpdates.completed_at = updatedTask.completedAt ?? null;
-          if (updates.dueDate !== undefined) supabaseUpdates.due_date = updatedTask.dueDate ?? null;
-          if (updates.tags !== undefined) supabaseUpdates.tags = updatedTask.tags;
-          if (updates.estimatedMinutes !== undefined) supabaseUpdates.estimated_minutes = updatedTask.estimatedMinutes;
-          if ('delegation' in updates) supabaseUpdates.delegation = updatedTask.delegation ?? null;
-
-          supabase.from('tasks').update(supabaseUpdates).eq('id', id).then(({ error }) => {
-            if (error) console.error('[BULK] Error update tarea:', id, error);
-          });
-        }
-      });
-    }, 0);
-
-    setSelectedTaskIds(new Set());
-    setSelectionMode(false);
-  };
-
-  const bulkDeleteTasks = () => {
-    const timestamp = new Date().toISOString();
-
-    // Calcular IDs efectivos - contenedores → borrar contenedor + subtareas
-    const effectiveIds = new Set<string>();
-    selectedTaskIds.forEach(id => {
-      const task = tasks[id];
-      if (!task) return;
-      effectiveIds.add(id); // Siempre añadir el propio ID
-      // Si tiene subtareas, añadirlas también
-      if (task.subtasks && task.subtasks.length > 0) {
-        task.subtasks.forEach((subId: string) => {
-          const sub = tasks[subId];
-          if (sub && !sub.isDeleted) effectiveIds.add(subId);
-        });
-      }
-    });
-
-    setTasks(prev => {
-      const next = { ...prev };
-      effectiveIds.forEach(id => {
-        if (next[id]) {
-          next[id] = { ...next[id], isDeleted: true, modifiedAt: timestamp };
-        }
-      });
-      return next;
-    });
-
-    effectiveIds.forEach(id => {
-      supabase.from('tasks').update({
-        is_deleted: true,
-        modified_at: timestamp
-      }).eq('id', id).then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error bulk delete:', error);
-      });
-    });
-
-    setSelectedTaskIds(new Set());
-    setSelectionMode(false);
-  };
-
-  const bulkDuplicateTasks = () => {
-    const timestamp = new Date().toISOString();
-    const duplicates: Task[] = [];
-    const idMapping = new Map<string, string>(); // oldId -> newId
-
-    // Función recursiva para duplicar tarea y sus subtareas
-    // isRoot=true: es la tarea que el usuario seleccionó → siempre añade (copia)
-    // isRoot=false: es una subtarea hija duplicada recursivamente → no añade (copia)
-    const duplicateTaskRecursive = (original: Task, newParentId: string | null = null, isRoot: boolean = true): Task | null => {
-      if (!original || original.isDeleted) return null;
-
-      const newId = `t-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      idMapping.set(original.id, newId);
-
-      const duplicate: Task = {
-        ...original,
-        id: newId,
-        title: isRoot ? `${original.title} (copia)` : original.title,
-        parentTaskId: newParentId,
-        status: 'pending',
-        createdAt: timestamp,
-        modifiedAt: timestamp,
-        completedAt: undefined,
-        subtasks: [], // Se llenarán con los IDs nuevos
-      };
-
-      return duplicate;
-    };
-
-    setTasks(prev => {
-      const next = { ...prev };
-      
-      // Solo duplicar tareas raíz - si subtarea tiene padre seleccionado, ya se duplica con el padre
-      const rootIds = Array.from(selectedTaskIds).filter(id => {
-        const task = prev[id];
-        if (!task) return false;
-        if (!task.parentTaskId) return true;
-        return !selectedTaskIds.has(task.parentTaskId);
-      });
-
-      rootIds.forEach(id => {
-        const original = prev[id];
-        if (!original || original.isDeleted) return;
-
-        // Si la tarea tiene padre (es subtarea), duplicar al mismo nivel
-        const effectiveParentId = original.parentTaskId || null;
-
-        // Duplicar tarea con su parentTaskId real si lo tiene
-        const rootDuplicate = duplicateTaskRecursive(original, effectiveParentId);
-        if (!rootDuplicate) return;
-
-        next[rootDuplicate.id] = rootDuplicate;
-        duplicates.push(rootDuplicate);
-
-        // Duplicar subtareas recursivamente
-        if (original.subtasks && original.subtasks.length > 0) {
-          const newSubtaskIds: string[] = [];
-
-          original.subtasks.forEach(subId => {
-            const subOriginal = prev[subId];
-            if (!subOriginal) return;
-
-            const subDuplicate = duplicateTaskRecursive(subOriginal, rootDuplicate.id, false);
-            if (!subDuplicate) return;
-
-            newSubtaskIds.push(subDuplicate.id);
-            next[subDuplicate.id] = subDuplicate;
-            duplicates.push(subDuplicate);
-          });
-
-          rootDuplicate.subtasks = newSubtaskIds;
-          next[rootDuplicate.id] = rootDuplicate;
-        }
-
-        // Si tiene padre, insertar la copia justo después del original en las subtareas del padre
-        if (effectiveParentId && next[effectiveParentId]) {
-          const parentTask = next[effectiveParentId];
-          const currentSubtasks = parentTask.subtasks || [];
-          const originalIndex = currentSubtasks.indexOf(original.id);
-          const newSubtasks = [...currentSubtasks];
-          if (originalIndex >= 0) {
-            newSubtasks.splice(originalIndex + 1, 0, rootDuplicate.id);
-          } else {
-            newSubtasks.push(rootDuplicate.id);
-          }
-          next[effectiveParentId] = { ...parentTask, subtasks: newSubtasks };
-          // Persistir padre actualizado en Supabase
-          supabase.from('tasks').update({ subtasks: newSubtasks })
-            .eq('id', effectiveParentId).then(() => {});
-        }
-      });
-
-      return next;
-    });
-
-    // Persistir TODAS las tareas duplicadas en Supabase
-    duplicates.forEach(task => {
-      supabase.from('tasks').insert({
-        id: task.id,
-        block_id: task.blockId,
-        parent_task_id: task.parentTaskId || null,
-        template_id: task.templateId || null,
-        instance_date: task.instanceDate || null,
-        title: task.title,
-        notes: task.notes || '',
-        priority: task.priority,
-        status: task.status,
-        due_date: task.dueDate || null,
-        due_time: task.dueTime || null,
-        completed_at: null,
-        estimated_minutes: task.estimatedMinutes || 0,
-        actual_minutes: task.actualMinutes || 0,
-        total_estimated_combo: task.totalEstimatedCombo || 0,
-        total_registered_combo: task.totalRegisteredCombo || 0,
-        tags: task.tags || [],
-        order: task.order || 0,
-        is_template: task.isTemplate || false,
-        is_active: task.isActive !== false,
-        is_exception: task.isException || false,
-        is_deleted: false,
-        is_expanded: task.isExpanded || false,
-        task_type: task.taskType || 'core',
-        recurrence: task.recurrence || null,
-        delegation: task.delegation || null,
-        created_at: timestamp,
-        modified_at: timestamp,
-        deleted_at: null
-      }).then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error duplicando tarea:', error);
-      });
-    });
-
-    setSelectedTaskIds(new Set());
-    setSelectionMode(false);
-  };
-
-  // Toggle theme
-  useEffect(() => {
-    const root = document.documentElement;
-    const body = document.body;
-    if (isDarkMode) {
-      root.classList.remove('light');
-      root.classList.add('dark');
-      body.classList.remove('light');
-      body.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-      root.classList.add('light');
-      body.classList.remove('dark');
-      body.classList.add('light');
-    }
-    localStorage.setItem('workmanager-theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
- 
-  // --- Initialization & Sync ---
-  // Carga inicial desde Supabase
+  // --- Data Loading ---
   useSupabase({ setBlocks, setTasks, setPeople, setMeetings, setTimeEntries, setIsDataLoaded });
- 
-  // Guardado automático desactivado - ahora se guarda directamente en Supabase en cada operación
-  // useEffect(() => {
-  //   if (!isDataLoaded) return;
-  //   localStorage.setItem(STORAGE_KEY, JSON.stringify({ blocks, tasks: tasksToSave, timeEntries, activeTimer, people, meetings }));
-  // }, [blocks, tasks, timeEntries, activeTimer, people, meetings, isDataLoaded]);
- 
+  useGeneration({ tasks, isDataLoaded, setTasks });
+
+  // --- Computed dashboard tasks (needed by useTaskCRUD) ---
+  const allActiveTasks = useMemo(() =>
+    Object.values(tasks).filter((t: Task) => !t.isDeleted && !t.isTemplate), [tasks]);
+
+  const dashboardTasks = useMemo(() => {
+    const activeBlockIds = new Set(blocks.filter(b => b && b.isActive).map(b => b.id));
+    return filterTasksForDay(allActiveTasks, tasks, activeBlockIds, activeDate, { hideCompleted: false, hideDelegatedNoTag: true });
+  }, [allActiveTasks, blocks, activeDate, tasks]);
+
+  const dashboardTasksMap = useMemo(() => {
+    const map: any = {};
+    Object.values(tasks).forEach((t: Task) => { if (!t.isDeleted) map[t.id] = t; });
+    dashboardTasks.forEach(t => {
+      map[t.id] = t;
+      if (t.subtasks?.length > 0) {
+        t.subtasks.forEach(subId => {
+          const sub = tasks[subId];
+          if (sub && sub.dueDate === activeDate) {
+            if (sub.delegation) {
+              const hasRealTag = (sub.tags || []).some((tag: string) => tag !== 'resto');
+              if (!hasRealTag) return;
+            }
+            map[subId] = sub;
+          }
+        });
+      }
+    });
+    return map;
+  }, [tasks, dashboardTasks, activeDate]);
+
+  // --- Hooks ---
+  const {
+    handleEditTaskRequest, handleDeleteTaskRequest, handleToggleStatus,
+    handleAddTask, doAddTask, handleUpdateTask, handleDeleteTask, handleAddRule,
+  } = useTaskCRUD({
+    tasks, setTasks, blocks, selectedBlockId, activeDate,
+    setEditingTaskId, setInlineEditingTaskId, setEditingRuleId,
+    setRecurrenceAction, setAddSubtaskWarning, dashboardTasks,
+  });
+
+  const {
+    handleUpdateTasksOrder, handleUpdateSubtasksOrder, handleGoToTemplate,
+    handleToggleExpandTask, handleExpandAllInBlock, handlePromoteTask, handleDemoteTask,
+  } = useTaskOrdering({ tasks, setTasks, setCurrentView, setHighlightTaskId });
+
+  const {
+    handleAddBlock, handleUpdateBlock, handleReorderBlocks,
+    handleToggleBlockActive, handleDeleteBlock,
+  } = useBlockHandlers({ blocks, setBlocks, tasks, setTasks, setEditingBlockId });
+
+  const timerHandlers = useTimerHandlers({
+    tasks, setTasks, activeTimer, setActiveTimer,
+    setTimerStopModal, setTimeEntries, handleUpdateTask,
+  });
+
+  const { bulkUpdateTasks, bulkDeleteTasks, bulkDuplicateTasks } = useBulkActions({
+    tasks, setTasks, selectedTaskIds, setSelectedTaskIds, setSelectionMode,
+  });
+
+  // Wrappers for attachment handlers (they need handleUpdateTask as param)
+  const handleUploadAttachment = useCallback((taskId: string, file: File) =>
+    timerHandlers.handleUploadAttachment(taskId, file, handleUpdateTask), [timerHandlers, handleUpdateTask]);
+
+  const handleDeleteAttachment = useCallback((taskId: string, attachmentId: string, path: string) =>
+    timerHandlers.handleDeleteAttachment(taskId, attachmentId, path, handleUpdateTask), [timerHandlers, handleUpdateTask]);
+
+  // Timer stop confirm wrapper
+  const handleTimerStopConfirm = useCallback((note: string, markComplete: boolean) => {
+    if (!timerStopModal) return;
+    timerHandlers.handleTimerStopConfirm(note, markComplete, timerStopModal);
+    setTimerStopModal(null);
+  }, [timerStopModal, timerHandlers]);
+
+  // People handlers
   const handleAddPerson = async (person: Person) => {
     try {
-      // Verificar si ya existe (por nombre, case-insensitive)
       const existing = people.find(p => p.name.toLowerCase() === person.name.toLowerCase());
-      if (existing) {
-        console.log('[SUPABASE] Person already exists:', person.name);
-        return; // No crear duplicado
-      }
-      
-      // Insertar en Supabase
-      const { data, error } = await supabase
-        .from('persons')
-        .insert({
-          id: person.id,
-          name: person.name,
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
+      if (existing) return;
+      const { error } = await supabase.from('persons').insert({ id: person.id, name: person.name, created_at: new Date().toISOString() }).select().single();
       if (error) throw error;
-
-      // Actualizar estado local
-      setPeople((prev: Person[]) => [...prev, person]);
-      console.log('[SUPABASE] Person created:', person.name);
+      setPeople(prev => [...prev, person]);
     } catch (e) {
       console.error('[SUPABASE] Error creating person:', e);
-      // Aún así actualizar estado local para no bloquear UX (solo si no existe)
       const existing = people.find(p => p.name.toLowerCase() === person.name.toLowerCase());
-      if (!existing) {
-        setPeople((prev: Person[]) => [...prev, person]);
-      }
+      if (!existing) setPeople(prev => [...prev, person]);
     }
   };
 
   const handleRenamePerson = async (id: string, name: string) => {
     try {
-      // Actualizar en Supabase
-      const { error } = await supabase
-        .from('persons')
-        .update({ name })
-        .eq('id', id);
-
+      const { error } = await supabase.from('persons').update({ name }).eq('id', id);
       if (error) throw error;
-
-      // Actualizar estado local
-      setPeople((prev: Person[]) => prev.map((p: Person) => p.id === id ? { ...p, name } : p));
-      console.log('[SUPABASE] Person renamed:', name);
+      setPeople(prev => prev.map(p => p.id === id ? { ...p, name } : p));
     } catch (e) {
-      console.error('[SUPABASE] Error renaming person:', e);
-      // Aún así actualizar estado local
-      setPeople((prev: Person[]) => prev.map((p: Person) => p.id === id ? { ...p, name } : p));
+      setPeople(prev => prev.map(p => p.id === id ? { ...p, name } : p));
     }
   };
 
   const handleDeletePerson = async (id: string) => {
     try {
-      // Eliminar en Supabase
-      const { error } = await supabase
-        .from('persons')
-        .delete()
-        .eq('id', id);
-
+      const { error } = await supabase.from('persons').delete().eq('id', id);
       if (error) throw error;
-
-      // Actualizar estado local
-      setPeople((prev: Person[]) => prev.filter((p: Person) => p.id !== id));
-      
-      // Limpiar delegaciones de tareas
+      setPeople(prev => prev.filter(p => p.id !== id));
       setTasks(prev => {
         const updated = { ...prev };
         Object.values(updated).forEach((t: Task) => {
-          if (t.delegation?.personId === id) {
-            updated[t.id] = { ...t, delegation: undefined };
-          }
+          if (t.delegation?.personId === id) updated[t.id] = { ...t, delegation: undefined };
         });
         return updated;
       });
-      
-      console.log('[SUPABASE] Person deleted');
     } catch (e) {
-      console.error('[SUPABASE] Error deleting person:', e);
-      // Aún así actualizar estado local
-      setPeople((prev: Person[]) => prev.filter((p: Person) => p.id !== id));
-      setTasks(prev => {
-        const updated = { ...prev };
-        Object.values(updated).forEach((t: Task) => {
-          if (t.delegation?.personId === id) {
-            updated[t.id] = { ...t, delegation: undefined };
-          }
-        });
-        return updated;
-      });
+      setPeople(prev => prev.filter(p => p.id !== id));
     }
+  };
+
+  const handleDayChange = (offset: number) => {
+    const current = parseLocalISO(activeDate);
+    current.setDate(current.getDate() + offset);
+    setActiveDate(formatLocalISO(current));
   };
 
   const handleResetData = () => {
@@ -633,1397 +270,13 @@ export default function App() {
       window.location.reload();
     }
   };
- 
-  const handleToggleExpandTask = (taskId: string) => {
-    const timestamp = new Date().toISOString();
-    const task = tasks[taskId];
-    if (!task) {
-      console.error('[EXPAND] Task not found:', taskId);
-      return;
-    }
 
-    const newExpanded = task.isExpanded !== undefined ? !task.isExpanded : true;
-    console.log('[EXPAND] Toggling', taskId, 'from', task.isExpanded, 'to', newExpanded);
-    
-    // Actualizar state
-    setTasks(prev => ({
-      ...prev,
-      [taskId]: {
-        ...prev[taskId],
-        isExpanded: newExpanded,
-        modifiedAt: timestamp
-      }
-    }));
-
-    // Persistir en Supabase
-    supabase.from('tasks').update({
-      is_expanded: newExpanded,
-      modified_at: timestamp
-    }).eq('id', taskId).then(({ error }) => {
-      if (error) console.error('[SUPABASE] Error actualizando isExpanded:', error);
-      else console.log('[SUPABASE] isExpanded actualizado:', taskId, newExpanded);
-    });
-  };
- 
-  const handleExpandAllInBlock = (blockId: string, expand: boolean) => {
-    const updatedTasks = { ...tasks };
-    Object.values(updatedTasks).forEach((t: Task) => {
-      if (t.blockId === blockId) {
-        t.isExpanded = expand;
-      }
-    });
-    setTasks(updatedTasks);
-  };
- 
-  // Generación de instancias de tareas recurrentes
-  useGeneration({ tasks, isDataLoaded, setTasks });
- 
-  // --- Handlers ---
-  const handleUpdateTasksOrder = (orderedTasks: Task[]) => {
-    const updated = { ...tasks };
-    orderedTasks.forEach((t, i) => {
-      updated[t.id] = { ...updated[t.id], order: i, modifiedAt: new Date().toISOString() };
-    });
-    setTasks(updated);
-    // Persistir a Supabase
-    orderedTasks.forEach((t, i) => {
-      const dbId = t.id.startsWith('inst-') ? (t.templateId || t.id) : t.id;
-      supabase.from('tasks').update({ order: i }).eq('id', dbId).then(({ error }) => {
-        if (error) console.error('[ORDER] Error saving task order:', error);
-      });
-    });
-  };
- 
-  const handleUpdateSubtasksOrder = (parentId: string, subtaskIds: string[]) => {
-    setTasks(prev => {
-      const existing = prev[parentId];
-      if (!existing) {
-        console.warn('[ORDER] parentId not found in tasks:', parentId);
-        return prev;
-      }
-      const updated = { ...prev };
-      // Actualizar el array subtasks del padre
-      updated[parentId] = {
-        ...existing,
-        subtasks: subtaskIds,
-        modifiedAt: new Date().toISOString()
-      };
-      // Actualizar el campo order de cada subtarea individualmente
-      subtaskIds.forEach((subId, order) => {
-        if (updated[subId]) {
-          updated[subId] = { ...updated[subId], order };
-        }
-      });
-      return updated;
-    });
-
-    // Persistir el array subtasks del padre en Supabase (orden canónico)
-    const parentDbId = parentId.startsWith('inst-') ? (tasks[parentId]?.templateId || parentId) : parentId;
-    supabase.from('tasks').update({ subtasks: subtaskIds }).eq('id', parentDbId).then(({ error }) => {
-      if (error) console.error('[ORDER] Error saving parent subtasks array:', error);
-    });
-
-    // Persistir order de cada subtarea en Supabase
-    subtaskIds.forEach((subId, order) => {
-      const sub = tasks[subId];
-      if (!sub) return;
-      const dbId = subId.startsWith('inst-') ? (sub.templateId || subId) : subId;
-      supabase.from('tasks').update({ order }).eq('id', dbId).then(({ error }) => {
-        if (error) console.error('[ORDER] Error saving subtask order:', error);
-      });
-    });
-  };
- 
-  const handleGoToTemplate = (templateId: string) => {
-    const targetTask = tasks[templateId];
-    if (!targetTask) return;
-
-    // Si la tarea tiene padre (es subtarea), expandir el contenedor padre
-    if (targetTask.parentTaskId) {
-      const parent = tasks[targetTask.parentTaskId];
-      if (parent && !parent.isExpanded) {
-        const timestamp = new Date().toISOString();
-        setTasks(prev => ({
-          ...prev,
-          [targetTask.parentTaskId!]: { ...prev[targetTask.parentTaskId!], isExpanded: true, modifiedAt: timestamp }
-        }));
-        supabase.from('tasks').update({ is_expanded: true, modified_at: timestamp })
-          .eq('id', targetTask.parentTaskId).then(() => {});
-      }
-    }
-
-    // Navegar a Bloques y resaltar
-    setCurrentView('blocks');
-    setHighlightTaskId(templateId);
-    // Auto-limpiar highlight después de 4 segundos
-    setTimeout(() => setHighlightTaskId(null), 4000);
-  };
-
-  const handleEditTaskRequest = (taskId: string | null) => {
-    if (taskId === null) {
-      setEditingTaskId(null);
-      setInlineEditingTaskId(null);
-      return;
-    }
-    let task = tasks[taskId];
-    if (!task) {
-      task = dashboardTasks.find(t => t.id === taskId);
-      if (task) {
-        // Materialize it in main state to allow editing
-        setTasks(prev => ({ ...prev, [taskId]: task! }));
-      }
-    }
- 
-    if (task?.templateId) {
-      setRecurrenceAction({ taskId, type: 'edit', ruleId: task.templateId });
-    } else {
-      setEditingTaskId(taskId);
-    }
-  };
- 
-  const handleDeleteTaskRequest = (taskId: string) => {
-    let task = tasks[taskId];
-    if (!task) {
-      task = dashboardTasks.find(t => t.id === taskId);
-    }
- 
-    // Si es una subtarea, buscamos a su padre para materializarla si es necesario
-    if (task?.parentTaskId && !tasks[task.parentTaskId]) {
-      const parentTask = dashboardTasks.find(t => t.id === task!.parentTaskId);
-      if (parentTask) {
-        setTasks(prev => ({ ...prev, [parentTask.id]: parentTask }));
-      }
-    }
- 
-    if (task?.templateId) {
-      // Es una instancia → modal de recurrencia
-      setRecurrenceAction({ taskId, type: 'delete', ruleId: task.templateId });
-    } else if (task?.isTemplate && (task?.recurrence || (task?.subtasks && task.subtasks.some((subId: string) => tasks[subId]?.recurrence)))) {
-      // Es un template recurrente → confirmar borrado de toda la serie
-      if (confirm(`¿Borrar "${task.title}" y todas sus instancias futuras?`)) {
-        handleDeleteTask(taskId);
-      }
-    } else {
-      handleDeleteTask(taskId);
-    }
-  };
- 
-  const handleToggleStatus = (taskId: string) => {
-    // Buscar la tarea en tasks o en allTasksMap (que incluye instancias generadas)
-    const taskFromState = tasks[taskId];
-    const taskFromAll = taskFromState || Object.values(tasks).find(t => t.id === taskId);
-    const task = taskFromAll;
-
-    if (!task) {
-      console.error('[STATUS] Tarea no encontrada:', taskId);
-      return;
-    }
-
-    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
-    const timestamp = new Date().toISOString();
-    const tasksToUpsert: Task[] = [];
-
-    const toggleRecursive = (targetTask: Task, status: 'pending' | 'completed') => {
-      const isInstance = !!targetTask.templateId;
-      const isRecurring = !!(targetTask.templateId || targetTask.recurrence);
-      const updated = {
-        ...targetTask,
-        status,
-        isException: isInstance ? true : targetTask.isException,
-        existsInSupabase: true,
-        modifiedAt: timestamp,
-        completedAt: status === 'completed' ? timestamp : undefined,
-        // Marcar si era recurrente al completar (informativo, no se borra al descompletar)
-        wasRecurring: status === 'completed' && isRecurring ? true : targetTask.wasRecurring,
-      };
-      tasksToUpsert.push(updated);
-
-      // Si es instancia y su templateId apunta a una tarea manual (no template),
-      // también actualizar la original para que Bloques refleje el estado correcto
-      if (isInstance && targetTask.templateId && !targetTask.templateId.startsWith('inst-')) {
-        const originalTask = tasks[targetTask.templateId];
-        if (originalTask && !originalTask.isTemplate) {
-          const alreadyAdded = tasksToUpsert.some(t => t.id === originalTask.id);
-          if (!alreadyAdded) {
-            tasksToUpsert.push({
-              ...originalTask,
-              status,
-              modifiedAt: timestamp,
-              completedAt: status === 'completed' ? timestamp : undefined,
-            });
-          }
-        }
-      }
-
-      // Buscar subtareas recursivamente
-      (targetTask.subtasks || []).forEach(sid => {
-        const sub = tasks[sid];
-        if (sub) toggleRecursive(sub, status);
-      });
-    };
-
-    toggleRecursive(task, newStatus);
-
-    // Actualizar state local
-    setTasks(prev => {
-      const next = { ...prev };
-      tasksToUpsert.forEach(t => { next[t.id] = t; });
-      return next;
-    });
-
-    // Persistir en Supabase
-    tasksToUpsert.forEach(t => {
-      console.log('[STATUS] Guardando:', t.id, t.status, 'templateId:', t.templateId);
-      if (t.templateId && t.id.startsWith('inst-')) {
-        supabase.from('tasks').upsert({
-          id: t.id,
-          block_id: t.blockId,
-          parent_task_id: null, // Siempre null — jerarquía se reconstruye via template_id
-          template_id: t.templateId,
-          instance_date: t.instanceDate || null,
-          title: t.title,
-          notes: t.notes || '',
-          priority: t.priority || 'medium',
-          status: t.status,
-          due_date: t.dueDate || null,
-          due_time: t.dueTime || null,
-          completed_at: t.completedAt || null,
-          estimated_minutes: t.estimatedMinutes || 0,
-          actual_minutes: t.actualMinutes || 0,
-          total_estimated_combo: t.totalEstimatedCombo || 0,
-          total_registered_combo: t.totalRegisteredCombo || 0,
-          tags: t.tags || [],
-          order: t.order || 0,
-          is_template: false,
-          is_active: true,
-          is_exception: true,
-          is_deleted: false,
-          is_expanded: t.isExpanded || false,
-          task_type: t.taskType || 'core',
-          recurrence: null,
-          delegation: t.delegation || null,
-          was_recurring: t.wasRecurring || false,
-          created_at: t.createdAt || timestamp,
-          modified_at: timestamp,
-        }, { onConflict: 'id' }).then(({ error }) => {
-          if (error) console.error('[SUPABASE] Error upsert instancia:', t.id, error);
-          else console.log('[SUPABASE] Instancia guardada OK:', t.id, t.status);
-        });
-      } else {
-        // Tarea normal: update simple
-        supabase.from('tasks').update({
-          status: t.status,
-          completed_at: t.completedAt || null,
-          modified_at: timestamp
-        }).eq('id', t.id).then(({ error }) => {
-          if (error) console.error('[SUPABASE] Error update tarea:', t.id, error);
-          else console.log('[SUPABASE] Tarea actualizada OK:', t.id, t.status);
-        });
-      }
-    });
-  };
- 
-  const handleAddTask = (parentTaskId: string | null = null, blockId?: string, overrideDate?: string, defaultPersonId?: string) => {
-    // Si el padre tiene fecha, etiqueta, recurrencia, hora o delegación y no tiene subtareas aún → mostrar aviso de conversión a contenedor
-    if (parentTaskId && tasks[parentTaskId]) {
-      const parent = tasks[parentTaskId];
-      const hasDate = !!parent.dueDate;
-      const hasTag = parent.tags && parent.tags.length > 0;
-      const hasRecurrence = !!parent.recurrence;
-      const hasTime = !!parent.dueTime;
-      const hasDelegation = !!parent.delegation;
-      if ((hasDate || hasTag || hasRecurrence || hasTime || hasDelegation) && (!parent.subtasks || parent.subtasks.length === 0)) {
-        setAddSubtaskWarning({ parentTaskId, blockId, overrideDate });
-        return;
-      }
-    }
-    return doAddTask(parentTaskId, blockId, overrideDate, defaultPersonId);
-  };
-
-  const doAddTask = (parentTaskId: string | null = null, blockId?: string, overrideDate?: string, defaultPersonId?: string) => {
-    const id = `t-${Date.now()}`;
-    const timestamp = new Date().toISOString();
-    
-    let finalBlockId = blockId;
-    let isTemplate = false;
-    
-    // Si se pasa un parentId, heredamos su bloque si no se especifica uno y su estado de template
-    if (parentTaskId && tasks[parentTaskId]) {
-      const parent = tasks[parentTaskId];
-      if (!finalBlockId) finalBlockId = parent.blockId;
-      isTemplate = parent.isTemplate || false;
-    }
- 
-    // Fallback al bloque seleccionado globalmente o al primero disponible
-    if (!finalBlockId) {
-      finalBlockId = selectedBlockId || (blocks.length > 0 ? blocks[0].id : 'b1');
-    }
- 
-    const newTask: Task = {
-      id,
-      blockId: finalBlockId,
-      title: '',
-      notes: '',
-      priority: 'media',
-      status: 'pending',
-      dueDate: isTemplate ? null : (overrideDate || activeDate),
-      dueTime: '',
-      parentTaskId,
-      ...(defaultPersonId ? { delegation: { personId: defaultPersonId, delegatedAt: formatLocalISO(new Date()) } } : {}),
-      subtasks: [],
-      estimatedMinutes: 0,
-      tags: [],
-      order: 0,
-      createdAt: timestamp,
-      modifiedAt: timestamp,
-      attachments: [],
-      isExpanded: true,
-      isTemplate
-    };
- 
-    const updatedTasks = { ...tasks, [id]: newTask };
-    if (parentTaskId && updatedTasks[parentTaskId]) {
-      const isFirstSubtask = (updatedTasks[parentTaskId].subtasks || []).length === 0;
-      updatedTasks[parentTaskId] = {
-        ...updatedTasks[parentTaskId],
-        subtasks: [...(updatedTasks[parentTaskId].subtasks || []), id],
-        isExpanded: true,
-        // Quitar fecha y tags del padre cuando tiene su primera subtarea
-        dueDate: isFirstSubtask ? null : updatedTasks[parentTaskId].dueDate,
-        tags: isFirstSubtask ? [] : updatedTasks[parentTaskId].tags,
-        estimatedMinutes: isFirstSubtask ? 0 : updatedTasks[parentTaskId].estimatedMinutes,
-        modifiedAt: timestamp
-      };
-    }
-    setTasks(updatedTasks);
-
-    // --- Sync to Supabase ---
-    (async () => {
-      try {
-        // Si el padre es una instancia en memoria (id empieza por 'inst-'),
-        // NO existe en Supabase → usar el templateId del padre como parent_task_id
-        // para evitar FK constraint violation
-        let supabaseParentId = newTask.parentTaskId || null;
-        if (supabaseParentId && supabaseParentId.startsWith('inst-')) {
-          const parentInstance = tasks[supabaseParentId];
-          if (parentInstance?.templateId) {
-            supabaseParentId = parentInstance.templateId;
-            // También actualizar en memoria
-            setTasks(prev => ({
-              ...prev,
-              [newTask.id]: { ...prev[newTask.id], parentTaskId: supabaseParentId }
-            }));
-          } else {
-            supabaseParentId = null; // Fallback: sin padre en Supabase
-          }
-        }
-
-        const dbTask = {
-          id: newTask.id,
-          block_id: newTask.blockId,
-          title: newTask.title || '',
-          notes: newTask.notes || '',
-          priority: newTask.priority,
-          status: newTask.status,
-          due_date: newTask.dueDate || null,
-          due_time: newTask.dueTime || null,
-          estimated_minutes: newTask.estimatedMinutes || 0,
-          actual_minutes: newTask.actualMinutes || 0,
-          tags: newTask.tags || [],
-          order: newTask.order || 0,
-          is_template: newTask.isTemplate || false,
-          is_active: true,
-          is_deleted: false,
-          parent_task_id: supabaseParentId,
-          template_id: newTask.templateId || null,
-          instance_date: newTask.instanceDate || null,
-          recurrence: newTask.recurrence || null,
-          delegation: newTask.delegation || null,
-          created_at: newTask.createdAt,
-          modified_at: newTask.modifiedAt
-        };
-        
-        const { error } = await supabase.from('tasks').insert([dbTask]);
-        if (error) throw error;
-        console.log('[SUPABASE] Task created:', newTask.id);
-      } catch (e) {
-        console.error('[SUPABASE] Error creating task:', e);
-      }
-    })();
-
-    // Always open modal for root tasks, inline for subtasks
-    if (!parentTaskId) {
-      setTimeout(() => setEditingTaskId(id), 50);
-    } else {
-      setInlineEditingTaskId(id);
-    }
-    return id;
-  };
- 
-  const handleUpdateTask = (updatedTask: Task) => {
-    const isException = updatedTask.templateId && 
-      updatedTask.instanceDate && 
-      updatedTask.dueDate !== updatedTask.instanceDate;
-    
-    setTasks(prev => {
-      const updated = { ...prev };
-      const timestamp = new Date().toISOString();
-
-      if (isException && updatedTask.parentTaskId && updatedTask.instanceDate) {
-        const newDate = updatedTask.dueDate;
-        const oldDate = updatedTask.instanceDate;
-        
-        // 1. Obtener instancia padre original
-        const oldParent = updated[updatedTask.parentTaskId];
-        
-        if (oldParent) {
-          // 2. Quitar esta subtarea del padre original
-          const newParentSubtasks = (oldParent.subtasks || []).filter(
-            sid => sid !== updatedTask.id
-          );
-          
-          // Si el padre queda sin subtareas Y es una instancia generada NO excepción, eliminarlo
-          // Las excepciones se mantienen aunque queden vacías (el usuario las movió explícitamente)
-          if (newParentSubtasks.length === 0 && oldParent.templateId && !oldParent.isException) {
-            delete updated[oldParent.id];
-          } else {
-            updated[oldParent.id] = {
-              ...oldParent,
-              subtasks: newParentSubtasks,
-              modifiedAt: timestamp
-            };
-          }
-
-          // 3. Crear o actualizar instancia padre en el nuevo día
-          const newParentId = oldParent.templateId 
-            ? `inst-${oldParent.templateId}-${newDate}`
-            : `inst-${oldParent.id}-${newDate}`;
-          
-          const existingNewParent = updated[newParentId];
-          const newSubtaskId = `inst-${updatedTask.templateId}-${newDate}`;
-          
-          if (existingNewParent) {
-            // Ya existe padre en nuevo día → añadir subtarea
-            updated[newParentId] = {
-              ...existingNewParent,
-              subtasks: [...(existingNewParent.subtasks || []), newSubtaskId],
-              modifiedAt: timestamp
-            };
-          } else {
-            // Crear nuevo padre en el nuevo día
-            const parentTemplate = oldParent.templateId 
-              ? updated[oldParent.templateId] 
-              : oldParent;
-            updated[newParentId] = {
-              ...(parentTemplate || oldParent),
-              id: newParentId,
-              templateId: oldParent.templateId || oldParent.id,
-              dueDate: newDate,
-              instanceDate: newDate,
-              isTemplate: false,
-              isException: true,
-              subtasks: [newSubtaskId],
-              status: 'pending',
-              modifiedAt: timestamp,
-              createdAt: timestamp
-            };
-          }
-
-          // 4. Crear la subtarea excepción en el nuevo día
-          updated[newSubtaskId] = {
-            ...updatedTask,
-            id: newSubtaskId,
-            dueDate: newDate,
-            instanceDate: oldDate,
-            parentTaskId: newParentId,
-            isException: true,
-            modifiedAt: timestamp
-          };
-
-          // 5. Eliminar la subtarea del día original
-          delete updated[updatedTask.id];
-          
-          return updated;
-        }
-      }
-
-      // Para tareas normales o instancias sin cambio de fecha.
-      // Si es una instancia (templateId presente), marcar isException: true para
-      // que se persista en localStorage (tags, título, tiempo, etc.).
-      // generateInstances está protegido con !t.templateId así que esto no genera cascadas.
-      updated[updatedTask.id] = { 
-        ...updatedTask, 
-        isException: updatedTask.templateId ? true : (isException ? true : updatedTask.isException),
-        modifiedAt: timestamp
-      };
-
-      // CRÍTICO: si esta subtarea tiene recurrencia, el padre debe ser isTemplate:true y dueDate:null
-      if (updatedTask.recurrence && updatedTask.parentTaskId && updated[updatedTask.parentTaskId]) {
-        let parent = updated[updatedTask.parentTaskId];
-        
-        // Si el padre es una INSTANCIA (tiene templateId), redirigir al template original
-        // Esto ocurre cuando se añade subtarea recurrente desde el Dashboard
-        if (parent.templateId && updated[parent.templateId]) {
-          const realParentTemplateId = parent.templateId;
-          const realParent = updated[realParentTemplateId];
-          
-          // Reconectar la subtarea al template padre real
-          updated[updatedTask.id] = {
-            ...updated[updatedTask.id],
-            parentTaskId: realParentTemplateId
-          };
-          
-          // Actualizar subtasks del template padre
-          if (!realParent.subtasks.includes(updatedTask.id)) {
-            updated[realParentTemplateId] = {
-              ...realParent,
-              subtasks: [...realParent.subtasks, updatedTask.id]
-            };
-          }
-          
-          // Quitar del array de subtasks de la instancia
-          updated[parent.id] = {
-            ...parent,
-            subtasks: (parent.subtasks || []).filter((id: string) => id !== updatedTask.id)
-          };
-
-          // Persistir el cambio de parentTaskId en Supabase
-          setTimeout(() => {
-            supabase.from('tasks')
-              .update({ parent_task_id: realParentTemplateId })
-              .eq('id', updatedTask.id)
-              .then(({ error }) => {
-                if (error) console.error('[SUPABASE] Error reconectando subtarea al template:', error);
-                else console.log('[SUPABASE] Subtarea reconectada al template padre:', realParentTemplateId);
-              });
-          }, 0);
-          
-          parent = realParent; // Usar el template real para el resto de la lógica
-        }
-        
-        if (!parent.isTemplate || parent.dueDate) {
-          // NO actualizar modifiedAt del padre para evitar bucle infinito en templateKey
-          updated[parent.id] = { ...parent, isTemplate: true, dueDate: null };
-          setTimeout(() => {
-            supabase.from('tasks')
-              .update({ is_template: true, due_date: null })
-              .eq('id', parent.id)
-              .then(({ error }) => {
-                if (error) console.error('[SUPABASE] Error propagando isTemplate al padre:', error);
-                else console.log('[SUPABASE] Contenedor marcado isTemplate:', parent.title);
-              });
-          }, 0);
-        }
-      }
-
-      // CRÍTICO: si una tarea raíz del Dashboard recibe recurrencia,
-      // debe convertirse en template y crear una instancia para el día actual.
-      // Sin esto, generateInstances no la procesa y desaparece al recargar.
-      if (
-        updatedTask.recurrence &&
-        !updatedTask.parentTaskId &&
-        !updatedTask.templateId &&
-        !updatedTask.isTemplate
-      ) {
-        const instanceDate = updatedTask.dueDate || formatLocalISO(new Date());
-        const instanceId = `inst-${updatedTask.id}-${instanceDate}`;
-        const instanceTimestamp = new Date().toISOString();
-
-        // Convertir la tarea en template
-        updated[updatedTask.id] = {
-          ...updatedTask,
-          isTemplate: true,
-          dueDate: null,
-          dueTime: null,
-          modifiedAt: instanceTimestamp
-        };
-
-        // Crear instancia para el día actual (sin recurrence - eso es del template)
-        updated[instanceId] = {
-          ...updatedTask,
-          id: instanceId,
-          templateId: updatedTask.id,
-          dueDate: instanceDate,
-          instanceDate,
-          isTemplate: false,
-          isException: true,
-          existsInSupabase: true,
-          recurrence: null, // Las instancias NO tienen recurrence, solo el template
-          createdAt: instanceTimestamp,
-          modifiedAt: instanceTimestamp
-        };
-
-        // Persistir template en Supabase
-        setTimeout(() => {
-          supabase.from('tasks')
-            .update({ 
-              is_template: true, 
-              due_date: null, 
-              due_time: null,
-              recurrence: updatedTask.recurrence,
-              modified_at: instanceTimestamp
-            })
-            .eq('id', updatedTask.id)
-            .then(({ error }) => {
-              if (error) console.error('[SUPABASE] Error convirtiendo a template:', error);
-              else console.log('[SUPABASE] Tarea convertida a template:', updatedTask.title);
-            });
-
-          // Persistir instancia del día en Supabase
-          supabase.from('tasks').upsert({
-            id: instanceId,
-            block_id: updatedTask.blockId,
-            parent_task_id: null,
-            template_id: updatedTask.id,
-            instance_date: instanceDate,
-            title: updatedTask.title,
-            notes: updatedTask.notes || '',
-          attachments: updatedTask.attachments || [],
-            priority: updatedTask.priority || 'media',
-            status: updatedTask.status,
-            due_date: instanceDate,
-            due_time: updatedTask.dueTime || null,
-            estimated_minutes: updatedTask.estimatedMinutes || 0,
-            actual_minutes: updatedTask.actualMinutes || 0,
-            tags: updatedTask.tags || [],
-            delegation: updatedTask.delegation || null,
-            is_template: false,
-            is_active: true,
-            is_exception: true,
-            is_deleted: false,
-            recurrence: null, // Las instancias NO tienen recurrence
-            created_at: instanceTimestamp,
-            modified_at: instanceTimestamp
-          }, { onConflict: 'id' }).then(({ error }) => {
-            if (error) console.error('[SUPABASE] Error creando instancia del día:', error);
-            else console.log('[SUPABASE] Instancia del día creada:', instanceId);
-          });
-        }, 0);
-      }
-      
-      return updated;
-    });
-    setEditingTaskId(null);
-    setInlineEditingTaskId(null);
-
-    // --- Sync to Supabase ---
-    (async () => {
-      try {
-        // CASO ESPECIAL: cambio de fecha en subtarea recurrente con padre.
-        // En setTasks se creó newSubtaskId con dueDate=newDate — hay que persistir ESE objeto,
-        // no updatedTask (que tiene el id y fecha antiguos).
-        const _isSubtaskDateChange = !!(
-          updatedTask.templateId &&
-          updatedTask.instanceDate &&
-          updatedTask.dueDate !== updatedTask.instanceDate &&
-          updatedTask.parentTaskId
-        );
-        if (_isSubtaskDateChange) {
-          const _newDate = updatedTask.dueDate;
-          const _oldDate = updatedTask.instanceDate;
-          const _newSubtaskId = `inst-${updatedTask.templateId}-${_newDate}`;
-          // Soft-delete la instancia antigua en Supabase
-          await supabase.from('tasks')
-            .update({ is_deleted: true, deleted_at: new Date().toISOString() })
-            .eq('id', updatedTask.id);
-          // Upsert la nueva instancia con fecha correcta
-          const { error: errNew } = await supabase.from('tasks').upsert([{
-            id: _newSubtaskId,
-            block_id: updatedTask.blockId,
-            title: updatedTask.title || '',
-            notes: updatedTask.notes || '',
-            priority: updatedTask.priority,
-            status: updatedTask.status,
-            due_date: _newDate,
-            due_time: updatedTask.dueTime || null,
-            completed_at: updatedTask.completedAt || null,
-            estimated_minutes: updatedTask.estimatedMinutes || 0,
-            actual_minutes: updatedTask.actualMinutes || 0,
-            total_estimated_combo: updatedTask.totalEstimatedCombo || 0,
-            total_registered_combo: updatedTask.totalRegisteredCombo || 0,
-            tags: updatedTask.tags || [],
-            order: updatedTask.order || 0,
-            is_template: false,
-            is_active: true,
-            is_exception: true,
-            is_deleted: false,
-            is_expanded: updatedTask.isExpanded || false,
-            task_type: updatedTask.taskType || null,
-            parent_task_id: null,
-            template_id: updatedTask.templateId,
-            instance_date: _oldDate,
-            recurrence: null,
-            delegation: updatedTask.delegation || null,
-            attachments: updatedTask.attachments || [],
-            created_at: updatedTask.createdAt || new Date().toISOString(),
-            modified_at: new Date().toISOString()
-          }], { onConflict: 'id' });
-          if (errNew) console.error('[SUPABASE] Error guardando subtarea excepción nueva fecha:', errNew);
-          else console.log('[SUPABASE] Subtarea excepción guardada con nueva fecha:', _newSubtaskId);
-          return;
-        }
-
-        const isInstance = !!updatedTask.templateId;
-        
-        // Si parentTaskId apunta a una instancia en memoria (empieza por 'inst-'),
-        // usar el templateId del padre para evitar FK constraint en Supabase
-        let supabaseParentId = isInstance ? null : (updatedTask.parentTaskId || null);
-        if (supabaseParentId && supabaseParentId.startsWith('inst-')) {
-          const parentInstance = tasks[supabaseParentId];
-          supabaseParentId = parentInstance?.templateId || null;
-        }
-        // Para instancias: parent_task_id null para evitar FK constraint
-        // La jerarquía se reconstruye en memoria via generateInstances
-        const dbTask = {
-          id: updatedTask.id,
-          block_id: updatedTask.blockId,
-          title: updatedTask.title || '',
-          notes: updatedTask.notes || '',
-          priority: updatedTask.priority,
-          status: updatedTask.status,
-          due_date: updatedTask.dueDate || null,
-          due_time: updatedTask.dueTime || null,
-          completed_at: updatedTask.completedAt || null,
-          estimated_minutes: updatedTask.estimatedMinutes || 0,
-          actual_minutes: updatedTask.actualMinutes || 0,
-          total_estimated_combo: updatedTask.totalEstimatedCombo || 0,
-          total_registered_combo: updatedTask.totalRegisteredCombo || 0,
-          tags: updatedTask.tags || [],
-          order: updatedTask.order || 0,
-          is_template: isInstance ? false : (updatedTask.isTemplate || false),
-          is_active: updatedTask.isActive !== false,
-          is_exception: isInstance ? true : (updatedTask.isException || false), // Siempre true para instancias
-          is_deleted: updatedTask.isDeleted || false,
-          is_expanded: updatedTask.isExpanded,
-          task_type: updatedTask.taskType,
-          parent_task_id: supabaseParentId,
-          template_id: updatedTask.templateId || null,
-          instance_date: updatedTask.instanceDate || null,
-          recurrence: isInstance ? null : (updatedTask.recurrence || null),
-          delegation: updatedTask.delegation || null,
-          attachments: updatedTask.attachments || [],
-          created_at: updatedTask.createdAt,
-          modified_at: new Date().toISOString()
-        };
-
-        const { error } = await supabase.from('tasks').upsert([dbTask], { onConflict: 'id' });
-        if (error) throw error;
-        console.log('[SUPABASE] Task updated:', updatedTask.id, isInstance ? '(instancia excepción)' : '');
-      } catch (e) {
-        console.error('[SUPABASE] Error updating task:', e);
-      }
-    })();
-  };
- 
-  // Subir nivel: la tarea sale de su padre y queda al mismo nivel que su padre
-  const handlePromoteTask = (taskId: string) => {
-    setTasks(prev => {
-      const task = prev[taskId];
-      if (!task || !task.parentTaskId) return prev; // Ya es nivel 1, no puede subir
-
-      const parentTask = prev[task.parentTaskId];
-      if (!parentTask) return prev;
-      const grandParentId = parentTask.parentTaskId || null;
-
-      const newTasks = { ...prev };
-
-      // 1. Quitar la tarea del array de subtareas del padre
-      newTasks[parentTask.id] = {
-        ...parentTask,
-        subtasks: parentTask.subtasks.filter(sid => sid !== taskId),
-        modifiedAt: new Date().toISOString()
-      };
-
-      // 2. Añadir la tarea al abuelo (o a nivel raíz si no hay abuelo)
-      if (grandParentId && newTasks[grandParentId]) {
-        const grandParent = newTasks[grandParentId];
-        // Insertar justo después del padre en el array del abuelo
-        const parentIdx = grandParent.subtasks.indexOf(parentTask.id);
-        const newSubtasks = [...grandParent.subtasks];
-        newSubtasks.splice(parentIdx + 1, 0, taskId);
-        newTasks[grandParentId] = {
-          ...grandParent,
-          subtasks: newSubtasks,
-          modifiedAt: new Date().toISOString()
-        };
-      }
-
-      // 3. Actualizar la tarea con nuevo parentTaskId
-      newTasks[taskId] = {
-        ...task,
-        parentTaskId: grandParentId,
-        modifiedAt: new Date().toISOString()
-      };
-
-      return newTasks;
-    });
-  };
-
-  // Bajar nivel: la tarea se convierte en subtarea de la tarea inmediatamente anterior
-  const handleDemoteTask = (taskId: string) => {
-    setTasks(prev => {
-      const task = prev[taskId];
-      if (!task) return prev;
-
-      // No permitir bajar más de nivel 3
-      const currentLevel = task.parentTaskId
-        ? (prev[task.parentTaskId]?.parentTaskId ? 3 : 2)
-        : 1;
-      if (currentLevel >= 3) return prev;
-
-      // Buscar hermanos EN ORDEN DEL ARRAY (orden visual real)
-      let siblingIds: string[] = [];
-      if (task.parentTaskId && prev[task.parentTaskId]) {
-        siblingIds = prev[task.parentTaskId].subtasks || [];
-      } else {
-        // Nivel raíz: usar el orden del campo order
-        siblingIds = (Object.values(prev) as Task[])
-          .filter(t => !t.parentTaskId && t.blockId === task.blockId && !t.isTemplate && !t.isDeleted)
-          .sort((a, b) => (a.order || 0) - (b.order || 0))
-          .map(t => t.id);
-      }
-
-      const idx = siblingIds.indexOf(taskId);
-      if (idx <= 0) return prev; // Es la primera, no hay tarea arriba
-
-      const aboveTaskId = siblingIds[idx - 1];
-      const aboveTask = prev[aboveTaskId];
-      if (!aboveTask) return prev;
-
-      const newTasks = { ...prev };
-
-      // 1. Quitar del padre actual (o de nivel raíz — no hace falta nada para raíz)
-      if (task.parentTaskId && newTasks[task.parentTaskId]) {
-        const parent = newTasks[task.parentTaskId];
-        newTasks[task.parentTaskId] = {
-          ...parent,
-          subtasks: (parent.subtasks || []).filter(sid => sid !== taskId),
-          modifiedAt: new Date().toISOString()
-        };
-      }
-
-      // 2. Añadir como última subtarea de la tarea de arriba
-      newTasks[aboveTaskId] = {
-        ...aboveTask,
-        subtasks: [...(aboveTask.subtasks || []), taskId],
-        isExpanded: true,
-        modifiedAt: new Date().toISOString()
-      };
-
-      // 3. Actualizar la tarea con nuevo padre
-      newTasks[taskId] = {
-        ...task,
-        parentTaskId: aboveTaskId,
-        modifiedAt: new Date().toISOString()
-      };
-
-      return newTasks;
-    });
-  };
- 
-  const handleDeleteTask = (taskId: string) => {
-    const updatedTasks = { ...tasks };
-    const task = updatedTasks[taskId];
-    if (!task) return;
- 
-    if (task.parentTaskId && updatedTasks[task.parentTaskId]) {
-      updatedTasks[task.parentTaskId] = {
-        ...updatedTasks[task.parentTaskId],
-        subtasks: updatedTasks[task.parentTaskId].subtasks.filter(id => id !== taskId)
-      };
-    }
- 
-    const removeRecursive = (id: string) => {
-      const t = updatedTasks[id];
-      if (!t) return;
-      t.subtasks.forEach(sid => removeRecursive(sid));
-      delete updatedTasks[id];
-    };
- 
-    // Recoger todos los IDs a borrar antes de eliminar del state
-    const idsToDelete: Task[] = [];
-    const collectRecursive = (id: string) => {
-      const t = updatedTasks[id];
-      if (!t) return;
-      idsToDelete.push(t);
-      t.subtasks.forEach(sid => collectRecursive(sid));
-    };
-    collectRecursive(taskId);
-
-    // Si es un template recurrente, también recoger y borrar todas sus instancias en memoria
-    if (task.isTemplate && !task.templateId) {
-      Object.values(updatedTasks).forEach((t: Task) => {
-        if (!t || idsToDelete.find(d => d.id === t.id)) return;
-        // Instancia directa del template
-        if (t.templateId === taskId) {
-          idsToDelete.push(t);
-        }
-        // Instancia de subtarea cuyo template tiene este padre
-        if (t.templateId) {
-          const tTemplate = updatedTasks[t.templateId];
-          if (tTemplate && tTemplate.parentTaskId === taskId) {
-            idsToDelete.push(t);
-          }
-        }
-      });
-    }
-
-    removeRecursive(taskId);
-    
-    // Borrar instancias de memoria también
-    idsToDelete.forEach(t => {
-      if (t.id !== taskId) delete updatedTasks[t.id];
-    });
-    setTasks(updatedTasks);
-
-    // --- Soft delete en Supabase para TODOS (tarea + subtareas) ---
-    (async () => {
-      const timestamp = new Date().toISOString();
-      for (const t of idsToDelete) {
-        try {
-          if (t.templateId) {
-            // Instancia generada: upsert con is_deleted
-            await supabase.from('tasks').upsert({
-              id: t.id,
-              block_id: t.blockId,
-              parent_task_id: null,
-              template_id: t.templateId,
-              instance_date: t.instanceDate || null,
-              title: t.title,
-              notes: t.notes || '',
-              priority: t.priority || 'medium',
-              status: t.status,
-              due_date: t.dueDate || null,
-              due_time: t.dueTime || null,
-              completed_at: t.completedAt || null,
-              estimated_minutes: t.estimatedMinutes || 0,
-              actual_minutes: t.actualMinutes || 0,
-              tags: t.tags || [],
-              delegation: t.delegation || null,
-              is_template: false,
-              is_exception: true,
-              is_deleted: true,
-              deleted_at: timestamp,
-              is_active: false,
-              created_at: t.createdAt || timestamp,
-              modified_at: timestamp
-            }, { onConflict: 'id' });
-          } else {
-            // Tarea normal: update
-            await supabase.from('tasks')
-              .update({ is_deleted: true, deleted_at: timestamp })
-              .eq('id', t.id);
-          }
-        } catch (e) {
-          console.error('[SUPABASE] Error borrando:', t.id, e);
-        }
-      }
-      console.log('[SUPABASE] Borradas', idsToDelete.length, 'tareas/instancias');
-    })();
-  };
- 
-  const handleDayChange = (offset: number) => {
-    const current = parseLocalISO(activeDate);
-    current.setDate(current.getDate() + offset);
-    setActiveDate(formatLocalISO(current));
-  };
- 
-  const handleAddRule = (blockId?: string) => {
-    const id = `tmpl-${Date.now()}`;
-    const newTemplate: Task = {
-      id,
-      blockId: blockId || (blocks.length > 0 ? blocks[0].id : 'b1'),
-      title: '',
-      notes: '',
-      priority: 'media',
-      status: 'pending',
-      dueDate: null,
-      subtasks: [],
-      estimatedMinutes: 0,
-      tags: [],
-      order: 0,
-      createdAt: new Date().toISOString(),
-      modifiedAt: new Date().toISOString(),
-      isTemplate: true,
-      isActive: true
-    };
-    setTasks(prev => ({ ...prev, [id]: newTemplate }));
-    setEditingRuleId(id);
-  };
- 
-  const handleAddBlock = async () => {
-    const id = `b-${Date.now()}`;
-    const newBlock: WorkBlock = {
-      id,
-      name: '',
-      color: COLORS.turquesa.main,
-      pastelColor: COLORS.turquesa.pastel,
-      icon: '🏢',
-      isActive: true,
-      order: blocks.length
-    };
-    
-    try {
-      // Guardar en Supabase
-      const { error } = await supabase
-        .from('work_blocks')
-        .insert({
-          id: newBlock.id,
-          name: newBlock.name,
-          color: newBlock.color,
-          pastel_color: newBlock.pastelColor,
-          icon: newBlock.icon,
-          is_active: newBlock.isActive,
-          order: newBlock.order
-        });
-      
-      if (error) throw error;
-      
-      // Actualizar state local
-      setBlocks(prev => [...prev, newBlock]);
-      setEditingBlockId(id);
-      console.log('[SUPABASE] Block created:', id);
-    } catch (e) {
-      console.error('[SUPABASE] Error creating block:', e);
-    }
-  };
- 
-  const handleUpdateBlock = async (updated: WorkBlock) => {
-    try {
-      // Guardar en Supabase
-      const { error } = await supabase
-        .from('work_blocks')
-        .update({
-          name: updated.name,
-          color: updated.color,
-          pastel_color: updated.pastelColor,
-          icon: updated.icon,
-          is_active: updated.isActive,
-          order: updated.order
-        })
-        .eq('id', updated.id);
-      
-      if (error) throw error;
-      
-      // Actualizar state local
-      setBlocks(prev => prev.map(b => b.id === updated.id ? updated : b));
-      setEditingBlockId(null);
-      console.log('[SUPABASE] Block updated:', updated.id);
-    } catch (e) {
-      console.error('[SUPABASE] Error updating block:', e);
-    }
-  };
- 
-  const handleReorderBlocks = async (newOrder: WorkBlock[]) => {
-    const updated = newOrder.map((b, i) => ({ ...b, order: i + 1 }));
-    
-    try {
-      // Guardar cada bloque con su nuevo order en Supabase
-      const promises = updated.map(block =>
-        supabase
-          .from('work_blocks')
-          .update({ order: block.order })
-          .eq('id', block.id)
-      );
-      
-      await Promise.all(promises);
-      
-      // Actualizar state local
-      setBlocks(updated);
-      console.log('[SUPABASE] Blocks reordered');
-    } catch (e) {
-      console.error('[SUPABASE] Error reordering blocks:', e);
-    }
-  };
- 
-  const handleToggleBlockActive = async (id: string) => {
-    const block = blocks.find(b => b.id === id);
-    if (!block) return;
-    
-    const newIsActive = !block.isActive;
-    
-    try {
-      // Guardar en Supabase
-      const { error } = await supabase
-        .from('work_blocks')
-        .update({ is_active: newIsActive })
-        .eq('id', id);
-      
-      if (error) throw error;
-      
-      // Actualizar state local
-      setBlocks(prev => prev.map(b => b.id === id ? { ...b, isActive: newIsActive } : b));
-      console.log('[SUPABASE] Block toggled:', id, newIsActive);
-    } catch (e) {
-      console.error('[SUPABASE] Error toggling block:', e);
-    }
-  };
- 
-  const handleDeleteBlock = (id: string) => {
-    if (confirm('¿Eliminar este bloque y todas sus tareas/reglas asociadas?')) {
-      setBlocks(prev => prev.filter(b => b.id !== id));
-      setTasks(prev => {
-        const newTasks = { ...prev };
-        Object.keys(newTasks).forEach(taskId => {
-          if (newTasks[taskId].blockId === id) delete newTasks[taskId];
-        });
-        return newTasks;
-      });
-    }
-  };
- 
-  // --- Timer Handlers ---
-  const handleStartTimer = (taskId: string, subtaskId: string | null = null) => {
-    if (activeTimer) {
-      if (!confirm("Ya hay un cronómetro activo. ¿Deseas pararlo y empezar este?")) return;
-      // Note: In real app we would save the current one first. 
-      // For this action, let's just stop it and discard or save. 
-      // User said: "Si intenta iniciar otro, se le avisa con opción de parar el actual primero"
-      handleStopTimer();
-    }
-    
-    const task = tasks[taskId];
-    if (!task) return;
-    const targetEntity = subtaskId ? tasks[subtaskId] : task;
-    const title = targetEntity?.title || "Tarea sin título";
- 
-    setActiveTimer({
-      entityId: subtaskId || taskId,
-      parentTaskId: taskId,
-      subtaskId,
-      startTime: new Date().toISOString(),
-      accumulatedSeconds: 0,
-      title
-    });
-  };
- 
-  const handleStopTimer = () => {
-    if (!activeTimer) return;
-    
-    const start = new Date(activeTimer.startTime).getTime();
-    const now = new Date().getTime();
-    const elapsedSeconds = Math.floor((now - start) / 1000) + activeTimer.accumulatedSeconds;
-    const minutes = Math.floor(elapsedSeconds / 60);
- 
-    if (minutes < 1) {
-      if (confirm("El tiempo transcurrido es menor a 1 minuto. ¿Deseas descartarlo?")) {
-        setActiveTimer(null);
-        return;
-      }
-    }
- 
-    // Mostrar modal con nota + opción de completar
-    setTimerStopModal({
-      minutes: Math.max(1, minutes),
-      pendingEntry: {
-        taskId: activeTimer.parentTaskId,
-        subtaskId: activeTimer.subtaskId,
-        date: formatLocalISO(new Date()),
-      }
-    });
-    setActiveTimer(null);
-  };
-
-  const handleTimerStopConfirm = (note: string, markComplete: boolean) => {
-    if (!timerStopModal) return;
-    const { minutes, pendingEntry } = timerStopModal;
-    setTimerStopModal(null);
-
-    const newEntry: TimeEntry = {
-      id: `te-${Date.now()}`,
-      taskId: pendingEntry.taskId,
-      subtaskId: pendingEntry.subtaskId,
-      date: pendingEntry.date,
-      duration: minutes,
-      note,
-      createdAt: new Date().toISOString(),
-      source: 'timer'
-    };
-    setTimeEntries(prev => [...prev, newEntry]);
-
-    // Marcar tarea como completada si se pidió
-    if (markComplete && pendingEntry.subtaskId) {
-      const t = tasks[pendingEntry.subtaskId];
-      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
-    } else if (markComplete && pendingEntry.taskId) {
-      const t = tasks[pendingEntry.taskId];
-      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
-    }
-
-    // Resolver IDs para Supabase (instancias en memoria → templateId)
-    const resolveId = (id: string | null): string | null => {
-      if (!id) return null;
-      if (!id.startsWith('inst-')) return id;
-      const t = tasks[id];
-      if (t?.templateId) return t.templateId;
-      const parts = id.replace('inst-', '').split('-');
-      parts.pop(); parts.pop(); parts.pop();
-      return parts.join('-');
-    };
-
-    // Persistir en Supabase
-    supabase.from('time_entries').insert({
-      id: newEntry.id,
-      task_id: resolveId(newEntry.taskId),
-      subtask_id: resolveId(newEntry.subtaskId) || null,
-      date: newEntry.date,
-      duration: newEntry.duration,
-      note: newEntry.note || '',
-      source: newEntry.source,
-      created_at: newEntry.createdAt
-    }).then(({ error }) => {
-      if (error) console.error('[SUPABASE] Error saving time entry:', error);
-    });
-  };
- 
-  // --- Attachment handlers ---
-  const handleUploadAttachment = async (taskId: string, file: File) => {
-    const ext = file.name.split('.').pop();
-    const path = `${taskId}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from('task-attachments').upload(path, file);
-    if (error) { console.error('[ATTACHMENTS] Upload error:', error); return; }
-    const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(path);
-    const attachment = { id: `att-${Date.now()}`, name: file.name, url: urlData.publicUrl, type: file.type, size: file.size, path, createdAt: new Date().toISOString() };
-    const task = tasks[taskId];
-    if (!task) return;
-    const updatedAttachments = [...(task.attachments || []), attachment];
-    handleUpdateTask({ ...task, attachments: updatedAttachments });
-  };
-
-  const handleDeleteAttachment = async (taskId: string, attachmentId: string, path: string) => {
-    await supabase.storage.from('task-attachments').remove([path]);
-    const task = tasks[taskId];
-    if (!task) return;
-    const updatedAttachments = (task.attachments || []).filter((a: any) => a.id !== attachmentId);
-    handleUpdateTask({ ...task, attachments: updatedAttachments });
-  };
-
-  const handleManualTimeEntry = (taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string, markComplete?: boolean) => {
-    const newEntry: TimeEntry = {
-      id: `te-${Date.now()}`,
-      taskId,
-      subtaskId,
-      date,
-      duration: minutes,
-      note,
-      createdAt: new Date().toISOString(),
-      source: 'manual'
-    };
-    setTimeEntries(prev => [...prev, newEntry]);
-
-    // Marcar como completada si se pidió
-    if (markComplete) {
-      const targetId = subtaskId || taskId;
-      const t = tasks[targetId];
-      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
-    }
-
-    // Resolver IDs para Supabase: las instancias en memoria no existen en BD
-    // Si task_id es una instancia (inst-), usar el templateId del template
-    const resolveIdForDB = (id: string | null): string | null => {
-      if (!id) return null;
-      if (!id.startsWith('inst-')) return id;
-      const task = tasks[id];
-      if (task?.templateId) return task.templateId;
-      // Extraer templateId del ID: inst-{templateId}-{date}
-      const parts = id.replace('inst-', '').split('-');
-      parts.pop(); // remove year
-      parts.pop(); // remove month  
-      parts.pop(); // remove day
-      return parts.join('-');
-    };
-
-    const dbTaskId = resolveIdForDB(taskId);
-    const dbSubtaskId = resolveIdForDB(subtaskId);
-
-    // Persistir en Supabase
-    supabase.from('time_entries').insert({
-      id: newEntry.id,
-      task_id: dbTaskId,
-      subtask_id: dbSubtaskId || null,
-      date: newEntry.date,
-      duration: newEntry.duration,
-      note: newEntry.note || '',
-      source: newEntry.source,
-      created_at: newEntry.createdAt
-    }).then(({ error }) => {
-      if (error) console.error('[SUPABASE] Error saving manual time entry:', error);
-    });
-  };
- 
-  const handleDeleteTimeEntry = (entryId: string) => {
-    setTimeEntries(prev => prev.filter(e => e.id !== entryId));
-    supabase.from('time_entries').delete().eq('id', entryId)
-      .then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error deleting time entry:', error);
-      });
-  };
-
-  const handleUpdateTimeEntry = (entryId: string, updates: { duration: number, note: string }) => {
-    setTimeEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...updates } : e));
-    supabase.from('time_entries').update({ duration: updates.duration, note: updates.note })
-      .eq('id', entryId)
-      .then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error updating time entry:', error);
-      });
-  };
- 
-  // --- Computed ---
-  const allActiveTasks = useMemo(() => Object.values(tasks).filter((t: Task) => !t.isDeleted && !t.isTemplate), [tasks]);
- 
-  const filteredTasks = useMemo(() => {
-    return allActiveTasks;
-  }, [allActiveTasks]);
- 
-  // --- Views ---
-  const dashboardTasks = useMemo(() => {
-    const activeBlockIds = new Set(blocks.filter(b => b && b.isActive).map(b => b.id));
-    return filterTasksForDay(
-      filteredTasks,
-      tasks,
-      activeBlockIds,
-      activeDate,
-      { hideCompleted: false, hideDelegatedNoTag: true }
-    );
-  }, [filteredTasks, blocks, activeDate, tasks]);
- 
-  const dashboardTasksMap = useMemo(() => {
-    // Empezar con tasks filtradas (sin borradas, sin templates puros)
-    const map: any = {};
-    Object.values(tasks).forEach((t: Task) => {
-      if (!t.isDeleted) map[t.id] = t;
-    });
-    
-    // Añadir tareas raíz
-    dashboardTasks.forEach(t => {
-      map[t.id] = t;
-      
-      // Añadir subtareas del día activo (filtrar delegadas sin tag real)
-      if (t.subtasks && t.subtasks.length > 0) {
-        t.subtasks.forEach(subId => {
-          const sub = tasks[subId];
-          if (sub && sub.dueDate === activeDate) {
-            // Filtro delegación en subtareas
-            if (sub.delegation) {
-              const tags = sub.tags || [];
-              const hasRealTag = tags.some((tag: string) => tag !== 'resto');
-              if (!hasRealTag) return; // no añadir delegadas sin tag
-            }
-            map[subId] = sub;
-          }
-        });
-      }
-    });
-    
-    return map;
-  }, [tasks, dashboardTasks, activeDate]);
- 
-  // Loading state mientras carga desde Supabase
+  // --- Loading screen ---
   if (!isDataLoaded) {
     return (
       <div className="min-h-screen bg-bg-main flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-turquesa border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-turquesa border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-text-secondary font-black uppercase tracking-widest text-sm">
             Cargando datos desde Supabase...
           </p>
@@ -2034,13 +287,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-bg-main text-text-main flex flex-col md:flex-row font-sans relative">
+
       {/* Global Timer Bar */}
       <AnimatePresence>
         {activeTimer && (
-          <motion.div 
-            initial={{ y: -50 }}
-            animate={{ y: 0 }}
-            exit={{ y: -50 }}
+          <motion.div
+            initial={{ y: -50 }} animate={{ y: 0 }} exit={{ y: -50 }}
             className="fixed top-0 left-0 right-0 h-10 bg-rosa z-[200] flex items-center justify-between px-6 shadow-lg"
           >
             <div className="flex items-center gap-3">
@@ -2051,8 +303,8 @@ export default function App() {
             </div>
             <div className="flex items-center gap-4">
               <TimerDisplay startTime={activeTimer.startTime} accumulatedSeconds={activeTimer.accumulatedSeconds} />
-              <button 
-                onClick={handleStopTimer}
+              <button
+                onClick={timerHandlers.handleStopTimer}
                 className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-[10px] font-black text-white uppercase transition-all"
               >
                 Parar
@@ -2061,11 +313,10 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
- 
+
       {/* Sidebar Navigation */}
       <nav className={`w-full md:w-20 lg:w-72 ${isDarkMode ? 'bg-bg-secondary' : 'bg-bg-secondary-light'} border-r ${isDarkMode ? 'border-border-main' : 'border-border-main-light'} flex flex-col py-6 shrink-0 transition-all duration-300`}>
         <div className="flex items-center gap-3 mb-4 px-5">
-          {/* Logo WM — 4 cuadritos */}
           <div className="shrink-0" style={{ width: 46, height: 46 }}>
             <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="0" y="0" width="21" height="21" rx="5" fill="#14B8A6"/>
@@ -2085,18 +336,10 @@ export default function App() {
         <div className="px-6 mb-6">
           <button
             onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`w-full flex items-center justify-between gap-3 p-3 rounded-2xl transition-all ${
-              isDarkMode 
-                ? 'bg-bg-main hover:bg-bg-card border border-border-main' 
-                : 'bg-bg-card-light hover:bg-bg-secondary-light border border-border-main-light'
-            }`}
+            className={`w-full flex items-center justify-between gap-3 p-3 rounded-2xl transition-all ${isDarkMode ? 'bg-bg-main hover:bg-bg-card border border-border-main' : 'bg-bg-card-light hover:bg-bg-secondary-light border border-border-main-light'}`}
           >
             <div className="flex items-center gap-3">
-              {isDarkMode ? (
-                <Moon size={18} className="text-azul" />
-              ) : (
-                <Sun size={18} className="text-turquesa" />
-              )}
+              {isDarkMode ? <Moon size={18} className="text-azul" /> : <Sun size={18} className="text-turquesa" />}
               <span className={`hidden lg:block text-sm font-bold ${isDarkMode ? 'text-white' : 'text-text-main-light'}`}>
                 {isDarkMode ? 'Modo Oscuro' : 'Modo Claro'}
               </span>
@@ -2106,71 +349,36 @@ export default function App() {
             </div>
           </button>
         </div>
- 
+
         <div className="flex flex-col gap-1 w-full px-4">
-          <NavItem 
-            active={currentView === 'dashboard'} 
-            onClick={() => setCurrentView('dashboard')} 
-            icon={<LayoutDashboard size={20} />} 
-            label="Mi Día" 
-          />
-          <NavItem 
-            active={currentView === 'blocks'} 
-            onClick={() => setCurrentView('blocks')} 
-            icon={<Grid2X2 size={20} />} 
-            label="Bloques" 
-          />
-          <NavItem 
-            active={currentView === 'calendar'} 
-            onClick={() => setCurrentView('calendar')} 
-            icon={<CalendarIcon size={20} />} 
-            label="Calendario" 
-          />
-          <NavItem 
-            active={currentView === 'delegadas'} 
-            onClick={() => setCurrentView('delegadas')} 
-            icon={<Users size={20} />} 
-            label="Delegadas" 
-          />
-          <NavItem 
-            active={currentView === 'search'} 
-            onClick={() => setCurrentView('search')} 
-            icon={<Search size={20} />} 
-            label="Búsqueda" 
-          />
-          <NavItem 
-            active={currentView === 'workload'} 
-            onClick={() => setCurrentView('workload')} 
-            icon={<BarChart2 size={20} />} 
-            label="Carga" 
-          />
+          <NavItem active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} icon={<LayoutDashboard size={20} />} label="Mi Día" />
+          <NavItem active={currentView === 'blocks'} onClick={() => setCurrentView('blocks')} icon={<Grid2X2 size={20} />} label="Bloques" />
+          <NavItem active={currentView === 'calendar'} onClick={() => setCurrentView('calendar')} icon={<CalendarIcon size={20} />} label="Calendario" />
+          <NavItem active={currentView === 'delegadas'} onClick={() => setCurrentView('delegadas')} icon={<Users size={20} />} label="Delegadas" />
+          <NavItem active={currentView === 'search'} onClick={() => setCurrentView('search')} icon={<Search size={20} />} label="Búsqueda" />
+          <NavItem active={currentView === 'workload'} onClick={() => setCurrentView('workload')} icon={<BarChart2 size={20} />} label="Carga" />
         </div>
- 
+
         <div className="mt-auto px-4">
           <div className="h-px bg-border-main/50 mb-6" />
-          <NavItem 
-            active={false} 
-            onClick={handleResetData} 
-            icon={<Settings size={20} />} 
-            label="Configuración" 
-          />
+          <NavItem active={false} onClick={handleResetData} icon={<Settings size={20} />} label="Configuración" />
         </div>
       </nav>
- 
+
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden max-w-full">
         {/* Header Bar */}
         <header className="h-20 dark:bg-bg-main bg-bg-main-light border-b dark:border-border-main border-border-main-light flex items-center justify-between px-8 shrink-0">
           <div className="flex items-center gap-6 flex-1">
             <div className="flex items-center gap-2 lg:hidden">
-               <div className="w-8 h-8 bg-turquesa rounded-lg flex items-center justify-center text-white">
-                 <Zap size={18} />
-               </div>
+              <div className="w-8 h-8 bg-turquesa rounded-lg flex items-center justify-center text-white">
+                <Zap size={18} />
+              </div>
             </div>
             <div className="relative max-w-sm w-full hidden sm:block">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 dark:text-text-secondary text-text-secondary-light" size={16} />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Buscar tareas, bloques..."
                 className="w-full pl-11 pr-4 py-2.5 dark:bg-bg-secondary bg-white rounded-xl text-sm dark:text-text-main text-text-main-light border dark:border-border-main border-border-main-light focus:ring-2 focus:ring-turquesa/20 outline-none transition-all dark:placeholder:text-text-secondary/50 placeholder:text-text-secondary-light/50"
                 value={searchQuery}
@@ -2178,7 +386,6 @@ export default function App() {
               />
             </div>
           </div>
- 
           <div className="flex items-center gap-5">
             <button className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light transition-colors">
               <span className="w-2 h-2 bg-lima rounded-full animate-pulse" />
@@ -2196,13 +403,13 @@ export default function App() {
             </div>
           </div>
         </header>
- 
+
         {/* Content Container */}
         <div className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar dark:bg-bg-main bg-bg-main-light">
           <AnimatePresence mode="wait">
             {currentView === 'dashboard' && (
-              <DashboardView 
-                tasks={dashboardTasks} 
+              <DashboardView
+                tasks={dashboardTasks}
                 allTasksMap={dashboardTasksMap}
                 blocks={blocks}
                 people={people}
@@ -2212,9 +419,9 @@ export default function App() {
                 onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
                 timeEntries={timeEntries}
                 activeTimer={activeTimer}
-                onStartTimer={handleStartTimer}
-                onStopTimer={handleStopTimer}
-                onToggle={handleToggleStatus} 
+                onStartTimer={timerHandlers.handleStartTimer}
+                onStopTimer={timerHandlers.handleStopTimer}
+                onToggle={handleToggleStatus}
                 onDelete={handleDeleteTaskRequest}
                 onAddTask={handleAddTask}
                 onUpdateTask={handleUpdateTask}
@@ -2230,7 +437,7 @@ export default function App() {
                 onReorderSubtasks={handleUpdateSubtasksOrder}
                 onToggleExpand={handleToggleExpandTask}
                 onViewInstances={(task: Task) => setInstancesModalTask(task)}
-                onGoToTemplate={(templateId: string) => handleGoToTemplate(templateId)}
+                onGoToTemplate={handleGoToTemplate}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
                 selectionMode={selectionMode}
@@ -2246,16 +453,17 @@ export default function App() {
                 setBulkDateModal={setBulkDateModal}
                 bulkTimeModal={bulkTimeModal}
                 setBulkTimeModal={setBulkTimeModal}
-                onDeleteTimeEntry={handleDeleteTimeEntry}
-                onUpdateTimeEntry={handleUpdateTimeEntry}
+                onDeleteTimeEntry={timerHandlers.handleDeleteTimeEntry}
+                onUpdateTimeEntry={timerHandlers.handleUpdateTimeEntry}
                 searchQuery={searchQuery}
               />
             )}
+
             {currentView === 'blocks' && (
-              <BlocksManagerView 
+              <BlocksManagerView
                 highlightTaskId={highlightTaskId}
                 onClearHighlight={() => setHighlightTaskId(null)}
-                blocks={blocks} 
+                blocks={blocks}
                 tasks={Object.values(tasks).filter((t: Task) => !t.isDeleted)}
                 allTasksMap={tasks}
                 people={people}
@@ -2265,9 +473,9 @@ export default function App() {
                 onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
                 timeEntries={timeEntries}
                 activeTimer={activeTimer}
-                onStartTimer={handleStartTimer}
-                onStopTimer={handleStopTimer}
-                onAddBlock={handleAddBlock} 
+                onStartTimer={timerHandlers.handleStartTimer}
+                onStopTimer={timerHandlers.handleStopTimer}
+                onAddBlock={handleAddBlock}
                 onDelete={handleDeleteTaskRequest}
                 onAddTask={handleAddTask}
                 onAddRule={handleAddRule}
@@ -2292,7 +500,7 @@ export default function App() {
                 onToggleExpand={handleToggleExpandTask}
                 onExpandAll={handleExpandAllInBlock}
                 onViewInstances={(task: Task) => setInstancesModalTask(task)}
-                onGoToTemplate={(templateId: string) => handleGoToTemplate(templateId)}
+                onGoToTemplate={handleGoToTemplate}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
                 selectionMode={selectionMode}
@@ -2308,9 +516,10 @@ export default function App() {
                 searchQuery={searchQuery}
               />
             )}
+
             {currentView === 'calendar' && (
-              <CalendarView 
-                tasks={allActiveTasks} 
+              <CalendarView
+                tasks={allActiveTasks}
                 allTasksMap={tasks}
                 blocks={blocks}
                 people={people}
@@ -2320,8 +529,8 @@ export default function App() {
                 onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
                 timeEntries={timeEntries}
                 activeTimer={activeTimer}
-                onStartTimer={handleStartTimer}
-                onStopTimer={handleStopTimer}
+                onStartTimer={timerHandlers.handleStartTimer}
+                onStopTimer={timerHandlers.handleStopTimer}
                 onUpdateTask={handleUpdateTask}
                 onEditTask={handleEditTaskRequest}
                 editingTaskId={editingTaskId}
@@ -2337,11 +546,12 @@ export default function App() {
                 onReorderSubtasks={handleUpdateSubtasksOrder}
                 onToggleExpand={handleToggleExpandTask}
                 onViewInstances={(task: Task) => setInstancesModalTask(task)}
-                onGoToTemplate={(templateId: string) => handleGoToTemplate(templateId)}
+                onGoToTemplate={handleGoToTemplate}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
               />
             )}
+
             {currentView === 'delegadas' && (
               <DelegadasView
                 tasks={allActiveTasks}
@@ -2355,25 +565,18 @@ export default function App() {
                 onUpdatePeople={setPeople}
                 onUpdateMeetings={async (updatedMeetings: any[]) => {
                   setMeetings(updatedMeetings);
-                  // Sincronizar con Supabase: upsert todas las reuniones
                   for (const m of updatedMeetings) {
                     await supabase.from('meetings').upsert({
-                      id: m.id,
-                      person_id: m.personId,
-                      date: m.date,
-                      notes: m.notes || '',
-                      items: m.items || [],
+                      id: m.id, person_id: m.personId, date: m.date,
+                      notes: m.notes || '', items: m.items || [],
                       created_at: m.createdAt || new Date().toISOString()
                     }, { onConflict: 'id' });
                   }
-                  // Borrar reuniones eliminadas
                   const currentIds = updatedMeetings.map((m: any) => m.id);
                   const { data: existing } = await supabase.from('meetings').select('id');
                   if (existing) {
                     const toDelete = existing.filter((r: any) => !currentIds.includes(r.id));
-                    for (const r of toDelete) {
-                      await supabase.from('meetings').delete().eq('id', r.id);
-                    }
+                    for (const r of toDelete) await supabase.from('meetings').delete().eq('id', r.id);
                   }
                 }}
                 onAddTask={handleAddTask}
@@ -2393,20 +596,17 @@ export default function App() {
                 setBulkDateModal={setBulkDateModal}
                 setBulkTimeModal={setBulkTimeModal}
                 searchQuery={searchQuery}
-                onGoToTemplate={(templateId: string) => handleGoToTemplate(templateId)}
+                onGoToTemplate={handleGoToTemplate}
               />
             )}
-            
+
             {currentView === 'workload' && (
               <WorkloadView
                 tasks={tasks}
                 allTasksMap={tasks}
                 blocks={blocks}
                 timeEntries={timeEntries}
-                onNavigateToDashboard={(date: string) => {
-                  setActiveDate(date);
-                  setCurrentView('dashboard');
-                }}
+                onNavigateToDashboard={(date: string) => { setActiveDate(date); setCurrentView('dashboard'); }}
               />
             )}
 
@@ -2423,17 +623,16 @@ export default function App() {
                 onDelete={handleDeleteTaskRequest}
                 onUpdateTask={handleUpdateTask}
                 onAddTask={handleAddTask}
-                onNavigateToBlocks={(blockId: string) => {
-                  setCurrentView('blocks');
-                }}
+                onNavigateToBlocks={() => setCurrentView('blocks')}
               />
             )}
           </AnimatePresence>
         </div>
       </main>
- 
+
+      {/* TaskModal - editar tarea */}
       {editingTaskId && tasks[editingTaskId] && (
-        <TaskModal 
+        <TaskModal
           key={editingTaskId}
           task={tasks[editingTaskId]}
           allTasksMap={tasks}
@@ -2441,7 +640,7 @@ export default function App() {
           onAddPerson={handleAddPerson}
           onRenamePerson={handleRenamePerson}
           onDeletePerson={handleDeletePerson}
-                onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
+          onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
           onClose={() => setEditingTaskId(null)}
           onSave={handleUpdateTask}
           onAddTask={handleAddTask}
@@ -2452,9 +651,10 @@ export default function App() {
           onDeleteAttachment={handleDeleteAttachment}
         />
       )}
- 
+
+      {/* TaskModal - editar regla/template */}
       {editingRuleId && tasks[editingRuleId] && (
-        <TaskModal 
+        <TaskModal
           key={editingRuleId}
           task={tasks[editingRuleId]}
           allTasksMap={tasks}
@@ -2462,7 +662,7 @@ export default function App() {
           onAddPerson={handleAddPerson}
           onRenamePerson={handleRenamePerson}
           onDeletePerson={handleDeletePerson}
-                onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
+          onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
           onClose={() => setEditingRuleId(null)}
           onSave={handleUpdateTask}
           onAddTask={handleAddTask}
@@ -2473,16 +673,17 @@ export default function App() {
           onDeleteAttachment={handleDeleteAttachment}
         />
       )}
- 
+
+      {/* BlockModal */}
       {editingBlockId && (
-        <BlockModal 
+        <BlockModal
           block={blocks.find(b => b.id === editingBlockId) || { id: editingBlockId, name: '', color: COLORS.turquesa.main, pastelColor: COLORS.turquesa.pastel, icon: '🏢', isActive: true, order: blocks.length }}
           onClose={() => setEditingBlockId(null)}
           onSave={handleUpdateBlock}
           onDelete={handleDeleteBlock}
         />
       )}
- 
+
       {/* Modal aviso: añadir subtarea a tarea con fecha */}
       {addSubtaskWarning && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
@@ -2495,88 +696,47 @@ export default function App() {
                 Al añadir subtareas, se convertirá en una <span className="text-white font-bold">tarea contenedora</span>. Esto implica:
               </p>
               <ul className="text-text-secondary text-sm mt-2 space-y-1 text-left">
-                {tasks[addSubtaskWarning.parentTaskId]?.dueDate && (
-                  <li>• Su <span className="text-turquesa font-bold">fecha de ejecución</span> se eliminará</li>
-                )}
-                {tasks[addSubtaskWarning.parentTaskId]?.dueTime && (
-                  <li>• Su <span className="text-azul font-bold">hora</span> se eliminará</li>
-                )}
-                {tasks[addSubtaskWarning.parentTaskId]?.tags?.length > 0 && (
-                  <li>• Su <span className="text-rosa font-bold">etiqueta</span> se eliminará</li>
-                )}
-                {tasks[addSubtaskWarning.parentTaskId]?.recurrence && (
-                  <li>• Su <span className="text-naranja font-bold">recurrencia</span> se eliminará</li>
-                )}
-                {tasks[addSubtaskWarning.parentTaskId]?.delegation && (
-                  <li>• Su <span className="text-morado font-bold">delegación</span> se eliminará</li>
-                )}
+                {tasks[addSubtaskWarning.parentTaskId]?.dueDate && <li>• Su <span className="text-turquesa font-bold">fecha de ejecución</span> se eliminará</li>}
+                {tasks[addSubtaskWarning.parentTaskId]?.dueTime && <li>• Su <span className="text-azul font-bold">hora</span> se eliminará</li>}
+                {tasks[addSubtaskWarning.parentTaskId]?.tags?.length > 0 && <li>• Su <span className="text-rosa font-bold">etiqueta</span> se eliminará</li>}
+                {tasks[addSubtaskWarning.parentTaskId]?.recurrence && <li>• Su <span className="text-naranja font-bold">recurrencia</span> se eliminará</li>}
+                {tasks[addSubtaskWarning.parentTaskId]?.delegation && <li>• Su <span className="text-morado font-bold">delegación</span> se eliminará</li>}
                 <li className="text-text-secondary/60 text-xs mt-1">Los contenedores no tienen datos propios. Toda la información la asignan sus subtareas.</li>
               </ul>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={() => setAddSubtaskWarning(null)}
-                className="flex-1 py-3 rounded-2xl border border-border-main text-text-secondary hover:text-white hover:border-white/30 transition-all font-bold text-sm"
-              >
+              <button onClick={() => setAddSubtaskWarning(null)} className="flex-1 py-3 rounded-2xl border border-border-main text-text-secondary hover:text-white hover:border-white/30 transition-all font-bold text-sm">
                 Cancelar
               </button>
               <button
                 onClick={() => {
                   const { parentTaskId, blockId, overrideDate } = addSubtaskWarning;
                   setAddSubtaskWarning(null);
-                  // Al convertir en contenedor: quitar fecha, etiqueta y forzar expandido
-                  // Todo en un solo setTasks para evitar race conditions
                   const id = `t-${Date.now()}`;
                   const timestamp = new Date().toISOString();
                   const parentTask = tasks[parentTaskId];
                   const newTask = {
                     id,
                     blockId: blockId || parentTask?.blockId || (blocks.length > 0 ? blocks[0].id : 'b1'),
-                    title: '',
-                    notes: '',
-                    priority: 'media' as const,
-                    status: 'pending' as const,
-                    dueDate: overrideDate || activeDate,
-                    dueTime: '',
-                    parentTaskId,
-                    subtasks: [],
-                    estimatedMinutes: 0,
-                    tags: [],
-                    order: 0,
-                    createdAt: timestamp,
-                    modifiedAt: timestamp,
-                    attachments: [],
-                    isExpanded: true,
-                    isTemplate: false
+                    title: '', notes: '', priority: 'media' as const, status: 'pending' as const,
+                    dueDate: overrideDate || activeDate, dueTime: '',
+                    parentTaskId, subtasks: [], estimatedMinutes: 0, tags: [], order: 0,
+                    createdAt: timestamp, modifiedAt: timestamp, attachments: [],
+                    isExpanded: true, isTemplate: false
                   };
                   setTasks(prev => ({
                     ...prev,
-                    [parentTaskId]: { 
-                      ...prev[parentTaskId], 
-                      dueDate: null,
-                      dueTime: '',
-                      tags: [],
-                      estimatedMinutes: 0,
-                      recurrence: undefined,
-                      isTemplate: false,
-                      delegation: undefined,
-                      isExpanded: true,
-                      subtasks: [...(prev[parentTaskId]?.subtasks || []), id],
-                      modifiedAt: timestamp
+                    [parentTaskId]: {
+                      ...prev[parentTaskId],
+                      dueDate: null, dueTime: '', tags: [], estimatedMinutes: 0,
+                      recurrence: undefined, isTemplate: false, delegation: undefined,
+                      isExpanded: true, subtasks: [...(prev[parentTaskId]?.subtasks || []), id], modifiedAt: timestamp
                     },
                     [id]: newTask
                   }));
-                  // Persistir la limpieza del contenedor en Supabase
                   supabase.from('tasks').update({
-                    due_date: null,
-                    due_time: null,
-                    tags: [],
-                    estimated_minutes: 0,
-                    recurrence: null,
-                    is_template: false,
-                    delegation: null,
-                    is_expanded: true,
-                    modified_at: timestamp
+                    due_date: null, due_time: null, tags: [], estimated_minutes: 0,
+                    recurrence: null, is_template: false, delegation: null, is_expanded: true, modified_at: timestamp
                   }).eq('id', parentTaskId).then(({ error }) => {
                     if (error) console.error('[SUPABASE] Error limpiando contenedor:', error);
                   });
@@ -2591,107 +751,39 @@ export default function App() {
         </div>
       )}
 
-      {/* Modales de acciones bulk */}
+      {/* Modales bulk */}
       {bulkDelegateModal && (
         <BulkDelegateModal
           people={people}
           onClose={() => setBulkDelegateModal(false)}
           onConfirm={(personId: string | null) => {
             const timestamp = new Date().toISOString();
-            const delegation = personId 
-              ? { personId, personName: people.find((p: any) => p.id === personId)?.name || '', delegatedAt: timestamp }
-              : null;
+            const delegation = personId ? { personId, delegatedAt: timestamp } : undefined;
             bulkUpdateTasks({ delegation });
             setBulkDelegateModal(false);
           }}
         />
       )}
-
       {bulkDateModal && (
         <BulkDateModal
           onClose={() => setBulkDateModal(false)}
           onConfirm={(date: string) => {
-            const timestamp = new Date().toISOString();
-            setTasks(prev => {
-              const next = { ...prev };
-              selectedTaskIds.forEach(id => {
-                if (next[id]) next[id] = { ...next[id], dueDate: date, modifiedAt: timestamp };
-              });
-              return next;
-            });
-            setSelectedTaskIds(new Set());
-            setSelectionMode(false);
+            bulkUpdateTasks({ dueDate: date });
             setBulkDateModal(false);
           }}
         />
       )}
-
       {bulkTimeModal && (
         <BulkTimeModal
           onClose={() => setBulkTimeModal(false)}
           onConfirm={(minutes: number) => {
-            const timestamp = new Date().toISOString();
-            setTasks(prev => {
-              const next = { ...prev };
-              selectedTaskIds.forEach(id => {
-                if (next[id]) next[id] = { ...next[id], estimatedMinutes: minutes, modifiedAt: timestamp };
-              });
-              return next;
-            });
-            setSelectedTaskIds(new Set());
-            setSelectionMode(false);
+            bulkUpdateTasks({ estimatedMinutes: minutes });
             setBulkTimeModal(false);
           }}
         />
       )}
 
-      {/* Modal cambio de fecha en instancia recurrente */}
-      {pendingDateChange && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 dark:bg-black/60 bg-black/40 backdrop-blur-sm">
-            <div className="dark:bg-bg-card bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border dark:border-border-main border-border-main-light space-y-4">
-              <h3 className="font-black dark:text-white text-text-main-light text-base uppercase tracking-widest">Cambiar fecha</h3>
-              <p className="text-sm dark:text-text-secondary text-text-secondary-light">¿Qué quieres cambiar?</p>
-            <div className="space-y-2">
-              <button
-                onClick={() => {
-                  const { task, newDate } = pendingDateChange;
-                  // Solo este día: guardar como excepción
-                  handleUpdateTask({ ...task, dueDate: newDate });
-                  setPendingDateChange(null);
-                }}
-                className="w-full py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/80 transition-all"
-              >
-                Solo este día
-              </button>
-              <button
-                onClick={() => {
-                  const { task, newDate } = pendingDateChange;
-                  // Toda la serie: actualizar el startDate del template
-                  const templateId = task.templateId;
-                  if (templateId && tasks[templateId]) {
-                    const template = tasks[templateId];
-                    handleUpdateTask({
-                      ...template,
-                      recurrence: template.recurrence ? { ...template.recurrence, startDate: newDate } : template.recurrence
-                    });
-                  }
-                  setPendingDateChange(null);
-                }}
-                className="w-full py-3 rounded-2xl dark:bg-bg-secondary bg-gray-100 dark:text-white text-text-main-light font-black text-sm hover:opacity-80 transition-all"
-              >
-                Toda la serie (cambia el inicio)
-              </button>
-              <button
-                onClick={() => setPendingDateChange(null)}
-                className="w-full py-3 rounded-2xl text-rosa font-black text-sm hover:bg-rosa/10 transition-all"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* InstancesModal */}
       {instancesModalTask && (
         <InstancesModal
           task={instancesModalTask}
@@ -2700,7 +792,6 @@ export default function App() {
           onEditTask={(id) => { setInstancesModalTask(null); handleEditTaskRequest(id); }}
           onDelete={(id) => { handleDeleteTaskRequest(id); setInstancesModalTask(null); }}
           onRestore={(deletedTaskId) => {
-            // Borrar la excepción is_deleted de Supabase → la instancia se regenerará
             supabase.from('tasks').delete().eq('id', deletedTaskId).then(({ error }) => {
               if (error) console.error('[RESTORE] Error restoring instance:', error);
             });
@@ -2713,8 +804,9 @@ export default function App() {
         />
       )}
 
+      {/* RecurrenceChoiceModal */}
       {recurrenceAction && (
-        <RecurrenceChoiceModal 
+        <RecurrenceChoiceModal
           type={recurrenceAction.type}
           onClose={() => setRecurrenceAction(null)}
           onConfirm={(choice) => {
@@ -2725,68 +817,37 @@ export default function App() {
 
             if (choice === 'instance') {
               if (type === 'edit') {
-                // Marcar como excepción y abrir modal
-                setTasks(prev => ({
-                  ...prev,
-                  [taskId]: { ...prev[taskId], isException: true }
-                }));
+                setTasks(prev => ({ ...prev, [taskId]: { ...prev[taskId], isException: true } }));
                 setEditingTaskId(taskId);
               } else {
-                // Eliminar solo esta instancia → persistir en Supabase con UPSERT
                 const taskToDelete = tasks[taskId] || dashboardTasks.find(t => t.id === taskId);
-                if (!taskToDelete) {
-                  console.error('[DELETE] Tarea no encontrada:', taskId);
-                  return;
-                }
-                
+                if (!taskToDelete) return;
                 setTasks(prev => ({
                   ...prev,
                   [taskId]: { ...(prev[taskId] || taskToDelete), isDeleted: true, isException: true, existsInSupabase: true, modifiedAt: timestamp }
                 }));
-                
-                // UPSERT en lugar de UPDATE para que funcione con instancias no guardadas
                 supabase.from('tasks').upsert({
-                  id: taskToDelete.id,
-                  block_id: taskToDelete.blockId,
-                  parent_task_id: null,
-                  template_id: taskToDelete.templateId,
-                  instance_date: taskToDelete.instanceDate || null,
-                  title: taskToDelete.title,
-                  notes: taskToDelete.notes || '',
-                  priority: taskToDelete.priority || 'medium',
-                  status: taskToDelete.status,
-                  due_date: taskToDelete.dueDate || null,
-                  due_time: taskToDelete.dueTime || null,
-                  completed_at: taskToDelete.completedAt || null,
-                  estimated_minutes: taskToDelete.estimatedMinutes || 0,
-                  actual_minutes: taskToDelete.actualMinutes || 0,
-                  tags: taskToDelete.tags || [],
-                  delegation: taskToDelete.delegation || null,
-                  is_template: false,
-                  is_exception: true,
-                  is_deleted: true, // ← ESTO ES LO IMPORTANTE
-                  deleted_at: new Date().toISOString(),
-                  is_active: false,
-                  created_at: taskToDelete.createdAt || new Date().toISOString(),
-                  modified_at: timestamp
-                }, { onConflict: 'id' })
-                  .then(({ error }) => {
-                    if (error) console.error('[SUPABASE] Error eliminando instancia:', error);
-                    else console.log('[SUPABASE] Instancia eliminada (upsert):', taskId);
-                  });
+                  id: taskToDelete.id, block_id: taskToDelete.blockId, parent_task_id: null,
+                  template_id: taskToDelete.templateId, instance_date: taskToDelete.instanceDate || null,
+                  title: taskToDelete.title, notes: taskToDelete.notes || '',
+                  priority: taskToDelete.priority || 'medium', status: taskToDelete.status,
+                  due_date: taskToDelete.dueDate || null, due_time: taskToDelete.dueTime || null,
+                  completed_at: taskToDelete.completedAt || null, estimated_minutes: taskToDelete.estimatedMinutes || 0,
+                  actual_minutes: taskToDelete.actualMinutes || 0, tags: taskToDelete.tags || [],
+                  delegation: taskToDelete.delegation || null, is_template: false, is_exception: true,
+                  is_deleted: true, deleted_at: new Date().toISOString(), is_active: false,
+                  created_at: taskToDelete.createdAt || new Date().toISOString(), modified_at: timestamp
+                }, { onConflict: 'id' }).then(({ error }) => {
+                  if (error) console.error('[SUPABASE] Error eliminando instancia:', error);
+                });
               }
             } else if (choice === 'series') {
               if (type === 'edit') {
-                // Editar el template original
                 setEditingRuleId(ruleId);
               } else {
-                // Eliminar serie: desactivar template + borrar instancias futuras (>= hoy)
-                // Las pasadas (< hoy) se respetan siempre
                 setTasks(prev => {
                   const updated = { ...prev };
-                  if (updated[ruleId]) {
-                    updated[ruleId] = { ...updated[ruleId], isActive: false, modifiedAt: timestamp };
-                  }
+                  if (updated[ruleId]) updated[ruleId] = { ...updated[ruleId], isActive: false, modifiedAt: timestamp };
                   Object.values(updated).forEach(t => {
                     if (t && t.templateId === ruleId && !t.isDeleted && t.dueDate && t.dueDate >= today) {
                       updated[t.id] = { ...t, isDeleted: true, modifiedAt: timestamp };
@@ -2794,34 +855,32 @@ export default function App() {
                   });
                   return updated;
                 });
-                supabase.from('tasks')
-                  .update({ is_active: false, modified_at: timestamp })
-                  .eq('id', ruleId)
-                  .then(({ error }) => {
-                    if (error) console.error('[SUPABASE] Error desactivando serie:', error);
-                  });
+                supabase.from('tasks').update({ is_active: false, modified_at: timestamp }).eq('id', ruleId).then(({ error }) => {
+                  if (error) console.error('[SUPABASE] Error desactivando serie:', error);
+                });
               }
             }
           }}
         />
       )}
- 
+
+      {/* TimeManagementPanel */}
       <AnimatePresence>
         {showTimePanel && (
-          <TimeManagementPanel 
+          <TimeManagementPanel
             taskId={showTimePanel.taskId}
             subtaskId={showTimePanel.subtaskId}
             allTasksMap={tasks}
             timeEntries={timeEntries}
-            onAddEntry={handleManualTimeEntry}
-            onDeleteEntry={handleDeleteTimeEntry}
-            onUpdateEntry={handleUpdateTimeEntry}
+            onAddEntry={timerHandlers.handleManualTimeEntry}
+            onDeleteEntry={timerHandlers.handleDeleteTimeEntry}
+            onUpdateEntry={timerHandlers.handleUpdateTimeEntry}
             onClose={() => setShowTimePanel(null)}
           />
         )}
       </AnimatePresence>
 
-      {/* Modal Stop Timer */}
+      {/* TimerStopModal */}
       {timerStopModal && (
         <TimerStopModal
           minutes={timerStopModal.minutes}
@@ -2833,11 +892,25 @@ export default function App() {
     </div>
   );
 }
- 
+
+// --- NavItem ---
+function NavItem({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all group w-full relative ${active ? 'dark:bg-bg-card dark:text-white bg-bg-card-light text-text-main-light shadow-xl dark:border-border-main border-border-main-light border' : 'dark:text-text-secondary text-text-secondary-light dark:hover:text-text-main hover:text-text-main-light dark:hover:bg-bg-card/50 hover:bg-bg-secondary-light'}`}
+    >
+      {active && <motion.div layoutId="activeNav" className="absolute left-0 w-1.5 h-6 bg-turquesa rounded-r-full" />}
+      <span className={`${active ? 'text-turquesa' : 'group-hover:scale-110 transition-transform'}`}>{icon}</span>
+      <span className="text-sm font-bold tracking-tight hidden lg:block tracking-wide">{label}</span>
+      {active && <ChevronRight size={14} className="ml-auto hidden lg:block text-turquesa" />}
+    </button>
+  );
+}
+
 // --- TimerStopModal ---
 function TimerStopModal({ minutes, taskTitle, onConfirm, onCancel }: {
-  minutes: number;
-  taskTitle: string;
+  minutes: number; taskTitle: string;
   onConfirm: (note: string, markComplete: boolean) => void;
   onCancel: () => void;
 }) {
@@ -2847,20 +920,14 @@ function TimerStopModal({ minutes, taskTitle, onConfirm, onCancel }: {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
         className="dark:bg-bg-secondary bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 flex flex-col gap-6"
       >
         <div className="flex flex-col gap-1">
           <span className="text-xs font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Registro de Tiempo</span>
-          <h2 className="text-xl font-black dark:text-white text-text-main-light">
-            {minutes} min registrados
-          </h2>
-          {taskTitle && (
-            <p className="text-sm dark:text-text-secondary text-text-secondary-light truncate">{taskTitle}</p>
-          )}
+          <h2 className="text-xl font-black dark:text-white text-text-main-light">{minutes} min registrados</h2>
+          {taskTitle && <p className="text-sm dark:text-text-secondary text-text-secondary-light truncate">{taskTitle}</p>}
         </div>
-
         <div className="flex flex-col gap-2">
           <label className="text-[10px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Nota opcional</label>
           <textarea
@@ -2872,814 +939,25 @@ function TimerStopModal({ minutes, taskTitle, onConfirm, onCancel }: {
             autoFocus
           />
         </div>
-
         <label className="flex items-center gap-3 cursor-pointer group">
           <div
             onClick={() => setMarkComplete(v => !v)}
             className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${markComplete ? 'bg-turquesa border-turquesa' : 'dark:border-border-main border-border-main-light'}`}
           >
-            {markComplete && <Check size={14} className="text-white" strokeWidth={3} />}
+            {markComplete && <span className="text-white text-xs font-black">✓</span>}
           </div>
-          <span className="text-sm font-bold dark:text-white text-text-main-light group-hover:opacity-80 transition-opacity">
-            Marcar tarea como completada
-          </span>
+          <span className="text-sm font-bold dark:text-white text-text-main-light group-hover:opacity-80 transition-opacity">Marcar tarea como completada</span>
         </label>
-
         <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-4 rounded-2xl text-sm font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light dark:hover:bg-bg-main hover:bg-gray-100 transition-all"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={() => onConfirm(note, markComplete)}
-            className="flex-[2] py-4 bg-gradient-to-r from-turquesa to-azul rounded-2xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-turquesa/20 hover:scale-[1.02] active:scale-95 transition-all"
-          >
-            Guardar
-          </button>
+          <button onClick={onCancel} className="flex-1 py-4 rounded-2xl text-sm font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light dark:hover:bg-bg-main hover:bg-gray-100 transition-all">Cancelar</button>
+          <button onClick={() => onConfirm(note, markComplete)} className="flex-[2] py-4 bg-gradient-to-r from-turquesa to-azul rounded-2xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-turquesa/20 hover:scale-[1.02] active:scale-95 transition-all">Guardar</button>
         </div>
       </motion.div>
     </div>
   );
 }
 
-// --- Task Modal ---
-function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask, onEditTask, blocks, people = [], onAddPerson, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, onUploadAttachment = null, onDeleteAttachment = null }: any) {
-  const [localTask, setLocalTask] = useState<Task>(task);
-  const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
-  const [showDateSelector, setShowDateSelector] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const tags: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
- 
-  useEffect(() => {
-    setLocalTask(task);
-  }, [task.id]);  // Solo resetear cuando cambia la tarea, no cuando cambian sus propiedades
-
-  // Sincronizar attachments cuando cambian externamente (después de upload)
-  useEffect(() => {
-    setLocalTask(prev => ({ ...prev, attachments: task.attachments || [] }));
-  }, [JSON.stringify(task.attachments)]);
- 
-  const subtasks = useMemo(() => {
-    return (localTask.subtasks || [])
-      .map(id => allTasksMap[id])
-      .filter(Boolean)
-      .sort((a, b) => (a?.order || 0) - (b?.order || 0));
-  }, [localTask.subtasks, allTasksMap]);
- 
-  const handleUpdateSubtask = (sid: string, updates: Partial<Task>) => {
-    const subtask = allTasksMap[sid];
-    onSave({ ...subtask, ...updates });
-    
-    // Si la subtarea tiene/activa recurrencia, asegurarse que el padre es isTemplate:true y dueDate:null
-    const hasRecurrence = updates.recurrence !== undefined 
-      ? !!updates.recurrence 
-      : !!subtask?.recurrence;
-    
-    if (hasRecurrence && subtask?.parentTaskId) {
-      const parent = allTasksMap[subtask.parentTaskId];
-      if (parent && (!parent.isTemplate || parent.dueDate)) {
-        onSave({ ...parent, isTemplate: true, dueDate: null });
-      }
-    }
-  };
- 
-  const frequencies = [
-    { id: 'daily', label: 'Diaria' },
-    { id: 'weekdays', label: 'L-V' },
-    { id: 'weekly', label: 'Semanal' },
-    { id: 'monthly', label: 'Mensual' },
-    { id: 'yearly', label: 'Anual' }
-  ];
- 
-  return (
-    <div className="fixed inset-0 dark:bg-bg-main/80 bg-white/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        key={localTask.id}
-        className="dark:bg-bg-card bg-white w-full max-w-xl rounded-[1.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] border dark:border-border-main border-border-main-light overflow-hidden flex flex-col max-h-[85vh]"
-      >
-        <div className="p-4 border-b dark:border-border-main border-border-main-light flex justify-between items-start dark:bg-bg-card bg-white">
-          <div className="flex-1 flex items-start gap-4">
-            {localTask.parentTaskId && (
-              <button 
-                onClick={() => onEditTask(localTask.parentTaskId)}
-                className="p-2 bg-turquesa/10 text-turquesa rounded-xl border border-turquesa/20 hover:bg-turquesa/20 transition-all mt-6"
-                title="Volver al padre"
-              >
-                <ArrowUpLeft size={16} />
-              </button>
-            )}
-            <div className="flex-1">
-              <p className="text-[10px] font-black text-turquesa uppercase tracking-[0.2em] mb-2">
-                {localTask.templateId 
-                  ? 'Instancia de Tarea Repetitiva' 
-                  : (localTask.recurrence || localTask.isTemplate) 
-                    ? 'Configurar Tarea Repetitiva' 
-                    : 'Configurar Tarea Puntual'}
-              </p>
-              <input 
-                autoFocus
-                className="text-xl font-black w-full bg-transparent outline-none placeholder:text-text-secondary dark:text-white text-text-main-light"
-                value={localTask.title}
-                onChange={e => setLocalTask(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="¿Qué hay que hacer?"
-              />
-            </div>
-          </div>
-          <button onClick={onClose} className="p-3 dark:bg-bg-secondary bg-bg-secondary-light dark:hover:bg-bg-main hover:bg-gray-200 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light transition-all">
-            <X size={20} />
-          </button>
-        </div>
- 
-        <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
-          {/* Core/Ad-hoc Toggle */}
-          <div className="space-y-3">
-            <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Tipo de Tarea</label>
-            <div className="flex gap-3 dark:bg-bg-main bg-white p-1 rounded-2xl border dark:border-border-main border-border-main-light">
-              <button 
-                onClick={() => setLocalTask(prev => ({ ...prev, taskType: 'core' }))}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition-all ${localTask.taskType === 'core' || ((localTask.recurrence || localTask.isTemplate) && !localTask.taskType) ? 'bg-turquesa dark:text-white text-text-main-light shadow-lg' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
-              >
-                <Compass size={18} />
-                <span className="text-[11px] font-black uppercase tracking-widest">Puesto (CORE)</span>
-              </button>
-              <button 
-                onClick={() => setLocalTask(prev => ({ ...prev, taskType: 'adhoc' }))}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition-all ${localTask.taskType === 'adhoc' || ((!localTask.recurrence && !localTask.isTemplate) && !localTask.taskType) ? 'bg-rosa dark:text-white text-text-main-light shadow-lg' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
-              >
-                <div className="w-3 h-3 bg-current rounded-full mx-1 shadow-[0_0_8px_rgba(251,113,133,0.5)]" />
-                <span className="text-[11px] font-black uppercase tracking-widest">Puntual (AD-HOC)</span>
-              </button>
-            </div>
-          </div>
- 
-          {/* Delegación */}
-          {!(localTask.subtasks && localTask.subtasks.length > 0) && (
-            <div className="space-y-3">
-              <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Delegar a</label>
-              <div className="dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-3">
-                <DelegationChip
-                  delegation={localTask.delegation}
-                  people={people}
-                  onAddPerson={onAddPerson}
-                  onRenamePerson={onRenamePerson}
-                  onDeletePerson={onDeletePerson}
-                onRecurrenceDateChange={onRecurrenceDateChange}
-                  onChange={(delegation: any) => setLocalTask(prev => ({ ...prev, delegation }))}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Main Config Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-3">
-              <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Bloque / Contexto</label>
-              <select 
-                className="w-full p-2 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl text-sm font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20 appearance-none cursor-pointer"
-                value={localTask.blockId}
-                onChange={e => setLocalTask(prev => ({ ...prev, blockId: e.target.value }))}
-              >
-                {blocks.filter((b: any) => b.isActive).map((b: any) => (
-                  <option key={b.id} value={b.id}>{b.icon} {b.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-3">
-              <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Estimado (min)</label>
-              <div className="relative">
-                <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-turquesa" size={16} />
-                <input 
-                  type="number"
-                  className="w-full pl-10 pr-4 py-2 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl text-sm font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20"
-                  value={localTask.estimatedMinutes || ''}
-                  onChange={e => setLocalTask(prev => ({ ...prev, estimatedMinutes: parseInt(e.target.value) || 0 }))}
-                />
-              </div>
-            </div>
-          </div>
- 
-          <div className="space-y-3">
-            <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Categoría</label>
-            {localTask.subtasks && localTask.subtasks.length > 0 ? (
-              <div className="dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-3 flex items-center gap-2">
-                <span className="text-lg">🗂️</span>
-                <p className="text-[11px] font-bold dark:text-text-secondary text-text-secondary-light">
-                  Las tareas contenedor no tienen etiqueta. La etiqueta la asignan sus subtareas.
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {tags.map(t => {
-                  const active = localTask.tags.includes(t);
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => setLocalTask(prev => ({ ...prev, tags: [t] }))}
-                      className={`
-                        px-4 py-3 rounded-xl text-xl border transition-all flex items-center justify-center
-                        ${active 
-                          ? 'bg-turquesa border-turquesa shadow-lg shadow-turquesa/20' 
-                          : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light hover:border-turquesa/50'}
-                      `}
-                      title={TAG_LABELS[t].label}
-                    >
-                      {TAG_LABELS[t].icon}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
- 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Fecha de ejecución</label>
-            </div>
-            
-            <div className="dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <CalendarIcon size={18} className="text-turquesa" />
-                  <span className="text-sm font-bold dark:text-white text-text-main-light">
-                    {localTask.dueDate ? (() => {
-                      const d = parseLocalISO(localTask.dueDate);
-                      const dd = d.getDate().toString().padStart(2, '0');
-                      const mm = (d.getMonth() + 1).toString().padStart(2, '0');
-                      const yyyy = d.getFullYear();
-                      return `${dd}-${mm}-${yyyy}`;
-                    })() : 'Sin fecha asignada'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button 
-                    onClick={() => setShowDateSelector(!showDateSelector)}
-                    className={`p-2 rounded-lg transition-all ${showDateSelector ? 'bg-turquesa dark:text-white text-text-main-light' : 'text-turquesa hover:bg-turquesa/10'}`}
-                    title="Modificar fecha"
-                  >
-                    <CalendarIcon size={18} />
-                  </button>
-                  {localTask.dueDate && (
-                    <button 
-                      onClick={() => setLocalTask(prev => ({ ...prev, dueDate: null, dueTime: '' }))}
-                      className="p-2 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
-                      title="Eliminar fecha"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  )}
-                </div>
-              </div>
-              
-              {/* Campo hora - solo cuando NO hay recurrencia activa (si hay recurrencia, el campo hora está en esa sección) */}
-              {!localTask.recurrence && (
-              <div className="flex items-center gap-3 pt-2 border-t dark:border-border-main/30 border-border-main-light/30">
-                <Clock size={16} className="text-azul shrink-0" />
-                <span className="text-xs font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Hora</span>
-                <input
-                  type="time"
-                  value={localTask.dueTime || ''}
-                  onChange={e => setLocalTask(prev => ({ ...prev, dueTime: e.target.value }))}
-                  className="flex-1 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-1.5 text-sm font-bold text-azul outline-none focus:border-azul/50"
-                />
-                {localTask.dueTime && (
-                  <button
-                    onClick={() => setLocalTask(prev => ({ ...prev, dueTime: '' }))}
-                    className="p-1.5 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-              )}
-            </div>
- 
-            {showDateSelector && (
-              <div className="p-4 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-[2rem] animate-in fade-in slide-in-from-top-2">
-                <div className="mb-4 flex items-center justify-between px-2">
-                  <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Seleccionar Día</span>
-                </div>
-                <MonthDatePicker 
-                  value={localTask.dueDate} 
-                  onChange={(d) => {
-                    setLocalTask(prev => ({ ...prev, dueDate: d }));
-                    setShowDateSelector(false);
-                  }} 
-                />
-              </div>
-            )}
-          </div>
- 
-          {/* Recurrence Section */}
-          <div className="p-6 dark:bg-bg-main/20 bg-gray-100/50 border dark:border-border-main border-border-main-light rounded-[2rem] space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <RefreshCw size={20} className={localTask.recurrence || localTask.templateId ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'} />
-                <h3 className="text-sm font-black dark:text-white text-text-main-light uppercase tracking-widest">Recurrencia (Repetir tarea)</h3>
-              </div>
-              {localTask.templateId ? (
-                // Instancia: badge que indica que pertenece a una serie
-                <span className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-turquesa/20 text-turquesa border border-turquesa/30">
-                  SERIE ACTIVA
-                </span>
-              ) : (
-                <button 
-                  onClick={() => setLocalTask(prev => ({ 
-                    ...prev, 
-                    recurrence: prev.recurrence ? undefined : { frequency: 'daily', startDate: prev.dueDate || formatLocalISO(new Date()) },
-                    isTemplate: !prev.recurrence,
-                    dueDate: prev.recurrence ? (prev.dueDate || formatLocalISO(new Date())) : null
-                  }))}
-                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${localTask.recurrence ? 'bg-turquesa text-white' : 'dark:bg-bg-secondary bg-gray-200 dark:text-text-secondary text-text-secondary-light'}`}
-                >
-                  {localTask.recurrence ? 'ACTIVA' : 'DESACTIVADA'}
-                </button>
-              )}
-            </div>
-
-            {/* Info instancia */}
-            {localTask.templateId && (() => {
-              const template = allTasksMap[localTask.templateId];
-              const rec = template?.recurrence || 
-                (template?.parentTaskId ? allTasksMap[template.parentTaskId]?.recurrence : null);
-              
-              const formatRecurrence = () => {
-                if (!rec) return null;
-                const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-                const freq = rec.frequency || rec.type || rec.freq;
-                if (!freq) return null;
-                if (freq === 'daily') return 'Diaria — todos los días';
-                if (freq === 'weekdays') return 'Semanal — Lun, Mar, Mié, Jue, Vie';
-                if (freq === 'weekly') {
-                  const days = (rec.weekDays || rec.days || []).map((d: number) => dayNames[d]).join(', ');
-                  return `Semanal — ${days || 'todos los días'}`;
-                }
-                if (freq === 'monthly') {
-                  const day = rec.monthDay || rec.day || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : '?');
-                  return `Mensual — día ${day}`;
-                }
-                if (freq === 'yearly') {
-                  const yd = rec.yearDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : null);
-                  const ym = rec.yearMonth || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getMonth() + 1 : null);
-                  if (yd && ym) {
-                    const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-                    return `Anual — ${yd} de ${months[ym - 1]}`;
-                  }
-                  return 'Anual';
-                }
-                return freq;
-              };
-
-              const recDesc = formatRecurrence();
-
-              return (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3 p-3 dark:bg-turquesa/10 bg-turquesa/5 border border-turquesa/20 rounded-xl">
-                    <RefreshCw size={14} className="text-turquesa shrink-0" />
-                    <p className="text-xs dark:text-text-secondary text-text-secondary-light">
-                      Esta tarea es una <span className="text-turquesa font-bold">instancia de una serie recurrente</span>. Los cambios solo afectan a este día concreto.
-                    </p>
-                  </div>
-                  {recDesc && (
-                    <div className="flex items-center gap-3 p-3 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl">
-                      <RefreshCw size={12} className="text-turquesa shrink-0" />
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Patrón de repetición</span>
-                        <span className="text-xs font-bold text-turquesa">{recDesc}</span>
-                        {rec.startDate && (
-                          <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">
-                            Desde {new Date(rec.startDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {!recDesc && (
-                    <div className="flex items-center gap-3 p-3 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl">
-                      <RefreshCw size={12} className="text-turquesa shrink-0" />
-                      <span className="text-xs dark:text-text-secondary text-text-secondary-light">Parte de una serie recurrente</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
- 
-            {localTask.recurrence && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Frecuencia</label>
-                    <div className="flex dark:bg-bg-secondary bg-bg-secondary-light rounded-xl p-1 gap-1">
-                      {frequencies.map(f => (
-                        <button 
-                          key={f.id}
-                          onClick={() => setLocalTask(prev => {
-                            const today = new Date();
-                            const updates: any = { frequency: f.id as any };
-                            if (f.id === 'weekly' && (!prev.recurrence?.weekDays || prev.recurrence.weekDays.length === 0)) {
-                              updates.weekDays = [(today.getDay() + 6) % 7];
-                            }
-                            if (f.id === 'monthly' && !prev.recurrence?.monthDay) {
-                              updates.monthDay = today.getDate();
-                            }
-                            return { ...prev, recurrence: { ...prev.recurrence!, ...updates } };
-                          })}
-                          className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${localTask.recurrence?.frequency === f.id ? 'bg-turquesa dark:text-white text-text-main-light' : 'text-text-secondary hover:text-white'}`}
-                        >
-                          {f.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Inicio de Serie</label>
-                    <input 
-                      type="date"
-                      className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold dark:text-white text-text-main-light outline-none"
-                      value={localTask.recurrence.startDate}
-                      onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, startDate: e.target.value } }))}
-                    />
-                  </div>
-                </div>
-
-                {/* Campo hora para recurrentes */}
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Hora de ejecución (opcional)</label>
-                  <div className="flex items-center gap-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl p-3">
-                    <Clock size={14} className="text-azul shrink-0" />
-                    <input
-                      type="time"
-                      value={localTask.dueTime || ''}
-                      onChange={e => setLocalTask(prev => ({ ...prev, dueTime: e.target.value }))}
-                      className="flex-1 bg-transparent text-sm font-bold text-azul outline-none"
-                    />
-                    {localTask.dueTime && (
-                      <button
-                        onClick={() => setLocalTask(prev => ({ ...prev, dueTime: '' }))}
-                        className="p-1 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
-                </div>
- 
-                {localTask.recurrence.frequency === 'weekly' && (
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Días de ejecución</label>
-                    <div className="flex justify-between gap-1">
-                      {['L','M','X','J','V','S','D'].map((d, i) => {
-                        const dayNum = i; // 0=Lunes, ..., 6=Domingo (matches matchesRecurrence specDay)
-                        const active = localTask.recurrence?.weekDays?.includes(dayNum);
-                        return (
-                          <button 
-                            key={d}
-                            onClick={() => {
-                              const curr = localTask.recurrence?.weekDays || [];
-                              const next = curr.includes(dayNum) ? curr.filter(v => v !== dayNum) : [...curr, dayNum];
-                              setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, weekDays: next } }));
-                            }}
-                            className={`flex-1 py-1 px-1 aspect-square rounded-lg text-[9px] font-black border transition-all ${active ? 'bg-turquesa border-turquesa dark:text-white text-text-main-light' : 'dark:bg-bg-secondary bg-bg-secondary-light dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light'}`}
-                          >
-                            {d}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
- 
-                {localTask.recurrence.frequency === 'monthly' && (
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Día del mes (1-31)</label>
-                    <input 
-                      type="number"
-                      min="1"
-                      max="31"
-                      className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
-                      value={localTask.recurrence.monthDay || parseLocalISO(localTask.recurrence.startDate || formatLocalISO(new Date())).getDate()}
-                      onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, monthDay: parseInt(e.target.value) || 1 } }))}
-                    />
-                  </div>
-                )}
-
-                {localTask.recurrence.frequency === 'yearly' && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Día (1-31)</label>
-                      <input 
-                        type="number"
-                        min="1"
-                        max="31"
-                        className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
-                        value={localTask.recurrence.yearDay || new Date().getDate()}
-                        onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, yearDay: parseInt(e.target.value) || 1 } }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Mes (1-12)</label>
-                      <input 
-                        type="number"
-                        min="1"
-                        max="12"
-                        className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
-                        value={localTask.recurrence.yearMonth || new Date().getMonth() + 1}
-                        onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, yearMonth: parseInt(e.target.value) || 1 } }))}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Termina */}
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Termina:</label>
-                  <div className="flex gap-2">
-                    {/* Nunca */}
-                    <button
-                      onClick={() => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: undefined } }))}
-                      className={`flex-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                        !localTask.recurrence.endDate
-                          ? 'bg-turquesa text-white'
-                          : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light'
-                      }`}
-                    >
-                      Nunca
-                    </button>
-
-                    {/* El [fecha] */}
-                    <button
-                      onClick={() => {
-                        if (!localTask.recurrence.endDate) {
-                          const sixMonthsLater = new Date();
-                          sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
-                          setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: formatLocalISO(sixMonthsLater) } }));
-                        }
-                      }}
-                      className={`flex-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                        localTask.recurrence.endDate
-                          ? 'bg-turquesa text-white'
-                          : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light'
-                      }`}
-                    >
-                      El
-                    </button>
-                  </div>
-                  {localTask.recurrence.endDate && (
-                    <input
-                      type="date"
-                      value={localTask.recurrence.endDate}
-                      onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: e.target.value } }))}
-                      className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
- 
-          {/* Subtasks Section */}
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black dark:text-white text-text-main-light uppercase tracking-[0.1em]">Pasos / Subtareas</h3>
-              <button 
-                onClick={() => {
-                  const nid = onAddTask(localTask.id);
-                  if (nid) setFocusedSubtaskId(nid);
-                }}
-                className="flex items-center gap-2 p-3 bg-turquesa/10 hover:bg-turquesa/20 text-turquesa rounded-2xl transition-all font-black text-[10px] uppercase tracking-widest"
-              >
-                <Plus size={14} /> Añadir Paso
-              </button>
-            </div>
- 
-            <div className="space-y-3">
-              {subtasks.map((st: Task) => (
-                <div key={st.id} className="flex gap-3 items-start dark:bg-bg-main/40 bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light group">
-                  {/* Checkbox completar/descompletar subtarea */}
-                  <button
-                    onClick={() => handleUpdateSubtask(st.id, { status: st.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
-                    className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                      st.status === 'completed'
-                        ? 'bg-turquesa border-turquesa text-white'
-                        : 'dark:border-border-main border-border-main-light hover:border-turquesa'
-                    }`}
-                  >
-                    {st.status === 'completed' && <Check size={10} />}
-                  </button>
-                  <div className="flex-1 space-y-3">
-                    <input 
-                      autoFocus={st.id === focusedSubtaskId}
-                      onFocus={() => { if(st.id === focusedSubtaskId) setFocusedSubtaskId(null); }}
-                      className={`w-full bg-transparent text-sm font-bold dark:text-white text-text-main-light outline-none border-b dark:border-border-main border-border-main-light/20 focus:border-turquesa transition-all py-1 ${st.status === 'completed' ? 'line-through' : ''}`}
-                      value={st.title}
-                      onChange={e => handleUpdateSubtask(st.id, { title: e.target.value })}
-                      placeholder="Título del paso..."
-                    />
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {/* TimePickerChip - subtareas pueden tener hora */}
-                      {!st.isTemplate && st.dueDate && (
-                        <TimePickerChip
-                          value={st.dueTime || ''}
-                          onChange={(time: string) => handleUpdateSubtask(st.id, { dueTime: time })}
-                        />
-                      )}
-                      {/* DatePickerChip - permitir cambio de fecha incluso para instancias */}
-                      <DatePickerChip
-                        value={st.dueDate}
-                        onChange={(date: string) => handleUpdateSubtask(st.id, { dueDate: date })}
-                      />
-                      {/* RecurrencePickerChip - solo para templates, no instancias */}
-                      {!st.templateId && (!st.subtasks || st.subtasks.length === 0) ? (
-                        <RecurrencePickerChip 
-                          value={st.recurrence}
-                          onChange={(rec: any) => handleUpdateSubtask(st.id, { 
-                            recurrence: rec || undefined,
-                            isTemplate: !!rec,
-                            dueDate: rec ? null : (st.dueDate || formatLocalISO(new Date())),
-                            dueTime: st.dueTime // ✅ Preservar hora concreta
-                          })}
-                        />
-                      ) : null}
-                      <TagPickerChip 
-                        selectedTags={st.tags || []} 
-                        onChange={(tags: TagType[]) => handleUpdateSubtask(st.id, { tags })} 
-                      />
-                      <DelegationChip
-                        delegation={st.delegation}
-                        people={people}
-                        onChange={(delegation: any) => handleUpdateSubtask(st.id, { delegation })}
-                        onAddPerson={onAddPerson}
-                        onRenamePerson={onRenamePerson}
-                        onDeletePerson={onDeletePerson}
-                      />
-                      <EstimatedTimeChip 
-                        value={st.estimatedMinutes || 0} 
-                        onChange={(val: number) => handleUpdateSubtask(st.id, { estimatedMinutes: val })}
-                        variant="mini"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                    <button 
-                      onClick={() => onEditTask(st.id)}
-                      className="p-2 dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
-                      title="Editar"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button 
-                      onClick={() => onDeleteTask(st.id)}
-                      className="p-2 dark:text-text-secondary text-text-secondary-light hover:text-rosa"
-                      title="Eliminar"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {subtasks.length === 0 && (
-                <div className="py-8 border-2 border-dashed dark:border-border-main border-border-main-light rounded-[2rem] flex flex-col items-center justify-center dark:text-text-secondary text-text-secondary-light italic">
-                  <p className="text-xs">Sin subtareas configuradas</p>
-                </div>
-              )}
-            </div>
-          </div>
- 
-          <div className="space-y-3">
-            <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Notas y Detalles</label>
-            <textarea 
-              rows={4}
-              className="w-full p-4 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl text-sm font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20 resize-none placeholder:text-text-secondary/30"
-              placeholder="Anota cualquier detalle relevante..."
-              value={localTask.notes || ''}
-              onChange={e => setLocalTask(prev => ({ ...prev, notes: e.target.value }))}
-            />
-          </div>
-
-          {/* Adjuntos */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between pl-1">
-              <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Adjuntos</label>
-              <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer transition-all text-[10px] font-black uppercase tracking-widest ${uploading ? 'opacity-50 cursor-not-allowed' : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'}`}>
-                <Paperclip size={12} />
-                {uploading ? 'Subiendo...' : 'Adjuntar'}
-                <input
-                  type="file"
-                  className="hidden"
-                  disabled={uploading}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file || !onUploadAttachment) return;
-                    setUploading(true);
-                    await onUploadAttachment(localTask.id, file);
-                    setUploading(false);
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-            </div>
-            {(localTask.attachments && localTask.attachments.length > 0) ? (
-              <div className="space-y-2">
-                {localTask.attachments.map((att: any) => {
-                  const isImage = att.type?.startsWith('image/');
-                  return (
-                    <div key={att.id} className="flex items-center gap-3 p-3 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl group">
-                      {isImage ? (
-                        <img src={att.url} alt={att.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0 cursor-pointer" onClick={() => window.open(att.url, '_blank')} />
-                      ) : (
-                        <div className="w-10 h-10 rounded-lg dark:bg-bg-card bg-gray-100 flex items-center justify-center flex-shrink-0">
-                          <Paperclip size={16} className="text-turquesa" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold dark:text-white text-text-main-light truncate">{att.name}</p>
-                        <p className="text-[10px] dark:text-text-secondary text-text-secondary-light">{att.size ? `${Math.round(att.size / 1024)}KB` : ''}</p>
-                      </div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <a href={att.url} target="_blank" rel="noopener noreferrer" className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/10 hover:bg-turquesa/20 rounded-lg transition-all">
-                          <Eye size={12} />
-                        </a>
-                        <button
-                          onClick={() => onDeleteAttachment && onDeleteAttachment(localTask.id, att.id, att.path)}
-                          className="w-7 h-7 flex items-center justify-center text-rosa bg-rosa/10 hover:bg-rosa/20 rounded-lg transition-all"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="py-6 text-center border-2 border-dashed dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light opacity-40">
-                <Paperclip size={20} className="mx-auto mb-2" />
-                <p className="text-[10px] font-bold uppercase tracking-widest">Sin adjuntos</p>
-              </div>
-            )}
-          </div>
-        </div>
- 
-        <div className="p-8 dark:bg-bg-main/20 bg-gray-100/50 border-t dark:border-border-main border-border-main-light flex gap-4">
-          <button 
-            onClick={onClose}
-            className="flex-1 py-5 rounded-3xl text-sm font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light dark:hover:bg-bg-secondary hover:bg-gray-200 transition-all"
-          >
-            Cerrar
-          </button>
-          <button 
-            onClick={() => { 
-              const taskToSave = localTask.templateId 
-                ? { ...localTask, isException: true, existsInSupabase: true }
-                : localTask;
-              onSave(taskToSave); 
-              onClose(); 
-            }}
-            className="flex-[2] py-5 bg-gradient-to-r from-turquesa to-azul rounded-3xl text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-turquesa/20 hover:scale-[1.02] active:scale-95 transition-all"
-          >
-            Guardar Cambios
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
- 
-// --- Subcomponents ---
- 
-function NavItem({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
-  return (
-    <button 
-      onClick={onClick}
-      className={`
-        flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all group w-full relative
-        ${active 
-          ? 'dark:bg-bg-card dark:text-white bg-bg-card-light text-text-main-light shadow-xl dark:border-border-main border-border-main-light border' 
-          : 'dark:text-text-secondary text-text-secondary-light dark:hover:text-text-main hover:text-text-main-light dark:hover:bg-bg-card/50 hover:bg-bg-secondary-light'}
-      `}
-    >
-      {active && (
-        <motion.div 
-          layoutId="activeNav"
-          className="absolute left-0 w-1.5 h-6 bg-turquesa rounded-r-full"
-        />
-      )}
-      <span className={`${active ? 'text-turquesa' : 'group-hover:scale-110 transition-transform'}`}>
-        {icon}
-      </span>
-      <span className="text-sm font-bold tracking-tight hidden lg:block tracking-wide">{label}</span>
-      {active && (
-        <ChevronRight size={14} className="ml-auto hidden lg:block text-turquesa" />
-      )}
-    </button>
-  );
-}
- 
-
-
-// --- Bulk Delegate Modal ---
+// --- Bulk Modals ---
 function BulkDelegateModal({ people, onConfirm, onClose }: any) {
   const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
   return (
@@ -3688,49 +966,28 @@ function BulkDelegateModal({ people, onConfirm, onClose }: any) {
       <div className="relative dark:bg-bg-card bg-white rounded-[2rem] border dark:border-border-main border-border-main-light shadow-2xl p-6 w-full max-w-sm">
         <h3 className="text-lg font-black dark:text-white text-text-main-light mb-4">Delegar tareas seleccionadas</h3>
         <div className="space-y-2 mb-6">
-          {/* Opción quitar delegación */}
-          <button
-            onClick={() => setSelectedPerson('__none__')}
-            className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${
-              selectedPerson === '__none__'
-                ? 'bg-rosa/10 border-rosa text-rosa'
-                : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-rosa/50'
-            }`}
-          >
+          <button onClick={() => setSelectedPerson('__none__')} className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${selectedPerson === '__none__' ? 'bg-rosa/10 border-rosa text-rosa' : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-rosa/50'}`}>
             <div className="w-8 h-8 rounded-xl bg-rosa/20 flex items-center justify-center text-rosa font-black text-sm">✕</div>
             <span className="font-bold text-sm">Quitar delegación</span>
           </button>
           {people.map((p: any) => (
-            <button
-              key={p.id}
-              onClick={() => setSelectedPerson(p.id)}
-              className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${
-                selectedPerson === p.id
-                  ? 'bg-morado/10 border-morado text-morado'
-                  : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-white text-text-main-light hover:border-morado/50'
-              }`}
-            >
-              <div className="w-8 h-8 rounded-xl bg-morado/20 flex items-center justify-center text-morado font-black text-sm">
-                {p.name[0]}
-              </div>
+            <button key={p.id} onClick={() => setSelectedPerson(p.id)} className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${selectedPerson === p.id ? 'bg-morado/10 border-morado text-morado' : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-white text-text-main-light hover:border-morado/50'}`}>
+              <div className="w-8 h-8 rounded-xl bg-morado/20 flex items-center justify-center text-morado font-black text-sm">{p.name[0]}</div>
               <span className="font-bold text-sm">{p.name}</span>
             </button>
           ))}
         </div>
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light font-bold text-sm hover:border-rosa transition-all">Cancelar</button>
-          <button
-            onClick={() => selectedPerson && onConfirm(selectedPerson === '__none__' ? null : selectedPerson)}
-            disabled={!selectedPerson}
-            className={`flex-1 py-3 rounded-2xl font-black text-sm transition-all ${selectedPerson ? 'bg-morado text-white hover:bg-morado/90' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-          >{selectedPerson === '__none__' ? 'Quitar delegación' : 'Delegar'}</button>
+          <button onClick={() => selectedPerson && onConfirm(selectedPerson === '__none__' ? null : selectedPerson)} disabled={!selectedPerson} className={`flex-1 py-3 rounded-2xl font-black text-sm transition-all ${selectedPerson ? 'bg-morado text-white hover:bg-morado/90' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>
+            {selectedPerson === '__none__' ? 'Quitar delegación' : 'Delegar'}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// --- Bulk Date Modal ---
 function BulkDateModal({ onConfirm, onClose }: any) {
   const [date, setDate] = useState(formatLocalISO(new Date()));
   return (
@@ -3738,12 +995,7 @@ function BulkDateModal({ onConfirm, onClose }: any) {
       <div className="absolute inset-0 dark:bg-black/60 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative dark:bg-bg-card bg-white rounded-[2rem] border dark:border-border-main border-border-main-light shadow-2xl p-6 w-full max-w-sm">
         <h3 className="text-lg font-black dark:text-white text-text-main-light mb-4">Cambiar fecha</h3>
-        <input
-          type="date"
-          value={date}
-          onChange={e => setDate(e.target.value)}
-          className="w-full px-4 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:bg-bg-main bg-gray-50 dark:text-white text-text-main-light font-bold mb-6 focus:outline-none focus:border-turquesa"
-        />
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full px-4 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:bg-bg-main bg-gray-50 dark:text-white text-text-main-light font-bold mb-6 focus:outline-none focus:border-turquesa" />
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light font-bold text-sm hover:border-rosa transition-all">Cancelar</button>
           <button onClick={() => onConfirm(date)} className="flex-1 py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/90 transition-all">Aplicar</button>
@@ -3753,7 +1005,6 @@ function BulkDateModal({ onConfirm, onClose }: any) {
   );
 }
 
-// --- Bulk Time Modal ---
 function BulkTimeModal({ onConfirm, onClose }: any) {
   const [minutes, setMinutes] = useState(30);
   const options = [5, 10, 15, 20, 30, 45, 60, 90, 120];
@@ -3764,28 +1015,14 @@ function BulkTimeModal({ onConfirm, onClose }: any) {
         <h3 className="text-lg font-black dark:text-white text-text-main-light mb-4">Cambiar tiempo estimado</h3>
         <div className="grid grid-cols-3 gap-2 mb-6">
           {options.map(m => (
-            <button
-              key={m}
-              onClick={() => setMinutes(m)}
-              className={`py-3 rounded-2xl border font-black text-sm transition-all ${
-                minutes === m
-                  ? 'bg-azul text-white border-azul'
-                  : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-white text-text-main-light hover:border-azul'
-              }`}
-            >
-              {m >= 60 ? `${m/60}h` : `${m}m`}
+            <button key={m} onClick={() => setMinutes(m)} className={`py-3 rounded-2xl border font-black text-sm transition-all ${minutes === m ? 'bg-azul text-white border-azul' : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-white text-text-main-light hover:border-azul'}`}>
+              {m >= 60 ? `${m / 60}h` : `${m}m`}
             </button>
           ))}
         </div>
         <div className="flex gap-2 items-center mb-4">
           <span className="dark:text-text-secondary text-text-secondary-light text-sm">Personalizado:</span>
-          <input
-            type="number"
-            min={1}
-            value={minutes}
-            onChange={e => setMinutes(Number(e.target.value))}
-            className="flex-1 px-3 py-2 rounded-xl border dark:border-border-main border-border-main-light dark:bg-bg-main bg-gray-50 dark:text-white text-text-main-light font-bold text-sm focus:outline-none focus:border-azul"
-          />
+          <input type="number" min={1} value={minutes} onChange={e => setMinutes(Number(e.target.value))} className="flex-1 px-3 py-2 rounded-xl border dark:border-border-main border-border-main-light dark:bg-bg-main bg-gray-50 dark:text-white text-text-main-light font-bold text-sm focus:outline-none focus:border-azul" />
           <span className="dark:text-text-secondary text-text-secondary-light text-sm">min</span>
         </div>
         <div className="flex gap-2">
@@ -3796,5 +1033,3 @@ function BulkTimeModal({ onConfirm, onClose }: any) {
     </div>
   );
 }
-
-// --- Bulk Action Bar Component ---
