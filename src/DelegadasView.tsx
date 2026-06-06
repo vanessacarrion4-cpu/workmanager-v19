@@ -719,6 +719,9 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                                           {task.recurrence.frequency === 'daily' ? 'Diaria' : task.recurrence.frequency === 'weekdays' ? 'L-V' : task.recurrence.frequency === 'weekly' ? 'Semanal' : task.recurrence.frequency === 'monthly' ? 'Mensual' : 'Anual'}
                                         </span>
                                       )}
+                                      {task.templateId && onGoToTemplate && (
+                                        <button onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId); }} className="flex items-center justify-center w-4 h-4 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors" title="Ir al template en Bloques"><ArrowUpRight size={9} className="text-turquesa" /></button>
+                                      )}
                                       {/* Badge bloque */}
                                       {block && <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">{block.icon} {block.name}</span>}
                                     </>
@@ -729,6 +732,9 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                                           <RefreshCw size={9} />
                                           {task.recurrence.frequency === 'daily' ? 'Diaria' : task.recurrence.frequency === 'weekdays' ? 'L-V' : task.recurrence.frequency === 'weekly' ? 'Semanal' : task.recurrence.frequency === 'monthly' ? 'Mensual' : 'Anual'}
                                         </span>
+                                      )}
+                                      {task.templateId && onGoToTemplate && (
+                                        <button onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId); }} className="flex items-center justify-center w-4 h-4 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors" title="Ir al template en Bloques"><ArrowUpRight size={9} className="text-turquesa" /></button>
                                       )}
                                       {!task.isTemplate && <TimePickerChip value={task.dueTime || ''} onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })} />}
                                       {!task.isTemplate && <DatePickerChip value={task.dueDate} onChange={(date: string) => onUpdateTask({ ...task, dueDate: date })} />}
