@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
  
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Plus, 
   LayoutDashboard, 
@@ -52,20 +52,13 @@ import {
   Minimize2,
   Dot,
   ArrowUpLeft,
-  ArrowDownRight,
-  ChevronsUp,
-  ChevronsDown,
-  Moon,
-  Sun,
-  Tag,
-  Copy,
-  BarChart2
+  ArrowDownRight
 } from 'lucide-react';
-import { motion, AnimatePresence, Reorder } from 'framer-motion';
-import { WorkBlock, Task, ViewType, TagType, SubtaskTemplate, Priority, TimeEntry, Person, DelegationMeeting } from './types';
+import { motion, AnimatePresence, Reorder } from 'motion/react';
+import { WorkBlock, Task, ViewType, TagType, SubtaskTemplate, Priority, TimeEntry } from './types';
 import { INITIAL_BLOCKS, TAG_LABELS, MOCK_TASKS, COLORS } from './constants';
-import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
+import { supabase } from './supabaseClient';
 import { 
   getTaskLevel, 
   generateInstances, 
@@ -74,29 +67,9 @@ import {
   projectLoad, 
   projectLoadForDay,
   getTaskEstimatedCombo,
-  getTaskEstimatedPending,
   getTaskRegisteredSelf,
-  getTaskRegisteredCombo,
-  formatMinutes,
-  isTaskVisible,
-  isTaskInstance
+  getTaskRegisteredCombo
 } from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
-import { useSupabase } from './useSupabase';
-import { useGeneration } from './useGeneration';
-import { BlocksManagerView } from './BlocksView';
-import { DashboardView } from './DashboardView';
-import { CalendarView } from './CalendarView';
-import { DelegadasView } from './DelegadasView';
-import { 
-  TaskCard, BulkActionBar, DashboardHarmonicCalendar, RecurrenceChoiceModal,
-  BlockModal, TimeManagementPanel, getTagColor,
-  DelegationChip, DatePickerChip, TagPickerChip, RecurrencePickerChip,
-  EstimatedTimeChip, RegisteredTimeChip, BlockPickerChip, TimePickerChip,
-  TaskTypeChip, TimerDisplay, ToggleExpandButton, MonthDatePicker
-} from './components';
-import { SearchView } from './SearchView';
-import { WorkloadView } from './WorkloadView';
  
 // --- Storage Key ---
 const STORAGE_KEY = 'workmanager-v19-data-v1';
@@ -104,19 +77,9 @@ const STORAGE_KEY = 'workmanager-v19-data-v1';
 export default function App() {
   // --- State ---
   const [isDataLoaded, setIsDataLoaded] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('workmanager-theme');
-    return saved !== 'light'; // Por defecto dark mode
-  });
-  const [blocks, setBlocks] = useState<WorkBlock[]>([]);
-  const [tasks, setTasks] = useState<Record<string, Task>>({});
+  const [blocks, setBlocks] = useState<WorkBlock[]>(INITIAL_BLOCKS);
+  const [tasks, setTasks] = useState<Record<string, Task>>(MOCK_TASKS);
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-
-  // Resetear modo selección al cambiar de vista
-  useEffect(() => {
-    setSelectionMode(false);
-    setSelectedTaskIds(new Set());
-  }, [currentView]);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const todayLocal = formatLocalISO(new Date());
@@ -126,7 +89,6 @@ export default function App() {
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [recurrenceAction, setRecurrenceAction] = useState<{ taskId: string, type: 'edit' | 'delete', ruleId: string } | null>(null);
-  const [pendingDateChange, setPendingDateChange] = useState<{ task: any, newDate: string } | null>(null);
   const [addSubtaskWarning, setAddSubtaskWarning] = useState<{ parentTaskId: string, blockId?: string, overrideDate?: string } | null>(null);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [activeTimer, setActiveTimer] = useState<{
@@ -138,468 +100,41 @@ export default function App() {
     title: string;
   } | null>(null);
   const [showTimePanel, setShowTimePanel] = useState<{ taskId: string, subtaskId: string | null } | null>(null);
-  const [timerStopModal, setTimerStopModal] = useState<{ minutes: number, pendingEntry: any } | null>(null);
-  const [people, setPeople] = useState<Person[]>([]);
-  const [meetings, setMeetings] = useState<DelegationMeeting[]>([]);
-
-  // --- Selection Mode State ---
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
-  const [bulkDelegateModal, setBulkDelegateModal] = useState(false);
-  const [bulkDateModal, setBulkDateModal] = useState(false);
-  const [bulkTimeModal, setBulkTimeModal] = useState(false);
-  
-  // Search filters
-  const [searchText, setSearchText] = useState('');
-  const [searchFilters, setSearchFilters] = useState({
-    tags: [] as string[],
-    status: 'all' as 'all' | 'pending' | 'completed',
-    taskType: 'all' as 'all' | 'core' | 'adhoc',
-    dueDateRange: { start: '', end: '' },
-    createdRange: { start: '', end: '' },
-    completedRange: { start: '', end: '' },
-    recurrence: 'all' as 'all' | 'recurring' | 'instances' | 'manual',
-    hasEstimatedTime: false,
-    estimatedTimeRange: { min: 0, max: 999 }
-  });
-
-  // Helper: Toggle selection mode
-  const toggleSelectionMode = () => {
-    setSelectionMode(prev => {
-      if (prev) {
-        // Salir de modo selección → limpiar seleccionados
-        setSelectedTaskIds(new Set());
-      }
-      return !prev;
-    });
-  };
-
-  // Helper: Toggle task selection
-  const toggleTaskSelection = useCallback((taskId: string, autoSelectSubtasks = false) => {
-    setSelectedTaskIds(prev => {
-      const next = new Set(prev);
-      if (next.has(taskId)) {
-        next.delete(taskId);
-        const task = tasks[taskId];
-        if (task?.subtasks) {
-          task.subtasks.forEach(subId => next.delete(subId));
-        }
-      } else {
-        next.add(taskId);
-        if (autoSelectSubtasks) {
-          const task = tasks[taskId];
-          if (task?.subtasks && task.subtasks.length > 0) {
-            task.subtasks.forEach(subId => {
-              const sub = tasks[subId];
-              if (sub && !sub.isDeleted) next.add(subId);
-            });
-          }
-        }
-      }
-      return next;
-    });
-  }, [tasks]);
-
-  // Helper: Bulk actions
-  const bulkUpdateTasks = (updates: Partial<Task>) => {
-    const timestamp = new Date().toISOString();
-    
-    const isContainerSafeUpdate = updates.status !== undefined;
-    
-    const effectiveIds = new Set<string>();
-    selectedTaskIds.forEach(id => {
-      const task = tasks[id];
-      if (!task) return;
-      const isContainer = task.subtasks && task.subtasks.length > 0;
-      if (isContainer && !isContainerSafeUpdate) {
-        // Buscar subtareas visibles del contenedor
-        const instanceDate = task.instanceDate || task.dueDate;
-        Object.values(tasks).forEach((t: Task) => {
-          if (t.isDeleted) return;
-          // Caso 1: subtarea directa (tarea manual con parentTaskId = id)
-          if (t.parentTaskId === id) { effectiveIds.add(t.id); return; }
-          // Caso 2: instancia cuyo template tiene parentTaskId = id (template del contenedor)
-          if (t.templateId && instanceDate) {
-            const tmpl = tasks[t.templateId];
-            if (tmpl && tmpl.parentTaskId === id) { effectiveIds.add(t.id); return; }
-            // Caso 3: instancia cuyo template tiene parentTaskId = templateId del contenedor
-            if (task.templateId) {
-              if (tmpl && tmpl.parentTaskId === task.templateId && t.dueDate === instanceDate) {
-                effectiveIds.add(t.id); return;
-              }
-            }
-          }
-        });
-        // Si no encontró subtareas, también añadir las que están en task.subtasks directamente
-        if (effectiveIds.size === 0 && task.subtasks) {
-          task.subtasks.forEach((subId: string) => {
-            const sub = tasks[subId];
-            if (sub && !sub.isDeleted) effectiveIds.add(subId);
-          });
-        }
-      } else {
-        effectiveIds.add(id);
-      }
-    });
-
-    // Actualizar estado local primero
-    setTasks(prev => {
-      const next = { ...prev };
-      effectiveIds.forEach(id => {
-        if (next[id]) {
-          next[id] = { ...next[id], ...updates, modifiedAt: timestamp };
-        }
-      });
-      return next;
-    });
-
-    // Persistir en Supabase usando la misma lógica que el chip inline
-    // Usamos setTimeout para que el setTasks anterior haya cerrado su ciclo
-    setTimeout(() => {
-      effectiveIds.forEach(id => {
-        const task = tasks[id];
-        if (!task) return;
-        const updatedTask = { ...task, ...updates, modifiedAt: timestamp };
-
-        if (task.templateId && !task.existsInSupabase) {
-          // Instancia en memoria → upsert completo con is_exception: true
-          supabase.from('tasks').upsert({
-            id: task.id,
-            block_id: task.blockId,
-            parent_task_id: null,
-            template_id: task.templateId,
-            instance_date: task.instanceDate || task.dueDate || null,
-            title: task.title,
-            notes: task.notes || '',
-            priority: task.priority || 'media',
-            status: updatedTask.status,
-            due_date: task.dueDate || null,
-            due_time: task.dueTime || null,
-            completed_at: updatedTask.completedAt || null,
-            estimated_minutes: updatedTask.estimatedMinutes || 0,
-            actual_minutes: task.actualMinutes || 0,
-            tags: updatedTask.tags || [],
-            order: task.order || 0,
-            is_template: false,
-            is_active: true,
-            is_exception: true,
-            is_deleted: false,
-            is_expanded: task.isExpanded || false,
-            task_type: task.taskType || 'core',
-            recurrence: null,
-            delegation: updatedTask.delegation ?? null,
-            created_at: task.createdAt || timestamp,
-            modified_at: timestamp,
-          }, { onConflict: 'id' }).then(({ error }) => {
-            if (error) {
-              console.error('[BULK] Error upsert instancia:', task.id, error);
-            } else {
-              setTasks(prev => ({
-                ...prev,
-                [id]: { ...prev[id], existsInSupabase: true, isException: true }
-              }));
-            }
-          });
-        } else {
-          // Tarea normal o instancia ya persistida → update directo
-          const supabaseUpdates: Record<string, any> = { modified_at: timestamp };
-          if (updates.status !== undefined) supabaseUpdates.status = updatedTask.status;
-          if (updates.completedAt !== undefined) supabaseUpdates.completed_at = updatedTask.completedAt ?? null;
-          if (updates.dueDate !== undefined) supabaseUpdates.due_date = updatedTask.dueDate ?? null;
-          if (updates.tags !== undefined) supabaseUpdates.tags = updatedTask.tags;
-          if (updates.estimatedMinutes !== undefined) supabaseUpdates.estimated_minutes = updatedTask.estimatedMinutes;
-          if ('delegation' in updates) supabaseUpdates.delegation = updatedTask.delegation ?? null;
-
-          supabase.from('tasks').update(supabaseUpdates).eq('id', id).then(({ error }) => {
-            if (error) console.error('[BULK] Error update tarea:', id, error);
-          });
-        }
-      });
-    }, 0);
-
-    setSelectedTaskIds(new Set());
-    setSelectionMode(false);
-  };
-
-  const bulkDeleteTasks = () => {
-    const timestamp = new Date().toISOString();
-
-    // Calcular IDs efectivos - contenedores → borrar contenedor + subtareas
-    const effectiveIds = new Set<string>();
-    selectedTaskIds.forEach(id => {
-      const task = tasks[id];
-      if (!task) return;
-      effectiveIds.add(id); // Siempre añadir el propio ID
-      // Si tiene subtareas, añadirlas también
-      if (task.subtasks && task.subtasks.length > 0) {
-        task.subtasks.forEach((subId: string) => {
-          const sub = tasks[subId];
-          if (sub && !sub.isDeleted) effectiveIds.add(subId);
-        });
-      }
-    });
-
-    setTasks(prev => {
-      const next = { ...prev };
-      effectiveIds.forEach(id => {
-        if (next[id]) {
-          next[id] = { ...next[id], isDeleted: true, modifiedAt: timestamp };
-        }
-      });
-      return next;
-    });
-
-    effectiveIds.forEach(id => {
-      supabase.from('tasks').update({
-        is_deleted: true,
-        modified_at: timestamp
-      }).eq('id', id).then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error bulk delete:', error);
-      });
-    });
-
-    setSelectedTaskIds(new Set());
-    setSelectionMode(false);
-  };
-
-  const bulkDuplicateTasks = () => {
-    const timestamp = new Date().toISOString();
-    const duplicates: Task[] = [];
-    const idMapping = new Map<string, string>(); // oldId -> newId
-
-    // Función recursiva para duplicar tarea y sus subtareas
-    const duplicateTaskRecursive = (original: Task, newParentId: string | null = null): Task | null => {
-      if (!original || original.isDeleted) return null;
-
-      const newId = `t-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      idMapping.set(original.id, newId);
-
-      const duplicate: Task = {
-        ...original,
-        id: newId,
-        title: newParentId ? original.title : `${original.title} (copia)`, // Solo añadir (copia) a la raíz
-        parentTaskId: newParentId,
-        status: 'pending',
-        createdAt: timestamp,
-        modifiedAt: timestamp,
-        completedAt: undefined,
-        subtasks: [], // Se llenarán con los IDs nuevos
-      };
-
-      return duplicate;
-    };
-
-    setTasks(prev => {
-      const next = { ...prev };
-      
-      // Solo duplicar tareas raíz - si subtarea tiene padre seleccionado, ya se duplica con el padre
-      const rootIds = Array.from(selectedTaskIds).filter(id => {
-        const task = prev[id];
-        if (!task) return false;
-        if (!task.parentTaskId) return true;
-        return !selectedTaskIds.has(task.parentTaskId);
-      });
-
-      rootIds.forEach(id => {
-        const original = prev[id];
-        if (!original || original.isDeleted) return;
-
-        // Duplicar tarea raíz
-        const rootDuplicate = duplicateTaskRecursive(original);
-        if (!rootDuplicate) return;
-
-        next[rootDuplicate.id] = rootDuplicate;
-        duplicates.push(rootDuplicate);
-
-        // Duplicar subtareas recursivamente
-        if (original.subtasks && original.subtasks.length > 0) {
-          const newSubtaskIds: string[] = [];
-
-          original.subtasks.forEach(subId => {
-            const subOriginal = prev[subId];
-            if (!subOriginal) return;
-
-            const subDuplicate = duplicateTaskRecursive(subOriginal, rootDuplicate.id);
-            if (!subDuplicate) return;
-
-            newSubtaskIds.push(subDuplicate.id);
-            next[subDuplicate.id] = subDuplicate;
-            duplicates.push(subDuplicate);
-          });
-
-          rootDuplicate.subtasks = newSubtaskIds;
-          next[rootDuplicate.id] = rootDuplicate;
-        }
-      });
-
-      return next;
-    });
-
-    // Persistir TODAS las tareas duplicadas en Supabase
-    duplicates.forEach(task => {
-      supabase.from('tasks').insert({
-        id: task.id,
-        block_id: task.blockId,
-        parent_task_id: task.parentTaskId || null,
-        template_id: task.templateId || null,
-        instance_date: task.instanceDate || null,
-        title: task.title,
-        notes: task.notes || '',
-        priority: task.priority,
-        status: task.status,
-        due_date: task.dueDate || null,
-        due_time: task.dueTime || null,
-        completed_at: null,
-        estimated_minutes: task.estimatedMinutes || 0,
-        actual_minutes: task.actualMinutes || 0,
-        total_estimated_combo: task.totalEstimatedCombo || 0,
-        total_registered_combo: task.totalRegisteredCombo || 0,
-        tags: task.tags || [],
-        order: task.order || 0,
-        is_template: task.isTemplate || false,
-        is_active: task.isActive !== false,
-        is_exception: task.isException || false,
-        is_deleted: false,
-        is_expanded: task.isExpanded || false,
-        task_type: task.taskType || 'core',
-        recurrence: task.recurrence || null,
-        delegation: task.delegation || null,
-        created_at: timestamp,
-        modified_at: timestamp,
-        deleted_at: null
-      }).then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error duplicando tarea:', error);
-      });
-    });
-
-    setSelectedTaskIds(new Set());
-    setSelectionMode(false);
-  };
-
-  // Toggle theme
-  useEffect(() => {
-    const root = document.documentElement;
-    const body = document.body;
-    if (isDarkMode) {
-      root.classList.remove('light');
-      root.classList.add('dark');
-      body.classList.remove('light');
-      body.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-      root.classList.add('light');
-      body.classList.remove('dark');
-      body.classList.add('light');
-    }
-    localStorage.setItem('workmanager-theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
  
   // --- Initialization & Sync ---
-  // Carga inicial desde Supabase
-  useSupabase({ setBlocks, setTasks, setPeople, setMeetings, setTimeEntries, setIsDataLoaded });
- 
-  // Guardado automático desactivado - ahora se guarda directamente en Supabase en cada operación
-  // useEffect(() => {
-  //   if (!isDataLoaded) return;
-  //   localStorage.setItem(STORAGE_KEY, JSON.stringify({ blocks, tasks: tasksToSave, timeEntries, activeTimer, people, meetings }));
-  // }, [blocks, tasks, timeEntries, activeTimer, people, meetings, isDataLoaded]);
- 
-  const handleAddPerson = async (person: Person) => {
+  useEffect(() => {
     try {
-      // Verificar si ya existe (por nombre, case-insensitive)
-      const existing = people.find(p => p.name.toLowerCase() === person.name.toLowerCase());
-      if (existing) {
-        console.log('[SUPABASE] Person already exists:', person.name);
-        return; // No crear duplicado
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.blocks) setBlocks(data.blocks);
+        if (data.tasks) setTasks(data.tasks);
+        if (data.timeEntries) setTimeEntries(data.timeEntries);
+        if (data.activeTimer) setActiveTimer(data.activeTimer);
+      } else {
+        setTasks(MOCK_TASKS);
       }
-      
-      // Insertar en Supabase
-      const { data, error } = await supabase
-        .from('persons')
-        .insert({
-          id: person.id,
-          name: person.name,
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Actualizar estado local
-      setPeople((prev: Person[]) => [...prev, person]);
-      console.log('[SUPABASE] Person created:', person.name);
     } catch (e) {
-      console.error('[SUPABASE] Error creating person:', e);
-      // Aún así actualizar estado local para no bloquear UX (solo si no existe)
-      const existing = people.find(p => p.name.toLowerCase() === person.name.toLowerCase());
-      if (!existing) {
-        setPeople((prev: Person[]) => [...prev, person]);
-      }
+      console.error("Error loading data", e);
     }
-  };
-
-  const handleRenamePerson = async (id: string, name: string) => {
+    setIsDataLoaded(true);
+  }, []);
+ 
+  useEffect(() => {
+    if (!isDataLoaded) return;
     try {
-      // Actualizar en Supabase
-      const { error } = await supabase
-        .from('persons')
-        .update({ name })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      // Actualizar estado local
-      setPeople((prev: Person[]) => prev.map((p: Person) => p.id === id ? { ...p, name } : p));
-      console.log('[SUPABASE] Person renamed:', name);
+      // Guardar plantillas/manuales + instancias que son excepciones (fecha cambiada)
+      const tasksToSave = Object.fromEntries(
+        Object.entries(tasks).filter(([, t]) => 
+          !t.templateId || t.isException
+        )
+      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ blocks, tasks: tasksToSave, timeEntries, activeTimer }));
     } catch (e) {
-      console.error('[SUPABASE] Error renaming person:', e);
-      // Aún así actualizar estado local
-      setPeople((prev: Person[]) => prev.map((p: Person) => p.id === id ? { ...p, name } : p));
+      console.error("Error saving data", e);
     }
-  };
-
-  const handleDeletePerson = async (id: string) => {
-    try {
-      // Eliminar en Supabase
-      const { error } = await supabase
-        .from('persons')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      // Actualizar estado local
-      setPeople((prev: Person[]) => prev.filter((p: Person) => p.id !== id));
-      
-      // Limpiar delegaciones de tareas
-      setTasks(prev => {
-        const updated = { ...prev };
-        Object.values(updated).forEach((t: Task) => {
-          if (t.delegation?.personId === id) {
-            updated[t.id] = { ...t, delegation: undefined };
-          }
-        });
-        return updated;
-      });
-      
-      console.log('[SUPABASE] Person deleted');
-    } catch (e) {
-      console.error('[SUPABASE] Error deleting person:', e);
-      // Aún así actualizar estado local
-      setPeople((prev: Person[]) => prev.filter((p: Person) => p.id !== id));
-      setTasks(prev => {
-        const updated = { ...prev };
-        Object.values(updated).forEach((t: Task) => {
-          if (t.delegation?.personId === id) {
-            updated[t.id] = { ...t, delegation: undefined };
-          }
-        });
-        return updated;
-      });
-    }
-  };
-
+  }, [blocks, tasks, timeEntries, activeTimer, isDataLoaded]);
+ 
   const handleResetData = () => {
     if (confirm("¿Estás seguro de que quieres reiniciar todos los datos?")) {
       localStorage.removeItem(STORAGE_KEY);
@@ -611,34 +146,13 @@ export default function App() {
   };
  
   const handleToggleExpandTask = (taskId: string) => {
-    const timestamp = new Date().toISOString();
-    const task = tasks[taskId];
-    if (!task) {
-      console.error('[EXPAND] Task not found:', taskId);
-      return;
-    }
-
-    const newExpanded = task.isExpanded !== undefined ? !task.isExpanded : true;
-    console.log('[EXPAND] Toggling', taskId, 'from', task.isExpanded, 'to', newExpanded);
-    
-    // Actualizar state
     setTasks(prev => ({
       ...prev,
       [taskId]: {
         ...prev[taskId],
-        isExpanded: newExpanded,
-        modifiedAt: timestamp
+        isExpanded: prev[taskId].isExpanded !== undefined ? !prev[taskId].isExpanded : true // Fix logic: if was undefined (default collapsed), now becomes expanded (true)
       }
     }));
-
-    // Persistir en Supabase
-    supabase.from('tasks').update({
-      is_expanded: newExpanded,
-      modified_at: timestamp
-    }).eq('id', taskId).then(({ error }) => {
-      if (error) console.error('[SUPABASE] Error actualizando isExpanded:', error);
-      else console.log('[SUPABASE] isExpanded actualizado:', taskId, newExpanded);
-    });
   };
  
   const handleExpandAllInBlock = (blockId: string, expand: boolean) => {
@@ -651,8 +165,24 @@ export default function App() {
     setTasks(updatedTasks);
   };
  
-  // Generación de instancias de tareas recurrentes
-  useGeneration({ tasks, isDataLoaded, setTasks });
+  // Generation Trigger - genera instancias para todo el año visible
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    const start = formatLocalISO(new Date());
+    setTasks(prev => {
+      const instantiated = generateInstances(prev, start, 365);
+      if (instantiated.length === 0) return prev;
+      let changed = false;
+      const updated = { ...prev };
+      instantiated.forEach(t => {
+        if (!updated[t.id]) {
+          updated[t.id] = t;
+          changed = true;
+        }
+      });
+      return changed ? updated : prev;
+    });
+  }, [isDataLoaded]);
  
   // --- Handlers ---
   const handleUpdateTasksOrder = (orderedTasks: Task[]) => {
@@ -661,47 +191,17 @@ export default function App() {
       updated[t.id] = { ...updated[t.id], order: i, modifiedAt: new Date().toISOString() };
     });
     setTasks(updated);
-    // Persistir a Supabase
-    orderedTasks.forEach((t, i) => {
-      const dbId = t.id.startsWith('inst-') ? (t.templateId || t.id) : t.id;
-      supabase.from('tasks').update({ order: i }).eq('id', dbId).then(({ error }) => {
-        if (error) console.error('[ORDER] Error saving task order:', error);
-      });
-    });
   };
  
   const handleUpdateSubtasksOrder = (parentId: string, subtaskIds: string[]) => {
-    setTasks(prev => {
-      const existing = prev[parentId];
-      if (!existing) {
-        console.warn('[ORDER] parentId not found in tasks:', parentId);
-        return prev;
-      }
-      const updated = { ...prev };
-      // Actualizar el array subtasks del padre
-      updated[parentId] = {
-        ...existing,
+    setTasks(prev => ({
+      ...prev,
+      [parentId]: {
+        ...prev[parentId],
         subtasks: subtaskIds,
         modifiedAt: new Date().toISOString()
-      };
-      // Actualizar el campo order de cada subtarea individualmente
-      subtaskIds.forEach((subId, order) => {
-        if (updated[subId]) {
-          updated[subId] = { ...updated[subId], order };
-        }
-      });
-      return updated;
-    });
-
-    // Persistir order de cada subtarea en Supabase
-    subtaskIds.forEach((subId, order) => {
-      const sub = tasks[subId];
-      if (!sub) return;
-      const dbId = subId.startsWith('inst-') ? (sub.templateId || subId) : subId;
-      supabase.from('tasks').update({ order }).eq('id', dbId).then(({ error }) => {
-        if (error) console.error('[ORDER] Error saving subtask order:', error);
-      });
-    });
+      }
+    }));
   };
  
   const handleEditTaskRequest = (taskId: string | null) => {
@@ -719,7 +219,7 @@ export default function App() {
       }
     }
  
-    if (task?.templateId) {
+    if (task?.templateId && currentView !== 'dashboard') {
       setRecurrenceAction({ taskId, type: 'edit', ruleId: task.templateId });
     } else {
       setEditingTaskId(taskId);
@@ -740,152 +240,66 @@ export default function App() {
       }
     }
  
-    if (task?.templateId) {
-      // Es una instancia → modal de recurrencia
+    if (task?.templateId && currentView !== 'dashboard') {
       setRecurrenceAction({ taskId, type: 'delete', ruleId: task.templateId });
-    } else if (task?.isTemplate && (task?.recurrence || (task?.subtasks && task.subtasks.some((subId: string) => tasks[subId]?.recurrence)))) {
-      // Es un template recurrente → confirmar borrado de toda la serie
-      if (confirm(`¿Borrar "${task.title}" y todas sus instancias futuras?`)) {
-        handleDeleteTask(taskId);
-      }
+    } else if (task?.templateId && currentView === 'dashboard') {
+      // Si es recurrente y estamos en dashboard, simplemente marcamos ESTA instancia como eliminada
+      setTasks(prev => ({
+        ...prev,
+        [taskId]: { ...(prev[taskId] || task!), isDeleted: true, modifiedAt: new Date().toISOString() }
+      }));
     } else {
       handleDeleteTask(taskId);
     }
   };
  
   const handleToggleStatus = (taskId: string) => {
-    // Buscar la tarea en tasks o en allTasksMap (que incluye instancias generadas)
-    const taskFromState = tasks[taskId];
-    const taskFromAll = taskFromState || Object.values(tasks).find(t => t.id === taskId);
-    const task = taskFromAll;
-
+    const updatedTasks = { ...tasks };
+    let task = updatedTasks[taskId];
+ 
     if (!task) {
-      console.error('[STATUS] Tarea no encontrada:', taskId);
-      return;
+      // Find in generated dashboard tasks
+      task = dashboardTasks.find(t => t.id === taskId);
     }
-
+ 
+    if (!task) return;
+ 
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
     const timestamp = new Date().toISOString();
-    const tasksToUpsert: Task[] = [];
-
+    
     const toggleRecursive = (targetTask: Task, status: 'pending' | 'completed') => {
-      const isInstance = !!targetTask.templateId;
-      const isRecurring = !!(targetTask.templateId || targetTask.recurrence);
-      const updated = {
-        ...targetTask,
-        status,
-        isException: isInstance ? true : targetTask.isException,
-        existsInSupabase: true,
+      updatedTasks[targetTask.id] = { 
+        ...targetTask, 
+        status, 
         modifiedAt: timestamp,
-        completedAt: status === 'completed' ? timestamp : undefined,
-        // Marcar si era recurrente al completar (informativo, no se borra al descompletar)
-        wasRecurring: status === 'completed' && isRecurring ? true : targetTask.wasRecurring,
+        completedAt: status === 'completed' ? timestamp : undefined 
       };
-      tasksToUpsert.push(updated);
-
-      // Si es instancia y su templateId apunta a una tarea manual (no template),
-      // también actualizar la original para que Bloques refleje el estado correcto
-      if (isInstance && targetTask.templateId && !targetTask.templateId.startsWith('inst-')) {
-        const originalTask = tasks[targetTask.templateId];
-        if (originalTask && !originalTask.isTemplate) {
-          const alreadyAdded = tasksToUpsert.some(t => t.id === originalTask.id);
-          if (!alreadyAdded) {
-            tasksToUpsert.push({
-              ...originalTask,
-              status,
-              modifiedAt: timestamp,
-              completedAt: status === 'completed' ? timestamp : undefined,
-            });
-          }
+      
+      targetTask.subtasks.forEach(sid => {
+        const subtask = updatedTasks[sid] || dashboardTasks.find(dt => dt.id === sid);
+        if (subtask) {
+          toggleRecursive(subtask, status);
         }
-      }
-
-      // Buscar subtareas recursivamente
-      (targetTask.subtasks || []).forEach(sid => {
-        const sub = tasks[sid];
-        if (sub) toggleRecursive(sub, status);
       });
     };
-
+ 
     toggleRecursive(task, newStatus);
-
-    // Actualizar state local
-    setTasks(prev => {
-      const next = { ...prev };
-      tasksToUpsert.forEach(t => { next[t.id] = t; });
-      return next;
-    });
-
-    // Persistir en Supabase
-    tasksToUpsert.forEach(t => {
-      console.log('[STATUS] Guardando:', t.id, t.status, 'templateId:', t.templateId);
-      if (t.templateId && t.id.startsWith('inst-')) {
-        supabase.from('tasks').upsert({
-          id: t.id,
-          block_id: t.blockId,
-          parent_task_id: null, // Siempre null — jerarquía se reconstruye via template_id
-          template_id: t.templateId,
-          instance_date: t.instanceDate || null,
-          title: t.title,
-          notes: t.notes || '',
-          priority: t.priority || 'medium',
-          status: t.status,
-          due_date: t.dueDate || null,
-          due_time: t.dueTime || null,
-          completed_at: t.completedAt || null,
-          estimated_minutes: t.estimatedMinutes || 0,
-          actual_minutes: t.actualMinutes || 0,
-          total_estimated_combo: t.totalEstimatedCombo || 0,
-          total_registered_combo: t.totalRegisteredCombo || 0,
-          tags: t.tags || [],
-          order: t.order || 0,
-          is_template: false,
-          is_active: true,
-          is_exception: true,
-          is_deleted: false,
-          is_expanded: t.isExpanded || false,
-          task_type: t.taskType || 'core',
-          recurrence: null,
-          delegation: t.delegation || null,
-          was_recurring: t.wasRecurring || false,
-          created_at: t.createdAt || timestamp,
-          modified_at: timestamp,
-        }, { onConflict: 'id' }).then(({ error }) => {
-          if (error) console.error('[SUPABASE] Error upsert instancia:', t.id, error);
-          else console.log('[SUPABASE] Instancia guardada OK:', t.id, t.status);
-        });
-      } else {
-        // Tarea normal: update simple
-        supabase.from('tasks').update({
-          status: t.status,
-          completed_at: t.completedAt || null,
-          modified_at: timestamp
-        }).eq('id', t.id).then(({ error }) => {
-          if (error) console.error('[SUPABASE] Error update tarea:', t.id, error);
-          else console.log('[SUPABASE] Tarea actualizada OK:', t.id, t.status);
-        });
-      }
-    });
+    setTasks(updatedTasks);
   };
  
-  const handleAddTask = (parentTaskId: string | null = null, blockId?: string, overrideDate?: string, defaultPersonId?: string) => {
-    // Si el padre tiene fecha, etiqueta, recurrencia, hora o delegación y no tiene subtareas aún → mostrar aviso de conversión a contenedor
+  const handleAddTask = (parentTaskId: string | null = null, blockId?: string, overrideDate?: string) => {
+    // Si el padre tiene fecha y no tiene subtareas aún → mostrar aviso
     if (parentTaskId && tasks[parentTaskId]) {
       const parent = tasks[parentTaskId];
-      const hasDate = !!parent.dueDate;
-      const hasTag = parent.tags && parent.tags.length > 0;
-      const hasRecurrence = !!parent.recurrence;
-      const hasTime = !!parent.dueTime;
-      const hasDelegation = !!parent.delegation;
-      if ((hasDate || hasTag || hasRecurrence || hasTime || hasDelegation) && (!parent.subtasks || parent.subtasks.length === 0)) {
+      if (parent.dueDate && (!parent.subtasks || parent.subtasks.length === 0)) {
         setAddSubtaskWarning({ parentTaskId, blockId, overrideDate });
         return;
       }
     }
-    return doAddTask(parentTaskId, blockId, overrideDate, defaultPersonId);
+    return doAddTask(parentTaskId, blockId, overrideDate);
   };
 
-  const doAddTask = (parentTaskId: string | null = null, blockId?: string, overrideDate?: string, defaultPersonId?: string) => {
+  const doAddTask = (parentTaskId: string | null = null, blockId?: string, overrideDate?: string) => {
     const id = `t-${Date.now()}`;
     const timestamp = new Date().toISOString();
     
@@ -914,7 +328,6 @@ export default function App() {
       dueDate: isTemplate ? null : (overrideDate || activeDate),
       dueTime: '',
       parentTaskId,
-      ...(defaultPersonId ? { delegation: { personId: defaultPersonId, delegatedAt: formatLocalISO(new Date()) } } : {}),
       subtasks: [],
       estimatedMinutes: 0,
       tags: [],
@@ -928,74 +341,18 @@ export default function App() {
  
     const updatedTasks = { ...tasks, [id]: newTask };
     if (parentTaskId && updatedTasks[parentTaskId]) {
-      const isFirstSubtask = (updatedTasks[parentTaskId].subtasks || []).length === 0;
       updatedTasks[parentTaskId] = {
         ...updatedTasks[parentTaskId],
         subtasks: [...(updatedTasks[parentTaskId].subtasks || []), id],
         isExpanded: true,
-        // Quitar fecha y tags del padre cuando tiene su primera subtarea
-        dueDate: isFirstSubtask ? null : updatedTasks[parentTaskId].dueDate,
-        tags: isFirstSubtask ? [] : updatedTasks[parentTaskId].tags,
-        estimatedMinutes: isFirstSubtask ? 0 : updatedTasks[parentTaskId].estimatedMinutes,
+        // Quitar fecha del padre cuando tiene su primera subtarea
+        dueDate: (updatedTasks[parentTaskId].subtasks || []).length === 0 
+          ? null 
+          : updatedTasks[parentTaskId].dueDate,
         modifiedAt: timestamp
       };
     }
     setTasks(updatedTasks);
-
-    // --- Sync to Supabase ---
-    (async () => {
-      try {
-        // Si el padre es una instancia en memoria (id empieza por 'inst-'),
-        // NO existe en Supabase → usar el templateId del padre como parent_task_id
-        // para evitar FK constraint violation
-        let supabaseParentId = newTask.parentTaskId || null;
-        if (supabaseParentId && supabaseParentId.startsWith('inst-')) {
-          const parentInstance = tasks[supabaseParentId];
-          if (parentInstance?.templateId) {
-            supabaseParentId = parentInstance.templateId;
-            // También actualizar en memoria
-            setTasks(prev => ({
-              ...prev,
-              [newTask.id]: { ...prev[newTask.id], parentTaskId: supabaseParentId }
-            }));
-          } else {
-            supabaseParentId = null; // Fallback: sin padre en Supabase
-          }
-        }
-
-        const dbTask = {
-          id: newTask.id,
-          block_id: newTask.blockId,
-          title: newTask.title || '',
-          notes: newTask.notes || '',
-          priority: newTask.priority,
-          status: newTask.status,
-          due_date: newTask.dueDate || null,
-          due_time: newTask.dueTime || null,
-          estimated_minutes: newTask.estimatedMinutes || 0,
-          actual_minutes: newTask.actualMinutes || 0,
-          tags: newTask.tags || [],
-          order: newTask.order || 0,
-          is_template: newTask.isTemplate || false,
-          is_active: true,
-          is_deleted: false,
-          parent_task_id: supabaseParentId,
-          template_id: newTask.templateId || null,
-          instance_date: newTask.instanceDate || null,
-          recurrence: newTask.recurrence || null,
-          delegation: newTask.delegation || null,
-          created_at: newTask.createdAt,
-          modified_at: newTask.modifiedAt
-        };
-        
-        const { error } = await supabase.from('tasks').insert([dbTask]);
-        if (error) throw error;
-        console.log('[SUPABASE] Task created:', newTask.id);
-      } catch (e) {
-        console.error('[SUPABASE] Error creating task:', e);
-      }
-    })();
-
     // Always open modal for root tasks, inline for subtasks
     if (!parentTaskId) {
       setTimeout(() => setEditingTaskId(id), 50);
@@ -1026,18 +383,11 @@ export default function App() {
           const newParentSubtasks = (oldParent.subtasks || []).filter(
             sid => sid !== updatedTask.id
           );
-          
-          // Si el padre queda sin subtareas Y es una instancia generada NO excepción, eliminarlo
-          // Las excepciones se mantienen aunque queden vacías (el usuario las movió explícitamente)
-          if (newParentSubtasks.length === 0 && oldParent.templateId && !oldParent.isException) {
-            delete updated[oldParent.id];
-          } else {
-            updated[oldParent.id] = {
-              ...oldParent,
-              subtasks: newParentSubtasks,
-              modifiedAt: timestamp
-            };
-          }
+          updated[oldParent.id] = {
+            ...oldParent,
+            subtasks: newParentSubtasks,
+            modifiedAt: timestamp
+          };
 
           // 3. Crear o actualizar instancia padre en el nuevo día
           const newParentId = oldParent.templateId 
@@ -1087,381 +437,141 @@ export default function App() {
 
           // 5. Eliminar la subtarea del día original
           delete updated[updatedTask.id];
-          
+
+          // 6. Persistir excepciones en Supabase para que sobrevivan al reload
+          const exceptionSubtask = updated[newSubtaskId];
+          const exceptionParent = updated[newParentId];
+          [exceptionSubtask, exceptionParent].filter(Boolean).forEach(t => {
+            supabase.from('tasks').upsert({
+              id: t.id,
+              block_id: t.blockId,
+              title: t.title,
+              notes: t.notes || null,
+              priority: t.priority,
+              status: t.status,
+              due_date: t.dueDate || null,
+              due_time: t.dueTime || null,
+              estimated_minutes: t.estimatedMinutes || 0,
+              tags: t.tags || [],
+              is_template: false,
+              is_active: t.isActive !== false,
+              is_exception: true,
+              is_deleted: false,
+              parent_task_id: t.parentTaskId || null,
+              template_id: t.templateId || null,
+              instance_date: t.instanceDate || null,
+              recurrence: t.recurrence || null,
+              delegation: t.delegation || null,
+              modified_at: timestamp,
+              created_at: t.createdAt || timestamp,
+            }).then(({ error }: any) => {
+              if (error) console.error('[SUPABASE] Error saving exception:', t.id, error);
+              else console.log('[SUPABASE] Exception saved:', t.id);
+            });
+          });
+
           return updated;
         }
       }
 
-      // Para tareas normales o instancias sin cambio de fecha.
-      // Si es una instancia (templateId presente), marcar isException: true para
-      // que se persista en localStorage (tags, título, tiempo, etc.).
-      // generateInstances está protegido con !t.templateId así que esto no genera cascadas.
+      // Para tareas normales o padres con fecha cambiada
       updated[updatedTask.id] = { 
         ...updatedTask, 
-        isException: updatedTask.templateId ? true : (isException ? true : updatedTask.isException),
+        isException: isException ? true : updatedTask.isException,
         modifiedAt: timestamp
       };
-
-      // CRÍTICO: si esta subtarea tiene recurrencia, el padre debe ser isTemplate:true y dueDate:null
-      if (updatedTask.recurrence && updatedTask.parentTaskId && updated[updatedTask.parentTaskId]) {
-        let parent = updated[updatedTask.parentTaskId];
-        
-        // Si el padre es una INSTANCIA (tiene templateId), redirigir al template original
-        // Esto ocurre cuando se añade subtarea recurrente desde el Dashboard
-        if (parent.templateId && updated[parent.templateId]) {
-          const realParentTemplateId = parent.templateId;
-          const realParent = updated[realParentTemplateId];
-          
-          // Reconectar la subtarea al template padre real
-          updated[updatedTask.id] = {
-            ...updated[updatedTask.id],
-            parentTaskId: realParentTemplateId
-          };
-          
-          // Actualizar subtasks del template padre
-          if (!realParent.subtasks.includes(updatedTask.id)) {
-            updated[realParentTemplateId] = {
-              ...realParent,
-              subtasks: [...realParent.subtasks, updatedTask.id]
-            };
-          }
-          
-          // Quitar del array de subtasks de la instancia
-          updated[parent.id] = {
-            ...parent,
-            subtasks: (parent.subtasks || []).filter((id: string) => id !== updatedTask.id)
-          };
-
-          // Persistir el cambio de parentTaskId en Supabase
-          setTimeout(() => {
-            supabase.from('tasks')
-              .update({ parent_task_id: realParentTemplateId })
-              .eq('id', updatedTask.id)
-              .then(({ error }) => {
-                if (error) console.error('[SUPABASE] Error reconectando subtarea al template:', error);
-                else console.log('[SUPABASE] Subtarea reconectada al template padre:', realParentTemplateId);
-              });
-          }, 0);
-          
-          parent = realParent; // Usar el template real para el resto de la lógica
-        }
-        
-        if (!parent.isTemplate || parent.dueDate) {
-          // NO actualizar modifiedAt del padre para evitar bucle infinito en templateKey
-          updated[parent.id] = { ...parent, isTemplate: true, dueDate: null };
-          setTimeout(() => {
-            supabase.from('tasks')
-              .update({ is_template: true, due_date: null })
-              .eq('id', parent.id)
-              .then(({ error }) => {
-                if (error) console.error('[SUPABASE] Error propagando isTemplate al padre:', error);
-                else console.log('[SUPABASE] Contenedor marcado isTemplate:', parent.title);
-              });
-          }, 0);
-        }
-      }
-
-      // CRÍTICO: si una tarea raíz del Dashboard recibe recurrencia,
-      // debe convertirse en template y crear una instancia para el día actual.
-      // Sin esto, generateInstances no la procesa y desaparece al recargar.
-      if (
-        updatedTask.recurrence &&
-        !updatedTask.parentTaskId &&
-        !updatedTask.templateId &&
-        !updatedTask.isTemplate
-      ) {
-        const instanceDate = updatedTask.dueDate || formatLocalISO(new Date());
-        const instanceId = `inst-${updatedTask.id}-${instanceDate}`;
-        const instanceTimestamp = new Date().toISOString();
-
-        // Convertir la tarea en template
-        updated[updatedTask.id] = {
-          ...updatedTask,
-          isTemplate: true,
-          dueDate: null,
-          dueTime: null,
-          modifiedAt: instanceTimestamp
-        };
-
-        // Crear instancia para el día actual (sin recurrence - eso es del template)
-        updated[instanceId] = {
-          ...updatedTask,
-          id: instanceId,
-          templateId: updatedTask.id,
-          dueDate: instanceDate,
-          instanceDate,
-          isTemplate: false,
-          isException: true,
-          existsInSupabase: true,
-          recurrence: null, // Las instancias NO tienen recurrence, solo el template
-          createdAt: instanceTimestamp,
-          modifiedAt: instanceTimestamp
-        };
-
-        // Persistir template en Supabase
-        setTimeout(() => {
-          supabase.from('tasks')
-            .update({ 
-              is_template: true, 
-              due_date: null, 
-              due_time: null,
-              recurrence: updatedTask.recurrence,
-              modified_at: instanceTimestamp
-            })
-            .eq('id', updatedTask.id)
-            .then(({ error }) => {
-              if (error) console.error('[SUPABASE] Error convirtiendo a template:', error);
-              else console.log('[SUPABASE] Tarea convertida a template:', updatedTask.title);
-            });
-
-          // Persistir instancia del día en Supabase
-          supabase.from('tasks').upsert({
-            id: instanceId,
-            block_id: updatedTask.blockId,
-            parent_task_id: null,
-            template_id: updatedTask.id,
-            instance_date: instanceDate,
-            title: updatedTask.title,
-            notes: updatedTask.notes || '',
-          attachments: updatedTask.attachments || [],
-            priority: updatedTask.priority || 'media',
-            status: updatedTask.status,
-            due_date: instanceDate,
-            due_time: updatedTask.dueTime || null,
-            estimated_minutes: updatedTask.estimatedMinutes || 0,
-            actual_minutes: updatedTask.actualMinutes || 0,
-            tags: updatedTask.tags || [],
-            delegation: updatedTask.delegation || null,
-            is_template: false,
-            is_active: true,
-            is_exception: true,
-            is_deleted: false,
-            recurrence: null, // Las instancias NO tienen recurrence
-            created_at: instanceTimestamp,
-            modified_at: instanceTimestamp
-          }, { onConflict: 'id' }).then(({ error }) => {
-            if (error) console.error('[SUPABASE] Error creando instancia del día:', error);
-            else console.log('[SUPABASE] Instancia del día creada:', instanceId);
-          });
-        }, 0);
-      }
       
       return updated;
     });
     setEditingTaskId(null);
     setInlineEditingTaskId(null);
-
-    // --- Sync to Supabase ---
-    (async () => {
-      try {
-        // CASO ESPECIAL: cambio de fecha en subtarea recurrente con padre.
-        // En setTasks se creó newSubtaskId con dueDate=newDate — hay que persistir ESE objeto,
-        // no updatedTask (que tiene el id y fecha antiguos).
-        const _isSubtaskDateChange = !!(
-          updatedTask.templateId &&
-          updatedTask.instanceDate &&
-          updatedTask.dueDate !== updatedTask.instanceDate &&
-          updatedTask.parentTaskId
-        );
-        if (_isSubtaskDateChange) {
-          const _newDate = updatedTask.dueDate;
-          const _oldDate = updatedTask.instanceDate;
-          const _newSubtaskId = `inst-${updatedTask.templateId}-${_newDate}`;
-          // Soft-delete la instancia antigua en Supabase
-          await supabase.from('tasks')
-            .update({ is_deleted: true, deleted_at: new Date().toISOString() })
-            .eq('id', updatedTask.id);
-          // Upsert la nueva instancia con fecha correcta
-          const { error: errNew } = await supabase.from('tasks').upsert([{
-            id: _newSubtaskId,
-            block_id: updatedTask.blockId,
-            title: updatedTask.title || '',
-            notes: updatedTask.notes || '',
-            priority: updatedTask.priority,
-            status: updatedTask.status,
-            due_date: _newDate,
-            due_time: updatedTask.dueTime || null,
-            completed_at: updatedTask.completedAt || null,
-            estimated_minutes: updatedTask.estimatedMinutes || 0,
-            actual_minutes: updatedTask.actualMinutes || 0,
-            total_estimated_combo: updatedTask.totalEstimatedCombo || 0,
-            total_registered_combo: updatedTask.totalRegisteredCombo || 0,
-            tags: updatedTask.tags || [],
-            order: updatedTask.order || 0,
-            is_template: false,
-            is_active: true,
-            is_exception: true,
-            is_deleted: false,
-            is_expanded: updatedTask.isExpanded || false,
-            task_type: updatedTask.taskType || null,
-            parent_task_id: null,
-            template_id: updatedTask.templateId,
-            instance_date: _oldDate,
-            recurrence: null,
-            delegation: updatedTask.delegation || null,
-            attachments: updatedTask.attachments || [],
-            created_at: updatedTask.createdAt || new Date().toISOString(),
-            modified_at: new Date().toISOString()
-          }], { onConflict: 'id' });
-          if (errNew) console.error('[SUPABASE] Error guardando subtarea excepción nueva fecha:', errNew);
-          else console.log('[SUPABASE] Subtarea excepción guardada con nueva fecha:', _newSubtaskId);
-          return;
-        }
-
-        const isInstance = !!updatedTask.templateId;
-        
-        // Si parentTaskId apunta a una instancia en memoria (empieza por 'inst-'),
-        // usar el templateId del padre para evitar FK constraint en Supabase
-        let supabaseParentId = isInstance ? null : (updatedTask.parentTaskId || null);
-        if (supabaseParentId && supabaseParentId.startsWith('inst-')) {
-          const parentInstance = tasks[supabaseParentId];
-          supabaseParentId = parentInstance?.templateId || null;
-        }
-        // Para instancias: parent_task_id null para evitar FK constraint
-        // La jerarquía se reconstruye en memoria via generateInstances
-        const dbTask = {
-          id: updatedTask.id,
-          block_id: updatedTask.blockId,
-          title: updatedTask.title || '',
-          notes: updatedTask.notes || '',
-          priority: updatedTask.priority,
-          status: updatedTask.status,
-          due_date: updatedTask.dueDate || null,
-          due_time: updatedTask.dueTime || null,
-          completed_at: updatedTask.completedAt || null,
-          estimated_minutes: updatedTask.estimatedMinutes || 0,
-          actual_minutes: updatedTask.actualMinutes || 0,
-          total_estimated_combo: updatedTask.totalEstimatedCombo || 0,
-          total_registered_combo: updatedTask.totalRegisteredCombo || 0,
-          tags: updatedTask.tags || [],
-          order: updatedTask.order || 0,
-          is_template: isInstance ? false : (updatedTask.isTemplate || false),
-          is_active: updatedTask.isActive !== false,
-          is_exception: isInstance ? true : (updatedTask.isException || false), // Siempre true para instancias
-          is_deleted: updatedTask.isDeleted || false,
-          is_expanded: updatedTask.isExpanded,
-          task_type: updatedTask.taskType,
-          parent_task_id: supabaseParentId,
-          template_id: updatedTask.templateId || null,
-          instance_date: updatedTask.instanceDate || null,
-          recurrence: isInstance ? null : (updatedTask.recurrence || null),
-          delegation: updatedTask.delegation || null,
-          attachments: updatedTask.attachments || [],
-          created_at: updatedTask.createdAt,
-          modified_at: new Date().toISOString()
-        };
-
-        const { error } = await supabase.from('tasks').upsert([dbTask], { onConflict: 'id' });
-        if (error) throw error;
-        console.log('[SUPABASE] Task updated:', updatedTask.id, isInstance ? '(instancia excepción)' : '');
-      } catch (e) {
-        console.error('[SUPABASE] Error updating task:', e);
-      }
-    })();
   };
  
-  // Subir nivel: la tarea sale de su padre y queda al mismo nivel que su padre
   const handlePromoteTask = (taskId: string) => {
     setTasks(prev => {
       const task = prev[taskId];
-      if (!task || !task.parentTaskId) return prev; // Ya es nivel 1, no puede subir
-
+      if (!task || !task.parentTaskId) return prev;
+ 
       const parentTask = prev[task.parentTaskId];
-      if (!parentTask) return prev;
-      const grandParentId = parentTask.parentTaskId || null;
-
+      const grandParentId = parentTask?.parentTaskId || null;
+ 
       const newTasks = { ...prev };
-
-      // 1. Quitar la tarea del array de subtareas del padre
-      newTasks[parentTask.id] = {
-        ...parentTask,
-        subtasks: parentTask.subtasks.filter(sid => sid !== taskId),
-        modifiedAt: new Date().toISOString()
-      };
-
-      // 2. Añadir la tarea al abuelo (o a nivel raíz si no hay abuelo)
-      if (grandParentId && newTasks[grandParentId]) {
-        const grandParent = newTasks[grandParentId];
-        // Insertar justo después del padre en el array del abuelo
-        const parentIdx = grandParent.subtasks.indexOf(parentTask.id);
-        const newSubtasks = [...grandParent.subtasks];
-        newSubtasks.splice(parentIdx + 1, 0, taskId);
-        newTasks[grandParentId] = {
-          ...grandParent,
-          subtasks: newSubtasks,
-          modifiedAt: new Date().toISOString()
-        };
-      }
-
-      // 3. Actualizar la tarea con nuevo parentTaskId
-      newTasks[taskId] = {
-        ...task,
+      
+      newTasks[taskId] = { 
+        ...task, 
         parentTaskId: grandParentId,
         modifiedAt: new Date().toISOString()
       };
-
+ 
+      if (parentTask) {
+        newTasks[parentTask.id] = {
+          ...parentTask,
+          subtasks: parentTask.subtasks.filter(sid => sid !== taskId),
+          modifiedAt: new Date().toISOString()
+        };
+      }
+ 
+      if (grandParentId && newTasks[grandParentId]) {
+        newTasks[grandParentId] = {
+          ...newTasks[grandParentId],
+          subtasks: [...newTasks[grandParentId].subtasks, taskId],
+          modifiedAt: new Date().toISOString()
+        };
+      }
+ 
       return newTasks;
     });
   };
-
-  // Bajar nivel: la tarea se convierte en subtarea de la tarea inmediatamente anterior
+ 
   const handleDemoteTask = (taskId: string) => {
     setTasks(prev => {
       const task = prev[taskId];
       if (!task) return prev;
-
-      // No permitir bajar más de nivel 3
-      const currentLevel = task.parentTaskId
-        ? (prev[task.parentTaskId]?.parentTaskId ? 3 : 2)
-        : 1;
-      if (currentLevel >= 3) return prev;
-
-      // Buscar hermanos EN ORDEN DEL ARRAY (orden visual real)
-      let siblingIds: string[] = [];
-      if (task.parentTaskId && prev[task.parentTaskId]) {
-        siblingIds = prev[task.parentTaskId].subtasks || [];
-      } else {
-        // Nivel raíz: usar el orden del campo order
-        siblingIds = (Object.values(prev) as Task[])
-          .filter(t => !t.parentTaskId && t.blockId === task.blockId && !t.isTemplate && !t.isDeleted)
-          .sort((a, b) => (a.order || 0) - (b.order || 0))
-          .map(t => t.id);
-      }
-
-      const idx = siblingIds.indexOf(taskId);
-      if (idx <= 0) return prev; // Es la primera, no hay tarea arriba
-
-      const aboveTaskId = siblingIds[idx - 1];
-      const aboveTask = prev[aboveTaskId];
-      if (!aboveTask) return prev;
-
+ 
+      // Find siblings within same block and day to identify the one above
+      // Unify sorting logic: Order -> Time -> CreatedAt for total stability
+      const siblings = (Object.values(prev) as Task[]).filter(t => 
+        t.parentTaskId === task.parentTaskId && 
+        t.dueDate === task.dueDate && 
+        t.blockId === task.blockId
+      ).sort((a, b) => {
+        if ((a.order || 0) !== (b.order || 0)) return (a.order || 0) - (b.order || 0);
+        if (a.dueTime && b.dueTime && a.dueTime !== b.dueTime) return a.dueTime.localeCompare(b.dueTime);
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+ 
+      const idx = siblings.findIndex(s => s.id === taskId);
+      if (idx <= 0) return prev;
+ 
+      const aboveTask = siblings[idx - 1];
       const newTasks = { ...prev };
-
-      // 1. Quitar del padre actual (o de nivel raíz — no hace falta nada para raíz)
+ 
+      // Update task
+      newTasks[taskId] = {
+        ...task,
+        parentTaskId: aboveTask.id,
+        modifiedAt: new Date().toISOString()
+      };
+ 
+      // Remove from current parent (if any)
       if (task.parentTaskId && newTasks[task.parentTaskId]) {
-        const parent = newTasks[task.parentTaskId];
+        const parent = newTasks[task.parentTaskId] as Task;
         newTasks[task.parentTaskId] = {
           ...parent,
-          subtasks: (parent.subtasks || []).filter(sid => sid !== taskId),
+          subtasks: parent.subtasks.filter(sid => sid !== taskId),
           modifiedAt: new Date().toISOString()
         };
       }
-
-      // 2. Añadir como última subtarea de la tarea de arriba
-      newTasks[aboveTaskId] = {
-        ...aboveTask,
-        subtasks: [...(aboveTask.subtasks || []), taskId],
+ 
+      // Add to new parent
+      const targetParent = newTasks[aboveTask.id] || aboveTask;
+      newTasks[aboveTask.id] = {
+        ...targetParent,
+        subtasks: [...(targetParent.subtasks || []), taskId],
         isExpanded: true,
         modifiedAt: new Date().toISOString()
       };
-
-      // 3. Actualizar la tarea con nuevo padre
-      newTasks[taskId] = {
-        ...task,
-        parentTaskId: aboveTaskId,
-        modifiedAt: new Date().toISOString()
-      };
-
+ 
       return newTasks;
     });
   };
@@ -1485,86 +595,8 @@ export default function App() {
       delete updatedTasks[id];
     };
  
-    // Recoger todos los IDs a borrar antes de eliminar del state
-    const idsToDelete: Task[] = [];
-    const collectRecursive = (id: string) => {
-      const t = updatedTasks[id];
-      if (!t) return;
-      idsToDelete.push(t);
-      t.subtasks.forEach(sid => collectRecursive(sid));
-    };
-    collectRecursive(taskId);
-
-    // Si es un template recurrente, también recoger y borrar todas sus instancias en memoria
-    if (task.isTemplate && !task.templateId) {
-      Object.values(updatedTasks).forEach((t: Task) => {
-        if (!t || idsToDelete.find(d => d.id === t.id)) return;
-        // Instancia directa del template
-        if (t.templateId === taskId) {
-          idsToDelete.push(t);
-        }
-        // Instancia de subtarea cuyo template tiene este padre
-        if (t.templateId) {
-          const tTemplate = updatedTasks[t.templateId];
-          if (tTemplate && tTemplate.parentTaskId === taskId) {
-            idsToDelete.push(t);
-          }
-        }
-      });
-    }
-
     removeRecursive(taskId);
-    
-    // Borrar instancias de memoria también
-    idsToDelete.forEach(t => {
-      if (t.id !== taskId) delete updatedTasks[t.id];
-    });
     setTasks(updatedTasks);
-
-    // --- Soft delete en Supabase para TODOS (tarea + subtareas) ---
-    (async () => {
-      const timestamp = new Date().toISOString();
-      for (const t of idsToDelete) {
-        try {
-          if (t.templateId) {
-            // Instancia generada: upsert con is_deleted
-            await supabase.from('tasks').upsert({
-              id: t.id,
-              block_id: t.blockId,
-              parent_task_id: null,
-              template_id: t.templateId,
-              instance_date: t.instanceDate || null,
-              title: t.title,
-              notes: t.notes || '',
-              priority: t.priority || 'medium',
-              status: t.status,
-              due_date: t.dueDate || null,
-              due_time: t.dueTime || null,
-              completed_at: t.completedAt || null,
-              estimated_minutes: t.estimatedMinutes || 0,
-              actual_minutes: t.actualMinutes || 0,
-              tags: t.tags || [],
-              delegation: t.delegation || null,
-              is_template: false,
-              is_exception: true,
-              is_deleted: true,
-              deleted_at: timestamp,
-              is_active: false,
-              created_at: t.createdAt || timestamp,
-              modified_at: timestamp
-            }, { onConflict: 'id' });
-          } else {
-            // Tarea normal: update
-            await supabase.from('tasks')
-              .update({ is_deleted: true, deleted_at: timestamp })
-              .eq('id', t.id);
-          }
-        } catch (e) {
-          console.error('[SUPABASE] Error borrando:', t.id, e);
-        }
-      }
-      console.log('[SUPABASE] Borradas', idsToDelete.length, 'tareas/instancias');
-    })();
   };
  
   const handleDayChange = (offset: number) => {
@@ -1596,7 +628,7 @@ export default function App() {
     setEditingRuleId(id);
   };
  
-  const handleAddBlock = async () => {
+  const handleAddBlock = () => {
     const id = `b-${Date.now()}`;
     const newBlock: WorkBlock = {
       id,
@@ -1607,101 +639,21 @@ export default function App() {
       isActive: true,
       order: blocks.length
     };
-    
-    try {
-      // Guardar en Supabase
-      const { error } = await supabase
-        .from('work_blocks')
-        .insert({
-          id: newBlock.id,
-          name: newBlock.name,
-          color: newBlock.color,
-          pastel_color: newBlock.pastelColor,
-          icon: newBlock.icon,
-          is_active: newBlock.isActive,
-          order: newBlock.order
-        });
-      
-      if (error) throw error;
-      
-      // Actualizar state local
-      setBlocks(prev => [...prev, newBlock]);
-      setEditingBlockId(id);
-      console.log('[SUPABASE] Block created:', id);
-    } catch (e) {
-      console.error('[SUPABASE] Error creating block:', e);
-    }
+    setBlocks(prev => [...prev, newBlock]);
+    setEditingBlockId(id);
   };
  
-  const handleUpdateBlock = async (updated: WorkBlock) => {
-    try {
-      // Guardar en Supabase
-      const { error } = await supabase
-        .from('work_blocks')
-        .update({
-          name: updated.name,
-          color: updated.color,
-          pastel_color: updated.pastelColor,
-          icon: updated.icon,
-          is_active: updated.isActive,
-          order: updated.order
-        })
-        .eq('id', updated.id);
-      
-      if (error) throw error;
-      
-      // Actualizar state local
-      setBlocks(prev => prev.map(b => b.id === updated.id ? updated : b));
-      setEditingBlockId(null);
-      console.log('[SUPABASE] Block updated:', updated.id);
-    } catch (e) {
-      console.error('[SUPABASE] Error updating block:', e);
-    }
+  const handleUpdateBlock = (updated: WorkBlock) => {
+    setBlocks(prev => prev.map(b => b.id === updated.id ? updated : b));
+    setEditingBlockId(null);
   };
  
-  const handleReorderBlocks = async (newOrder: WorkBlock[]) => {
-    const updated = newOrder.map((b, i) => ({ ...b, order: i + 1 }));
-    
-    try {
-      // Guardar cada bloque con su nuevo order en Supabase
-      const promises = updated.map(block =>
-        supabase
-          .from('work_blocks')
-          .update({ order: block.order })
-          .eq('id', block.id)
-      );
-      
-      await Promise.all(promises);
-      
-      // Actualizar state local
-      setBlocks(updated);
-      console.log('[SUPABASE] Blocks reordered');
-    } catch (e) {
-      console.error('[SUPABASE] Error reordering blocks:', e);
-    }
+  const handleReorderBlocks = (newOrder: WorkBlock[]) => {
+    setBlocks(newOrder.map((b, i) => ({ ...b, order: i + 1 })));
   };
  
-  const handleToggleBlockActive = async (id: string) => {
-    const block = blocks.find(b => b.id === id);
-    if (!block) return;
-    
-    const newIsActive = !block.isActive;
-    
-    try {
-      // Guardar en Supabase
-      const { error } = await supabase
-        .from('work_blocks')
-        .update({ is_active: newIsActive })
-        .eq('id', id);
-      
-      if (error) throw error;
-      
-      // Actualizar state local
-      setBlocks(prev => prev.map(b => b.id === id ? { ...b, isActive: newIsActive } : b));
-      console.log('[SUPABASE] Block toggled:', id, newIsActive);
-    } catch (e) {
-      console.error('[SUPABASE] Error toggling block:', e);
-    }
+  const handleToggleBlockActive = (id: string) => {
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, isActive: !b.isActive } : b));
   };
  
   const handleDeleteBlock = (id: string) => {
@@ -1757,93 +709,25 @@ export default function App() {
       }
     }
  
-    // Mostrar modal con nota + opción de completar
-    setTimerStopModal({
-      minutes: Math.max(1, minutes),
-      pendingEntry: {
-        taskId: activeTimer.parentTaskId,
-        subtaskId: activeTimer.subtaskId,
-        date: formatLocalISO(new Date()),
-      }
-    });
-    setActiveTimer(null);
-  };
-
-  const handleTimerStopConfirm = (note: string, markComplete: boolean) => {
-    if (!timerStopModal) return;
-    const { minutes, pendingEntry } = timerStopModal;
-    setTimerStopModal(null);
-
+    let note = prompt("Nota opcional para el registro de tiempo:", "");
+    if (note === null) note = ""; // If cancelled, just proceed with empty note
+ 
     const newEntry: TimeEntry = {
       id: `te-${Date.now()}`,
-      taskId: pendingEntry.taskId,
-      subtaskId: pendingEntry.subtaskId,
-      date: pendingEntry.date,
-      duration: minutes,
+      taskId: activeTimer.parentTaskId,
+      subtaskId: activeTimer.subtaskId,
+      date: formatLocalISO(new Date()),
+      duration: Math.max(1, minutes),
       note,
       createdAt: new Date().toISOString(),
       source: 'timer'
     };
+ 
     setTimeEntries(prev => [...prev, newEntry]);
-
-    // Marcar tarea como completada si se pidió
-    if (markComplete && pendingEntry.subtaskId) {
-      const t = tasks[pendingEntry.subtaskId];
-      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
-    } else if (markComplete && pendingEntry.taskId) {
-      const t = tasks[pendingEntry.taskId];
-      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
-    }
-
-    // Resolver IDs para Supabase (instancias en memoria → templateId)
-    const resolveId = (id: string | null): string | null => {
-      if (!id) return null;
-      if (!id.startsWith('inst-')) return id;
-      const t = tasks[id];
-      if (t?.templateId) return t.templateId;
-      const parts = id.replace('inst-', '').split('-');
-      parts.pop(); parts.pop(); parts.pop();
-      return parts.join('-');
-    };
-
-    // Persistir en Supabase
-    supabase.from('time_entries').insert({
-      id: newEntry.id,
-      task_id: resolveId(newEntry.taskId),
-      subtask_id: resolveId(newEntry.subtaskId) || null,
-      date: newEntry.date,
-      duration: newEntry.duration,
-      note: newEntry.note || '',
-      source: newEntry.source,
-      created_at: newEntry.createdAt
-    }).then(({ error }) => {
-      if (error) console.error('[SUPABASE] Error saving time entry:', error);
-    });
+    setActiveTimer(null);
   };
  
-  // --- Attachment handlers ---
-  const handleUploadAttachment = async (taskId: string, file: File) => {
-    const ext = file.name.split('.').pop();
-    const path = `${taskId}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from('task-attachments').upload(path, file);
-    if (error) { console.error('[ATTACHMENTS] Upload error:', error); return; }
-    const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(path);
-    const attachment = { id: `att-${Date.now()}`, name: file.name, url: urlData.publicUrl, type: file.type, size: file.size, path, createdAt: new Date().toISOString() };
-    const task = tasks[taskId];
-    if (!task) return;
-    const updatedAttachments = [...(task.attachments || []), attachment];
-    handleUpdateTask({ ...task, attachments: updatedAttachments });
-  };
-
-  const handleDeleteAttachment = async (taskId: string, attachmentId: string, path: string) => {
-    await supabase.storage.from('task-attachments').remove([path]);
-    const task = tasks[taskId];
-    if (!task) return;
-    const updatedAttachments = (task.attachments || []).filter((a: any) => a.id !== attachmentId);
-    handleUpdateTask({ ...task, attachments: updatedAttachments });
-  };
-
-  const handleManualTimeEntry = (taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string, markComplete?: boolean) => {
+  const handleManualTimeEntry = (taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string) => {
     const newEntry: TimeEntry = {
       id: `te-${Date.now()}`,
       taskId,
@@ -1855,128 +739,62 @@ export default function App() {
       source: 'manual'
     };
     setTimeEntries(prev => [...prev, newEntry]);
-
-    // Marcar como completada si se pidió
-    if (markComplete) {
-      const targetId = subtaskId || taskId;
-      const t = tasks[targetId];
-      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
-    }
-
-    // Resolver IDs para Supabase: las instancias en memoria no existen en BD
-    // Si task_id es una instancia (inst-), usar el templateId del template
-    const resolveIdForDB = (id: string | null): string | null => {
-      if (!id) return null;
-      if (!id.startsWith('inst-')) return id;
-      const task = tasks[id];
-      if (task?.templateId) return task.templateId;
-      // Extraer templateId del ID: inst-{templateId}-{date}
-      const parts = id.replace('inst-', '').split('-');
-      parts.pop(); // remove year
-      parts.pop(); // remove month  
-      parts.pop(); // remove day
-      return parts.join('-');
-    };
-
-    const dbTaskId = resolveIdForDB(taskId);
-    const dbSubtaskId = resolveIdForDB(subtaskId);
-
-    // Persistir en Supabase
-    supabase.from('time_entries').insert({
-      id: newEntry.id,
-      task_id: dbTaskId,
-      subtask_id: dbSubtaskId || null,
-      date: newEntry.date,
-      duration: newEntry.duration,
-      note: newEntry.note || '',
-      source: newEntry.source,
-      created_at: newEntry.createdAt
-    }).then(({ error }) => {
-      if (error) console.error('[SUPABASE] Error saving manual time entry:', error);
-    });
   };
  
   const handleDeleteTimeEntry = (entryId: string) => {
     setTimeEntries(prev => prev.filter(e => e.id !== entryId));
-    supabase.from('time_entries').delete().eq('id', entryId)
-      .then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error deleting time entry:', error);
-      });
   };
-
-  const handleUpdateTimeEntry = (entryId: string, updates: { duration: number, note: string }) => {
-    setTimeEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...updates } : e));
-    supabase.from('time_entries').update({ duration: updates.duration, note: updates.note })
-      .eq('id', entryId)
-      .then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error updating time entry:', error);
-      });
+ 
+  const handleUpdateTimeEntry = (id: string, updates: Partial<TimeEntry>) => {
+    setTimeEntries(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
   };
  
   // --- Computed ---
-  const allActiveTasks = useMemo(() => Object.values(tasks).filter((t: Task) => !t.isDeleted && !t.isTemplate), [tasks]);
+  const allActiveTasks = useMemo(() => Object.values(tasks).filter((t: Task) => !t.isDeleted), [tasks]);
  
   const filteredTasks = useMemo(() => {
-    return allActiveTasks;
-  }, [allActiveTasks]);
+    let result = allActiveTasks;
+    if (searchQuery) {
+      result = result.filter((t: Task) => t.title.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    return result;
+  }, [allActiveTasks, searchQuery]);
  
   // --- Views ---
   const dashboardTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter(b => b && b.isActive).map(b => b.id));
-    return filterTasksForDay(
-      filteredTasks,
-      tasks,
-      activeBlockIds,
-      activeDate,
-      { hideCompleted: false, hideDelegatedNoTag: true }
-    );
+    return filteredTasks.filter(t => {
+      if (!t) return false;
+      if (t.dueDate !== activeDate) return false;
+      if (!activeBlockIds.has(t.blockId)) return false;
+      if (t.isTemplate) return false;
+      if (t.parentTaskId) return false;
+      // Ocultar instancias padre sin subtareas (contenedor huérfano)
+      if (t.templateId && (!t.subtasks || t.subtasks.length === 0)) return false;
+      // Siempre mostrar excepciones
+      if (t.isException) return true;
+      // Excluir plantillas con recurrencia propia
+      if (t.recurrence) return false;
+      // Excluir plantillas padre de recurrentes
+      if (t.subtasks && t.subtasks.length > 0 && !t.templateId) {
+        const hasRecurringChild = t.subtasks.some(subId => {
+          const sub = tasks[subId];
+          return sub && (sub.recurrence || sub.isTemplate);
+        });
+        if (hasRecurringChild) return false;
+      }
+      return true;
+    });
   }, [filteredTasks, blocks, activeDate, tasks]);
  
   const dashboardTasksMap = useMemo(() => {
-    // Empezar con tasks filtradas (sin borradas, sin templates puros)
-    const map: any = {};
-    Object.values(tasks).forEach((t: Task) => {
-      if (!t.isDeleted) map[t.id] = t;
-    });
-    
-    // Añadir tareas raíz
+    const map: any = { ...tasks };
     dashboardTasks.forEach(t => {
       map[t.id] = t;
-      
-      // Añadir subtareas del día activo (filtrar delegadas sin tag real)
-      if (t.subtasks && t.subtasks.length > 0) {
-        t.subtasks.forEach(subId => {
-          const sub = tasks[subId];
-          if (sub && sub.dueDate === activeDate) {
-            // Filtro delegación en subtareas
-            if (sub.delegation) {
-              const tags = sub.tags || [];
-              const hasRealTag = tags.some((tag: string) => tag !== 'resto');
-              if (!hasRealTag) return; // no añadir delegadas sin tag
-            }
-            map[subId] = sub;
-          }
-        });
-      }
     });
-    
     return map;
-  }, [tasks, dashboardTasks, activeDate]);
+  }, [tasks, dashboardTasks]);
  
-  // Loading state mientras carga desde Supabase
-  if (!isDataLoaded) {
-    return (
-      <div className="min-h-screen bg-bg-main flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-turquesa border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-text-secondary font-black uppercase tracking-widest text-sm">
-            Cargando datos desde Supabase...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-bg-main text-text-main flex flex-col md:flex-row font-sans relative">
       {/* Global Timer Bar */}
@@ -2008,48 +826,15 @@ export default function App() {
       </AnimatePresence>
  
       {/* Sidebar Navigation */}
-      <nav className={`w-full md:w-20 lg:w-72 ${isDarkMode ? 'bg-bg-secondary' : 'bg-bg-secondary-light'} border-r ${isDarkMode ? 'border-border-main' : 'border-border-main-light'} flex flex-col py-6 shrink-0 transition-all duration-300`}>
-        <div className="flex items-center gap-3 mb-4 px-5">
-          {/* Logo WM — 4 cuadritos */}
-          <div className="shrink-0" style={{ width: 46, height: 46 }}>
-            <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="0" y="0" width="21" height="21" rx="5" fill="#14B8A6"/>
-              <text x="10.5" y="18" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="900" fontSize="22" fill="white">W</text>
-              <rect x="25" y="0" width="21" height="21" rx="5" fill="#3B82F6"/>
-              <rect x="0" y="25" width="21" height="21" rx="5" fill="#A855F7"/>
-              <rect x="25" y="25" width="21" height="21" rx="5" fill="#EC4899"/>
-              <text x="35.5" y="43" textAnchor="middle" fontFamily="Trebuchet MS, Verdana, sans-serif" fontWeight="900" fontSize="22" fill="white">M</text>
-            </svg>
+      <nav className="w-full md:w-20 lg:w-72 bg-bg-secondary border-r border-border-main flex flex-col py-6 shrink-0 transition-all duration-300">
+        <div className="flex items-center gap-3 mb-12 px-6">
+          <div className="w-10 h-10 bg-gradient-to-br from-turquesa to-azul rounded-2xl flex items-center justify-center text-white shadow-xl shadow-turquesa/20">
+            <Zap size={22} fill="white" />
           </div>
           <div className="hidden lg:block overflow-hidden">
-            <h1 className={`text-[15px] font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-text-main-light'} whitespace-nowrap`}>WorkManager</h1>
+            <h1 className="text-xl font-bold tracking-tight text-white whitespace-nowrap">WM v18</h1>
+            <p className="text-[10px] text-text-secondary uppercase font-bold tracking-widest leading-none">Enterprise Edition</p>
           </div>
-        </div>
-
-        {/* Theme Toggle */}
-        <div className="px-6 mb-6">
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`w-full flex items-center justify-between gap-3 p-3 rounded-2xl transition-all ${
-              isDarkMode 
-                ? 'bg-bg-main hover:bg-bg-card border border-border-main' 
-                : 'bg-bg-card-light hover:bg-bg-secondary-light border border-border-main-light'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              {isDarkMode ? (
-                <Moon size={18} className="text-azul" />
-              ) : (
-                <Sun size={18} className="text-turquesa" />
-              )}
-              <span className={`hidden lg:block text-sm font-bold ${isDarkMode ? 'text-white' : 'text-text-main-light'}`}>
-                {isDarkMode ? 'Modo Oscuro' : 'Modo Claro'}
-              </span>
-            </div>
-            <div className={`hidden lg:flex w-12 h-6 rounded-full relative transition-all ${isDarkMode ? 'bg-azul' : 'bg-turquesa'}`}>
-              <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all ${isDarkMode ? 'left-0.5' : 'left-6'}`} />
-            </div>
-          </button>
         </div>
  
         <div className="flex flex-col gap-1 w-full px-4">
@@ -2071,24 +856,6 @@ export default function App() {
             icon={<CalendarIcon size={20} />} 
             label="Calendario" 
           />
-          <NavItem 
-            active={currentView === 'delegadas'} 
-            onClick={() => setCurrentView('delegadas')} 
-            icon={<Users size={20} />} 
-            label="Delegadas" 
-          />
-          <NavItem 
-            active={currentView === 'search'} 
-            onClick={() => setCurrentView('search')} 
-            icon={<Search size={20} />} 
-            label="Búsqueda" 
-          />
-          <NavItem 
-            active={currentView === 'workload'} 
-            onClick={() => setCurrentView('workload')} 
-            icon={<BarChart2 size={20} />} 
-            label="Carga" 
-          />
         </div>
  
         <div className="mt-auto px-4">
@@ -2105,7 +872,7 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden max-w-full">
         {/* Header Bar */}
-        <header className="h-20 dark:bg-bg-main bg-bg-main-light border-b dark:border-border-main border-border-main-light flex items-center justify-between px-8 shrink-0">
+        <header className="h-20 bg-bg-main border-b border-border-main flex items-center justify-between px-8 shrink-0">
           <div className="flex items-center gap-6 flex-1">
             <div className="flex items-center gap-2 lg:hidden">
                <div className="w-8 h-8 bg-turquesa rounded-lg flex items-center justify-center text-white">
@@ -2113,11 +880,11 @@ export default function App() {
                </div>
             </div>
             <div className="relative max-w-sm w-full hidden sm:block">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 dark:text-text-secondary text-text-secondary-light" size={16} />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary" size={16} />
               <input 
                 type="text" 
                 placeholder="Buscar tareas, bloques..."
-                className="w-full pl-11 pr-4 py-2.5 dark:bg-bg-secondary bg-white rounded-xl text-sm dark:text-text-main text-text-main-light border dark:border-border-main border-border-main-light focus:ring-2 focus:ring-turquesa/20 outline-none transition-all dark:placeholder:text-text-secondary/50 placeholder:text-text-secondary-light/50"
+                className="w-full pl-11 pr-4 py-2.5 bg-bg-secondary rounded-xl text-sm text-text-main border border-border-main focus:ring-2 focus:ring-turquesa/20 outline-none transition-all placeholder:text-text-secondary/50"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -2125,17 +892,17 @@ export default function App() {
           </div>
  
           <div className="flex items-center gap-5">
-            <button className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light transition-colors">
+            <button className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-secondary hover:text-white transition-colors">
               <span className="w-2 h-2 bg-lima rounded-full animate-pulse" />
               Sincronizado
             </button>
-            <div className="h-8 w-px dark:bg-border-main bg-border-main-light" />
+            <div className="h-8 w-px bg-border-main" />
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-bold leading-none dark:text-white text-text-main-light">Vanessa Carrión</p>
-                <p className="text-[10px] dark:text-text-secondary text-text-secondary-light font-bold uppercase tracking-tighter">Pro Plan</p>
+                <p className="text-sm font-bold leading-none">Vanessa Carrión</p>
+                <p className="text-[10px] text-text-secondary font-bold uppercase tracking-tighter">Pro Plan</p>
               </div>
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br dark:from-bg-secondary dark:to-bg-card from-bg-secondary-light to-bg-card-light border dark:border-border-main border-border-main-light flex items-center justify-center text-turquesa font-bold text-sm shadow-inner">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-bg-secondary to-bg-card border border-border-main flex items-center justify-center text-turquesa font-bold text-sm shadow-inner">
                 VC
               </div>
             </div>
@@ -2143,18 +910,13 @@ export default function App() {
         </header>
  
         {/* Content Container */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar dark:bg-bg-main bg-bg-main-light">
+        <div className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar bg-bg-main">
           <AnimatePresence mode="wait">
             {currentView === 'dashboard' && (
               <DashboardView 
                 tasks={dashboardTasks} 
                 allTasksMap={dashboardTasksMap}
                 blocks={blocks}
-                people={people}
-                onAddPerson={handleAddPerson}
-                onRenamePerson={handleRenamePerson}
-                onDeletePerson={handleDeletePerson}
-                onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
                 timeEntries={timeEntries}
                 activeTimer={activeTimer}
                 onStartTimer={handleStartTimer}
@@ -2176,34 +938,13 @@ export default function App() {
                 onToggleExpand={handleToggleExpandTask}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
-                selectionMode={selectionMode}
-                selectedTaskIds={selectedTaskIds}
-                onToggleTaskSelection={toggleTaskSelection}
-                onToggleSelectionMode={toggleSelectionMode}
-                bulkUpdateTasks={bulkUpdateTasks}
-                bulkDeleteTasks={bulkDeleteTasks}
-                bulkDuplicateTasks={bulkDuplicateTasks}
-                bulkDelegateModal={bulkDelegateModal}
-                setBulkDelegateModal={setBulkDelegateModal}
-                bulkDateModal={bulkDateModal}
-                setBulkDateModal={setBulkDateModal}
-                bulkTimeModal={bulkTimeModal}
-                setBulkTimeModal={setBulkTimeModal}
-                onDeleteTimeEntry={handleDeleteTimeEntry}
-                onUpdateTimeEntry={handleUpdateTimeEntry}
-                searchQuery={searchQuery}
               />
             )}
             {currentView === 'blocks' && (
               <BlocksManagerView 
                 blocks={blocks} 
-                tasks={Object.values(tasks).filter((t: Task) => !t.isDeleted)}
+                tasks={allActiveTasks}
                 allTasksMap={tasks}
-                people={people}
-                onAddPerson={handleAddPerson}
-                onRenamePerson={handleRenamePerson}
-                onDeletePerson={handleDeletePerson}
-                onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
                 timeEntries={timeEntries}
                 activeTimer={activeTimer}
                 onStartTimer={handleStartTimer}
@@ -2234,17 +975,6 @@ export default function App() {
                 onExpandAll={handleExpandAllInBlock}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
-                selectionMode={selectionMode}
-                selectedTaskIds={selectedTaskIds}
-                onToggleTaskSelection={toggleTaskSelection}
-                onToggleSelectionMode={toggleSelectionMode}
-                bulkUpdateTasks={bulkUpdateTasks}
-                bulkDeleteTasks={bulkDeleteTasks}
-                bulkDuplicateTasks={bulkDuplicateTasks}
-                setBulkDelegateModal={setBulkDelegateModal}
-                setBulkDateModal={setBulkDateModal}
-                setBulkTimeModal={setBulkTimeModal}
-                searchQuery={searchQuery}
               />
             )}
             {currentView === 'calendar' && (
@@ -2252,11 +982,6 @@ export default function App() {
                 tasks={allActiveTasks} 
                 allTasksMap={tasks}
                 blocks={blocks}
-                people={people}
-                onAddPerson={handleAddPerson}
-                onRenamePerson={handleRenamePerson}
-                onDeletePerson={handleDeletePerson}
-                onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
                 timeEntries={timeEntries}
                 activeTimer={activeTimer}
                 onStartTimer={handleStartTimer}
@@ -2279,91 +1004,6 @@ export default function App() {
                 onDemote={handleDemoteTask}
               />
             )}
-            {currentView === 'delegadas' && (
-              <DelegadasView
-                tasks={allActiveTasks}
-                allTasksMap={tasks}
-                blocks={blocks}
-                people={people}
-                meetings={meetings}
-                timeEntries={timeEntries}
-                onUpdateTask={handleUpdateTask}
-                onToggleTask={handleToggleStatus}
-                onUpdatePeople={setPeople}
-                onUpdateMeetings={async (updatedMeetings: any[]) => {
-                  setMeetings(updatedMeetings);
-                  // Sincronizar con Supabase: upsert todas las reuniones
-                  for (const m of updatedMeetings) {
-                    await supabase.from('meetings').upsert({
-                      id: m.id,
-                      person_id: m.personId,
-                      date: m.date,
-                      notes: m.notes || '',
-                      items: m.items || [],
-                      created_at: m.createdAt || new Date().toISOString()
-                    }, { onConflict: 'id' });
-                  }
-                  // Borrar reuniones eliminadas
-                  const currentIds = updatedMeetings.map((m: any) => m.id);
-                  const { data: existing } = await supabase.from('meetings').select('id');
-                  if (existing) {
-                    const toDelete = existing.filter((r: any) => !currentIds.includes(r.id));
-                    for (const r of toDelete) {
-                      await supabase.from('meetings').delete().eq('id', r.id);
-                    }
-                  }
-                }}
-                onAddTask={handleAddTask}
-                onEditTask={(id: string) => setEditingTaskId(id)}
-                onDeleteTask={handleDeleteTaskRequest}
-                onRenamePerson={handleRenamePerson}
-                onDeletePerson={handleDeletePerson}
-                onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
-                selectionMode={selectionMode}
-                selectedTaskIds={selectedTaskIds}
-                onToggleTaskSelection={toggleTaskSelection}
-                onToggleSelectionMode={toggleSelectionMode}
-                bulkUpdateTasks={bulkUpdateTasks}
-                bulkDeleteTasks={bulkDeleteTasks}
-                bulkDuplicateTasks={bulkDuplicateTasks}
-                setBulkDelegateModal={setBulkDelegateModal}
-                setBulkDateModal={setBulkDateModal}
-                setBulkTimeModal={setBulkTimeModal}
-                searchQuery={searchQuery}
-              />
-            )}
-            
-            {currentView === 'workload' && (
-              <WorkloadView
-                tasks={tasks}
-                allTasksMap={tasks}
-                blocks={blocks}
-                timeEntries={timeEntries}
-                onNavigateToDashboard={(date: string) => {
-                  setActiveDate(date);
-                  setCurrentView('dashboard');
-                }}
-              />
-            )}
-
-            {currentView === 'search' && (
-              <SearchView
-                tasks={Object.values(tasks).filter((t: Task) => !t.isDeleted)}
-                allTasksMap={tasks}
-                blocks={blocks}
-                people={people}
-                timeEntries={timeEntries}
-                activeTimer={activeTimer}
-                onEditTask={(id: string) => setEditingTaskId(id)}
-                onToggle={handleToggleStatus}
-                onDelete={handleDeleteTaskRequest}
-                onUpdateTask={handleUpdateTask}
-                onAddTask={handleAddTask}
-                onNavigateToBlocks={(blockId: string) => {
-                  setCurrentView('blocks');
-                }}
-              />
-            )}
           </AnimatePresence>
         </div>
       </main>
@@ -2373,19 +1013,12 @@ export default function App() {
           key={editingTaskId}
           task={tasks[editingTaskId]}
           allTasksMap={tasks}
-          people={people}
-          onAddPerson={handleAddPerson}
-          onRenamePerson={handleRenamePerson}
-          onDeletePerson={handleDeletePerson}
-                onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
           onClose={() => setEditingTaskId(null)}
           onSave={handleUpdateTask}
           onAddTask={handleAddTask}
           onDeleteTask={handleDeleteTask}
           onEditTask={handleEditTaskRequest}
           blocks={blocks}
-          onUploadAttachment={handleUploadAttachment}
-          onDeleteAttachment={handleDeleteAttachment}
         />
       )}
  
@@ -2394,19 +1027,12 @@ export default function App() {
           key={editingRuleId}
           task={tasks[editingRuleId]}
           allTasksMap={tasks}
-          people={people}
-          onAddPerson={handleAddPerson}
-          onRenamePerson={handleRenamePerson}
-          onDeletePerson={handleDeletePerson}
-                onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
           onClose={() => setEditingRuleId(null)}
           onSave={handleUpdateTask}
           onAddTask={handleAddTask}
           onDeleteTask={handleDeleteTask}
           onEditTask={handleEditTaskRequest}
           blocks={blocks}
-          onUploadAttachment={handleUploadAttachment}
-          onDeleteAttachment={handleDeleteAttachment}
         />
       )}
  
@@ -2428,26 +1054,10 @@ export default function App() {
               <div className="text-3xl mb-3">⚠️</div>
               <h3 className="text-white font-black text-lg mb-2">¿Convertir en tarea contenedora?</h3>
               <p className="text-text-secondary text-sm leading-relaxed">
-                Al añadir subtareas, se convertirá en una <span className="text-white font-bold">tarea contenedora</span>. Esto implica:
+                Esta tarea tiene una <span className="text-turquesa font-bold">fecha de ejecución</span> asignada. 
+                Al añadir subtareas, se convertirá en una <span className="text-white font-bold">tarea contenedora</span> y 
+                su fecha se eliminará. La fecha pasará a depender de sus subtareas.
               </p>
-              <ul className="text-text-secondary text-sm mt-2 space-y-1 text-left">
-                {tasks[addSubtaskWarning.parentTaskId]?.dueDate && (
-                  <li>• Su <span className="text-turquesa font-bold">fecha de ejecución</span> se eliminará</li>
-                )}
-                {tasks[addSubtaskWarning.parentTaskId]?.dueTime && (
-                  <li>• Su <span className="text-azul font-bold">hora</span> se eliminará</li>
-                )}
-                {tasks[addSubtaskWarning.parentTaskId]?.tags?.length > 0 && (
-                  <li>• Su <span className="text-rosa font-bold">etiqueta</span> se eliminará</li>
-                )}
-                {tasks[addSubtaskWarning.parentTaskId]?.recurrence && (
-                  <li>• Su <span className="text-naranja font-bold">recurrencia</span> se eliminará</li>
-                )}
-                {tasks[addSubtaskWarning.parentTaskId]?.delegation && (
-                  <li>• Su <span className="text-morado font-bold">delegación</span> se eliminará</li>
-                )}
-                <li className="text-text-secondary/60 text-xs mt-1">Los contenedores no tienen datos propios. Toda la información la asignan sus subtareas.</li>
-              </ul>
             </div>
             <div className="flex gap-3">
               <button
@@ -2460,168 +1070,11 @@ export default function App() {
                 onClick={() => {
                   const { parentTaskId, blockId, overrideDate } = addSubtaskWarning;
                   setAddSubtaskWarning(null);
-                  // Al convertir en contenedor: quitar fecha, etiqueta y forzar expandido
-                  // Todo en un solo setTasks para evitar race conditions
-                  const id = `t-${Date.now()}`;
-                  const timestamp = new Date().toISOString();
-                  const parentTask = tasks[parentTaskId];
-                  const newTask = {
-                    id,
-                    blockId: blockId || parentTask?.blockId || (blocks.length > 0 ? blocks[0].id : 'b1'),
-                    title: '',
-                    notes: '',
-                    priority: 'media' as const,
-                    status: 'pending' as const,
-                    dueDate: overrideDate || activeDate,
-                    dueTime: '',
-                    parentTaskId,
-                    subtasks: [],
-                    estimatedMinutes: 0,
-                    tags: [],
-                    order: 0,
-                    createdAt: timestamp,
-                    modifiedAt: timestamp,
-                    attachments: [],
-                    isExpanded: true,
-                    isTemplate: false
-                  };
-                  setTasks(prev => ({
-                    ...prev,
-                    [parentTaskId]: { 
-                      ...prev[parentTaskId], 
-                      dueDate: null,
-                      dueTime: '',
-                      tags: [],
-                      estimatedMinutes: 0,
-                      recurrence: undefined,
-                      isTemplate: false,
-                      delegation: undefined,
-                      isExpanded: true,
-                      subtasks: [...(prev[parentTaskId]?.subtasks || []), id],
-                      modifiedAt: timestamp
-                    },
-                    [id]: newTask
-                  }));
-                  // Persistir la limpieza del contenedor en Supabase
-                  supabase.from('tasks').update({
-                    due_date: null,
-                    due_time: null,
-                    tags: [],
-                    estimated_minutes: 0,
-                    recurrence: null,
-                    is_template: false,
-                    delegation: null,
-                    is_expanded: true,
-                    modified_at: timestamp
-                  }).eq('id', parentTaskId).then(({ error }) => {
-                    if (error) console.error('[SUPABASE] Error limpiando contenedor:', error);
-                  });
-                  setTimeout(() => setEditingTaskId(id), 50);
+                  doAddTask(parentTaskId, blockId, overrideDate);
                 }}
                 className="flex-1 py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/80 transition-all"
               >
                 Sí, convertir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modales de acciones bulk */}
-      {bulkDelegateModal && (
-        <BulkDelegateModal
-          people={people}
-          onClose={() => setBulkDelegateModal(false)}
-          onConfirm={(personId: string | null) => {
-            const timestamp = new Date().toISOString();
-            const delegation = personId 
-              ? { personId, personName: people.find((p: any) => p.id === personId)?.name || '', delegatedAt: timestamp }
-              : null;
-            bulkUpdateTasks({ delegation });
-            setBulkDelegateModal(false);
-          }}
-        />
-      )}
-
-      {bulkDateModal && (
-        <BulkDateModal
-          onClose={() => setBulkDateModal(false)}
-          onConfirm={(date: string) => {
-            const timestamp = new Date().toISOString();
-            setTasks(prev => {
-              const next = { ...prev };
-              selectedTaskIds.forEach(id => {
-                if (next[id]) next[id] = { ...next[id], dueDate: date, modifiedAt: timestamp };
-              });
-              return next;
-            });
-            setSelectedTaskIds(new Set());
-            setSelectionMode(false);
-            setBulkDateModal(false);
-          }}
-        />
-      )}
-
-      {bulkTimeModal && (
-        <BulkTimeModal
-          onClose={() => setBulkTimeModal(false)}
-          onConfirm={(minutes: number) => {
-            const timestamp = new Date().toISOString();
-            setTasks(prev => {
-              const next = { ...prev };
-              selectedTaskIds.forEach(id => {
-                if (next[id]) next[id] = { ...next[id], estimatedMinutes: minutes, modifiedAt: timestamp };
-              });
-              return next;
-            });
-            setSelectedTaskIds(new Set());
-            setSelectionMode(false);
-            setBulkTimeModal(false);
-          }}
-        />
-      )}
-
-      {/* Modal cambio de fecha en instancia recurrente */}
-      {pendingDateChange && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 dark:bg-black/60 bg-black/40 backdrop-blur-sm">
-            <div className="dark:bg-bg-card bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border dark:border-border-main border-border-main-light space-y-4">
-              <h3 className="font-black dark:text-white text-text-main-light text-base uppercase tracking-widest">Cambiar fecha</h3>
-              <p className="text-sm dark:text-text-secondary text-text-secondary-light">¿Qué quieres cambiar?</p>
-            <div className="space-y-2">
-              <button
-                onClick={() => {
-                  const { task, newDate } = pendingDateChange;
-                  // Solo este día: guardar como excepción
-                  handleUpdateTask({ ...task, dueDate: newDate });
-                  setPendingDateChange(null);
-                }}
-                className="w-full py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/80 transition-all"
-              >
-                Solo este día
-              </button>
-              <button
-                onClick={() => {
-                  const { task, newDate } = pendingDateChange;
-                  // Toda la serie: actualizar el startDate del template
-                  const templateId = task.templateId;
-                  if (templateId && tasks[templateId]) {
-                    const template = tasks[templateId];
-                    handleUpdateTask({
-                      ...template,
-                      recurrence: template.recurrence ? { ...template.recurrence, startDate: newDate } : template.recurrence
-                    });
-                  }
-                  setPendingDateChange(null);
-                }}
-                className="w-full py-3 rounded-2xl dark:bg-bg-secondary bg-gray-100 dark:text-white text-text-main-light font-black text-sm hover:opacity-80 transition-all"
-              >
-                Toda la serie (cambia el inicio)
-              </button>
-              <button
-                onClick={() => setPendingDateChange(null)}
-                className="w-full py-3 rounded-2xl text-rosa font-black text-sm hover:bg-rosa/10 transition-all"
-              >
-                Cancelar
               </button>
             </div>
           </div>
@@ -2635,86 +1088,28 @@ export default function App() {
           onConfirm={(choice) => {
             const { taskId, type, ruleId } = recurrenceAction;
             setRecurrenceAction(null);
-            const today = formatLocalISO(new Date());
-            const timestamp = new Date().toISOString();
-
+ 
             if (choice === 'instance') {
               if (type === 'edit') {
-                // Marcar como excepción y abrir modal
                 setTasks(prev => ({
                   ...prev,
                   [taskId]: { ...prev[taskId], isException: true }
                 }));
                 setEditingTaskId(taskId);
               } else {
-                // Eliminar solo esta instancia → persistir en Supabase con UPSERT
-                const taskToDelete = tasks[taskId] || dashboardTasks.find(t => t.id === taskId);
-                if (!taskToDelete) {
-                  console.error('[DELETE] Tarea no encontrada:', taskId);
-                  return;
-                }
-                
                 setTasks(prev => ({
                   ...prev,
-                  [taskId]: { ...(prev[taskId] || taskToDelete), isDeleted: true, isException: true, existsInSupabase: true, modifiedAt: timestamp }
+                  [taskId]: { ...prev[taskId], isDeleted: true }
                 }));
-                
-                // UPSERT en lugar de UPDATE para que funcione con instancias no guardadas
-                supabase.from('tasks').upsert({
-                  id: taskToDelete.id,
-                  block_id: taskToDelete.blockId,
-                  parent_task_id: null,
-                  template_id: taskToDelete.templateId,
-                  instance_date: taskToDelete.instanceDate || null,
-                  title: taskToDelete.title,
-                  notes: taskToDelete.notes || '',
-                  priority: taskToDelete.priority || 'medium',
-                  status: taskToDelete.status,
-                  due_date: taskToDelete.dueDate || null,
-                  due_time: taskToDelete.dueTime || null,
-                  completed_at: taskToDelete.completedAt || null,
-                  estimated_minutes: taskToDelete.estimatedMinutes || 0,
-                  actual_minutes: taskToDelete.actualMinutes || 0,
-                  tags: taskToDelete.tags || [],
-                  delegation: taskToDelete.delegation || null,
-                  is_template: false,
-                  is_exception: true,
-                  is_deleted: true, // ← ESTO ES LO IMPORTANTE
-                  deleted_at: new Date().toISOString(),
-                  is_active: false,
-                  created_at: taskToDelete.createdAt || new Date().toISOString(),
-                  modified_at: timestamp
-                }, { onConflict: 'id' })
-                  .then(({ error }) => {
-                    if (error) console.error('[SUPABASE] Error eliminando instancia:', error);
-                    else console.log('[SUPABASE] Instancia eliminada (upsert):', taskId);
-                  });
               }
             } else if (choice === 'series') {
               if (type === 'edit') {
-                // Editar el template original
                 setEditingRuleId(ruleId);
               } else {
-                // Eliminar serie: desactivar template + borrar instancias futuras (>= hoy)
-                // Las pasadas (< hoy) se respetan siempre
-                setTasks(prev => {
-                  const updated = { ...prev };
-                  if (updated[ruleId]) {
-                    updated[ruleId] = { ...updated[ruleId], isActive: false, modifiedAt: timestamp };
-                  }
-                  Object.values(updated).forEach(t => {
-                    if (t && t.templateId === ruleId && !t.isDeleted && t.dueDate && t.dueDate >= today) {
-                      updated[t.id] = { ...t, isDeleted: true, modifiedAt: timestamp };
-                    }
-                  });
-                  return updated;
-                });
-                supabase.from('tasks')
-                  .update({ is_active: false, modified_at: timestamp })
-                  .eq('id', ruleId)
-                  .then(({ error }) => {
-                    if (error) console.error('[SUPABASE] Error desactivando serie:', error);
-                  });
+                setTasks(prev => ({
+                  ...prev,
+                  [ruleId]: { ...prev[ruleId], isActive: false, modifiedAt: new Date().toISOString() }
+                }));
               }
             }
           }}
@@ -2735,106 +1130,20 @@ export default function App() {
           />
         )}
       </AnimatePresence>
-
-      {/* Modal Stop Timer */}
-      {timerStopModal && (
-        <TimerStopModal
-          minutes={timerStopModal.minutes}
-          taskTitle={tasks[timerStopModal.pendingEntry.subtaskId || timerStopModal.pendingEntry.taskId]?.title || ''}
-          onConfirm={handleTimerStopConfirm}
-          onCancel={() => setTimerStopModal(null)}
-        />
-      )}
     </div>
   );
 }
  
-// --- TimerStopModal ---
-function TimerStopModal({ minutes, taskTitle, onConfirm, onCancel }: {
-  minutes: number;
-  taskTitle: string;
-  onConfirm: (note: string, markComplete: boolean) => void;
-  onCancel: () => void;
-}) {
-  const [note, setNote] = React.useState('');
-  const [markComplete, setMarkComplete] = React.useState(false);
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="dark:bg-bg-secondary bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 flex flex-col gap-6"
-      >
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Registro de Tiempo</span>
-          <h2 className="text-xl font-black dark:text-white text-text-main-light">
-            {minutes} min registrados
-          </h2>
-          {taskTitle && (
-            <p className="text-sm dark:text-text-secondary text-text-secondary-light truncate">{taskTitle}</p>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Nota opcional</label>
-          <textarea
-            rows={3}
-            className="w-full p-4 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl text-sm font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20 resize-none placeholder:opacity-30"
-            placeholder="Añade un comentario..."
-            value={note}
-            onChange={e => setNote(e.target.value)}
-            autoFocus
-          />
-        </div>
-
-        <label className="flex items-center gap-3 cursor-pointer group">
-          <div
-            onClick={() => setMarkComplete(v => !v)}
-            className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${markComplete ? 'bg-turquesa border-turquesa' : 'dark:border-border-main border-border-main-light'}`}
-          >
-            {markComplete && <Check size={14} className="text-white" strokeWidth={3} />}
-          </div>
-          <span className="text-sm font-bold dark:text-white text-text-main-light group-hover:opacity-80 transition-opacity">
-            Marcar tarea como completada
-          </span>
-        </label>
-
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-4 rounded-2xl text-sm font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light dark:hover:bg-bg-main hover:bg-gray-100 transition-all"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={() => onConfirm(note, markComplete)}
-            className="flex-[2] py-4 bg-gradient-to-r from-turquesa to-azul rounded-2xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-turquesa/20 hover:scale-[1.02] active:scale-95 transition-all"
-          >
-            Guardar
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
 // --- Task Modal ---
-function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask, onEditTask, blocks, people = [], onAddPerson, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, onUploadAttachment = null, onDeleteAttachment = null }: any) {
+function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask, onEditTask, blocks }: any) {
   const [localTask, setLocalTask] = useState<Task>(task);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
   const [showDateSelector, setShowDateSelector] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const tags: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
  
   useEffect(() => {
     setLocalTask(task);
-  }, [task.id]);  // Solo resetear cuando cambia la tarea, no cuando cambian sus propiedades
-
-  // Sincronizar attachments cuando cambian externamente (después de upload)
-  useEffect(() => {
-    setLocalTask(prev => ({ ...prev, attachments: task.attachments || [] }));
-  }, [JSON.stringify(task.attachments)]);
+  }, [task]);
  
   const subtasks = useMemo(() => {
     return (localTask.subtasks || [])
@@ -2844,39 +1153,25 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
   }, [localTask.subtasks, allTasksMap]);
  
   const handleUpdateSubtask = (sid: string, updates: Partial<Task>) => {
-    const subtask = allTasksMap[sid];
-    onSave({ ...subtask, ...updates });
-    
-    // Si la subtarea tiene/activa recurrencia, asegurarse que el padre es isTemplate:true y dueDate:null
-    const hasRecurrence = updates.recurrence !== undefined 
-      ? !!updates.recurrence 
-      : !!subtask?.recurrence;
-    
-    if (hasRecurrence && subtask?.parentTaskId) {
-      const parent = allTasksMap[subtask.parentTaskId];
-      if (parent && (!parent.isTemplate || parent.dueDate)) {
-        onSave({ ...parent, isTemplate: true, dueDate: null });
-      }
-    }
+    onSave({ ...allTasksMap[sid], ...updates });
   };
  
   const frequencies = [
     { id: 'daily', label: 'Diaria' },
     { id: 'weekdays', label: 'L-V' },
     { id: 'weekly', label: 'Semanal' },
-    { id: 'monthly', label: 'Mensual' },
-    { id: 'yearly', label: 'Anual' }
+    { id: 'monthly', label: 'Mensual' }
   ];
  
   return (
-    <div className="fixed inset-0 dark:bg-bg-main/80 bg-white/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-bg-main/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         key={localTask.id}
-        className="dark:bg-bg-card bg-white w-full max-w-xl rounded-[1.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] border dark:border-border-main border-border-main-light overflow-hidden flex flex-col max-h-[85vh]"
+        className="bg-bg-card w-full max-w-2xl rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] border border-border-main overflow-hidden flex flex-col max-h-[90vh]"
       >
-        <div className="p-4 border-b dark:border-border-main border-border-main-light flex justify-between items-start dark:bg-bg-card bg-white">
+        <div className="p-8 border-b border-border-main flex justify-between items-start bg-bg-card/50">
           <div className="flex-1 flex items-start gap-4">
             {localTask.parentTaskId && (
               <button 
@@ -2889,41 +1184,37 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
             )}
             <div className="flex-1">
               <p className="text-[10px] font-black text-turquesa uppercase tracking-[0.2em] mb-2">
-                {localTask.templateId 
-                  ? 'Instancia de Tarea Repetitiva' 
-                  : (localTask.recurrence || localTask.isTemplate) 
-                    ? 'Configurar Tarea Repetitiva' 
-                    : 'Configurar Tarea Puntual'}
+                {localTask.recurrence || localTask.isTemplate ? 'Configurar Tarea Repetitiva' : 'Configurar Tarea Puntual'}
               </p>
               <input 
                 autoFocus
-                className="text-xl font-black w-full bg-transparent outline-none placeholder:text-text-secondary dark:text-white text-text-main-light"
+                className="text-3xl font-black w-full bg-transparent outline-none placeholder:text-text-secondary text-white"
                 value={localTask.title}
                 onChange={e => setLocalTask(prev => ({ ...prev, title: e.target.value }))}
                 placeholder="¿Qué hay que hacer?"
               />
             </div>
           </div>
-          <button onClick={onClose} className="p-3 dark:bg-bg-secondary bg-bg-secondary-light dark:hover:bg-bg-main hover:bg-gray-200 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light transition-all">
+          <button onClick={onClose} className="p-3 bg-bg-secondary hover:bg-bg-main rounded-2xl border border-border-main text-text-secondary hover:text-white transition-all">
             <X size={20} />
           </button>
         </div>
  
-        <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+        <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
           {/* Core/Ad-hoc Toggle */}
           <div className="space-y-3">
-            <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Tipo de Tarea</label>
-            <div className="flex gap-3 dark:bg-bg-main bg-white p-1 rounded-2xl border dark:border-border-main border-border-main-light">
+            <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest pl-1">Tipo de Tarea</label>
+            <div className="flex gap-3 bg-bg-main p-1 rounded-2xl border border-border-main">
               <button 
                 onClick={() => setLocalTask(prev => ({ ...prev, taskType: 'core' }))}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition-all ${localTask.taskType === 'core' || ((localTask.recurrence || localTask.isTemplate) && !localTask.taskType) ? 'bg-turquesa dark:text-white text-text-main-light shadow-lg' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
+                className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-xl transition-all ${localTask.taskType === 'core' || ((localTask.recurrence || localTask.isTemplate) && !localTask.taskType) ? 'bg-turquesa text-white shadow-lg' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
               >
                 <Compass size={18} />
                 <span className="text-[11px] font-black uppercase tracking-widest">Puesto (CORE)</span>
               </button>
               <button 
                 onClick={() => setLocalTask(prev => ({ ...prev, taskType: 'adhoc' }))}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl transition-all ${localTask.taskType === 'adhoc' || ((!localTask.recurrence && !localTask.isTemplate) && !localTask.taskType) ? 'bg-rosa dark:text-white text-text-main-light shadow-lg' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
+                className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-xl transition-all ${localTask.taskType === 'adhoc' || ((!localTask.recurrence && !localTask.isTemplate) && !localTask.taskType) ? 'bg-rosa text-white shadow-lg' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
               >
                 <div className="w-3 h-3 bg-current rounded-full mx-1 shadow-[0_0_8px_rgba(251,113,133,0.5)]" />
                 <span className="text-[11px] font-black uppercase tracking-widest">Puntual (AD-HOC)</span>
@@ -2931,45 +1222,27 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
             </div>
           </div>
  
-          {/* Delegación */}
-          {!(localTask.subtasks && localTask.subtasks.length > 0) && (
-            <div className="space-y-3">
-              <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Delegar a</label>
-              <div className="dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-3">
-                <DelegationChip
-                  delegation={localTask.delegation}
-                  people={people}
-                  onAddPerson={onAddPerson}
-                  onRenamePerson={onRenamePerson}
-                  onDeletePerson={onDeletePerson}
-                onRecurrenceDateChange={onRecurrenceDateChange}
-                  onChange={(delegation: any) => setLocalTask(prev => ({ ...prev, delegation }))}
-                />
-              </div>
-            </div>
-          )}
-
           {/* Main Config Grid */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
             <div className="space-y-3">
-              <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Bloque / Contexto</label>
+              <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest pl-1">Bloque / Contexto</label>
               <select 
-                className="w-full p-2 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl text-sm font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20 appearance-none cursor-pointer"
+                className="w-full p-4 bg-bg-main border border-border-main rounded-2xl text-sm font-bold text-white outline-none focus:ring-2 focus:ring-turquesa/20 appearance-none cursor-pointer"
                 value={localTask.blockId}
                 onChange={e => setLocalTask(prev => ({ ...prev, blockId: e.target.value }))}
               >
-                {blocks.filter((b: any) => b.isActive).map((b: any) => (
+                {blocks.map((b: any) => (
                   <option key={b.id} value={b.id}>{b.icon} {b.name}</option>
                 ))}
               </select>
             </div>
             <div className="space-y-3">
-              <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Estimado (min)</label>
+              <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest pl-1">Estimado (min)</label>
               <div className="relative">
                 <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-turquesa" size={16} />
                 <input 
                   type="number"
-                  className="w-full pl-10 pr-4 py-2 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl text-sm font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20"
+                  className="w-full pl-12 pr-4 py-4 bg-bg-main border border-border-main rounded-2xl text-sm font-bold text-white outline-none focus:ring-2 focus:ring-turquesa/20"
                   value={localTask.estimatedMinutes || ''}
                   onChange={e => setLocalTask(prev => ({ ...prev, estimatedMinutes: parseInt(e.target.value) || 0 }))}
                 />
@@ -2978,104 +1251,71 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
           </div>
  
           <div className="space-y-3">
-            <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Categoría</label>
-            {localTask.subtasks && localTask.subtasks.length > 0 ? (
-              <div className="dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-3 flex items-center gap-2">
-                <span className="text-lg">🗂️</span>
-                <p className="text-[11px] font-bold dark:text-text-secondary text-text-secondary-light">
-                  Las tareas contenedor no tienen etiqueta. La etiqueta la asignan sus subtareas.
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {tags.map(t => {
-                  const active = localTask.tags.includes(t);
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => setLocalTask(prev => ({ ...prev, tags: [t] }))}
-                      className={`
-                        px-4 py-3 rounded-xl text-xl border transition-all flex items-center justify-center
-                        ${active 
-                          ? 'bg-turquesa border-turquesa shadow-lg shadow-turquesa/20' 
-                          : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light hover:border-turquesa/50'}
-                      `}
-                      title={TAG_LABELS[t].label}
-                    >
-                      {TAG_LABELS[t].icon}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest pl-1">Categoría</label>
+            <div className="flex flex-wrap gap-2">
+              {tags.map(t => {
+                const active = localTask.tags.includes(t);
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setLocalTask(prev => ({ ...prev, tags: [t] }))}
+                    className={`
+                      px-4 py-3 rounded-xl text-xl border transition-all flex items-center justify-center
+                      ${active 
+                        ? 'bg-turquesa border-turquesa shadow-lg shadow-turquesa/20' 
+                        : 'bg-bg-main border-border-main hover:border-turquesa/50'}
+                    `}
+                    title={TAG_LABELS[t].label}
+                  >
+                    {TAG_LABELS[t].icon}
+                  </button>
+                );
+              })}
+            </div>
           </div>
  
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
-              <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Fecha de ejecución</label>
+              <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Fecha de ejecución</label>
             </div>
             
-            <div className="dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <CalendarIcon size={18} className="text-turquesa" />
-                  <span className="text-sm font-bold dark:text-white text-text-main-light">
-                    {localTask.dueDate ? (() => {
-                      const d = parseLocalISO(localTask.dueDate);
-                      const dd = d.getDate().toString().padStart(2, '0');
-                      const mm = (d.getMonth() + 1).toString().padStart(2, '0');
-                      const yyyy = d.getFullYear();
-                      return `${dd}-${mm}-${yyyy}`;
-                    })() : 'Sin fecha asignada'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button 
-                    onClick={() => setShowDateSelector(!showDateSelector)}
-                    className={`p-2 rounded-lg transition-all ${showDateSelector ? 'bg-turquesa dark:text-white text-text-main-light' : 'text-turquesa hover:bg-turquesa/10'}`}
-                    title="Modificar fecha"
-                  >
-                    <CalendarIcon size={18} />
-                  </button>
-                  {localTask.dueDate && (
-                    <button 
-                      onClick={() => setLocalTask(prev => ({ ...prev, dueDate: null, dueTime: '' }))}
-                      className="p-2 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
-                      title="Eliminar fecha"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  )}
-                </div>
+            <div className="bg-bg-main border border-border-main rounded-2xl p-4 flex items-center justify-between group/date">
+              <div className="flex items-center gap-3">
+                <CalendarIcon size={18} className="text-turquesa" />
+                <span className="text-sm font-bold text-white">
+                  {localTask.dueDate ? (() => {
+                    const d = parseLocalISO(localTask.dueDate);
+                    const dd = d.getDate().toString().padStart(2, '0');
+                    const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+                    const yyyy = d.getFullYear();
+                    return `${dd}-${mm}-${yyyy}`;
+                  })() : 'Sin fecha asignada'}
+                </span>
               </div>
-              
-              {/* Campo hora - solo cuando NO hay recurrencia activa (si hay recurrencia, el campo hora está en esa sección) */}
-              {!localTask.recurrence && (
-              <div className="flex items-center gap-3 pt-2 border-t dark:border-border-main/30 border-border-main-light/30">
-                <Clock size={16} className="text-azul shrink-0" />
-                <span className="text-xs font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Hora</span>
-                <input
-                  type="time"
-                  value={localTask.dueTime || ''}
-                  onChange={e => setLocalTask(prev => ({ ...prev, dueTime: e.target.value }))}
-                  className="flex-1 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-1.5 text-sm font-bold text-azul outline-none focus:border-azul/50"
-                />
-                {localTask.dueTime && (
-                  <button
-                    onClick={() => setLocalTask(prev => ({ ...prev, dueTime: '' }))}
-                    className="p-1.5 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => setShowDateSelector(!showDateSelector)}
+                  className={`p-2 rounded-lg transition-all ${showDateSelector ? 'bg-turquesa text-white' : 'text-turquesa hover:bg-turquesa/10'}`}
+                  title="Modificar fecha"
+                >
+                  <CalendarIcon size={18} />
+                </button>
+                {localTask.dueDate && (
+                  <button 
+                    onClick={() => setLocalTask(prev => ({ ...prev, dueDate: null }))}
+                    className="p-2 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
+                    title="Eliminar fecha"
                   >
-                    <X size={14} />
+                    <Trash2 size={18} />
                   </button>
                 )}
               </div>
-              )}
             </div>
  
             {showDateSelector && (
-              <div className="p-4 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-[2rem] animate-in fade-in slide-in-from-top-2">
+              <div className="p-4 bg-bg-main border border-border-main rounded-[2rem] animate-in fade-in slide-in-from-top-2">
                 <div className="mb-4 flex items-center justify-between px-2">
-                  <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Seleccionar Día</span>
+                  <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Seleccionar Día</span>
                 </div>
                 <MonthDatePicker 
                   value={localTask.dueDate} 
@@ -3089,103 +1329,30 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
           </div>
  
           {/* Recurrence Section */}
-          <div className="p-6 dark:bg-bg-main/20 bg-gray-100/50 border dark:border-border-main border-border-main-light rounded-[2rem] space-y-6">
+          <div className="p-6 bg-bg-main/30 border border-border-main rounded-[2rem] space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <RefreshCw size={20} className={localTask.recurrence || localTask.templateId ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'} />
-                <h3 className="text-sm font-black dark:text-white text-text-main-light uppercase tracking-widest">Recurrencia (Repetir tarea)</h3>
+                <RefreshCw size={20} className={localTask.recurrence ? 'text-turquesa' : 'text-text-secondary'} />
+                <h3 className="text-sm font-black text-white uppercase tracking-widest">Recurrencia (Repetir tarea)</h3>
               </div>
-              {localTask.templateId ? (
-                // Instancia: badge que indica que pertenece a una serie
-                <span className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-turquesa/20 text-turquesa border border-turquesa/30">
-                  SERIE ACTIVA
-                </span>
-              ) : (
-                <button 
-                  onClick={() => setLocalTask(prev => ({ 
-                    ...prev, 
-                    recurrence: prev.recurrence ? undefined : { frequency: 'daily', startDate: prev.dueDate || formatLocalISO(new Date()) },
-                    isTemplate: !prev.recurrence,
-                    dueDate: prev.recurrence ? (prev.dueDate || formatLocalISO(new Date())) : null
-                  }))}
-                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${localTask.recurrence ? 'bg-turquesa text-white' : 'dark:bg-bg-secondary bg-gray-200 dark:text-text-secondary text-text-secondary-light'}`}
-                >
-                  {localTask.recurrence ? 'ACTIVA' : 'DESACTIVADA'}
-                </button>
-              )}
+              <button 
+                onClick={() => setLocalTask(prev => ({ 
+                  ...prev, 
+                  recurrence: prev.recurrence ? undefined : { frequency: 'daily', startDate: prev.dueDate || formatLocalISO(new Date()) },
+                  isTemplate: !prev.recurrence
+                }))}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${localTask.recurrence ? 'bg-turquesa text-white' : 'bg-bg-secondary text-text-secondary'}`}
+              >
+                {localTask.recurrence ? 'ACTIVA' : 'DESACTIVADA'}
+              </button>
             </div>
-
-            {/* Info instancia */}
-            {localTask.templateId && (() => {
-              const template = allTasksMap[localTask.templateId];
-              const rec = template?.recurrence || 
-                (template?.parentTaskId ? allTasksMap[template.parentTaskId]?.recurrence : null);
-              
-              const formatRecurrence = () => {
-                if (!rec) return null;
-                const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-                const freq = rec.frequency || rec.type || rec.freq;
-                if (!freq) return null;
-                if (freq === 'daily') return 'Diaria — todos los días';
-                if (freq === 'weekdays') return 'Semanal — Lun, Mar, Mié, Jue, Vie';
-                if (freq === 'weekly') {
-                  const days = (rec.weekDays || rec.days || []).map((d: number) => dayNames[d]).join(', ');
-                  return `Semanal — ${days || 'todos los días'}`;
-                }
-                if (freq === 'monthly') {
-                  const day = rec.monthDay || rec.day || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : '?');
-                  return `Mensual — día ${day}`;
-                }
-                if (freq === 'yearly') {
-                  if (rec.startDate) {
-                    const d = new Date(rec.startDate + 'T12:00:00');
-                    return `Anual — ${d.getDate()} de ${d.toLocaleDateString('es-ES', { month: 'long' })}`;
-                  }
-                  return 'Anual';
-                }
-                return freq;
-              };
-
-              const recDesc = formatRecurrence();
-
-              return (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3 p-3 dark:bg-turquesa/10 bg-turquesa/5 border border-turquesa/20 rounded-xl">
-                    <RefreshCw size={14} className="text-turquesa shrink-0" />
-                    <p className="text-xs dark:text-text-secondary text-text-secondary-light">
-                      Esta tarea es una <span className="text-turquesa font-bold">instancia de una serie recurrente</span>. Los cambios solo afectan a este día concreto.
-                    </p>
-                  </div>
-                  {recDesc && (
-                    <div className="flex items-center gap-3 p-3 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl">
-                      <RefreshCw size={12} className="text-turquesa shrink-0" />
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Patrón de repetición</span>
-                        <span className="text-xs font-bold text-turquesa">{recDesc}</span>
-                        {rec.startDate && (
-                          <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">
-                            Desde {new Date(rec.startDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {!recDesc && (
-                    <div className="flex items-center gap-3 p-3 dark:bg-bg-secondary bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl">
-                      <RefreshCw size={12} className="text-turquesa shrink-0" />
-                      <span className="text-xs dark:text-text-secondary text-text-secondary-light">Parte de una serie recurrente</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
  
             {localTask.recurrence && (
               <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Frecuencia</label>
-                    <div className="flex dark:bg-bg-secondary bg-bg-secondary-light rounded-xl p-1 gap-1">
+                    <label className="text-[9px] font-black text-text-secondary uppercase tracking-widest">Frecuencia</label>
+                    <div className="flex bg-bg-secondary rounded-xl p-1 gap-1">
                       {frequencies.map(f => (
                         <button 
                           key={f.id}
@@ -3200,7 +1367,7 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                             }
                             return { ...prev, recurrence: { ...prev.recurrence!, ...updates } };
                           })}
-                          className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${localTask.recurrence?.frequency === f.id ? 'bg-turquesa dark:text-white text-text-main-light' : 'text-text-secondary hover:text-white'}`}
+                          className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${localTask.recurrence?.frequency === f.id ? 'bg-turquesa text-white' : 'text-text-secondary hover:text-white'}`}
                         >
                           {f.label}
                         </button>
@@ -3208,41 +1375,19 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Inicio de Serie</label>
+                    <label className="text-[9px] font-black text-text-secondary uppercase tracking-widest">Inicio de Serie</label>
                     <input 
                       type="date"
-                      className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold dark:text-white text-text-main-light outline-none"
+                      className="w-full p-3 bg-bg-secondary border border-border-main rounded-xl text-xs font-bold text-white outline-none"
                       value={localTask.recurrence.startDate}
                       onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, startDate: e.target.value } }))}
                     />
                   </div>
                 </div>
-
-                {/* Campo hora para recurrentes */}
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Hora de ejecución (opcional)</label>
-                  <div className="flex items-center gap-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl p-3">
-                    <Clock size={14} className="text-azul shrink-0" />
-                    <input
-                      type="time"
-                      value={localTask.dueTime || ''}
-                      onChange={e => setLocalTask(prev => ({ ...prev, dueTime: e.target.value }))}
-                      className="flex-1 bg-transparent text-sm font-bold text-azul outline-none"
-                    />
-                    {localTask.dueTime && (
-                      <button
-                        onClick={() => setLocalTask(prev => ({ ...prev, dueTime: '' }))}
-                        className="p-1 text-rosa hover:bg-rosa/10 rounded-lg transition-all"
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
-                </div>
  
                 {localTask.recurrence.frequency === 'weekly' && (
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Días de ejecución</label>
+                    <label className="text-[9px] font-black text-text-secondary uppercase tracking-widest">Días de ejecución</label>
                     <div className="flex justify-between gap-1">
                       {['L','M','X','J','V','S','D'].map((d, i) => {
                         const dayNum = i; // 0=Lunes, ..., 6=Domingo (matches matchesRecurrence specDay)
@@ -3255,7 +1400,7 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                               const next = curr.includes(dayNum) ? curr.filter(v => v !== dayNum) : [...curr, dayNum];
                               setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, weekDays: next } }));
                             }}
-                            className={`flex-1 py-1 px-1 aspect-square rounded-lg text-[9px] font-black border transition-all ${active ? 'bg-turquesa border-turquesa dark:text-white text-text-main-light' : 'dark:bg-bg-secondary bg-bg-secondary-light dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light'}`}
+                            className={`flex-1 py-1 px-1 aspect-square rounded-lg text-[9px] font-black border transition-all ${active ? 'bg-turquesa border-turquesa text-white' : 'bg-bg-secondary border-border-main text-text-secondary'}`}
                           >
                             {d}
                           </button>
@@ -3267,88 +1412,17 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
  
                 {localTask.recurrence.frequency === 'monthly' && (
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Día del mes (1-31)</label>
+                    <label className="text-[9px] font-black text-text-secondary uppercase tracking-widest">Día del mes (1-31)</label>
                     <input 
                       type="number"
                       min="1"
                       max="31"
-                      className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
+                      className="w-full p-3 bg-bg-secondary border border-border-main rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
                       value={localTask.recurrence.monthDay || parseLocalISO(localTask.recurrence.startDate || formatLocalISO(new Date())).getDate()}
                       onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, monthDay: parseInt(e.target.value) || 1 } }))}
                     />
                   </div>
                 )}
-
-                {localTask.recurrence.frequency === 'yearly' && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Día (1-31)</label>
-                      <input 
-                        type="number"
-                        min="1"
-                        max="31"
-                        className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
-                        value={localTask.recurrence.yearDay || new Date().getDate()}
-                        onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, yearDay: parseInt(e.target.value) || 1 } }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Mes (1-12)</label>
-                      <input 
-                        type="number"
-                        min="1"
-                        max="12"
-                        className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
-                        value={localTask.recurrence.yearMonth || new Date().getMonth() + 1}
-                        onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, yearMonth: parseInt(e.target.value) || 1 } }))}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Termina */}
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Termina:</label>
-                  <div className="flex gap-2">
-                    {/* Nunca */}
-                    <button
-                      onClick={() => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: undefined } }))}
-                      className={`flex-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                        !localTask.recurrence.endDate
-                          ? 'bg-turquesa text-white'
-                          : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light'
-                      }`}
-                    >
-                      Nunca
-                    </button>
-
-                    {/* El [fecha] */}
-                    <button
-                      onClick={() => {
-                        if (!localTask.recurrence.endDate) {
-                          const sixMonthsLater = new Date();
-                          sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
-                          setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: formatLocalISO(sixMonthsLater) } }));
-                        }
-                      }}
-                      className={`flex-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                        localTask.recurrence.endDate
-                          ? 'bg-turquesa text-white'
-                          : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light'
-                      }`}
-                    >
-                      El
-                    </button>
-                  </div>
-                  {localTask.recurrence.endDate && (
-                    <input
-                      type="date"
-                      value={localTask.recurrence.endDate}
-                      onChange={e => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: e.target.value } }))}
-                      className="w-full p-3 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-xs font-bold text-turquesa outline-none text-center focus:ring-2 focus:ring-turquesa/20"
-                    />
-                  )}
-                </div>
               </div>
             )}
           </div>
@@ -3356,7 +1430,7 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
           {/* Subtasks Section */}
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black dark:text-white text-text-main-light uppercase tracking-[0.1em]">Pasos / Subtareas</h3>
+              <h3 className="text-sm font-black text-white uppercase tracking-[0.1em]">Pasos / Subtareas</h3>
               <button 
                 onClick={() => {
                   const nid = onAddTask(localTask.id);
@@ -3370,82 +1444,49 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
  
             <div className="space-y-3">
               {subtasks.map((st: Task) => (
-                <div key={st.id} className="flex gap-3 items-start dark:bg-bg-main/40 bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light group">
-                  {/* Checkbox completar/descompletar subtarea */}
-                  <button
-                    onClick={() => handleUpdateSubtask(st.id, { status: st.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
-                    className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                      st.status === 'completed'
-                        ? 'bg-turquesa border-turquesa text-white'
-                        : 'dark:border-border-main border-border-main-light hover:border-turquesa'
-                    }`}
-                  >
-                    {st.status === 'completed' && <Check size={10} />}
-                  </button>
-                  <div className="flex-1 space-y-3">
+                <div key={st.id} className="flex gap-4 items-center bg-bg-main/40 p-4 rounded-2xl border border-border-main group">
+                  <div className="flex-1 space-y-2">
                     <input 
                       autoFocus={st.id === focusedSubtaskId}
                       onFocus={() => { if(st.id === focusedSubtaskId) setFocusedSubtaskId(null); }}
-                      className={`w-full bg-transparent text-sm font-bold dark:text-white text-text-main-light outline-none border-b dark:border-border-main border-border-main-light/20 focus:border-turquesa transition-all py-1 ${st.status === 'completed' ? 'line-through' : ''}`}
+                      className="w-full bg-transparent text-sm font-bold text-white outline-none border-b border-border-main/20 focus:border-turquesa transition-all py-1"
                       value={st.title}
                       onChange={e => handleUpdateSubtask(st.id, { title: e.target.value })}
                       placeholder="Título del paso..."
                     />
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {/* TimePickerChip - subtareas pueden tener hora */}
-                      {!st.isTemplate && st.dueDate && (
-                        <TimePickerChip
-                          value={st.dueTime || ''}
-                          onChange={(time: string) => handleUpdateSubtask(st.id, { dueTime: time })}
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-text-secondary">
+                        <Clock size={10} />
+                        <input 
+                          type="number"
+                          className="w-8 bg-transparent outline-none text-white text-center"
+                          value={st.estimatedMinutes || 0}
+                          onChange={e => handleUpdateSubtask(st.id, { estimatedMinutes: parseInt(e.target.value) || 0 })}
                         />
+                        <span>min</span>
+                      </div>
+                      {st.recurrence && (
+                        <div className="flex items-center gap-1 text-[9px] font-black text-morado uppercase">
+                          <RefreshCw size={10} />
+                          {st.recurrence.frequency === 'daily' ? 'Diaria' : 
+                           st.recurrence.frequency === 'weekdays' ? 'L-V' :
+                           st.recurrence.frequency === 'weekly' ? `Semanal` :
+                           `Mensual`}
+                        </div>
                       )}
-                      {/* DatePickerChip - permitir cambio de fecha incluso para instancias */}
-                      <DatePickerChip
-                        value={st.dueDate}
-                        onChange={(date: string) => handleUpdateSubtask(st.id, { dueDate: date })}
-                      />
-                      {/* RecurrencePickerChip - solo para templates, no instancias */}
-                      {!st.templateId && (!st.subtasks || st.subtasks.length === 0) ? (
-                        <RecurrencePickerChip 
-                          value={st.recurrence}
-                          onChange={(rec: any) => handleUpdateSubtask(st.id, { 
-                            recurrence: rec || undefined,
-                            isTemplate: !!rec,
-                            dueDate: rec ? null : (st.dueDate || formatLocalISO(new Date())),
-                            dueTime: st.dueTime // ✅ Preservar hora concreta
-                          })}
-                        />
-                      ) : null}
-                      <TagPickerChip 
-                        selectedTags={st.tags || []} 
-                        onChange={(tags: TagType[]) => handleUpdateSubtask(st.id, { tags })} 
-                      />
-                      <DelegationChip
-                        delegation={st.delegation}
-                        people={people}
-                        onChange={(delegation: any) => handleUpdateSubtask(st.id, { delegation })}
-                        onAddPerson={onAddPerson}
-                        onRenamePerson={onRenamePerson}
-                        onDeletePerson={onDeletePerson}
-                      />
-                      <EstimatedTimeChip 
-                        value={st.estimatedMinutes || 0} 
-                        onChange={(val: number) => handleUpdateSubtask(st.id, { estimatedMinutes: val })}
-                        variant="mini"
-                      />
                     </div>
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
                     <button 
                       onClick={() => onEditTask(st.id)}
-                      className="p-2 dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
+                      className="p-2 text-text-secondary hover:text-turquesa"
                       title="Editar"
                     >
                       <Edit size={16} />
                     </button>
                     <button 
                       onClick={() => onDeleteTask(st.id)}
-                      className="p-2 dark:text-text-secondary text-text-secondary-light hover:text-rosa"
+                      className="p-2 text-text-secondary hover:text-rosa"
                       title="Eliminar"
                     >
                       <Trash2 size={16} />
@@ -3454,7 +1495,7 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
                 </div>
               ))}
               {subtasks.length === 0 && (
-                <div className="py-8 border-2 border-dashed dark:border-border-main border-border-main-light rounded-[2rem] flex flex-col items-center justify-center dark:text-text-secondary text-text-secondary-light italic">
+                <div className="py-8 border-2 border-dashed border-border-main rounded-[2rem] flex flex-col items-center justify-center text-text-secondary italic">
                   <p className="text-xs">Sin subtareas configuradas</p>
                 </div>
               )}
@@ -3462,94 +1503,26 @@ function TaskModal({ task, allTasksMap, onClose, onSave, onAddTask, onDeleteTask
           </div>
  
           <div className="space-y-3">
-            <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Notas y Detalles</label>
+            <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest pl-1">Notas y Detalles</label>
             <textarea 
               rows={4}
-              className="w-full p-4 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl text-sm font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20 resize-none placeholder:text-text-secondary/30"
+              className="w-full p-4 bg-bg-main border border-border-main rounded-2xl text-sm font-bold text-white outline-none focus:ring-2 focus:ring-turquesa/20 resize-none placeholder:text-text-secondary/30"
               placeholder="Anota cualquier detalle relevante..."
               value={localTask.notes || ''}
               onChange={e => setLocalTask(prev => ({ ...prev, notes: e.target.value }))}
             />
           </div>
-
-          {/* Adjuntos */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between pl-1">
-              <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Adjuntos</label>
-              <label className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border cursor-pointer transition-all text-[10px] font-black uppercase tracking-widest ${uploading ? 'opacity-50 cursor-not-allowed' : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'}`}>
-                <Paperclip size={12} />
-                {uploading ? 'Subiendo...' : 'Adjuntar'}
-                <input
-                  type="file"
-                  className="hidden"
-                  disabled={uploading}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file || !onUploadAttachment) return;
-                    setUploading(true);
-                    await onUploadAttachment(localTask.id, file);
-                    setUploading(false);
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-            </div>
-            {(localTask.attachments && localTask.attachments.length > 0) ? (
-              <div className="space-y-2">
-                {localTask.attachments.map((att: any) => {
-                  const isImage = att.type?.startsWith('image/');
-                  return (
-                    <div key={att.id} className="flex items-center gap-3 p-3 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-2xl group">
-                      {isImage ? (
-                        <img src={att.url} alt={att.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0 cursor-pointer" onClick={() => window.open(att.url, '_blank')} />
-                      ) : (
-                        <div className="w-10 h-10 rounded-lg dark:bg-bg-card bg-gray-100 flex items-center justify-center flex-shrink-0">
-                          <Paperclip size={16} className="text-turquesa" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold dark:text-white text-text-main-light truncate">{att.name}</p>
-                        <p className="text-[10px] dark:text-text-secondary text-text-secondary-light">{att.size ? `${Math.round(att.size / 1024)}KB` : ''}</p>
-                      </div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <a href={att.url} target="_blank" rel="noopener noreferrer" className="w-7 h-7 flex items-center justify-center text-turquesa bg-turquesa/10 hover:bg-turquesa/20 rounded-lg transition-all">
-                          <Eye size={12} />
-                        </a>
-                        <button
-                          onClick={() => onDeleteAttachment && onDeleteAttachment(localTask.id, att.id, att.path)}
-                          className="w-7 h-7 flex items-center justify-center text-rosa bg-rosa/10 hover:bg-rosa/20 rounded-lg transition-all"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="py-6 text-center border-2 border-dashed dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light opacity-40">
-                <Paperclip size={20} className="mx-auto mb-2" />
-                <p className="text-[10px] font-bold uppercase tracking-widest">Sin adjuntos</p>
-              </div>
-            )}
-          </div>
         </div>
  
-        <div className="p-8 dark:bg-bg-main/20 bg-gray-100/50 border-t dark:border-border-main border-border-main-light flex gap-4">
+        <div className="p-8 bg-bg-main/50 border-t border-border-main flex gap-4">
           <button 
             onClick={onClose}
-            className="flex-1 py-5 rounded-3xl text-sm font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light dark:hover:bg-bg-secondary hover:bg-gray-200 transition-all"
+            className="flex-1 py-5 rounded-3xl text-sm font-black uppercase tracking-widest text-text-secondary hover:text-white hover:bg-bg-secondary transition-all"
           >
             Cerrar
           </button>
           <button 
-            onClick={() => { 
-              const taskToSave = localTask.templateId 
-                ? { ...localTask, isException: true, existsInSupabase: true }
-                : localTask;
-              onSave(taskToSave); 
-              onClose(); 
-            }}
+            onClick={() => { onSave(localTask); onClose(); }}
             className="flex-[2] py-5 bg-gradient-to-r from-turquesa to-azul rounded-3xl text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-turquesa/20 hover:scale-[1.02] active:scale-95 transition-all"
           >
             Guardar Cambios
@@ -3569,8 +1542,8 @@ function NavItem({ active, onClick, icon, label }: { active: boolean, onClick: (
       className={`
         flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all group w-full relative
         ${active 
-          ? 'dark:bg-bg-card dark:text-white bg-bg-card-light text-text-main-light shadow-xl dark:border-border-main border-border-main-light border' 
-          : 'dark:text-text-secondary text-text-secondary-light dark:hover:text-text-main hover:text-text-main-light dark:hover:bg-bg-card/50 hover:bg-bg-secondary-light'}
+          ? 'bg-bg-card text-white shadow-xl border border-border-main' 
+          : 'text-text-secondary hover:text-text-main hover:bg-bg-card/50'}
       `}
     >
       {active && (
@@ -3590,124 +1563,2304 @@ function NavItem({ active, onClick, icon, label }: { active: boolean, onClick: (
   );
 }
  
-
-
-// --- Bulk Delegate Modal ---
-function BulkDelegateModal({ people, onConfirm, onClose }: any) {
-  const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
+function DashboardView({ 
+  tasks, 
+  allTasksMap, 
+  blocks, 
+  timeEntries, 
+  activeTimer, 
+  onStartTimer, 
+  onStopTimer, 
+  onToggle, 
+  onDelete, 
+  onAddTask, 
+  onUpdateTask, 
+  onEditTask,
+  editingTaskId,
+  inlineEditingTaskId,
+  setInlineEditingTaskId,
+  onOpenTimePanel,
+  activeDate, 
+  onSetDate,
+  onDayChange, 
+  onReorderTasks,
+  onReorderSubtasks,
+  onToggleExpand,
+  onPromote,
+  onDemote 
+}: any) {
+  const [hideCompleted, setHideCompleted] = useState(false);
+  const [showDashboardCalendar, setShowDashboardCalendar] = useState(false);
+ 
+  const dayTasks = useMemo(() => {
+    const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
+    return tasks.filter((t: Task) => t.dueDate === activeDate && !t.parentTaskId && activeBlockIds.has(t.blockId))
+      .sort((a: Task, b: Task) => (a.order || 0) - (b.order || 0));
+  }, [tasks, activeDate, blocks]);
+ 
+  const filteredDayTasks = useMemo(() => {
+    return dayTasks.filter((t: Task) => !hideCompleted || !isTaskCompleted(t.id, allTasksMap));
+  }, [dayTasks, hideCompleted, allTasksMap]);
+ 
+  const stats = useMemo(() => {
+    const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
+    const dayTasksFiltered = dayTasks.filter((t: any) => activeBlockIds.has(t.blockId));
+    const total = dayTasksFiltered.length;
+    const completed = dayTasksFiltered.filter((t: any) => isTaskCompleted(t.id, allTasksMap)).length;
+    const estimated = dayTasksFiltered.reduce((acc: number, t: any) => acc + (t.estimatedMinutes || 0), 0);
+    const actual = dayTasksFiltered.reduce((acc: number, t: any) => acc + (t.actualMinutes || 0), 0);
+    return { total, completed, estimated, actual };
+  }, [dayTasks, allTasksMap, blocks]);
+ 
+  const groupedTasks = useMemo(() => {
+    const groups: Record<TagType, Task[]> = {
+      con_hora: [],
+      focus: [],
+      dirección: [],
+      espera: [],
+      resto: []
+    };
+ 
+    filteredDayTasks.forEach((t: Task) => {
+      const primaryTag = t.tags[0] || 'resto';
+      if (groups[primaryTag]) groups[primaryTag].push(t);
+      else groups.resto.push(t);
+    });
+ 
+    groups.con_hora.sort((a, b) => (a.dueTime || '99:99').localeCompare(b.dueTime || '99:99'));
+    groups.focus.sort((a, b) => a.order - b.order);
+    groups.dirección.sort((a, b) => a.order - b.order);
+    groups.espera.sort((a, b) => a.order - b.order);
+    groups.resto.sort((a, b) => a.order - b.order);
+ 
+    return groups;
+  }, [dayTasks, hideCompleted, allTasksMap]);
+ 
+  const formatDate = (dateStr: string) => {
+    const d = parseLocalISO(dateStr);
+    const dayName = new Intl.DateTimeFormat('es-ES', { weekday: 'long' }).format(d);
+    const dayNum = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long' }).format(d);
+    return { dayName, dayNum };
+  };
+ 
+  const { dayName, dayNum } = formatDate(activeDate);
+ 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 dark:bg-black/60 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative dark:bg-bg-card bg-white rounded-[2rem] border dark:border-border-main border-border-main-light shadow-2xl p-6 w-full max-w-sm">
-        <h3 className="text-lg font-black dark:text-white text-text-main-light mb-4">Delegar tareas seleccionadas</h3>
-        <div className="space-y-2 mb-6">
-          {/* Opción quitar delegación */}
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }} 
+      animate={{ opacity: 1, y: 0 }} 
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-10"
+    >
+      {/* Date Header */}
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between bg-bg-card p-4 rounded-[2rem] border border-border-main shadow-xl">
+          <div className="flex gap-2">
+            <button onClick={() => onDayChange(-1)} className="p-3 hover:bg-bg-main rounded-2xl transition-all text-text-secondary hover:text-white">
+              <ChevronRight size={20} className="rotate-180" />
+            </button>
+            <button 
+              onClick={() => {
+                const today = formatLocalISO(new Date());
+                onSetDate(today);
+              }}
+              className="px-6 py-2 bg-turquesa/10 text-turquesa rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-turquesa hover:text-white transition-all"
+            >
+              HOY
+            </button>
+            <button onClick={() => onDayChange(1)} className="p-3 hover:bg-bg-main rounded-2xl transition-all text-text-secondary hover:text-white">
+              <ChevronRight size={20} />
+            </button>
+          </div>
+          
+          <div className="text-center">
+             <div className="flex items-center justify-center gap-2 mb-0.5">
+               <CalendarIcon size={16} className="text-turquesa" />
+               <div className="relative">
+                 <button 
+                   onClick={() => setShowDashboardCalendar(!showDashboardCalendar)}
+                   className="text-xl font-black capitalize text-white flex items-center gap-2 hover:text-turquesa transition-all"
+                 >
+                   {dayName}, {dayNum}
+                   <ChevronDown size={14} className={`transition-transform duration-300 ${showDashboardCalendar ? 'rotate-180' : ''}`} />
+                 </button>
+                 
+                 <AnimatePresence>
+                   {showDashboardCalendar && (
+                     <>
+                       <div className="fixed inset-0 z-[150]" onClick={() => setShowDashboardCalendar(false)} />
+                       <motion.div 
+                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                         animate={{ opacity: 1, y: 0, scale: 1 }}
+                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                         className="absolute top-full left-1/2 -translate-x-1/2 mt-4 bg-bg-card border border-border-main rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] p-7 z-[160] min-w-[340px] backdrop-blur-2xl"
+                       >
+                          <div className="flex items-center justify-between mb-6 px-1">
+                             <div className="flex flex-col">
+                               <p className="text-[10px] font-black text-turquesa uppercase tracking-[0.2em]">Agenda</p>
+                               <p className="text-[14px] font-black text-white">Ir a fecha</p>
+                             </div>
+                             <button onClick={() => setShowDashboardCalendar(false)} className="w-9 h-9 flex items-center justify-center bg-bg-main hover:bg-turquesa/10 rounded-xl transition-all border border-border-main group">
+                               <X size={16} className="text-text-secondary group-hover:text-turquesa transition-colors" />
+                             </button>
+                          </div>
+                          
+                          <DashboardHarmonicCalendar 
+                            activeDate={activeDate} 
+                            onSetDate={onSetDate}
+                            onClose={() => setShowDashboardCalendar(false)}
+                          />
+                          
+                          <div className="mt-6 pt-6 border-t border-border-main/50 grid grid-cols-2 gap-3">
+                               <button 
+                                 onClick={() => {
+                                   const today = formatLocalISO(new Date());
+                                   onSetDate(today);
+                                   setShowDashboardCalendar(false);
+                                 }}
+                                 className="flex items-center gap-3 p-3.5 bg-bg-main border border-border-main rounded-2xl hover:border-turquesa transition-all group"
+                               >
+                                 <div className="w-8 h-8 rounded-xl bg-turquesa/10 flex items-center justify-center text-turquesa group-hover:bg-turquesa group-hover:text-white transition-all">
+                                   <Zap size={14} fill="currentColor" />
+                                 </div>
+                                 <span className="text-[10px] font-black text-white uppercase tracking-widest">Hoy</span>
+                               </button>
+                               
+                               <button 
+                                 onClick={() => {
+                                   const tomorrow = new Date();
+                                   tomorrow.setDate(tomorrow.getDate() + 1);
+                                   const tomStr = formatLocalISO(tomorrow);
+                                   onSetDate(tomStr);
+                                   setShowDashboardCalendar(false);
+                                 }}
+                                 className="flex items-center gap-3 p-3.5 bg-bg-main border border-border-main rounded-2xl hover:border-azul transition-all group"
+                               >
+                                 <div className="w-8 h-8 rounded-xl bg-azul/10 flex items-center justify-center text-azul group-hover:bg-azul group-hover:text-white transition-all">
+                                   <ArrowRight size={14} />
+                                 </div>
+                                 <span className="text-[10px] font-black text-white uppercase tracking-widest">Mañana</span>
+                               </button>
+                          </div>
+                       </motion.div>
+                     </>
+                   )}
+                 </AnimatePresence>
+               </div>
+             </div>
+             <p className="text-[9px] font-bold text-text-secondary uppercase tracking-[0.2em]">{stats.completed} de {stats.total} completadas</p>
+          </div>
+ 
+          <div className="flex items-center gap-4">
+             <button 
+              onClick={() => setHideCompleted(!hideCompleted)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all text-[9px] font-black uppercase tracking-widest ${hideCompleted ? 'bg-turquesa text-white border-turquesa' : 'border-border-main text-text-secondary hover:border-turquesa'}`}
+             >
+               {hideCompleted ? <EyeOff size={14} /> : <Eye size={14} />}
+               {hideCompleted ? 'Ocultas' : 'Ver Todas'}
+             </button>
+             <button 
+              onClick={() => onAddTask()}
+              className="bg-azul hover:bg-azul/90 text-white p-3 rounded-2xl shadow-lg shadow-azul/20 transition-all"
+             >
+               <Plus size={20} />
+             </button>
+          </div>
+        </div>
+      </div>
+ 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <SummaryCard 
+          label="Tareas" 
+          value={`${stats.completed}/${stats.total}`} 
+          progress={(stats.completed / (stats.total || 1)) * 100}
+          color="turquesa"
+        />
+        <SummaryCard 
+          label="Estimado" 
+          value={stats.estimated > 60 ? `${Math.floor(stats.estimated/60)}h ${stats.estimated%60}m` : `${stats.estimated}m`} 
+          subValue="Carga total"
+          color="azul"
+        />
+        <SummaryCard 
+          label="Registrado" 
+          value={stats.actual > 0 ? (stats.actual > 60 ? `${Math.floor(stats.actual/60)}h ${stats.actual%60}m` : `${stats.actual}m`) : '-'} 
+          subValue="Tiempo real"
+          color="morado"
+        />
+      </div>
+ 
+      <div className="h-px bg-border-main/50" />
+ 
+      {/* Task Groups */}
+      <div className="space-y-12 pb-32">
+        {(Object.entries(groupedTasks) as [TagType, Task[]][]).map(([tag, tagTasks]) => {
+          if (tagTasks.length === 0) return null;
+          return (
+            <div key={tag} className="space-y-6">
+              <div className="flex items-center justify-between border-b border-border-main/50 pb-2">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-xl bg-bg-card border border-border-main flex items-center justify-center ${tag === 'resto' ? 'opacity-40 text-azul/60' : ''}`}>
+                    {TAG_LABELS[tag].icon || <CheckCircle2 size={16} className="text-lima" />}
+                  </div>
+                  <h3 className={`font-bold text-sm uppercase tracking-widest ${tag === 'resto' ? 'text-text-secondary/60' : 'text-text-main'}`}>
+                    {TAG_LABELS[tag].label}
+                  </h3>
+                </div>
+                <span className="text-[10px] font-bold bg-bg-card px-2.5 py-1 rounded-lg border border-border-main text-text-secondary uppercase">
+                  {tagTasks.length} Tareas
+                </span>
+              </div>
+ 
+              <Reorder.Group 
+                axis="y" 
+                values={tagTasks} 
+                onReorder={onReorderTasks}
+                className="grid grid-cols-1 gap-4"
+              >
+                {tagTasks.map(task => (
+                  <TaskCard 
+                    key={task.id}
+                    task={task}
+                    variant="DASHBOARD"
+                    allTasksMap={allTasksMap}
+                    blocks={blocks}
+                    timeEntries={timeEntries}
+                    activeTimer={activeTimer}
+                    onStartTimer={onStartTimer}
+                    onStopTimer={onStopTimer}
+                    onToggleStatus={onToggle}
+                    onUpdateTask={onUpdateTask}
+                    onEditTask={onEditTask}
+                    editingTaskId={editingTaskId}
+                    inlineEditingTaskId={inlineEditingTaskId}
+                    setInlineEditingTaskId={setInlineEditingTaskId}
+                    onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
+                    onAddTask={onAddTask}
+                    onDelete={onDelete}
+                    onPromote={onPromote}
+                    onDemote={onDemote}
+                    onReorderSubtasks={onReorderSubtasks}
+                    onToggleExpand={onToggleExpand}
+                  />
+                ))}
+              </Reorder.Group>
+            </div>
+          );
+        })}
+ 
+        {dayTasks.length === 0 && (
+          <div className="py-32 flex flex-col items-center justify-center text-text-secondary border-2 border-dashed border-border-main rounded-[2.5rem] bg-bg-card/30">
+            <div className="w-16 h-16 bg-bg-card rounded-3xl flex items-center justify-center mb-6 border border-border-main shadow-2xl">
+              <Zap size={32} className="text-turquesa opacity-40" />
+            </div>
+            <p className="font-bold text-lg mb-1">Día totalmente despejado</p>
+            <p className="text-sm opacity-50 mb-8">No tienes nada planificado para hoy</p>
+            <button 
+              onClick={() => onAddTask()}
+              className="bg-turquesa hover:bg-turquesa/90 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-turquesa/20 transition-all flex items-center gap-3"
+            >
+              <Plus size={20} />
+              + Tarea
+            </button>
+          </div>
+        )}
+ 
+        {dayTasks.length > 0 && (
+           <button 
+            onClick={() => onAddTask()}
+            className="w-full py-5 border-2 border-dashed border-border-main rounded-[1.5rem] flex items-center justify-center gap-3 font-bold text-turquesa hover:bg-bg-card/50 transition-all"
+           >
+             <Plus size={20} />
+             + Nueva tarea para hoy
+           </button>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+ 
+function SummaryCard({ label, value, subValue, progress, color }: any) {
+  return (
+    <div className="bg-bg-card border border-border-main rounded-[2rem] p-6 shadow-xl relative overflow-hidden group">
+      <div className="relative z-10">
+        <p className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em] mb-3">{label}</p>
+        <div className="flex items-baseline gap-2">
+          <h4 className="text-3xl font-black text-white">{value}</h4>
+          {subValue && <span className="text-[10px] font-bold text-text-secondary uppercase">{subValue}</span>}
+        </div>
+      </div>
+      
+      {progress !== undefined && (
+        <div className="mt-6">
+          <div className="h-2 bg-bg-main/50 rounded-full overflow-hidden">
+             <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              className={`h-full bg-${color}`} 
+             />
+          </div>
+          <p className="mt-2 text-[10px] font-bold text-text-secondary uppercase text-right">{Math.round(progress)}% Completado</p>
+        </div>
+      )}
+ 
+      {/* Decorative gradient */}
+      <div className={`absolute -bottom-10 -right-10 w-24 h-24 bg-${color} opacity-5 blur-[60px] group-hover:opacity-10 transition-opacity`} />
+    </div>
+  );
+}
+ 
+ 
+ 
+ 
+ 
+function BlocksManagerView({ blocks, tasks, allTasksMap, timeEntries, activeTimer, onStartTimer, onStopTimer, onAddTask, onAddRule, onToggleTask, onDelete, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, onEditRule, onToggleRule, onAddBlock, onEditBlock, onReorderBlocks, onToggleBlock, activeDate, onReorderSubtasks, onReorderTasks, onToggleExpand, onExpandAll, onPromote, onDemote }: any) {
+  const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
+  const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
+ 
+  const coreTasks = useMemo(() => {
+    if (!selectedBlock) return [];
+    return Object.values(allTasksMap).filter((t: any) => {
+      if (!t || t.blockId !== selectedBlock.id || t.parentTaskId || t.templateId) return false;
+      const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
+      return type === 'core';
+    }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+  }, [selectedBlock, allTasksMap]);
+ 
+  const adhocTasks = useMemo(() => {
+    if (!selectedBlock) return [];
+    return Object.values(allTasksMap).filter((t: any) => {
+      if (!t || t.blockId !== selectedBlock.id || t.parentTaskId || t.templateId) return false;
+      const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
+      return type === 'adhoc';
+    }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+  }, [selectedBlock, allTasksMap]);
+ 
+  const filteredBlocks = useMemo(() => {
+    if (filter === 'active') return blocks.filter(b => b.isActive);
+    if (filter === 'inactive') return blocks.filter(b => !b.isActive);
+    return blocks;
+  }, [blocks, filter]);
+ 
+  if (selectedBlock) {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32">
+        <div className="flex items-center justify-between bg-bg-card p-6 rounded-[2rem] border border-border-main shadow-xl">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSelectedBlock(null)} className="p-3 hover:bg-bg-main rounded-2xl transition-all">
+              <ChevronRight size={20} className="rotate-180" />
+            </button>
+            <div className="w-12 h-12 rounded-2xl bg-bg-main border border-border-main flex items-center justify-center text-3xl shadow-inner">
+               {selectedBlock.icon}
+            </div>
+            <div>
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-black text-white">{selectedBlock.name}</h2>
+                <button 
+                  onClick={() => onEditBlock(selectedBlock.id)}
+                  className="p-1.5 bg-turquesa/10 text-turquesa hover:bg-turquesa/20 rounded-lg transition-all"
+                >
+                  <Edit size={14} />
+                </button>
+              </div>
+              <p className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em]">Gestión de contexto</p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+              <div className="flex items-center bg-bg-main p-1 rounded-2xl border border-border-main shadow-inner gap-1">
+                <button 
+                  onClick={() => onExpandAll(selectedBlock.id, true)}
+                  className="flex items-center justify-center w-7 h-7 rounded-xl bg-gradient-to-br from-turquesa to-azul text-white transition-all shadow-md active:scale-90"
+                  title="Expandir todo"
+                >
+                  <Maximize2 size={13} strokeWidth={2.5} />
+                </button>
+                <button 
+                  onClick={() => onExpandAll(selectedBlock.id, false)}
+                  className="flex items-center justify-center w-7 h-7 rounded-xl bg-bg-secondary text-text-secondary hover:text-azul transition-all shadow-sm active:scale-90"
+                  title="Comprimir todo"
+                >
+                  <Minimize2 size={13} strokeWidth={2.5} />
+                </button>
+              </div>
+             <button 
+              onClick={() => onAddTask(null, selectedBlock.id)}
+              className="px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 bg-white/5 text-white border border-white/10 hover:bg-white/15 hover:scale-[1.02] active:scale-95 shadow-xl backdrop-blur-md"
+              style={{ borderColor: `${selectedBlock.color}44` }}
+             >
+               <Plus size={16} /> Tarea
+             </button>
+ 
+          </div>
+        </div>
+ 
+        <div className="space-y-12">
+          {/* Ad-hoc Tasks Section */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 px-4">
+              <div className="p-2 bg-rosa/10 rounded-xl text-rosa shadow-[0_0_15px_rgba(251,113,133,0.2)]">
+                <div className="w-3 h-3 bg-current rounded-full" />
+              </div>
+              <h3 className="font-black uppercase tracking-[0.25em] text-[11px] text-text-secondary">AD-HOC (PUNTUALES) ({adhocTasks.length})</h3>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <Reorder.Group axis="y" values={adhocTasks} onReorder={onReorderTasks} className="grid grid-cols-1 gap-4">
+                {adhocTasks.map((t: Task) => (
+                  <TaskCard 
+                    key={t.id} 
+                    task={t} 
+                    variant="FULL"
+                    allTasksMap={allTasksMap} 
+                    blocks={blocks}
+                    timeEntries={timeEntries}
+                    activeTimer={activeTimer}
+                    onStartTimer={onStartTimer}
+                    onStopTimer={onStopTimer}
+                    onToggleStatus={t.isTemplate ? onToggleRule : onToggleTask}
+                    onUpdateTask={onUpdateTask}
+                    onEditTask={t.isTemplate ? onEditRule : onEditTask}
+                    editingTaskId={editingTaskId}
+                    inlineEditingTaskId={inlineEditingTaskId}
+                    setInlineEditingTaskId={setInlineEditingTaskId}
+                    onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
+                    onAddTask={onAddTask}
+                    onDelete={onDelete}
+                    onPromote={onPromote}
+                    onDemote={onDemote}
+                    onReorderSubtasks={onReorderSubtasks}
+                    onToggleExpand={onToggleExpand}
+                  />
+                ))}
+              </Reorder.Group>
+              {adhocTasks.length === 0 && (
+                <div className="py-12 text-center text-text-secondary border-2 border-dashed border-border-main rounded-[2rem] bg-bg-card/20 opacity-50">
+                  <p className="font-bold uppercase tracking-widest text-[10px]">No hay tareas ad-hoc activas</p>
+                </div>
+              )}
+            </div>
+          </div>
+ 
+          <div className="h-px bg-border-main/50" />
+ 
+          {/* Core Tasks Section */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 px-4">
+              <div className="p-2 bg-turquesa/10 rounded-xl text-turquesa">
+                <Compass size={18} />
+              </div>
+              <h3 className="font-black uppercase tracking-[0.25em] text-[11px] text-text-secondary">PUESTO (CORE) ({coreTasks.length})</h3>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <Reorder.Group axis="y" values={coreTasks} onReorder={onReorderTasks} className="grid grid-cols-1 gap-4">
+                {coreTasks.map((t: Task) => (
+                  <TaskCard 
+                    key={t.id}
+                    task={t}
+                    variant="FULL"
+                    allTasksMap={allTasksMap}
+                    blocks={blocks}
+                    timeEntries={timeEntries}
+                    activeTimer={activeTimer}
+                    onStartTimer={onStartTimer}
+                    onStopTimer={onStopTimer}
+                    onToggleStatus={t.isTemplate ? onToggleRule : onToggleTask}
+                    onUpdateTask={onUpdateTask}
+                    onEditTask={t.isTemplate ? onEditRule : onEditTask}
+                    editingTaskId={editingTaskId}
+                    inlineEditingTaskId={inlineEditingTaskId}
+                    setInlineEditingTaskId={setInlineEditingTaskId}
+                    onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
+                    onAddTask={onAddTask}
+                    onDelete={onDelete}
+                    onPromote={onPromote}
+                    onDemote={onDemote}
+                    onReorderSubtasks={onReorderSubtasks}
+                    onToggleExpand={onToggleExpand}
+                  />
+                ))}
+              </Reorder.Group>
+              {coreTasks.length === 0 && (
+                <div className="py-12 text-center text-text-secondary border-2 border-dashed border-border-main rounded-[2rem] bg-bg-card/20 opacity-50">
+                  <p className="font-bold uppercase tracking-widest text-[10px]">Sin tareas Core configuradas</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+ 
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10 pb-32">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+           <div className="w-12 h-12 bg-bg-card rounded-2xl border border-border-main flex items-center justify-center text-turquesa shadow-xl">
+             <Grid2X2 size={24} />
+           </div>
+           <div>
+             <h2 className="text-3xl font-black text-white">Bloques</h2>
+             <p className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em]">Contextos de trabajo</p>
+           </div>
+        </div>
+        <button 
+          onClick={onAddBlock}
+          className="bg-azul hover:bg-azul/90 text-white px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-azul/20 transition-all flex items-center gap-2"
+        >
+          <Plus size={18} /> Nuevo Contexto
+        </button>
+      </div>
+ 
+      <div className="flex items-center gap-4 bg-bg-card/50 p-2 rounded-2xl border border-border-main w-fit">
+        {(['all', 'active', 'inactive'] as const).map(f => (
+          <button 
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${filter === f ? 'bg-turquesa text-white shadow-lg shadow-turquesa/20' : 'text-text-secondary hover:text-white'}`}
+          >
+            {f === 'all' ? 'Todos' : f === 'active' ? 'Activos' : 'Inactivos'}
+          </button>
+        ))}
+        <div className="w-px h-4 bg-border-main mx-2" />
+        <span className="text-[10px] font-bold text-text-secondary uppercase px-4">{filteredBlocks.length} Contextos</span>
+      </div>
+ 
+      <Reorder.Group 
+        axis="y" 
+        values={filteredBlocks} 
+        onReorder={(newOrder) => {
+          if (filter !== 'all') return;
+          onReorderBlocks(newOrder); 
+        }}
+        className="space-y-4"
+      >
+        {filteredBlocks.map(block => {
+          return (
+            <Reorder.Item 
+              key={block.id} 
+              value={block}
+              dragListener={filter === 'all'} // Only drag when viewing all to keep order consistent
+              className={`w-full group relative bg-bg-card border border-border-main rounded-[2rem] p-6 hover:border-turquesa/50 transition-all text-left flex items-center gap-6 shadow-xl overflow-hidden ${!block.isActive ? 'opacity-70' : ''}`}
+            >
+              <div 
+                onClick={() => setSelectedBlock(block)}
+                className="flex-1 flex items-center gap-6 cursor-pointer"
+              >
+                <div className="w-16 h-16 rounded-3xl bg-bg-main border border-border-main flex items-center justify-center text-3xl group-hover:scale-110 transition-transform shadow-inner">
+                  {block.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                   <div className="flex items-center gap-2 mb-0.5">
+                     <h3 className={`text-xl font-black transition-colors ${block.isActive ? 'text-white' : 'text-text-secondary italic'}`}>
+                       {block.name}
+                     </h3>
+                     {!block.isActive && (
+                       <span className="text-[8px] font-black uppercase bg-bg-main px-1.5 py-0.5 rounded border border-border-main text-text-secondary tracking-widest">Inactivo</span>
+                     )}
+                   </div>
+                   <div className="flex items-center gap-4">
+                     <p className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em]">
+                       {Object.values(allTasksMap).filter((t: any) => t && t.blockId === block.id && t.isTemplate && !t.parentTaskId).length} reglas · {Object.values(allTasksMap).filter((t: any) => t && t.blockId === block.id && !t.isTemplate && !t.templateId && !t.parentTaskId).length} manuales
+                     </p>
+                   </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                 {filter === 'all' && (
+                    <div className="p-3 bg-bg-main rounded-xl text-text-secondary cursor-grab active:cursor-grabbing mr-2">
+                       <GripVertical size={20} />
+                    </div>
+                 )}
+                 <button onClick={(e) => { e.stopPropagation(); onEditBlock(block.id); }} className="p-3 bg-bg-main rounded-xl text-turquesa border border-border-main">
+                    <Edit size={20} />
+                 </button>
+                 <button 
+                  onClick={(e) => { e.stopPropagation(); onToggleBlock(block.id); }}
+                  className={`p-3 rounded-xl border transition-all ${block.isActive ? 'bg-turquesa/10 border-turquesa text-turquesa' : 'bg-bg-main border-border-main text-text-secondary'}`}
+                 >
+                   {block.isActive ? <Play size={20} /> : <Pause size={20} />}
+                 </button>
+                 <ChevronRight size={24} className="text-text-secondary ml-2" />
+              </div>
+ 
+              <div className="absolute top-0 left-0 w-2 h-full" style={{ backgroundColor: block.color, opacity: block.isActive ? 1 : 0.3 }} />
+            </Reorder.Item>
+          );
+        })}
+      </Reorder.Group>
+    </motion.div>
+  );
+}
+ 
+function CalendarView({ tasks, allTasksMap, blocks, timeEntries, activeTimer, onStartTimer, onStopTimer, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, activeDate, onDateSelect, onAddTask, onToggleTask, onDelete, onReorderTasks, onReorderSubtasks, onToggleExpand, onPromote, onDemote }: any) {
+  const [viewDate, setViewDate] = useState(() => parseLocalISO(activeDate));
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+ 
+  const daysInMonth = useMemo(() => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const days = new Date(year, month + 1, 0).getDate();
+    
+    // Adjust for Monday start (0=Sun, 1=Mon -> 1=Mon, 0=Sun)
+    const padding = firstDay === 0 ? 6 : firstDay - 1;
+    const array = [];
+    for (let i = 0; i < padding; i++) array.push(null);
+    for (let i = 1; i <= days; i++) {
+       const d = new Date(year, month, i);
+       array.push(formatLocalISO(d));
+    }
+    return array;
+  }, [viewDate]);
+ 
+  const monthName = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(viewDate);
+ 
+  const activeBlockIds = useMemo(() => new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id)), [blocks]);
+ 
+  const getLoadColor = (dateStr: string) => {
+    const load = projectLoadForDay(dateStr, allTasksMap);
+    if (load === 0) return 'bg-bg-secondary opacity-20';
+    if (load < 180) return 'bg-lima shadow-[0_0_10px_rgba(132,204,22,0.3)]';
+    if (load < 300) return 'bg-naranja shadow-[0_0_10px_rgba(245,158,11,0.3)]';
+    if (load < 420) return 'bg-morado shadow-[0_0_10px_rgba(139,92,246,0.3)]';
+    return 'bg-rosa shadow-[0_0_10px_rgba(236,72,153,0.3)]';
+  };
+ 
+  const dayTasks = useMemo(() => {
+    if (!selectedDay) return [];
+    const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
+    const all = Object.values(allTasksMap).filter((t: any) => {
+      if (t.dueDate !== selectedDay) return false;
+      if (t.parentTaskId) return false;
+      if (t.isTemplate) return false;
+      if (!activeBlockIds.has(t.blockId)) return false;
+      if (t.isDeleted) return false;
+      // Siempre mostrar excepciones
+      if (t.isException) return true;
+      // Excluir plantillas con recurrencia
+      if (t.recurrence) return false;
+      // Excluir plantillas padre de recurrentes
+      if (t.subtasks && t.subtasks.length > 0 && !t.templateId) {
+        const hasRecurringChild = t.subtasks.some((subId: string) => {
+          const sub = allTasksMap[subId];
+          return sub && (sub.recurrence || sub.isTemplate);
+        });
+        if (hasRecurringChild) return false;
+      }
+      return true;
+    });
+    
+    // Grouping by tags similar to dashboard
+    const groups: any = {
+      con_hora: [],
+      focus: [],
+      dirección: [],
+      espera: [],
+      resto: []
+    };
+ 
+    all.forEach((t: any) => {
+      const primaryTag = t.tags[0] || 'resto';
+      if (groups[primaryTag]) groups[primaryTag].push(t);
+      else groups.resto.push(t);
+    });
+ 
+    return groups;
+  }, [selectedDay, tasks, allTasksMap, blocks]);
+ 
+  const totalGroups = useMemo(() => {
+    if (!selectedDay) return 0;
+    return Object.values(dayTasks as any).flat().length;
+  }, [dayTasks, selectedDay]);
+ 
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }} 
+      animate={{ opacity: 1 }} 
+      className="space-y-8 pb-32"
+    >
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-black text-white capitalize">{monthName}</h2>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
+            className="p-3 bg-bg-card border border-border-main rounded-2xl text-text-secondary hover:text-white transition-all shadow-xl"
+          >
+            <ChevronRight size={20} className="rotate-180" />
+          </button>
+          <button 
+            onClick={() => setViewDate(new Date())}
+            className="px-6 py-2 bg-bg-card border border-border-main text-text-secondary hover:text-white transition-all font-black uppercase text-[10px] tracking-widest rounded-2xl"
+          >
+            Hoy
+          </button>
+          <button 
+            onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}
+            className="p-3 bg-bg-card border border-border-main rounded-2xl text-text-secondary hover:text-white transition-all shadow-xl"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      </div>
+ 
+      <div className="bg-bg-card border border-border-main rounded-[2.5rem] p-8 shadow-2xl">
+        <div className="grid grid-cols-7 mb-6">
+          {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => (
+            <div key={d} className="text-center text-[10px] font-black text-text-secondary uppercase tracking-[0.2em]">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-3">
+          {daysInMonth.map((day, idx) => {
+            if (!day) return <div key={idx} className="aspect-square" />;
+            const isToday = day === formatLocalISO(new Date());
+            const isSelected = day === selectedDay;
+            const isPast = day < formatLocalISO(new Date());
+            const load = isPast ? 0 : projectLoadForDay(day, allTasksMap);
+            
+            return (
+              <button 
+                key={day}
+                onClick={() => setSelectedDay(day)}
+                className={`
+                  aspect-square rounded-2xl flex flex-col items-center justify-center relative transition-all group border-2
+                  ${isSelected ? 'border-turquesa scale-110 shadow-xl z-20 bg-bg-card' : 'border-transparent hover:border-white/10'}
+                  ${isToday ? 'bg-bg-main ring-2 ring-turquesa ring-offset-4 ring-offset-bg-card' : ''}
+                `}
+              >
+                <span className={`text-sm font-black ${isSelected ? 'text-white' : 'text-text-secondary group-hover:text-white'}`}>
+                  {parseLocalISO(day).getDate()}
+                </span>
+                
+                {load > 0 && (
+                   <div className="mt-1 flex flex-col items-center">
+                     <div className="text-[8px] font-black text-turquesa leading-none mb-1">
+                        {load >= 60 ? `${Math.floor(load/60)}h` : `${load}m`}
+                     </div>
+                     <div className={`w-8 h-1 rounded-full ${getLoadColor(day)} transition-all`} />
+                   </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+ 
+        <div className="mt-10 flex flex-wrap gap-6 justify-center">
+           {[
+             { label: '<3h', color: 'bg-lima' },
+             { label: '3-5h', color: 'bg-naranja' },
+             { label: '5-7h', color: 'bg-morado' },
+             { label: '>7h', color: 'bg-rosa' },
+           ].map(item => (
+             <div key={item.label} className="flex items-center gap-2">
+               <div className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
+               <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">{item.label}</span>
+             </div>
+           ))}
+        </div>
+      </div>
+ 
+      {/* Day Drawer Overlay - DASHBOARD STYLE */}
+      <AnimatePresence>
+        {selectedDay && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedDay(null)}
+              className="fixed inset-0 z-40 bg-bg-main/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-bg-card border-t border-border-main rounded-t-[3rem] p-8 max-h-[90vh] overflow-y-auto shadow-[0_-20px_50px_rgba(0,0,0,0.5)] custom-scrollbar"
+            >
+               <div className="flex items-center justify-between mb-8 sticky top-0 bg-bg-card/95 backdrop-blur py-2 z-10">
+                  <div className="flex items-center gap-4">
+                     <button onClick={() => setSelectedDay(null)} className="p-3 bg-bg-main rounded-2xl border border-border-main text-text-secondary hover:text-white transition-all shadow-xl">
+                        <ChevronRight size={20} className="rotate-180" />
+                     </button>
+                     <div>
+                        <h3 className="text-2xl font-black text-white capitalize">
+                          {new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).format(parseLocalISO(selectedDay))}
+                        </h3>
+                        <div className="flex items-center gap-3 mt-1">
+                          <p className="text-[9px] font-black text-turquesa uppercase tracking-[0.2em]">Carga: {projectLoadForDay(selectedDay, allTasksMap)}m</p>
+                          <span className="text-text-secondary opacity-30 text-[9px]">•</span>
+                          <p className="text-[9px] font-black text-text-secondary uppercase tracking-[0.2em]">{totalGroups} tareas proyectadas</p>
+                        </div>
+                     </div>
+                  </div>
+                  <div className="flex gap-3">
+                     <button 
+                      onClick={() => onDateSelect(selectedDay)}
+                      className="px-6 py-3 bg-turquesa text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-turquesa/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                     >
+                       <CalendarIcon size={16} /> Ver en Dashboard
+                     </button>
+                     <button 
+                      onClick={() => onAddTask(null, undefined, selectedDay)}
+                      className="px-6 py-3 bg-azul text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-azul/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                     >
+                       <Plus size={16} /> Añadir
+                     </button>
+                     <button onClick={() => setSelectedDay(null)} className="p-3 bg-bg-main rounded-2xl border border-border-main text-text-secondary hover:text-white transition-all shadow-xl">
+                        <X size={20} />
+                     </button>
+                  </div>
+               </div>
+ 
+                <div className="space-y-10">
+                  {Object.entries(TAG_LABELS).map(([tag, label]: [any, any]) => {
+                    const groupTasks = (dayTasks as any)[tag] || [];
+                    if (groupTasks.length === 0) return null;
+ 
+                    return (
+                      <div key={tag} className="space-y-4">
+                        <h4 className="text-[10px] font-black text-text-secondary uppercase tracking-[0.25em] pl-4 flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-turquesa" />
+                          {label.label} ({groupTasks.length})
+                        </h4>
+                        <div className="grid grid-cols-1 gap-4">
+                          <Reorder.Group axis="y" values={groupTasks} onReorder={onReorderTasks} className="grid grid-cols-1 gap-4">
+                            {groupTasks.map((t: any) => (
+                              <TaskCard 
+                                key={t.id} 
+                                task={t} 
+                                variant="COMPACT"
+                                allTasksMap={allTasksMap} 
+                                blocks={blocks}
+                                timeEntries={timeEntries}
+                                activeTimer={activeTimer}
+                                onStartTimer={onStartTimer}
+                                onStopTimer={onStopTimer}
+                                onToggleStatus={onToggleTask}
+                                onUpdateTask={onUpdateTask}
+                                onEditTask={onEditTask}
+                                editingTaskId={editingTaskId}
+                                inlineEditingTaskId={inlineEditingTaskId}
+                                setInlineEditingTaskId={setInlineEditingTaskId}
+                                onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel(taskId, subtaskId)}
+                                onAddTask={onAddTask}
+                                onDelete={onDelete}
+                                onPromote={onPromote}
+                                onDemote={onDemote}
+                                onReorderSubtasks={onReorderSubtasks}
+                                onToggleExpand={onToggleExpand}
+                              />
+                            ))}
+                          </Reorder.Group>
+                        </div>
+                      </div>
+                    );
+                  })}
+ 
+                  {totalGroups === 0 && (
+                    <div className="py-20 text-center text-text-secondary border-2 border-dashed border-border-main rounded-[2.5rem] opacity-50 bg-bg-main/20">
+                       <LayoutDashboard size={48} className="mx-auto mb-4 opacity-20" />
+                       <p className="font-black uppercase tracking-[0.2em] text-xs">No hay tareas proyectadas para esta fecha</p>
+                    </div>
+                 )}
+               </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+ 
+// --- Recurrence Choice Modal ---
+function RecurrenceChoiceModal({ type, onClose, onConfirm }: { type: 'edit' | 'delete', onClose: () => void, onConfirm: (choice: 'instance' | 'series') => void }) {
+  return (
+    <div className="fixed inset-0 bg-bg-main/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-bg-card max-w-sm w-full rounded-[2.5rem] border border-border-main p-8 shadow-[0_30px_100px_rgba(0,0,0,0.6)] text-center"
+      >
+        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 ${type === 'edit' ? 'bg-azul/20 text-azul' : 'bg-rosa/20 text-rosa'}`}>
+          {type === 'edit' ? <Edit size={32} /> : <Trash2 size={32} />}
+        </div>
+        <h3 className="text-2xl font-black text-white mb-2">
+          {type === 'edit' ? '¿Qué quieres editar?' : '¿Qué quieres eliminar?'}
+        </h3>
+        <p className="text-sm font-bold text-text-secondary mb-8 leading-relaxed">
+          Esta tarea es parte de una rutina recurrente. Elige si quieres afectar solo a este día o a toda la serie.
+        </p>
+ 
+        <div className="space-y-3">
+          <button 
+            onClick={() => onConfirm('instance')}
+            className="w-full py-4 bg-bg-main hover:bg-bg-secondary rounded-2xl text-[10px] font-black uppercase tracking-widest text-white border border-border-main transition-all flex items-center justify-center gap-2"
+          >
+            {type === 'edit' ? 'Solo esta tarea' : 'Solo este día'}
+          </button>
+          <button 
+            onClick={() => onConfirm('series')}
+            className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2 shadow-xl ${type === 'edit' ? 'bg-azul shadow-azul/20' : 'bg-rosa shadow-rosa/20'}`}
+          >
+            {type === 'edit' ? 'Toda la serie (Futuro)' : 'Toda la serie (Futuro)'}
+          </button>
+          <button 
+            onClick={onClose}
+            className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-white transition-all"
+          >
+            Cancelar
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+ 
+ 
+ 
+// --- Block Modal ---
+function BlockModal({ block, onClose, onSave, onDelete }: { block: WorkBlock, onClose: () => void, onSave: (b: WorkBlock) => void, onDelete: (id: string) => void }) {
+  const [localBlock, setLocalBlock] = useState<WorkBlock>(block);
+  const [showAllIcons, setShowAllIcons] = useState(false);
+  const [showAllColors, setShowAllColors] = useState(false);
+  
+  const allIcons = [
+    '🏢', '💰', '🏦', '📜', '🏠', '👥', '⚙️', '🛡️', '🗓️', '✅', '🔥', '🚀', '🧠', '🛠️', '🛒', '📞',
+    '💼', '📊', '🌐', '📡', '🔒', '🔑', '🏷️', '📦', '📅', '📝', '🔔', '📢', '🔍', '📱', '💻', '🎥',
+    '🎨', '🎵', '⚽', '🏆', '🍕', '☕', '✈️', '⚡', '🌙', '☀️', '🌈', '🍀', '💎', '📍', '🎁', '💡'
+  ];
+  
+  const icons = showAllIcons ? allIcons : allIcons.slice(0, 16);
+  const allColorThemes = Object.values(COLORS);
+  const colorThemes = showAllColors ? allColorThemes : allColorThemes.slice(0, 7);
+ 
+  return (
+    <div className="fixed inset-0 bg-bg-main/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="w-full max-w-xl bg-bg-card border border-border-main rounded-[3rem] shadow-[0_30px_100px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col max-h-[90vh]"
+      >
+        <div className="p-8 border-b border-border-main flex items-center justify-between sticky top-0 bg-bg-card z-10">
+           <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-bg-main rounded-2xl flex items-center justify-center text-3xl border border-border-main" style={{ borderColor: localBlock.color }}>
+                {localBlock.icon}
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-white">{!localBlock.name ? 'Nuevo Bloque' : localBlock.name}</h3>
+                <p className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Configuración de contexto</p>
+              </div>
+           </div>
+           <button onClick={onClose} className="p-3 hover:bg-bg-main rounded-2xl transition-all text-text-secondary">
+              <X size={24} />
+           </button>
+        </div>
+ 
+        <div className="p-10 space-y-10 overflow-y-auto custom-scrollbar">
+           <div className="flex items-center justify-between bg-bg-main/30 p-6 rounded-3xl border border-border-main">
+              <div>
+                <h4 className="text-sm font-black text-white mb-1 uppercase tracking-widest">Estado del Bloque</h4>
+                <p className="text-[9px] font-bold text-text-secondary uppercase">Los bloques inactivos no aparecen en el dashboard</p>
+              </div>
+              <button 
+                onClick={() => setLocalBlock(prev => ({ ...prev, isActive: !prev.isActive }))}
+                className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all border-2 ${localBlock.isActive ? 'bg-turquesa/10 border-turquesa text-turquesa shadow-lg shadow-turquesa/10' : 'bg-bg-main border-border-main text-text-secondary'}`}
+              >
+                {localBlock.isActive ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                {localBlock.isActive ? 'ACTIVO' : 'INACTIVO'}
+              </button>
+           </div>
+ 
+           <div className="space-y-4">
+              <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary px-2">Nombre del Bloque</label>
+              <input 
+                type="text"
+                autoFocus
+                className="w-full bg-bg-main border border-border-main rounded-3xl p-6 text-xl font-bold text-white focus:ring-4 focus:ring-turquesa/20 outline-none transition-all placeholder:opacity-20"
+                placeholder="Ej: Contabilidad central"
+                value={localBlock.name}
+                onChange={e => setLocalBlock(prev => ({ ...prev, name: e.target.value }))}
+              />
+           </div>
+ 
+           <div className="space-y-4">
+              <div className="flex items-center justify-between px-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary">Icono Visual</label>
+                <button onClick={() => setShowAllIcons(!showAllIcons)} className="text-[9px] font-black text-turquesa uppercase tracking-widest hover:underline">
+                  {showAllIcons ? 'Ver menos' : 'Ver todos'}
+                </button>
+              </div>
+              <div className="grid grid-cols-8 gap-3">
+                 {icons.map(icon => (
+                   <button 
+                    key={icon}
+                    onClick={() => setLocalBlock(prev => ({ ...prev, icon }))}
+                    className={`aspect-square flex items-center justify-center text-2xl rounded-2xl border transition-all ${localBlock.icon === icon ? 'bg-turquesa/20 border-turquesa scale-110 shadow-lg' : 'bg-bg-main border-border-main hover:border-white/20'}`}
+                   >
+                     {icon}
+                   </button>
+                 ))}
+              </div>
+           </div>
+ 
+           <div className="space-y-4">
+              <div className="flex items-center justify-between px-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary">Color del Bloque</label>
+                <button onClick={() => setShowAllColors(!showAllColors)} className="text-[9px] font-black text-turquesa uppercase tracking-widest hover:underline">
+                  {showAllColors ? 'Ver menos' : 'Ver todos'}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-4">
+                 {colorThemes.map((theme, idx) => (
+                   <button 
+                    key={idx}
+                    onClick={() => setLocalBlock(prev => ({ ...prev, color: theme.main, pastelColor: theme.pastel }))}
+                    className={`w-10 h-10 rounded-full border-4 transition-all ${localBlock.color === theme.main ? 'border-white scale-125 shadow-xl' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                    style={{ backgroundColor: theme.main }}
+                   />
+                 ))}
+              </div>
+           </div>
+        </div>
+ 
+        <div className="p-8 bg-bg-main/50 border-t border-border-main flex items-center justify-between gap-4 sticky bottom-0 z-10 backdrop-blur-md">
+           {localBlock.id.startsWith('b-') ? (
+             <div />
+           ) : (
+             <button 
+              onClick={() => { onDelete(localBlock.id); onClose(); }}
+              className="px-6 py-4 rounded-2xl text-xs font-black uppercase tracking-widest text-rosa hover:bg-rosa/10 transition-all flex items-center gap-2"
+             >
+               <Trash2 size={16} /> Eliminar
+             </button>
+           )}
+           
+           <div className="flex gap-4">
+             <button onClick={onClose} className="px-6 py-4 rounded-2xl text-xs font-black uppercase tracking-widest text-text-secondary hover:text-white transition-all">Cancelar</button>
+             <button 
+                disabled={!localBlock.name}
+                onClick={() => onSave(localBlock)}
+                className="px-10 py-4 rounded-2xl text-xs font-black uppercase tracking-widest bg-turquesa text-white shadow-2xl shadow-turquesa/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50 disabled:scale-100"
+             >
+               <LayoutDashboard size={18} />
+               Guardar Bloque
+             </button>
+           </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+ 
+// --- Helpers ---
+function getTagColor(tag: TagType) {
+  switch (tag) {
+    case 'con_hora': return 'turquesa';
+    case 'focus': return 'azul';
+    case 'dirección': return 'morado';
+    case 'espera': return 'naranja';
+    case 'resto': return 'turquesa';
+    default: return 'text-secondary';
+  }
+}
+ 
+// --- NEW OVERHAUL COMPONENTS ---
+ 
+function TimerDisplay({ startTime, accumulatedSeconds }: { startTime: string, accumulatedSeconds: number }) {
+  const [now, setNow] = useState(new Date().getTime());
+ 
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date().getTime()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+ 
+  const totalSeconds = Math.floor((now - new Date(startTime).getTime()) / 1000) + (accumulatedSeconds || 0);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+ 
+  return (
+    <span className="font-mono text-xs font-black text-white">
+      {h > 0 ? `${h}h ` : ''}{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
+    </span>
+  );
+}
+ 
+function DashboardHarmonicCalendar({ activeDate, onSetDate, onClose }: any) {
+  const [currentMonth, setCurrentMonth] = useState(() => parseLocalISO(activeDate));
+  
+  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+  
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const totalDays = daysInMonth(year, month);
+  const startDay = (firstDayOfMonth(year, month) + 6) % 7; // 0=lun...6=dom
+  
+  const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+  const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+ 
+  const prevMonthDays = daysInMonth(year, month - 1);
+  
+  const days = [];
+  for (let i = startDay - 1; i >= 0; i--) {
+     days.push({ day: prevMonthDays - i, current: false, date: new Date(year, month - 1, prevMonthDays - i) });
+  }
+  for (let i = 1; i <= totalDays; i++) {
+     days.push({ day: i, current: true, date: new Date(year, month, i) });
+  }
+  const remaining = 42 - days.length;
+  for (let i = 1; i <= remaining; i++) {
+     days.push({ day: i, current: false, date: new Date(year, month + 1, i) });
+  }
+ 
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between px-1">
+        <button 
+          onClick={() => setCurrentMonth(new Date(year, month - 1))} 
+          className="w-8 h-8 flex items-center justify-center hover:bg-bg-main rounded-lg transition-all text-text-secondary hover:text-white"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <span className="font-black text-xs uppercase tracking-[0.2em] text-white">
+          {monthNames[month]} {year}
+        </span>
+        <button 
+          onClick={() => setCurrentMonth(new Date(year, month + 1))} 
+          className="w-8 h-8 flex items-center justify-center hover:bg-bg-main rounded-lg transition-all text-text-secondary hover:text-white"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+      
+      <div className="grid grid-cols-7 gap-1">
+        {dayNames.map(d => (
+          <div key={d} className="text-[10px] font-black text-text-secondary/40 text-center py-2 uppercase tracking-widest">{d}</div>
+        ))}
+        {days.map((d, i) => {
+          const dateStr = formatLocalISO(d.date);
+          const isSelected = dateStr === activeDate;
+          const isToday = dateStr === formatLocalISO(new Date());
+          
+          return (
+            <button 
+              key={i}
+              onClick={() => {
+                onSetDate(dateStr);
+                onClose();
+              }}
+              className={`
+                aspect-square flex flex-col items-center justify-center rounded-xl text-[11px] font-bold transition-all relative
+                ${isSelected ? 'bg-turquesa text-white shadow-lg shadow-turquesa/20 scale-105 z-10' : 'bg-bg-main/50'}
+                ${!isSelected && d.current ? 'text-text-main hover:bg-turquesa/10 hover:text-turquesa border border-border-main/30' : ''}
+                ${!d.current ? 'text-text-secondary/20 border-none bg-transparent' : ''}
+                ${isToday && !isSelected ? 'border-turquesa/50' : ''}
+              `}
+            >
+              <span className={!d.current ? 'opacity-20' : ''}>{d.day}</span>
+              {isToday && !isSelected && (
+                <div className="absolute bottom-1.5 w-1 h-1 bg-turquesa rounded-full" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+ 
+function TaskCard({ 
+  task, 
+  variant, 
+  allTasksMap, 
+  blocks, 
+  timeEntries, 
+  activeTimer,
+  onStartTimer,
+  onStopTimer,
+  onToggleStatus, 
+  onUpdateTask,
+  onEditTask,
+  editingTaskId,
+  inlineEditingTaskId,
+  setInlineEditingTaskId,
+  onOpenTimePanel,
+  // Navigation / Actions
+  onAddTask,
+  onDelete,
+  onPromote,
+  onDemote,
+  onReorderSubtasks,
+  onToggleExpand,
+  level = 1,
+  rootTaskId = null
+}: any) {
+  if (!task || task.isDeleted) return null;
+  const currentRootId = rootTaskId || task.id;
+  const block = blocks.find((b: any) => b.id === task.blockId) || blocks[0] || { color: '#14B8A6', icon: '📋', name: 'General' };
+  const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+  const isExpanded = task.isExpanded;
+  
+  const totalEstimated = getTaskEstimatedCombo(task.id, allTasksMap);
+  const totalRegistered = getTaskRegisteredCombo(task.id, allTasksMap, timeEntries);
+  
+  const isTimerRunning = activeTimer?.entityId === task.id;
+  const [dragX, setDragX] = useState(0);
+ 
+  if (variant === 'COMPACT') {
+    return (
+      <Reorder.Item
+        value={task}
+        className="relative"
+      >
+        <div 
+          onClick={(e) => { e.stopPropagation(); onOpenTimePanel(task.id, null); }}
+          className="flex items-center gap-2 p-2 bg-bg-card border border-border-main rounded-xl hover:border-turquesa/50 transition-all cursor-pointer group"
+        >
+          <div className="w-1.5 h-6 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
+          <span className="text-[11px] font-bold text-white truncate flex-1 uppercase tracking-tight">{task.title}</span>
+          {task.recurringId && <RefreshCw size={10} className="text-turquesa shrink-0" />}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] font-black text-text-secondary">
+              {totalEstimated >= 60 ? `${Math.floor(totalEstimated/60)}h ${totalEstimated%60}m` : `${totalEstimated}m`}
+            </span>
+            {isTimerRunning && <div className="w-2 h-2 bg-rosa rounded-full animate-pulse" />}
+          </div>
+        </div>
+      </Reorder.Item>
+    );
+  }
+ 
+  return (
+    <Reorder.Item 
+      value={task}
+      layout
+      className="group relative"
+    >
+      <div className="space-y-2">
+        <motion.div 
+          onPan={(_e, info) => {
+            setDragX(info.offset.x);
+          }}
+          onPanEnd={(_e, info) => {
+            if (info.offset.x > 80) onDemote(task.id);
+            else if (info.offset.x < -80) onPromote(task.id);
+            setDragX(0);
+          }}
+          animate={{ x: dragX * 0.4 }}
+          className={`bg-bg-card border border-border-main rounded-[2rem] p-5 shadow-xl relative transition-all hover:border-border-main/80 ${task.status === 'completed' ? 'opacity-60 bg-bg-main/30' : ''}`}
+        >
+          {/* Main Row */}
+          <div className="flex items-start gap-4">
+            <div className="flex flex-col items-center gap-3 pt-1">
+              <div className="text-text-secondary/20 cursor-grab active:cursor-grabbing hover:text-turquesa transition-colors">
+                <GripVertical size={18} />
+              </div>
+              <button 
+                onClick={() => onToggleStatus(task.id)}
+                className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all shadow-lg ${task.status === 'completed' ? 'bg-turquesa text-white' : 'bg-bg-main border-2 border-border-main text-transparent hover:border-turquesa'}`}
+              >
+                <CheckCircle2 size={16} />
+              </button>
+            </div>
+ 
+            <div className="flex-1 min-w-0">
+               <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <input 
+                      autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
+                      className="text-base font-black text-white bg-transparent outline-none flex-1 truncate placeholder:text-text-secondary/20 uppercase tracking-widest"
+                      value={task.title}
+                      onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
+                      onBlur={() => { 
+                        if(editingTaskId === task.id) onEditTask(null);
+                        if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
+                      }}
+                      onKeyDown={(e) => { 
+                        if(e.key === 'Enter') {
+                          if(editingTaskId === task.id) onEditTask(null);
+                          if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
+                        }
+                      }}
+                      placeholder="Título de la tarea..."
+                    />
+                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border tracking-tighter whitespace-nowrap shadow-sm bg-bg-main border-border-main flex items-center gap-1.5`} style={{ color: block.color }}>
+                      <span>{block.icon}</span>
+                      {block.name && <span>{block.name}</span>}
+                    </span>
+                  </div>
+ 
+                  {/* Secondary Row (Action Chips) */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <TaskTypeChip 
+                      value={task.taskType || (isTaskRepetitive(task.id, allTasksMap) ? 'core' : 'adhoc')} 
+                      onChange={(val: string) => onUpdateTask({ ...task, taskType: val })} 
+                      isCompact={true}
+                    />
+                    {/* Solo mostrar fecha si NO es instancia padre con subtareas */}
+                    {!(task.templateId && task.subtasks && task.subtasks.length > 0) && (
+                      <DatePickerChip 
+                        value={task.dueDate} 
+                        onChange={(date: string) => onUpdateTask({ ...task, dueDate: date })} 
+                      />
+                    )}
+ 
+                    <RecurrencePickerChip 
+                      value={task.recurrence}
+                      onChange={(rec: any) => onUpdateTask({ 
+                        ...task, 
+                        recurrence: rec || undefined,
+                        isTemplate: !!rec,
+                        dueDate: rec ? null : (task.dueDate || formatLocalISO(new Date()))
+                      })}
+                    />
+                    
+                    <TagPickerChip 
+                      selectedTags={task.tags} 
+                      onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} 
+                    />
+ 
+                    <EstimatedTimeChip 
+                      value={hasSubtasks ? totalEstimated : task.estimatedMinutes} 
+                      onChange={(val: number) => {
+                        if (hasSubtasks) {
+                           const diff = val - totalEstimated;
+                           onUpdateTask({ ...task, estimatedMinutes: Math.max(0, (task.estimatedMinutes || 0) + diff) });
+                        } else {
+                          onUpdateTask({ ...task, estimatedMinutes: val });
+                        }
+                      }} 
+                      variant={level > 1 ? 'mini' : 'default'}
+                    />
+ 
+                    <RegisteredTimeChip 
+                      value={totalRegistered} 
+                      estimated={totalEstimated}
+                      onClick={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)} 
+                    />
+ 
+                    <div className="flex items-center gap-1.5 ml-1">
+                      <button 
+                        onClick={() => isTimerRunning ? onStopTimer() : onStartTimer(currentRootId, level === 1 ? null : task.id)}
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${isTimerRunning ? 'bg-rosa text-white' : 'bg-bg-main border-border-main text-turquesa hover:bg-turquesa/10'}`}
+                      >
+                        {isTimerRunning ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                      </button>
+                      
+                      {hasSubtasks && (
+                        <button 
+                          onClick={() => onToggleExpand(task.id)}
+                          className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all ${isExpanded ? 'bg-bg-secondary text-white border-border-main' : 'bg-bg-main text-text-secondary border-border-main/50'}`}
+                        >
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+               </div>
+            </div>
+ 
+            <div className="flex flex-col gap-2 shrink-0">
+               <div className="flex items-center gap-1">
+                 <button 
+                   onClick={() => onEditTask(task.id)} 
+                   className="w-8 h-8 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-xl transition-all border border-turquesa/20"
+                   title="Editar detalles completos"
+                 >
+                   <Edit size={16} />
+                 </button>
+                 <button 
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     onDelete(task.id);
+                   }} 
+                   className="w-8 h-8 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/10 rounded-xl transition-all border border-rosa/20"
+                 >
+                   <Trash2 size={16} />
+                 </button>
+                 {level < 3 && <button onClick={() => onAddTask(task.id, task.blockId)} className="w-8 h-8 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-xl transition-all border border-turquesa/20"><Plus size={18} /></button>}
+               </div>
+               <div className="hidden lg:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all justify-end">
+                  <button onClick={() => onPromote(task.id)} title="Subir nivel" className="p-1.5 text-text-secondary hover:text-turquesa bg-bg-main rounded-lg border border-border-main"><ArrowUpLeft size={14} /></button>
+                  <button onClick={() => onDemote(task.id)} title="Bajar nivel" className="p-1.5 text-text-secondary hover:text-azul bg-bg-main rounded-lg border border-border-main"><ArrowDownRight size={14} /></button>
+               </div>
+            </div>
+          </div>
+ 
+          <div className="absolute top-0 left-0 w-1.5 h-full opacity-30" style={{ backgroundColor: block.color }} />
+        </motion.div>
+ 
+        {/* Subtasks */}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="ml-6 pl-4 border-l-2 border-border-main/20 space-y-4 py-2"
+            >
+              {hasSubtasks && (
+                <Reorder.Group 
+                  axis="y" 
+                  values={task.subtasks.map((sid: string) => allTasksMap[sid]).filter(Boolean)} 
+                  onReorder={(newSubtasks: any[]) => onReorderSubtasks(task.id, newSubtasks.map(t => t.id))}
+                  className="space-y-4"
+                >
+                  {task.subtasks.map((subId: string) => (
+                    <TaskCard 
+                      key={subId}
+                      task={allTasksMap[subId]}
+                      variant={variant}
+                      allTasksMap={allTasksMap}
+                      blocks={blocks}
+                      timeEntries={timeEntries}
+                      activeTimer={activeTimer}
+                      onStartTimer={onStartTimer}
+                      onStopTimer={onStopTimer}
+                      onToggleStatus={onToggleStatus}
+                      onUpdateTask={onUpdateTask}
+                      onEditTask={onEditTask}
+                      editingTaskId={editingTaskId}
+                      inlineEditingTaskId={inlineEditingTaskId}
+                      setInlineEditingTaskId={setInlineEditingTaskId}
+                      onOpenTimePanel={onOpenTimePanel}
+                      onAddTask={onAddTask}
+                      onDelete={onDelete}
+                      onPromote={onPromote}
+                      onDemote={onDemote}
+                      onReorderSubtasks={onReorderSubtasks}
+                      onToggleExpand={onToggleExpand}
+                      level={level + 1}
+                      rootTaskId={currentRootId}
+                    />
+                  ))}
+                </Reorder.Group>
+              )}
+              {level < 3 && (
+                <button 
+                  onClick={() => onAddTask(task.id, task.blockId)}
+                  className="w-full py-3 border-2 border-dashed border-border-main rounded-[1.5rem] flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-turquesa/40 hover:text-turquesa hover:bg-turquesa/5 transition-all"
+                >
+                  <PlusCircle size={16} /> Añadir subtarea nivel {level + 1}
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </Reorder.Item>
+  );
+}
+ 
+// --- Inline Editing Chips ---
+function TaskTypeChip({ value, onChange, isCompact = false }: any) {
+  const [show, setShow] = useState(false);
+  const isCore = value === 'core';
+  
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setShow(!show)}
+        className={`h-8 px-2.5 py-1.5 rounded-xl flex items-center justify-center gap-2 border transition-all ${
+          isCore 
+            ? 'bg-turquesa/10 border-turquesa/40 text-turquesa shadow-sm shadow-turquesa/20 hover:border-turquesa' 
+            : 'bg-rosa/10 border-rosa/30 text-rosa shadow-sm shadow-rosa/20 hover:border-rosa'
+        }`}
+        title={isCore ? 'Puesto de Trabajo (CORE)' : 'Tarea Puntual (Ad-hoc)'}
+      >
+        {isCore ? (
+          <>
+            <Compass size={12} strokeWidth={2.5} />
+            {!isCompact && <span className="text-[9px] font-black uppercase tracking-widest leading-none">Core</span>}
+          </>
+        ) : (
+          <>
+            <div className="w-2.5 h-2.5 rounded-full bg-current shadow-[0_0_8px_rgba(251,113,133,0.4)]" />
+            {!isCompact && <span className="text-[9px] font-black uppercase tracking-widest leading-none ml-1">Ad-hoc</span>}
+          </>
+        )}
+      </button>
+ 
+      <AnimatePresence>
+        {show && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShow(false)} />
+            <motion.div 
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute bottom-full left-0 mb-2 w-48 bg-bg-card border border-border-main rounded-2xl p-2 shadow-2xl z-50 backdrop-blur-xl"
+            >
+              <div className="text-[9px] font-black text-text-secondary uppercase tracking-widest px-2 mb-2">Tipo de Tarea</div>
+              <div className="space-y-1">
+                <button 
+                  onClick={() => { onChange('core'); setShow(false); }}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${isCore ? 'bg-turquesa text-white' : 'hover:bg-white/5 text-text-secondary hover:text-white'}`}
+                >
+                  <Compass size={14} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Puesto (CORE)</span>
+                </button>
+                <button 
+                  onClick={() => { onChange('adhoc'); setShow(false); }}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${!isCore ? 'bg-rosa text-white' : 'hover:bg-white/5 text-text-secondary hover:text-white'}`}
+                >
+                  <div className="w-2 h-2 bg-current rounded-full" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Puntual (AD-HOC)</span>
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+ 
+function DatePickerChip({ value, onChange }: any) {
+  const [show, setShow] = useState(false);
+  const [showFullCalendar, setShowFullCalendar] = useState(false);
+  const isSinFecha = !value;
+  const label = isSinFecha ? 'Sin fecha' : new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short' }).format(parseLocalISO(value));
+ 
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setShow(!show)}
+        className={`h-8 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${isSinFecha ? 'bg-bg-main border-border-main text-text-secondary' : 'bg-turquesa/10 border-turquesa text-turquesa shadow-sm'}`}
+      >
+        {label}
+      </button>
+ 
+      <AnimatePresence>
+        {show && (
+          <>
+            <div className="fixed inset-0 z-[210]" onClick={() => { setShow(false); setShowFullCalendar(false); }} />
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+              className="absolute top-full left-0 mt-2 bg-bg-card border border-border-main rounded-2xl shadow-2xl p-4 z-[220] min-w-[220px]"
+            >
+               {!showFullCalendar ? (
+                 <div className="space-y-2">
+                   <div className="grid grid-cols-2 gap-2">
+                     <button 
+                       onClick={() => { onChange(formatLocalISO(new Date())); setShow(false); }} 
+                       className="flex flex-col items-center gap-1 p-3 bg-bg-main rounded-xl border border-border-main hover:border-turquesa transition-all group"
+                     >
+                       <span className="text-[10px] font-black text-white uppercase tracking-widest group-hover:text-turquesa">Hoy</span>
+                       <span className="text-[8px] text-text-secondary">{new Date().getDate()}</span>
+                     </button>
+                     <button 
+                       onClick={() => { 
+                         const m = new Date(); m.setDate(m.getDate() + 1); 
+                         onChange(formatLocalISO(m)); setShow(false); 
+                       }} 
+                       className="flex flex-col items-center gap-1 p-3 bg-bg-main rounded-xl border border-border-main hover:border-turquesa transition-all group"
+                     >
+                       <span className="text-[10px] font-black text-white uppercase tracking-widest group-hover:text-turquesa">Mañana</span>
+                       <span className="text-[8px] text-text-secondary">{(() => { const d = new Date(); d.setDate(d.getDate()+1); return d.getDate(); })()}</span>
+                     </button>
+                   </div>
+                   
+                   <button 
+                     onClick={() => setShowFullCalendar(true)}
+                     className="w-full flex items-center justify-between p-3 bg-bg-main rounded-xl border border-border-main hover:border-turquesa transition-all group"
+                   >
+                     <span className="text-[10px] font-black text-white uppercase tracking-widest group-hover:text-turquesa">Calendario</span>
+                     <CalendarIcon size={14} className="text-text-secondary group-hover:text-turquesa" />
+                   </button>
+ 
+                   <div className="h-px bg-border-main/50 my-1" />
+ 
+                   <button 
+                     onClick={() => { onChange(''); setShow(false); }} 
+                     className="w-full flex items-center justify-center gap-2 p-3 bg-rosa/5 rounded-xl border border-rosa/20 text-rosa hover:bg-rosa/10 transition-all"
+                   >
+                     <Trash2 size={12} />
+                     <span className="text-[10px] font-black uppercase tracking-widest">Quitar Fecha</span>
+                   </button>
+                 </div>
+               ) : (
+                 <div className="space-y-4">
+                   <div className="flex items-center justify-between px-1">
+                     <button 
+                       onClick={() => setShowFullCalendar(false)}
+                       className="text-[10px] font-black text-turquesa uppercase tracking-widest hover:underline flex items-center gap-1"
+                     >
+                       <ChevronLeft size={12} /> Volver
+                     </button>
+                     <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Mensual</span>
+                   </div>
+                   <MonthDatePicker 
+                     value={value}
+                     onChange={(d) => {
+                       onChange(d);
+                       setShow(false);
+                       setShowFullCalendar(false);
+                     }}
+                   />
+                 </div>
+               )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+ 
+function RecurrencePickerChip({ value, onChange }: any) {
+  const [show, setShow] = useState(false);
+  const frequencies = [
+    { id: 'daily', label: 'Diaria' },
+    { id: 'weekdays', label: 'L-V' },
+    { id: 'weekly', label: 'Semanal' },
+    { id: 'monthly', label: 'Mensual' },
+  ];
+ 
+  const getLabel = () => {
+    if (!value) return null;
+    const { frequency, startDate, weekDays } = value;
+    switch (frequency) {
+      case 'daily': return 'Diaria';
+      case 'weekdays': return 'L-V';
+      case 'weekly': {
+        const daysShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+        if (!weekDays || weekDays.length === 0) {
+          const dStr = startDate || formatLocalISO(new Date());
+          const d = parseLocalISO(dStr);
+          const specDay = (d.getDay() + 6) % 7; // 0=Lunes...6=Domingo
+          return `Sem - ${daysShort[specDay]}`;
+        }
+        return `Sem - ${weekDays.map((d: number) => daysShort[d]).join(',')}`;
+      }
+      case 'monthly': {
+        const dayNum = value.monthDay || parseLocalISO(value.startDate || formatLocalISO(new Date())).getDate();
+        return `Mensual - Día ${dayNum}`;
+      }
+      default: return frequency;
+    }
+  };
+ 
+  const handleDayToggle = (day: number) => {
+    const current = value?.weekDays || [];
+    const next = current.includes(day) 
+      ? current.filter((d: number) => d !== day)
+      : [...current, day];
+    onChange({ ...(value || { frequency: 'weekly', startDate: formatLocalISO(new Date()) }), weekDays: next });
+  };
+ 
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setShow(!show)}
+        className={`flex items-center justify-center transition-all group/rec h-8 rounded-xl ${
+          value 
+            ? 'px-3 py-1.5 bg-morado/10 border border-morado/30 text-morado hover:bg-morado/20 whitespace-nowrap' 
+            : 'w-8 bg-bg-main border border-border-main text-text-secondary hover:border-morado hover:text-morado'
+        }`}
+        title={value ? "Cambiar Recurrencia" : "Activar Recurrencia"}
+      >
+        <RefreshCw size={12} className={value ? "" : "opacity-50"} />
+        {value && (
+          <span className="text-[10px] font-black uppercase tracking-widest ml-2">
+            {getLabel()}
+          </span>
+        )}
+      </button>
+ 
+      <AnimatePresence>
+        {show && (
+          <>
+            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="absolute top-full left-0 mt-2 bg-bg-card border border-border-main rounded-2xl shadow-2xl p-3 z-[220] min-w-[240px] space-y-3"
+            >
+              <div className="grid grid-cols-2 gap-2">
+                {frequencies.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      const today = new Date();
+                      const baseRec = value || { frequency: f.id, startDate: formatLocalISO(today) };
+                      const updates: any = { frequency: f.id };
+                      if (f.id === 'weekly' && (!baseRec.weekDays || baseRec.weekDays.length === 0)) {
+                        updates.weekDays = [(today.getDay() + 6) % 7];
+                      }
+                      if (f.id === 'monthly' && !baseRec.monthDay) {
+                        updates.monthDay = today.getDate();
+                      }
+                      onChange({ ...baseRec, ...updates });
+                    }}
+                    className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-center ${value?.frequency === f.id ? 'bg-morado text-white' : 'text-text-secondary bg-white/5 hover:text-white'}`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+ 
+              {value?.frequency === 'weekly' && (
+                <div className="pt-2 border-t border-border-main">
+                  <p className="text-[8px] font-black text-morado uppercase mb-2">Días de la semana:</p>
+                  <div className="flex gap-1 justify-between">
+                    {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d, i) => {
+                      const dayNum = i; // 0=Lunes...6=Domingo
+                      const isSelected = (value.weekDays || []).includes(dayNum);
+                      return (
+                        <button
+                          key={d}
+                          onClick={() => handleDayToggle(dayNum)}
+                          className={`w-7 h-7 rounded-lg text-[10px] font-black transition-all ${isSelected ? 'bg-morado text-white' : 'bg-bg-main text-text-secondary hover:text-white border border-border-main'}`}
+                        >
+                          {d}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+ 
+              {value?.frequency === 'monthly' && (
+                <div className="pt-2 border-t border-border-main">
+                  <p className="text-[8px] font-black text-morado uppercase mb-2">Día del mes (1-31):</p>
+                  <input 
+                    type="number"
+                    min="1"
+                    max="31"
+                    className="w-full bg-bg-main border border-border-main rounded-xl px-3 py-2 text-[12px] font-black text-morado outline-none text-center focus:ring-2 focus:ring-morado/20"
+                    value={value.monthDay || parseLocalISO(value.startDate || formatLocalISO(new Date())).getDate()}
+                    onChange={e => onChange({ ...value, monthDay: parseInt(e.target.value) || 1 })}
+                  />
+                </div>
+              )}
+ 
+              <div className="h-px bg-border-main" />
+              <button
+                onClick={() => {
+                  onChange(value ? null : { frequency: 'daily', startDate: formatLocalISO(new Date()) });
+                  if (value) setShow(false);
+                }}
+                className={`w-full text-center py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${value ? 'text-rosa border-rosa/20 hover:bg-rosa/10' : 'text-turquesa border-turquesa/20 hover:bg-turquesa/10'}`}
+              >
+                {value ? 'Quitar Recurrencia' : 'Activar Recurrencia'}
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+ 
+function TagPickerChip({ selectedTags = [], onChange }: any) {
+  const [show, setShow] = useState(false);
+  const tags: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
+ 
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setShow(!show)}
+        className="flex items-center gap-1 cursor-pointer"
+      >
+        {selectedTags.length > 0 ? (
+          <div className="flex -space-x-1.5 h-8 items-center">
+            {selectedTags.map((t: any) => (
+              <span key={t} className="w-7 h-7 rounded-lg bg-bg-card border border-border-main flex items-center justify-center text-sm shadow-sm ring-2 ring-bg-main">
+                {TAG_LABELS[t].icon}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="px-3 py-1.5 rounded-xl bg-bg-main border border-border-main text-[10px] font-black text-text-secondary uppercase tracking-widest hover:border-turquesa hover:text-turquesa transition-all flex items-center justify-center group h-8 w-8" title="Asignar Categoría">
+            <span className="text-[12px]">🏷️</span>
+          </div>
+        )}
+      </button>
+ 
+      <AnimatePresence>
+        {show && (
+          <>
+            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+              className="absolute top-full left-0 mt-2 bg-bg-card border border-border-main rounded-2xl shadow-2xl p-4 z-[220] min-w-[240px]"
+            >
+               <p className="text-[9px] font-black text-text-secondary uppercase tracking-widest mb-3 pl-1">Categorías</p>
+               <div className="grid grid-cols-5 gap-2">
+                 {tags.map(t => {
+                   const active = selectedTags.includes(t);
+                   return (
+                     <button
+                       key={t}
+                       onClick={() => {
+                         const next = active 
+                           ? selectedTags.filter((x: any) => x !== t)
+                           : [...selectedTags, t];
+                         onChange(next);
+                       }}
+                       className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all border ${active ? 'bg-turquesa border-turquesa shadow-lg shadow-turquesa/20 text-white' : 'bg-bg-main border-border-main text-text-secondary hover:border-turquesa'}`}
+                       title={TAG_LABELS[t].label}
+                     >
+                       {TAG_LABELS[t].icon}
+                     </button>
+                   );
+                 })}
+               </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+ 
+function EstimatedTimeChip({ value, onChange, variant = 'default' }: any) {
+  const [show, setShow] = useState(false);
+  const label = value >= 60 ? `${Math.floor(value/60)}h ${value%60}m` : `${value}m`;
+  const isMini = variant === 'mini';
+ 
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setShow(!show)}
+        className={`${isMini ? 'h-7 px-2 py-1 text-[9px]' : 'h-8 px-3 py-1.5 text-[10px]'} rounded-xl bg-azul/10 border border-azul/50 text-azul font-black uppercase tracking-widest hover:bg-azul/20 transition-all flex items-center gap-1.5 shadow-sm`}
+      >
+        <Clock size={isMini ? 10 : 12} />
+        {label}
+      </button>
+ 
+      <AnimatePresence>
+        {show && (
+          <>
+            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+              className="absolute top-full left-0 mt-2 bg-bg-card border border-border-main rounded-2xl shadow-2xl p-5 z-[220] min-w-[280px]"
+            >
+               <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-4 pl-1">Tiempo Estimado (min)</p>
+               <div className="flex gap-4 items-center mb-6">
+                 <Zap size={20} className="text-azul" />
+                 <input 
+                  type="number"
+                  className="w-full bg-bg-main p-4 rounded-2xl border border-border-main text-2xl font-black text-white outline-none focus:ring-4 focus:ring-azul/20 transition-all"
+                  value={value}
+                  onChange={(e) => onChange(parseInt(e.target.value) || 0)}
+                 />
+               </div>
+               <div className="grid grid-cols-4 gap-2">
+                 {[15, 30, 45, 60, 90, 120].map(v => (
+                   <button 
+                     key={v} 
+                     onClick={() => { onChange(v); setShow(false); }}
+                     className="p-2 bg-bg-main rounded-lg text-[10px] font-black text-white border border-border-main hover:border-azul transition-all"
+                   >
+                     {v}m
+                   </button>
+                 ))}
+               </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+ 
+function RegisteredTimeChip({ value, estimated, onClick }: any) {
+  const label = value >= 60 ? `${Math.floor(value/60)}h ${value%60}m` : `${value}m`;
+  let colorClass = "text-turquesa bg-turquesa/10 border-turquesa/50";
+  if (value > estimated) colorClass = "text-rosa bg-rosa/10 border-rosa/50 animate-pulse";
+  else if (value >= estimated * 0.9) colorClass = "text-naranja bg-naranja/10 border-naranja/50";
+ 
+  return (
+    <button 
+      onClick={onClick}
+      className={`h-8 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border shadow-sm flex items-center gap-1.5 ${colorClass}`}
+    >
+      <Target size={12} />
+      {label}
+    </button>
+  );
+}
+ 
+// --- Time Management Panel ---
+ 
+function TimeManagementPanel({ taskId, subtaskId, allTasksMap, timeEntries, onAddEntry, onDeleteEntry, onUpdateEntry, onClose }: any) {
+  const [activeTab, setActiveTab] = useState<'register' | 'history'>('register');
+  const task = subtaskId ? allTasksMap[subtaskId] : allTasksMap[taskId];
+  const parentTask = allTasksMap[taskId];
+  const hasSubtasks = parentTask.subtasks && parentTask.subtasks.length > 0;
+  
+  const entries = useMemo(() => {
+    return timeEntries.filter((e: TimeEntry) => {
+      if (subtaskId) return e.subtaskId === subtaskId;
+      if (e.taskId === taskId) return true;
+      const isSubtaskEntry = (Object.values(allTasksMap) as Task[]).some(t => t.id === e.taskId && t.parentTaskId === taskId);
+      return isSubtaskEntry;
+    }).sort((a: any, b: any) => parseLocalISO(b.date).getTime() - parseLocalISO(a.date).getTime());
+  }, [timeEntries, taskId, subtaskId, allTasksMap]);
+ 
+  const totalRegistered = getTaskRegisteredSelf(subtaskId || taskId, timeEntries);
+  const comboRegistered = subtaskId ? totalRegistered : getTaskRegisteredCombo(taskId, allTasksMap, timeEntries);
+  const estimated = subtaskId ? task.estimatedMinutes : getTaskEstimatedCombo(taskId, allTasksMap);
+ 
+  const [newMinutes, setNewMinutes] = useState(30);
+  const [newDate, setNewDate] = useState(formatLocalISO(new Date()));
+  const [newNote, setNewNote] = useState('');
+  
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [editMinutes, setEditMinutes] = useState(0);
+  const [editNote, setEditNote] = useState('');
+ 
+  const startEdit = (entry: any) => {
+    setEditingEntryId(entry.id);
+    setEditMinutes(entry.duration);
+    setEditNote(entry.note || '');
+  };
+ 
+  const saveEdit = () => {
+    if (editingEntryId) {
+      onUpdateEntry(editingEntryId, {
+        duration: editMinutes,
+        note: editNote
+      });
+      setEditingEntryId(null);
+    }
+  };
+ 
+  return (
+    <div className="fixed inset-0 bg-bg-main/80 backdrop-blur-md z-[300] flex items-end justify-center">
+      <motion.div 
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        className="w-full max-w-xl bg-bg-main border-t border-x border-border-main rounded-t-[40px] p-8 shadow-2xl flex flex-col max-h-[90vh]"
+      >
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h2 className="text-2xl font-black text-white uppercase tracking-tighter">
+              {task?.title || 'Gestionar Tiempo'}
+            </h2>
+            <p className="text-[10px] font-black text-text-secondary uppercase tracking-[0.2em]">Panel de Control de Horas</p>
+          </div>
+          <button onClick={onClose} className="p-3 bg-bg-card border border-border-main rounded-2xl hover:bg-bg-main transition-all">
+            <X size={20} className="text-text-secondary" />
+          </button>
+        </div>
+ 
+        {/* Tab Navigation */}
+        <div className="flex p-1 bg-bg-card border border-border-main rounded-2xl mb-8">
+          <button 
+            onClick={() => setActiveTab('register')}
+            className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'register' ? 'bg-turquesa text-bg-main' : 'text-text-secondary hover:text-white'}`}
+          >
+            <Plus size={14} /> Registro
+          </button>
+          <button 
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-turquesa text-bg-main' : 'text-text-secondary hover:text-white'}`}
+          >
+            <History size={14} /> Historial
+          </button>
+        </div>
+ 
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {activeTab === 'register' ? (
+            <div className="space-y-8 overflow-y-auto custom-scrollbar px-1">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-6 bg-bg-card border border-border-main rounded-[32px] relative overflow-hidden group">
+                  <div className="absolute top-4 right-4 opacity-20"><Zap size={20} className="text-turquesa" /></div>
+                  <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-2">Total Registrado</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-4xl font-black text-turquesa">{comboRegistered}</span>
+                    <span className="text-xs font-black text-text-secondary uppercase">min</span>
+                  </div>
+                  {!subtaskId && hasSubtasks && (
+                    <p className="text-[9px] font-bold text-text-secondary mt-1">Propio: {totalRegistered}m · Subtareas: {comboRegistered - totalRegistered}m</p>
+                  )}
+                </div>
+ 
+                <div className="p-6 bg-bg-card border border-border-main rounded-[32px]">
+                  <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-4 text-center">Plan v Realidad</p>
+                  <div className="flex items-center justify-center gap-4 mb-3">
+                    <span className="text-lg font-black text-text-secondary">{estimated}m</span>
+                    <ArrowRight size={16} className="text-text-secondary/30" />
+                    <span className="text-lg font-black text-white">{comboRegistered}m</span>
+                  </div>
+                  <div className="h-1.5 bg-bg-main border border-border-main rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-500 ${comboRegistered > estimated ? 'bg-rosa' : 'bg-turquesa'}`}
+                      style={{ width: `${Math.min(100, (comboRegistered / Math.max(1, estimated)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+ 
+              <div className="p-8 bg-bg-card border border-border-main rounded-[32px] space-y-6">
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest ml-1">¿Qué hiciste en esta sesión?</label>
+                    <textarea 
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder="Describe brevemente tu progreso..."
+                      className="w-full bg-bg-main border border-border-main rounded-2xl p-4 text-sm font-medium text-white placeholder:text-text-secondary/30 outline-none focus:border-turquesa/50 transition-all resize-none h-24"
+                    />
+                  </div>
+ 
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest ml-1">Minutos</label>
+                      <input 
+                        type="number"
+                        value={newMinutes}
+                        onChange={(e) => setNewMinutes(parseInt(e.target.value) || 0)}
+                        className="w-full bg-bg-main border border-border-main rounded-2xl p-4 text-xl font-black text-turquesa outline-none focus:border-turquesa/50 transition-all"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-black text-text-secondary uppercase tracking-widest ml-1">Fecha</label>
+                      <input 
+                        type="date"
+                        value={newDate}
+                        onChange={(e) => setNewDate(e.target.value)}
+                        className="w-full bg-bg-main border border-border-main rounded-2xl p-4 text-xs font-black text-white outline-none focus:border-turquesa/50 transition-all uppercase"
+                      />
+                    </div>
+                  </div>
+                </div>
+ 
+                <button 
+                  onClick={() => {
+                    onAddEntry(taskId, subtaskId, newMinutes, newDate, newNote);
+                    setNewNote('');
+                    // Removed setActiveTab('history') as per user request
+                  }}
+                  className="w-full py-5 bg-turquesa hover:bg-turquesa/90 text-bg-main font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-turquesa/20 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+                >
+                  <Plus size={20} strokeWidth={3} />
+                  Registrar Tiempo
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between px-2 mb-6">
+                 <div>
+                   <h3 className="text-xs font-black text-white uppercase tracking-widest">Listado de Sesiones</h3>
+                   <p className="text-[9px] font-black text-text-secondary uppercase mt-1">Total acumulado: {comboRegistered}m</p>
+                 </div>
+                 <div className="text-right">
+                    <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Ejecutado</span>
+                    <p className="text-lg font-black text-turquesa">{comboRegistered}m</p>
+                 </div>
+              </div>
+ 
+              <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar px-2 mb-4">
+                {entries.length === 0 && (
+                  <div className="py-20 text-center opacity-20">
+                    <Clock size={48} className="mx-auto mb-4" />
+                    <p className="font-bold uppercase tracking-widest text-xs">Sin registros aún</p>
+                  </div>
+                )}
+                {entries.map((entry: any) => {
+                  const isEditing = editingEntryId === entry.id;
+                  const isForeignEntry = entry.taskId !== (subtaskId || taskId);
+                  
+                  // Formato de fecha dd-mm-yyyy
+                  const displayDate = entry.date.split('-').reverse().join('-');
+ 
+                  return (
+                    <div key={entry.id} className="flex items-center justify-between p-4 bg-bg-card border border-border-main rounded-2xl group transition-all hover:border-turquesa/50">
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0 bg-turquesa/10 text-turquesa`}>
+                           {entry.source === 'timer' ? <Clock size={20} /> : <Zap size={20} />}
+                        </div>
+                        <div className="flex-1">
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <input 
+                                  type="number" 
+                                  value={editMinutes} 
+                                  onChange={(e) => setEditMinutes(parseInt(e.target.value) || 0)}
+                                  className="w-16 bg-bg-main border border-border-main rounded-md p-1 text-xs font-bold text-white outline-none focus:border-turquesa"
+                                />
+                                <span className="text-xs font-black text-text-secondary uppercase">min</span>
+                              </div>
+                              <input 
+                                type="text" 
+                                value={editNote} 
+                                onChange={(e) => setEditNote(e.target.value)}
+                                className="w-full bg-bg-main border border-border-main rounded-md p-1 text-xs font-medium text-white outline-none focus:border-turquesa"
+                                placeholder="Nota..."
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2 mb-1">
+                                 <span className="text-sm font-black text-white">{entry.duration}m</span>
+                                 <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">{displayDate}</span>
+                                  {isForeignEntry && (
+                                    <span className="text-[8px] font-black bg-bg-main border border-border-main px-1.5 py-0.5 rounded-md text-text-secondary uppercase tracking-tighter truncate max-w-[100px]">
+                                      {allTasksMap[entry.taskId]?.title || 'Subtarea'}
+                                    </span>
+                                  )}
+                              </div>
+                              {entry.note ? (
+                                <p className="text-[11px] font-bold text-text-secondary italic">"{entry.note}"</p>
+                              ) : (
+                                <p className="text-[9px] font-black text-text-secondary/30 uppercase tracking-widest">Sin nota</p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 ml-4">
+                        {isEditing ? (
+                          <>
+                            <button 
+                              onClick={saveEdit}
+                              className="p-2.5 text-turquesa hover:bg-turquesa/10 bg-bg-main rounded-xl border border-border-main transition-all"
+                              title="Guardar"
+                            >
+                              <Check size={14} />
+                            </button>
+                            <button 
+                              onClick={() => setEditingEntryId(null)}
+                              className="p-2.5 text-text-secondary hover:text-white bg-bg-main rounded-xl border border-border-main transition-all"
+                              title="Cancelar"
+                            >
+                              <X size={14} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button 
+                              onClick={() => startEdit(entry)}
+                              className="p-2.5 text-text-secondary hover:text-white bg-bg-main rounded-xl border border-border-main transition-all"
+                              title="Editar registro"
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteEntry(entry.id);
+                              }}
+                              className="p-2.5 text-text-secondary hover:text-rosa bg-bg-main rounded-xl border border-border-main transition-all"
+                              title="Eliminar registro"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+ 
+function MonthDatePicker({ value, onChange }: { value: string | null, onChange: (d: string | null) => void }) {
+  const [viewDate, setViewDate] = useState(() => parseLocalISO(value || formatLocalISO(new Date())));
+  
+  const daysInMonth = useMemo(() => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    
+    const days = [];
+    
+    // Previous month days to align Monday
+    const startDay = firstDay.getDay(); 
+    const prevDaysCount = startDay === 0 ? 6 : startDay - 1;
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    
+    for (let i = prevDaysCount - 1; i >= 0; i--) {
+      days.push({
+        date: new Date(year, month - 1, prevMonthLastDay - i),
+        isCurrentMonth: false
+      });
+    }
+    
+    // Current month days
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+      days.push({
+        date: new Date(year, month, i),
+        isCurrentMonth: true
+      });
+    }
+    
+    // Next month days to fill grid (6 weeks)
+    const totalDays = 42; 
+    const nextDaysCount = totalDays - days.length;
+    for (let i = 1; i <= nextDaysCount; i++) {
+      days.push({
+        date: new Date(year, month + 1, i),
+        isCurrentMonth: false
+      });
+    }
+    
+    return days.map(d => {
+      const dStr = formatLocalISO(d.date);
+      return {
+        ...d,
+        str: dStr,
+        isSelected: value === dStr,
+        isToday: formatLocalISO(new Date()) === dStr,
+        dayNum: d.date.getDate()
+      };
+    });
+  }, [viewDate, value]);
+ 
+  const weekHeaders = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+ 
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between px-1">
+         <button onClick={() => setViewDate(prev => { 
+           const n = new Date(prev); n.setMonth(n.getMonth() - 1); return n; 
+         })} className="p-2 hover:bg-white/5 rounded-xl text-turquesa transition-all"><ChevronLeft size={20}/></button>
+         <span className="text-[12px] font-black uppercase tracking-[0.2em] text-white">
+           {viewDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}
+         </span>
+         <button onClick={() => setViewDate(prev => { 
+           const n = new Date(prev); n.setMonth(n.getMonth() + 1); return n; 
+         })} className="p-2 hover:bg-white/5 rounded-xl text-turquesa transition-all"><ChevronRight size={20}/></button>
+      </div>
+      
+      <div className="grid grid-cols-7 gap-1">
+        {weekHeaders.map(h => (
+          <div key={h} className="text-[9px] font-black text-text-secondary text-center py-2 uppercase tracking-widest">{h}</div>
+        ))}
+        {daysInMonth.map((d, i) => (
           <button
-            onClick={() => setSelectedPerson('__none__')}
-            className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${
-              selectedPerson === '__none__'
-                ? 'bg-rosa/10 border-rosa text-rosa'
-                : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-rosa/50'
+            key={`${d.str}-${i}`}
+            onClick={() => onChange(d.str)}
+            className={`flex flex-col items-center justify-center h-10 rounded-xl transition-all border text-xs font-bold ${
+              d.isSelected 
+                ? 'bg-turquesa border-turquesa text-white shadow-lg shadow-turquesa/20 z-10' 
+                : d.isCurrentMonth
+                  ? 'bg-bg-card border-border-main text-white hover:border-turquesa/50'
+                  : 'bg-transparent border-transparent text-text-secondary/30 hover:text-text-secondary'
             }`}
           >
-            <div className="w-8 h-8 rounded-xl bg-rosa/20 flex items-center justify-center text-rosa font-black text-sm">✕</div>
-            <span className="font-bold text-sm">Quitar delegación</span>
+            {d.dayNum}
+            {d.isToday && !d.isSelected && <div className="absolute top-1 right-1 w-1 h-1 rounded-full bg-turquesa" />}
           </button>
-          {people.map((p: any) => (
-            <button
-              key={p.id}
-              onClick={() => setSelectedPerson(p.id)}
-              className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${
-                selectedPerson === p.id
-                  ? 'bg-morado/10 border-morado text-morado'
-                  : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-white text-text-main-light hover:border-morado/50'
-              }`}
-            >
-              <div className="w-8 h-8 rounded-xl bg-morado/20 flex items-center justify-center text-morado font-black text-sm">
-                {p.name[0]}
-              </div>
-              <span className="font-bold text-sm">{p.name}</span>
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light font-bold text-sm hover:border-rosa transition-all">Cancelar</button>
-          <button
-            onClick={() => selectedPerson && onConfirm(selectedPerson === '__none__' ? null : selectedPerson)}
-            disabled={!selectedPerson}
-            className={`flex-1 py-3 rounded-2xl font-black text-sm transition-all ${selectedPerson ? 'bg-morado text-white hover:bg-morado/90' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-          >{selectedPerson === '__none__' ? 'Quitar delegación' : 'Delegar'}</button>
-        </div>
+        ))}
       </div>
     </div>
   );
 }
-
-// --- Bulk Date Modal ---
-function BulkDateModal({ onConfirm, onClose }: any) {
-  const [date, setDate] = useState(formatLocalISO(new Date()));
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 dark:bg-black/60 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative dark:bg-bg-card bg-white rounded-[2rem] border dark:border-border-main border-border-main-light shadow-2xl p-6 w-full max-w-sm">
-        <h3 className="text-lg font-black dark:text-white text-text-main-light mb-4">Cambiar fecha</h3>
-        <input
-          type="date"
-          value={date}
-          onChange={e => setDate(e.target.value)}
-          className="w-full px-4 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:bg-bg-main bg-gray-50 dark:text-white text-text-main-light font-bold mb-6 focus:outline-none focus:border-turquesa"
-        />
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light font-bold text-sm hover:border-rosa transition-all">Cancelar</button>
-          <button onClick={() => onConfirm(date)} className="flex-1 py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/90 transition-all">Aplicar</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- Bulk Time Modal ---
-function BulkTimeModal({ onConfirm, onClose }: any) {
-  const [minutes, setMinutes] = useState(30);
-  const options = [5, 10, 15, 20, 30, 45, 60, 90, 120];
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 dark:bg-black/60 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative dark:bg-bg-card bg-white rounded-[2rem] border dark:border-border-main border-border-main-light shadow-2xl p-6 w-full max-w-sm">
-        <h3 className="text-lg font-black dark:text-white text-text-main-light mb-4">Cambiar tiempo estimado</h3>
-        <div className="grid grid-cols-3 gap-2 mb-6">
-          {options.map(m => (
-            <button
-              key={m}
-              onClick={() => setMinutes(m)}
-              className={`py-3 rounded-2xl border font-black text-sm transition-all ${
-                minutes === m
-                  ? 'bg-azul text-white border-azul'
-                  : 'dark:bg-bg-main bg-gray-50 dark:border-border-main border-border-main-light dark:text-white text-text-main-light hover:border-azul'
-              }`}
-            >
-              {m >= 60 ? `${m/60}h` : `${m}m`}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2 items-center mb-4">
-          <span className="dark:text-text-secondary text-text-secondary-light text-sm">Personalizado:</span>
-          <input
-            type="number"
-            min={1}
-            value={minutes}
-            onChange={e => setMinutes(Number(e.target.value))}
-            className="flex-1 px-3 py-2 rounded-xl border dark:border-border-main border-border-main-light dark:bg-bg-main bg-gray-50 dark:text-white text-text-main-light font-bold text-sm focus:outline-none focus:border-azul"
-          />
-          <span className="dark:text-text-secondary text-text-secondary-light text-sm">min</span>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 py-3 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light font-bold text-sm hover:border-rosa transition-all">Cancelar</button>
-          <button onClick={() => onConfirm(minutes)} className="flex-1 py-3 rounded-2xl bg-azul text-white font-black text-sm hover:bg-azul/90 transition-all">Aplicar</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- Bulk Action Bar Component ---
