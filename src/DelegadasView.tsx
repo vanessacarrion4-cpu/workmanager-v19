@@ -849,6 +849,10 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                                                 onChange={(date: string) => onUpdateTask({ ...sub, dueDate: date })}
                                               />
                                             )}
+                                            {/* Botón ir al template en Bloques */}
+                                            {onGoToTemplate && (sub.templateId || sub.isTemplate) && (
+                                              <button onClick={(e) => { e.stopPropagation(); onGoToTemplate(sub.templateId || sub.id); }} className="flex items-center justify-center w-4 h-4 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors" title="Ir al template en Bloques"><ArrowUpRight size={9} className="text-turquesa" /></button>
+                                            )}
                                             {/* RecurrencePickerChip - subtareas pueden ser recurrentes */}
                                             {!sub.subtasks || sub.subtasks.length === 0 ? (
                                               <RecurrencePickerChip 
