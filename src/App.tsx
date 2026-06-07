@@ -708,6 +708,9 @@ export default function App() {
           timeEntries={timeEntries}
           onAddTimeEntry={(taskId, subtaskId, minutes, date) => timerHandlers.handleManualTimeEntry(taskId, subtaskId, minutes, date)}
         />
+      )}
+
+      {/* TaskModal - editar regla/template */}
       {editingRuleId && tasks[editingRuleId] && (
         <TaskModal
           key={editingRuleId}
