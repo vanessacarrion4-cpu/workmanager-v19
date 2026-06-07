@@ -297,7 +297,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-main text-text-main flex flex-col md:flex-row font-sans relative">
+    <div className="h-screen overflow-hidden bg-bg-main text-text-main flex flex-col md:flex-row font-sans relative">
 
       {/* Global Timer Bar */}
       <AnimatePresence>
