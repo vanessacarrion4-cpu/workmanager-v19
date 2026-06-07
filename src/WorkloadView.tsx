@@ -819,7 +819,7 @@ export function WorkloadView({
                     : 1;
                   return (
                     <th key={mo.key} colSpan={colSpan}
-                      className={`border-l dark:border-border-main/50 border-border-main-light/50 px-4 py-4 min-w-[160px] text-left align-middle transition-all ${isExp ? 'dark:bg-turquesa/5 bg-turquesa/5' : ''}`}
+                      className={`border-l dark:border-border-main/50 border-border-main-light/50 px-4 py-4 min-w-[160px] text-left align-middle transition-all dark:bg-bg-card bg-white ${isExp ? 'dark:bg-turquesa/10 bg-turquesa/5' : ''}`}
                     >
                       <button onClick={() => toggleMonth(mo.key)} className="flex items-start gap-3 w-full group">
                         <div className="flex-1 min-w-0">
@@ -852,7 +852,7 @@ export function WorkloadView({
                     const colSpan = isWeekExp ? 1 + buildDays(week, today).length : 1;
                     return (
                       <th key={week.key} colSpan={colSpan}
-                        className={`border-l dark:border-border-main/30 border-border-main-light/30 px-3 py-2.5 min-w-[110px] text-left dark:bg-bg-main/20 bg-gray-50/50 ${isWeekExp ? 'dark:bg-azul/5 bg-azul/5' : ''}`}
+                        className={`border-l dark:border-border-main/30 border-border-main-light/30 px-3 py-2.5 min-w-[110px] text-left dark:bg-bg-card bg-white ${isWeekExp ? 'dark:bg-azul/10 bg-azul/5' : ''}`}
                       >
                         <button onClick={() => toggleWeek(week.key)} className="flex items-center gap-2 w-full group">
                           <div className="flex-1 min-w-0">
