@@ -392,7 +392,6 @@ export function useSupabase({
           });
           setTimeEntries(mappedEntries);
         }
-        }
 
         // Mapear reuniones
         if (meetingsData && meetingsData.length > 0) {
