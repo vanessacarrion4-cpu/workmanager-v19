@@ -273,7 +273,7 @@ export function InstancesModal({ task, allTasksMap, timeEntries = [], onClose, o
 
   const statusConfig = {
     pending:   { label: 'Pendiente', bg: 'dark:bg-turquesa/10 bg-turquesa/5', text: 'text-turquesa', border: 'dark:border-turquesa/30 border-turquesa/40' },
-    exception: { label: 'Editada',   bg: 'dark:bg-azul/10 bg-azul/5',         text: 'text-azul',    border: 'dark:border-azul/30 border-azul/40' },
+    exception: { label: 'Pendiente', bg: 'dark:bg-turquesa/10 bg-turquesa/5', text: 'text-turquesa', border: 'dark:border-turquesa/30 border-turquesa/40' },
     moved:     { label: 'Movida',    bg: 'dark:bg-yellow-500/10 bg-yellow-50', text: 'dark:text-yellow-400 text-yellow-700', border: 'dark:border-yellow-500/30 border-yellow-400/40' },
     completed: { label: 'Completada',bg: 'dark:bg-azul/10 bg-azul/5',          text: 'text-azul',                           border: 'dark:border-azul/30 border-azul/40' },
     deleted:   { label: 'Borrada',   bg: 'dark:bg-red-500/10 bg-red-50',       text: 'dark:text-red-400 text-red-600',      border: 'dark:border-red-500/30 border-red-400/40' },
@@ -396,8 +396,15 @@ export function InstancesModal({ task, allTasksMap, timeEntries = [], onClose, o
                   </div>
 
                   {/* Badge estado */}
-                  <div className={`shrink-0 px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wide ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-                    {cfg.label}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <div className={`px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wide ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+                      {cfg.label}
+                    </div>
+                    {status === 'exception' && (
+                      <div className="w-4 h-4 flex items-center justify-center" title="Instancia modificada">
+                        <Edit size={10} className="text-turquesa opacity-70" />
+                      </div>
+                    )}
                   </div>
 
                   {/* Tiempo: estimado siempre, registrado solo en pasadas */}
