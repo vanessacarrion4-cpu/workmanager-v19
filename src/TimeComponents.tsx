@@ -30,7 +30,7 @@ export function TimerDisplay({ startTime, accumulatedSeconds }: { startTime: str
   );
 }
 
-export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksMap, timeEntries, onAddEntry, onDeleteEntry, onUpdateEntry, onClose }: any) {
+export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksMap, timeEntries, onAddEntry, onDeleteEntry, onUpdateEntry, onClose, fromModal = false }: any) {
   const [activeTab, setActiveTab] = useState<'register' | 'history'>('register');
   const task = subtaskId ? allTasksMap[subtaskId] : allTasksMap[taskId];
   const parentTask = allTasksMap[taskId];
@@ -75,10 +75,12 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
   };
 
   return (
-    <div className="fixed inset-0 dark:bg-bg-main/80 bg-white/80 backdrop-blur-md z-[300] flex items-end justify-center">
+    <div className={`fixed inset-0 dark:bg-bg-main/80 bg-white/80 backdrop-blur-md z-[300] flex ${fromModal ? 'items-center' : 'items-end'} justify-center`}>
       <motion.div
-        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-        className="w-full max-w-xl dark:bg-bg-card bg-white border-t border-x dark:border-border-main border-border-main-light rounded-t-[28px] shadow-2xl flex flex-col max-h-[80vh]"
+        initial={fromModal ? { opacity: 0, scale: 0.95 } : { y: '100%' }}
+        animate={fromModal ? { opacity: 1, scale: 1 } : { y: 0 }}
+        exit={fromModal ? { opacity: 0, scale: 0.95 } : { y: '100%' }}
+        className={`w-full max-w-lg dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light shadow-2xl flex flex-col max-h-[80vh] ${fromModal ? 'rounded-[28px] mx-4' : 'border-t border-x rounded-t-[28px]'}`}
       >
         {/* Header compacto */}
         <div className="flex items-center gap-3 px-4 pt-4 pb-3 shrink-0">

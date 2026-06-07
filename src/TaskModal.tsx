@@ -43,7 +43,9 @@ interface TaskModalProps {
   onDeleteAttachment?: ((taskId: string, attachmentId: string, path: string) => void) | null;
   onToggleStatus?: ((taskId: string) => void) | null;
   timeEntries?: any[];
-  onAddTimeEntry?: ((taskId: string, subtaskId: string | null, minutes: number, date: string) => void) | null;
+  onAddTimeEntry?: ((taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string, markComplete?: boolean) => void) | null;
+  onDeleteTimeEntry?: ((entryId: string) => void) | null;
+  onUpdateTimeEntry?: ((entryId: string, updates: any) => void) | null;
   onDeleteTimeEntry?: ((entryId: string) => void) | null;
   onUpdateTimeEntry?: ((entryId: string, updates: any) => void) | null;
 }
@@ -67,6 +69,8 @@ export function TaskModal({
   onToggleStatus = null,
   timeEntries = [],
   onAddTimeEntry = null,
+  onDeleteTimeEntry = null,
+  onUpdateTimeEntry = null,
   onDeleteTimeEntry = null,
   onUpdateTimeEntry = null,
 }: TaskModalProps) {
@@ -312,26 +316,26 @@ export function TaskModal({
           </div>
 
           {/* Panel tiempo — TimeManagementPanel completo como overlay */}
-          <AnimatePresence>
-            {showTimeEntry && (
-              <TimeManagementPanel
-                taskId={localTask.templateId || localTask.id}
-                subtaskId={null}
-                instanceDate={localTask.templateId ? (localTask.instanceDate || localTask.dueDate) : null}
-                allTasksMap={allTasksMap}
-                timeEntries={timeEntries}
-                onAddEntry={(taskId: string, subtaskId: string | null, minutes: number, date: string, note: string, markComplete: boolean) => {
-                  if (onAddTimeEntry) onAddTimeEntry(taskId, subtaskId, minutes, date);
-                }}
-                onDeleteEntry={(entryId: string) => { if (onDeleteTimeEntry) onDeleteTimeEntry(entryId); }}
-                onUpdateEntry={(entryId: string, updates: any) => { if (onUpdateTimeEntry) onUpdateTimeEntry(entryId, updates); }}
-                onClose={() => setShowTimeEntry(false)}
-              />
-            )}
-          </AnimatePresence>
+          {/* Panel tiempo — TimeManagementPanel completo como overlay */}
+          {showTimeEntry && (
+            <TimeManagementPanel
+              taskId={localTask.templateId || localTask.id}
+              subtaskId={null}
+              instanceDate={localTask.templateId ? (localTask.instanceDate || localTask.dueDate) : null}
+              allTasksMap={allTasksMap}
+              timeEntries={timeEntries}
+              fromModal={true}
+              onAddEntry={(taskId: string, subtaskId: string | null, minutes: number, date: string, note: string, markComplete: boolean) => {
+                if (onAddTimeEntry) onAddTimeEntry(taskId, subtaskId, minutes, date, note, markComplete);
+              }}
+              onDeleteEntry={(entryId: string) => { if (onDeleteTimeEntry) onDeleteTimeEntry(entryId); }}
+              onUpdateEntry={(entryId: string, updates: any) => { if (onUpdateTimeEntry) onUpdateTimeEntry(entryId, updates); }}
+              onClose={() => setShowTimeEntry(false)}
+            />
+          )}
 
           {/* FILA 2: Tags + Delegación + Fecha */}
-          <div className="flex items-center gap-2 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl px-2 h-10">
+          <div className="flex items-center gap-2 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl px-2 py-1.5">
             {/* Tags — solo si no es contenedor */}
             {!(localTask.subtasks && localTask.subtasks.length > 0) ? (
               <div className="flex items-center gap-1 shrink-0">

@@ -706,7 +706,7 @@ export default function App() {
           onDeleteAttachment={handleDeleteAttachment}
           onToggleStatus={handleToggleStatus}
           timeEntries={timeEntries}
-          onAddTimeEntry={(taskId, subtaskId, minutes, date) => timerHandlers.handleManualTimeEntry(taskId, subtaskId, minutes, date)}
+          onAddTimeEntry={(taskId, subtaskId, minutes, date, note, markComplete) => timerHandlers.handleManualTimeEntry(taskId, subtaskId, minutes, date, note, markComplete)}
           onDeleteTimeEntry={timerHandlers.handleDeleteTimeEntry}
           onUpdateTimeEntry={timerHandlers.handleUpdateTimeEntry}
         />
@@ -733,7 +733,7 @@ export default function App() {
           onDeleteAttachment={handleDeleteAttachment}
           onToggleStatus={handleToggleStatus}
           timeEntries={timeEntries}
-          onAddTimeEntry={(taskId, subtaskId, minutes, date) => timerHandlers.handleManualTimeEntry(taskId, subtaskId, minutes, date)}
+          onAddTimeEntry={(taskId, subtaskId, minutes, date, note, markComplete) => timerHandlers.handleManualTimeEntry(taskId, subtaskId, minutes, date, note, markComplete)}
           onDeleteTimeEntry={timerHandlers.handleDeleteTimeEntry}
           onUpdateTimeEntry={timerHandlers.handleUpdateTimeEntry}
         />
