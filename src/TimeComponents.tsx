@@ -38,6 +38,7 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
 
   // FIX instancias recurrentes: si viene instanceDate, filtrar solo entradas de ese día
   const entries = useMemo(() => {
+    console.log('[TIME DEBUG] taskId:', taskId, '| timeEntries IDs:', timeEntries.map((e:any) => e.taskId));
     return timeEntries.filter((e: TimeEntry) => {
       if (subtaskId) return e.subtaskId === subtaskId;
       const matchesTask = e.taskId === taskId;
@@ -100,24 +101,42 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Solo botón Historial — el formulario siempre visible */}
         <div className="flex px-4 gap-1 mb-3 shrink-0">
-          {(['register', 'history'] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all border ${
-                activeTab === tab
-                  ? 'bg-turquesa text-white border-turquesa shadow-md shadow-turquesa/20'
-                  : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50'
-              }`}
-            >
-              {tab === 'register' ? <><Plus size={12} /> Registro</> : <><History size={12} /> Historial ({entries.length})</>}
-            </button>
-          ))}
+          <button onClick={() => setActiveTab(activeTab === 'history' ? 'register' : 'history')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all border ${
+              activeTab === 'history'
+                ? 'bg-turquesa text-white border-turquesa shadow-md shadow-turquesa/20'
+                : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50'
+            }`}
+          >
+            <History size={12} /> Historial ({entries.length})
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-4">
           {activeTab === 'register' ? (
             <div className="space-y-3">
+              {/* Botones acción — arriba */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    onAddEntry(taskId, subtaskId, newMinutes, newDate, newNote, markComplete);
+                    setNewNote('');
+                    setMarkComplete(false);
+                  }}
+                  className="flex-1 py-2 bg-turquesa hover:bg-turquesa/85 text-white font-black uppercase tracking-widest rounded-xl shadow-md shadow-turquesa/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98] text-[11px]"
+                >
+                  <Plus size={13} strokeWidth={3} /> Registrar
+                </button>
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all text-[11px] font-black uppercase tracking-widest"
+                >
+                  Cerrar
+                </button>
+              </div>
+
               {/* Minutos + Fecha */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
@@ -164,26 +183,6 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
                   Marcar tarea como completada
                 </span>
               </label>
-
-              {/* Botones acción */}
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={() => {
-                    onAddEntry(taskId, subtaskId, newMinutes, newDate, newNote, markComplete);
-                    setNewNote('');
-                    setMarkComplete(false);
-                  }}
-                  className="flex-1 py-2.5 bg-turquesa hover:bg-turquesa/85 text-white font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-turquesa/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98] text-[11px]"
-                >
-                  <Plus size={14} strokeWidth={3} /> Registrar Tiempo
-                </button>
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2.5 dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all text-[11px] font-black uppercase tracking-widest"
-                >
-                  Cerrar
-                </button>
-              </div>
             </div>
           ) : (
             <div className="space-y-2">
