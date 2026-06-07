@@ -937,8 +937,8 @@ export function DelegationChip({ delegation, people = [], onChange, onAddPerson,
         onClick={toggleShow}
         className={`h-6 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-1 ${
           person
-            ? 'bg-morado/10 border-morado text-morado shadow-sm'
-            : 'dark:bg-bg-main bg-white dark:border-border-main/30 border-morado/50 dark:text-text-secondary/40 text-text-secondary-light/40 dark:hover:text-text-secondary hover:text-text-secondary-light dark:hover:border-border-main hover:border-morado transition-all'
+            ? 'bg-azul/10 border-azul text-azul shadow-sm'
+            : 'dark:bg-bg-main bg-white dark:border-border-main/30 border-azul/30 dark:text-text-secondary/40 text-text-secondary-light/40 dark:hover:text-text-secondary hover:text-text-secondary-light dark:hover:border-border-main hover:border-azul transition-all'
         }`}
         title={person ? `Delegado a ${person.name}` : 'Delegar tarea'}
       >
@@ -992,11 +992,11 @@ export function DelegationChip({ delegation, people = [], onChange, onAddPerson,
                           onClick={() => handleSelect(p.id)}
                           className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold transition-all ${
                             delegation?.personId === p.id
-                              ? 'bg-morado text-white'
+                              ? 'bg-azul text-white'
                               : 'dark:hover:bg-bg-main hover:bg-gray-100 dark:text-white text-text-main-light'
                           }`}
                         >
-                          <div className="w-6 h-6 rounded-lg bg-morado/20 flex items-center justify-center text-morado text-[10px] font-black shrink-0">
+                          <div className="w-6 h-6 rounded-lg bg-azul/20 flex items-center justify-center text-azul text-[10px] font-black shrink-0">
                             {p.name.charAt(0).toUpperCase()}
                           </div>
                           {p.name}
@@ -1034,11 +1034,11 @@ export function DelegationChip({ delegation, people = [], onChange, onAddPerson,
                   onFocus={e => e.stopPropagation()}
                   onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') handleAddPerson(); }}
                   placeholder="Nueva persona..."
-                  className="flex-1 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[11px] dark:text-white text-text-main-light dark:placeholder:text-text-secondary/40 placeholder:text-text-secondary-light/40 outline-none focus:border-morado/50"
+                  className="flex-1 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[11px] dark:text-white text-text-main-light dark:placeholder:text-text-secondary/40 placeholder:text-text-secondary-light/40 outline-none focus:border-azul/50"
                 />
                 <button
                   onClick={handleAddPerson}
-                  className="w-8 h-8 flex items-center justify-center bg-morado/10 hover:bg-morado/20 border border-morado/30 text-morado rounded-xl transition-all"
+                  className="w-8 h-8 flex items-center justify-center bg-azul/10 hover:bg-azul/20 border border-azul/30 text-azul rounded-xl transition-all"
                 >
                   <Plus size={14} />
                 </button>

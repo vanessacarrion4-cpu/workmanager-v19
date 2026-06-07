@@ -74,11 +74,6 @@ export function TaskModal({
     setLocalTask(prev => ({ ...prev, attachments: task.attachments || [] }));
   }, [JSON.stringify(task.attachments)]);
 
-  // Auto-expandir recurrencia si ya tiene recurrence activa
-  useEffect(() => {
-    if (task.recurrence || task.templateId) setShowRecurrence(true);
-  }, [task.id]);
-
   // Autosize notas
   useEffect(() => {
     if (notesRef.current) {
@@ -313,6 +308,19 @@ export function TaskModal({
 
             <div className="w-px h-5 dark:bg-border-main bg-border-main-light shrink-0" />
 
+            {/* Delegación */}
+            <DelegationChip
+              delegation={localTask.delegation}
+              people={people}
+              onAddPerson={onAddPerson}
+              onRenamePerson={onRenamePerson}
+              onDeletePerson={onDeletePerson}
+              onRecurrenceDateChange={onRecurrenceDateChange}
+              onChange={(delegation: any) => setLocalTask(prev => ({ ...prev, delegation }))}
+            />
+
+            <div className="w-px h-5 dark:bg-border-main bg-border-main-light shrink-0" />
+
             {/* Fecha */}
             <div className="flex items-center gap-1.5">
               <button
@@ -379,19 +387,6 @@ export function TaskModal({
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* Delegación */}
-          <div className="dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-2.5">
-            <DelegationChip
-              delegation={localTask.delegation}
-              people={people}
-              onAddPerson={onAddPerson}
-              onRenamePerson={onRenamePerson}
-              onDeletePerson={onDeletePerson}
-              onRecurrenceDateChange={onRecurrenceDateChange}
-              onChange={(delegation: any) => setLocalTask(prev => ({ ...prev, delegation }))}
-            />
-          </div>
 
           {/* Recurrencia — colapsable */}
           <div className="dark:bg-bg-main/20 bg-gray-100/50 border dark:border-border-main border-border-main-light rounded-2xl overflow-hidden">
