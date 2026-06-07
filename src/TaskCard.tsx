@@ -263,25 +263,32 @@ export function TaskCard({
     <div className="group relative" data-task-id={task.id} ref={highlightRef}>
       <div>
         <div
-          className={`relative transition-all hover:dark:bg-white/[0.02] hover:bg-black/[0.02] ${task.status === 'completed' ? 'opacity-50' : ''} ${selectionMode && selectedTaskIds.has(task.id) ? 'dark:bg-azul/15 bg-azul/10 rounded-[1.5rem]' : ''} ${selectionMode ? 'cursor-pointer' : ''} ${searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) ? 'dark:bg-yellow-400/5 bg-yellow-400/10 rounded-2xl' : ''} ${isHighlighted ? 'rounded-2xl' : ''}`}
+          className={`relative transition-all duration-150 rounded-2xl
+            ${task.status === 'completed' ? 'opacity-50' : ''}
+            ${isHighlighted ? 'rounded-2xl' : ''}
+            ${selectionMode
+              ? selectedTaskIds.has(task.id)
+                ? 'dark:bg-azul/10 bg-azul/8 cursor-pointer ring-2 ring-azul/60 ring-inset'
+                : 'cursor-pointer hover:dark:bg-azul/5 hover:bg-azul/3'
+              : 'hover:dark:bg-white/[0.02] hover:bg-black/[0.02]'
+            }
+            ${searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) && !selectionMode ? 'dark:bg-yellow-400/5 bg-yellow-400/10' : ''}
+          `}
           style={isHighlighted ? {
             outline: '3px solid #14B8A6',
             outlineOffset: '2px',
             borderRadius: '1rem',
             backgroundColor: 'rgba(20,184,166,0.15)',
             boxShadow: '0 0 0 6px rgba(20,184,166,0.12)'
-          } : selectionMode && selectedTaskIds.has(task.id) ? { 
-            outline: '3px solid #3B82F6', 
-            outlineOffset: '-1px', 
-            borderRadius: '1.5rem'
-          } : searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) ? {
+          } : searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) && !selectionMode ? {
             outline: '2px solid #facc15',
             outlineOffset: '-1px',
             borderRadius: '1rem'
           } : undefined}
-          onClickCapture={selectionMode && onToggleTaskSelection ? (e) => {
+          onClick={selectionMode && onToggleTaskSelection ? (e) => {
             const target = e.target as HTMLElement;
-            if (target.closest('button') || target.closest('input') || target.closest('select') || target.closest('textarea')) return;
+            // No interceptar clicks en botones, inputs — solo zona libre de la card
+            if (target.closest('button') || target.closest('input') || target.closest('select') || target.closest('textarea') || target.closest('a')) return;
             e.stopPropagation();
             const isContainer = !!(task.subtasks && task.subtasks.length > 0);
             onToggleTaskSelection(task.id, isContainer);
@@ -313,20 +320,35 @@ export function TaskCard({
             {/* Barra color bloque - inline entre flechas y checkbox */}
             <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: block.color }} />
 
-            {/* Checkbox completar - siempre visible */}
-            <button 
-              onClick={(e) => { e.stopPropagation(); onToggleStatus(task.id); }}
-              className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all shadow-lg shrink-0 ${
-                selectionMode && selectedTaskIds.has(task.id)
-                  ? 'bg-azul/20 border-2 border-azul text-azul'
-                  : task.status === 'completed' 
-                    ? 'bg-turquesa text-white' 
+            {/* Checkbox — en modo selección muestra selección, en modo normal completa */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (selectionMode && onToggleTaskSelection) {
+                  const isContainer = !!(task.subtasks && task.subtasks.length > 0);
+                  onToggleTaskSelection(task.id, isContainer);
+                } else {
+                  onToggleStatus(task.id);
+                }
+              }}
+              className={`w-5 h-5 rounded-md flex items-center justify-center transition-all duration-150 shrink-0 ${
+                selectionMode
+                  ? selectedTaskIds.has(task.id)
+                    ? 'bg-azul border-2 border-azul text-white shadow-md shadow-azul/30'
+                    : 'dark:bg-bg-main bg-white border-2 border-azul/40 text-transparent hover:border-azul hover:bg-azul/10'
+                  : task.status === 'completed'
+                    ? 'bg-turquesa border-2 border-turquesa text-white shadow-sm'
                     : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-turquesa'
               }`}
+              title={selectionMode ? (selectedTaskIds.has(task.id) ? 'Deseleccionar' : 'Seleccionar') : (task.status === 'completed' ? 'Marcar pendiente' : 'Completar')}
             >
-              {selectionMode && selectedTaskIds.has(task.id) 
-                ? <Check size={12} />
-                : <CheckCircle2 size={12} />
+              {selectionMode
+                ? selectedTaskIds.has(task.id)
+                  ? <Check size={11} strokeWidth={3} />
+                  : null
+                : task.status === 'completed'
+                  ? <Check size={11} strokeWidth={3} />
+                  : null
               }
             </button>
 
