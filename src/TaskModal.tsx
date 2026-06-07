@@ -120,8 +120,9 @@ export function TaskModal({
   };
 
   const totalEstimated = localTask.estimatedMinutes || 0;
-  const registeredTaskId = localTask.templateId || localTask.id;
-  const totalRegistered = getTaskRegisteredCombo(registeredTaskId, allTasksMap, timeEntries);
+  const totalRegistered = useMemo(() => {
+    return getTaskRegisteredCombo(localTask.id, allTasksMap, timeEntries);
+  }, [timeEntries, localTask.id, allTasksMap]);
   const regColor = totalRegistered === 0
     ? 'dark:text-text-secondary/40 text-text-secondary-light/40'
     : totalRegistered > totalEstimated && totalEstimated > 0
@@ -315,9 +316,9 @@ export function TaskModal({
           {/* Panel tiempo — TimeManagementPanel completo como overlay */}
           {showTimeEntry && (
             <TimeManagementPanel
-              taskId={localTask.templateId || localTask.id}
+              taskId={localTask.id}
               subtaskId={null}
-              instanceDate={localTask.templateId ? (localTask.instanceDate || localTask.dueDate) : null}
+              instanceDate={null}
               allTasksMap={allTasksMap}
               timeEntries={timeEntries}
               fromModal={true}
@@ -331,36 +332,36 @@ export function TaskModal({
           )}
 
           {/* FILA 2: Tags + Delegación + Fecha */}
-          <div className="flex items-center gap-2 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl px-2 py-1.5">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-0 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl px-2 py-1.5">
             {/* Tags — solo si no es contenedor */}
-            {!(localTask.subtasks && localTask.subtasks.length > 0) ? (
-              <div className="flex items-center gap-1 shrink-0">
-                {tags.map(t => {
-                  const active = localTask.tags.includes(t);
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => setLocalTask(prev => ({ ...prev, tags: [t] }))}
-                      className={`w-7 h-7 flex items-center justify-center rounded-lg text-sm border transition-all ${
-                        active
-                          ? 'bg-turquesa border-turquesa shadow-sm'
-                          : 'dark:border-border-main border-border-main-light hover:border-turquesa/50 dark:bg-bg-card bg-white'
-                      }`}
-                      title={TAG_LABELS[t].label}
-                    >
-                      {TAG_LABELS[t].icon}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <span className="text-[10px] dark:text-text-secondary text-text-secondary-light italic shrink-0">🗂️ Contenedor</span>
-            )}
+            <div className="flex items-center gap-1">
+              {!(localTask.subtasks && localTask.subtasks.length > 0) ? (
+                <>
+                  {tags.map(t => {
+                    const active = localTask.tags.includes(t);
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => setLocalTask(prev => ({ ...prev, tags: [t] }))}
+                        className={`w-7 h-7 flex items-center justify-center rounded-lg text-sm border transition-all ${
+                          active
+                            ? 'bg-turquesa border-turquesa shadow-sm'
+                            : 'dark:border-border-main border-border-main-light hover:border-turquesa/50 dark:bg-bg-card bg-white'
+                        }`}
+                        title={TAG_LABELS[t].label}
+                      >
+                        {TAG_LABELS[t].icon}
+                      </button>
+                    );
+                  })}
+                </>
+              ) : (
+                <span className="text-[10px] dark:text-text-secondary text-text-secondary-light italic">🗂️ Contenedor</span>
+              )}
+            </div>
 
-            <div className="w-px h-5 dark:bg-border-main bg-border-main-light shrink-0" />
-
-            {/* Delegación */}
-            <div className="shrink-0 h-7 flex items-center">
+            {/* Delegación — centrada */}
+            <div className="flex justify-center px-2 border-x dark:border-border-main border-border-main-light h-7 items-center">
               <DelegationChip
                 delegation={localTask.delegation}
                 people={people}
@@ -372,13 +373,11 @@ export function TaskModal({
               />
             </div>
 
-            <div className="w-px h-5 dark:bg-border-main bg-border-main-light shrink-0" />
-
-            {/* Fecha */}
-            <div className="flex items-center gap-1 flex-1 min-w-0">
+            {/* Fecha — alineada a la derecha */}
+            <div className="flex items-center justify-end gap-1 pl-2">
               <button
                 onClick={() => setShowDateSelector(!showDateSelector)}
-                className={`flex items-center gap-1.5 text-[11px] font-bold transition-all shrink-0 ${
+                className={`flex items-center gap-1.5 text-[11px] font-bold transition-all ${
                   localTask.dueDate ? 'text-turquesa hover:opacity-70' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa'
                 }`}
               >

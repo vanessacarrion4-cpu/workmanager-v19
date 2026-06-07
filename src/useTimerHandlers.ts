@@ -143,7 +143,7 @@ export function useTimerHandlers({
   ) => {
     const newEntry: TimeEntry = {
       id: `te-${Date.now()}`,
-      taskId,
+      taskId,       // ID original (puede ser inst-xxx): se guarda en memoria así
       subtaskId,
       date,
       duration: minutes,
@@ -159,6 +159,7 @@ export function useTimerHandlers({
       if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
     }
 
+    // En Supabase guardamos con templateId para respetar la FK de tasks
     const resolveIdForDB = (id: string | null): string | null => {
       if (!id) return null;
       if (!id.startsWith('inst-')) return id;
