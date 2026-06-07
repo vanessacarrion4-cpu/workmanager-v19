@@ -22,7 +22,7 @@ import { TAG_LABELS } from './constants';
 import { getTaskRegisteredCombo, formatMinutes } from './utils';
 import {
   DelegationChip, DatePickerChip, TagPickerChip, RecurrencePickerChip,
-  EstimatedTimeChip, TimePickerChip, MonthDatePicker
+  EstimatedTimeChip, TimePickerChip, MonthDatePicker, TimeManagementPanel
 } from './components';
 
 interface TaskModalProps {
@@ -44,6 +44,8 @@ interface TaskModalProps {
   onToggleStatus?: ((taskId: string) => void) | null;
   timeEntries?: any[];
   onAddTimeEntry?: ((taskId: string, subtaskId: string | null, minutes: number, date: string) => void) | null;
+  onDeleteTimeEntry?: ((entryId: string) => void) | null;
+  onUpdateTimeEntry?: ((entryId: string, updates: any) => void) | null;
 }
 
 export function TaskModal({
@@ -65,6 +67,8 @@ export function TaskModal({
   onToggleStatus = null,
   timeEntries = [],
   onAddTimeEntry = null,
+  onDeleteTimeEntry = null,
+  onUpdateTimeEntry = null,
 }: TaskModalProps) {
   const [localTask, setLocalTask] = useState<Task>(task);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
@@ -72,8 +76,6 @@ export function TaskModal({
   const [showRecurrence, setShowRecurrence] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showTimeEntry, setShowTimeEntry] = useState(false);
-  const [timeEntryMinutes, setTimeEntryMinutes] = useState('');
-  const [timeEntryDate, setTimeEntryDate] = useState(formatLocalISO(new Date()));
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const tags: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
 
@@ -309,50 +311,21 @@ export function TaskModal({
             </button>
           </div>
 
-          {/* Panel añadir tiempo manual — expandible */}
+          {/* Panel tiempo — TimeManagementPanel completo como overlay */}
           <AnimatePresence>
             {showTimeEntry && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="flex items-center gap-2 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-xl p-2">
-                  <Check size={11} className={regColor} strokeWidth={3} />
-                  <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest shrink-0">Añadir</span>
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder="min"
-                    value={timeEntryMinutes}
-                    onChange={e => setTimeEntryMinutes(e.target.value)}
-                    className="w-16 bg-transparent text-[11px] font-bold dark:text-white text-text-main-light outline-none border-b dark:border-border-main border-border-main-light focus:border-turquesa text-right"
-                  />
-                  <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">min</span>
-                  <input
-                    type="date"
-                    value={timeEntryDate}
-                    onChange={e => setTimeEntryDate(e.target.value)}
-                    className="flex-1 bg-transparent text-[11px] font-bold dark:text-white text-text-main-light outline-none border-b dark:border-border-main border-border-main-light focus:border-turquesa"
-                  />
-                  <button
-                    onClick={() => {
-                      const mins = parseInt(timeEntryMinutes);
-                      if (!mins || !onAddTimeEntry) return;
-                      onAddTimeEntry(localTask.id, null, mins, timeEntryDate);
-                      setTimeEntryMinutes('');
-                      setShowTimeEntry(false);
-                    }}
-                    className="w-7 h-7 flex items-center justify-center bg-turquesa text-white rounded-lg hover:bg-turquesa/80 transition-all shrink-0"
-                  >
-                    <Check size={12} />
-                  </button>
-                  <button onClick={() => setShowTimeEntry(false)} className="text-rosa hover:bg-rosa/10 rounded p-1 transition-all">
-                    <X size={11} />
-                  </button>
-                </div>
-              </motion.div>
+              <TimeManagementPanel
+                taskId={localTask.templateId || localTask.id}
+                subtaskId={null}
+                allTasksMap={allTasksMap}
+                timeEntries={timeEntries}
+                onAddEntry={(taskId: string, subtaskId: string | null, minutes: number, date: string, note: string, markComplete: boolean) => {
+                  if (onAddTimeEntry) onAddTimeEntry(taskId, subtaskId, minutes, date);
+                }}
+                onDeleteEntry={(entryId: string) => { if (onDeleteTimeEntry) onDeleteTimeEntry(entryId); }}
+                onUpdateEntry={(entryId: string, updates: any) => { if (onUpdateTimeEntry) onUpdateTimeEntry(entryId, updates); }}
+                onClose={() => setShowTimeEntry(false)}
+              />
             )}
           </AnimatePresence>
 

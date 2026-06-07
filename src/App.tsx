@@ -707,6 +707,8 @@ export default function App() {
           onToggleStatus={handleToggleStatus}
           timeEntries={timeEntries}
           onAddTimeEntry={(taskId, subtaskId, minutes, date) => timerHandlers.handleManualTimeEntry(taskId, subtaskId, minutes, date)}
+          onDeleteTimeEntry={timerHandlers.handleDeleteTimeEntry}
+          onUpdateTimeEntry={timerHandlers.handleUpdateTimeEntry}
         />
       )}
 
@@ -732,6 +734,8 @@ export default function App() {
           onToggleStatus={handleToggleStatus}
           timeEntries={timeEntries}
           onAddTimeEntry={(taskId, subtaskId, minutes, date) => timerHandlers.handleManualTimeEntry(taskId, subtaskId, minutes, date)}
+          onDeleteTimeEntry={timerHandlers.handleDeleteTimeEntry}
+          onUpdateTimeEntry={timerHandlers.handleUpdateTimeEntry}
         />
       )}
 
