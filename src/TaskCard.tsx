@@ -79,7 +79,6 @@ export function TaskCard({
   if (!task || task.isDeleted) return null;
   const currentRootId = rootTaskId || task.id;
   const isHighlighted = highlightTaskId === task.id;
-  if (task.title?.includes('Picking')) console.log('[PICKING DEBUG] id:', task.id, 'isTemplate:', task.isTemplate, 'templateId:', task.templateId, 'recurrence:', !!task.recurrence);
   const highlightRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (isHighlighted && highlightRef.current) {
@@ -279,6 +278,7 @@ export function TaskCard({
                 : 'cursor-pointer hover:dark:bg-azul/5 hover:bg-azul/3'
               : 'hover:dark:bg-white/[0.02] hover:bg-black/[0.02]'
             }
+            ${searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) && !selectionMode ? 'dark:bg-yellow-400/5 bg-yellow-400/10' : ''}
           `}
           style={isHighlighted ? {
             outline: '3px solid #14B8A6',
@@ -287,10 +287,9 @@ export function TaskCard({
             backgroundColor: 'rgba(20,184,166,0.15)',
             boxShadow: '0 0 0 6px rgba(20,184,166,0.12)'
           } : searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) && !selectionMode ? {
-            outline: '2px solid #14B8A6',
-            outlineOffset: '2px',
-            borderRadius: '1rem',
-            backgroundColor: 'rgba(20,184,166,0.08)'
+            outline: '2px solid #facc15',
+            outlineOffset: '-1px',
+            borderRadius: '1rem'
           } : undefined}
           onClick={selectionMode && onToggleTaskSelection ? (e) => {
             const target = e.target as HTMLElement;
@@ -402,11 +401,9 @@ export function TaskCard({
                         <button
                           data-testid="expand-button"
                           onClick={(e) => {
-                            console.log('[BOTÓN ROSA] Click en botón, taskId:', task.id);
                             e.stopPropagation();
                             e.preventDefault();
                             onToggleExpand(task.id);
-                            console.log('[BOTÓN ROSA] onToggleExpand llamado');
                           }}
                           className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30 cursor-pointer"
                         >
@@ -489,7 +486,6 @@ export function TaskCard({
                     );
                   })()}
                   {/* Chip recurrencia para templates (Delegadas, Vista Bloques) */}
-                  {task.isTemplate && task.recurrence && !task.templateId && console.log('[CHIP DEBUG]', task.title, 'isTemplate:', task.isTemplate, 'recurrence:', !!task.recurrence, 'templateId:', task.templateId, 'onGoToTemplate:', !!onGoToTemplate)}
                   {task.isTemplate && task.recurrence && !task.templateId && (() => {
                     const rec = task.recurrence;
                     const freq = rec.frequency || rec.type;
@@ -515,7 +511,6 @@ export function TaskCard({
                       } else label = 'Año';
                     }
                     else label = freq;
-                    if (task.title?.includes('Picking')) console.log('[CHIP RENDER] Picking chip rendering, onGoToTemplate:', !!onGoToTemplate, 'label:', label);
                     return (
                       <div className="flex items-center gap-1 shrink-0">
                         {onGoToTemplate && (
@@ -761,7 +756,6 @@ export function TaskCard({
                           if (idx === 0) return;
                           const reordered = [...visibleSubs];
                           [reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]];
-                          console.log('[MOVE] MoveUp subtask', subId, 'parent:', task.id, 'reordered:', reordered);
                           onReorderSubtasks(task.id, reordered);
                         }}
                         onMoveDown={() => {

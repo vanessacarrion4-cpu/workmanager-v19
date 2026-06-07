@@ -140,31 +140,6 @@ export function DashboardView({
 
   const stats = useMemo(() => {
     const s = getStatsForDay(dayTasks, allTasksMap, timeEntries, activeDate);
-    console.log('[STATS DEBUG] dayTasks count:', dayTasks.length);
-    console.log('[STATS DEBUG] stats result:', s);
-    // Log cada subtarea pendiente
-    dayTasks.forEach((t: any) => {
-      if (!t.subtasks || t.subtasks.length === 0) {
-        if (t.dueDate === activeDate && t.status !== 'completed') {
-          console.log('[PENDING LEAF]', t.title, '| status:', t.status);
-        }
-      } else {
-        Object.values(allTasksMap).forEach((sub: any) => {
-          if (sub.isDeleted || sub.dueDate !== activeDate) return;
-          const containerTemplateId = t.templateId || t.id;
-          let isChild = false;
-          if (sub.templateId) {
-            const tpl = (allTasksMap as any)[sub.templateId];
-            isChild = tpl && tpl.parentTaskId === containerTemplateId;
-          } else {
-            isChild = sub.parentTaskId === t.id || sub.parentTaskId === containerTemplateId;
-          }
-          if (isChild && sub.status !== 'completed') {
-            console.log('[PENDING SUB]', t.title, '→', sub.title, '| status:', sub.status, '| id:', sub.id);
-          }
-        });
-      }
-    });
     return s;
   }, [dayTasks, allTasksMap, timeEntries, activeDate]);
 
