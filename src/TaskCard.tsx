@@ -279,7 +279,6 @@ export function TaskCard({
                 : 'cursor-pointer hover:dark:bg-azul/5 hover:bg-azul/3'
               : 'hover:dark:bg-white/[0.02] hover:bg-black/[0.02]'
             }
-            ${searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) && !selectionMode ? 'dark:bg-yellow-400/5 bg-yellow-400/10' : ''}
           `}
           style={isHighlighted ? {
             outline: '3px solid #14B8A6',
@@ -288,9 +287,10 @@ export function TaskCard({
             backgroundColor: 'rgba(20,184,166,0.15)',
             boxShadow: '0 0 0 6px rgba(20,184,166,0.12)'
           } : searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) && !selectionMode ? {
-            outline: '2px solid #facc15',
-            outlineOffset: '-1px',
-            borderRadius: '1rem'
+            outline: '2px solid #14B8A6',
+            outlineOffset: '2px',
+            borderRadius: '1rem',
+            backgroundColor: 'rgba(20,184,166,0.08)'
           } : undefined}
           onClick={selectionMode && onToggleTaskSelection ? (e) => {
             const target = e.target as HTMLElement;

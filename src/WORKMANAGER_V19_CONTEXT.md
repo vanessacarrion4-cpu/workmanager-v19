@@ -1,7 +1,7 @@
 # WorkManager v19 — Documento de Contexto Completo
 
 > Usar este documento al inicio de cada sesión de desarrollo para dar contexto completo al asistente.
-> Última actualización: 07/06/2026 (sesión 4 — sticky fix, color esmeralda, goto búsqueda, UX barra)
+> Última actualización: 07/06/2026 (sesión 5 — tiempo instancias, colores tiempo, InstancesModal mejoras, TaskModal acciones)
 
 ---
 
@@ -331,21 +331,24 @@ Borde esmeralda en lateral y barra:
 
 ## 13. Bugs / Mejoras Pendientes
 
-| # | Descripción | Vista |
-|---|-------------|-------|
-| 1 | StickyActionBar — ocultar completamente en WorkloadView y CalendarView (solo mostrar Seleccionar si aplica) | App.tsx |
-| 2 | Templates recurrentes en Bloques — tiempo estimado y registrado se suma incorrectamente en la plantilla | BlocksView |
-| 3 | Tareas pasadas en Dashboard — mostrar tiempo estimado y tiempo registrado | DashboardView |
-| 4 | Highlight en SearchView — borde turquesa + scroll en vez del fondo amarillo actual | SearchView |
-| 5 | Nivel 3 sin indentación visual — sub-subtareas visualmente iguales a nivel 2 | TaskCard |
-| 6 | Logs debug pendientes de limpiar: `[PICKING DEBUG]`, `[CHIP DEBUG]`, `[CHIP RENDER]`, `[STATS DEBUG]` | Varios |
-| 7 | Instancias Picking en Supabase — limpiar con SQL: `DELETE FROM tasks WHERE id LIKE 'inst-t-%' AND parent_task_id IS NOT NULL` | Supabase |
-| 8 | Completar contenedor cuando todas las hijas están completadas — verificar que funciona | TaskCard |
-| 9 | Seleccionar en SearchView — activar funcionalidad bulk o ocultar el botón | SearchView |
-| 10 | Buscador global del header aparece en SearchView — debería ocultarse y dejar solo el buscador propio | App.tsx |
-| 11 | WorkloadView — buscador no funciona, valorar si debe funcionar o quitarse | WorkloadView |
-| 12 | Estado completado de subtarea no persiste después de reload | useSupabase / useGeneration |
-| 13 | Delegadas — botón "+" por persona navega correctamente a añadir tarea delegada | DelegadasView |
+### Resueltos en sesión 5 (07/06/2026)
+| # | Descripción | Archivos |
+|---|-------------|---------|
+| 2 | Templates en Bloques: tiempo estimado fijo (sin acumular instancias), registrado = 0 | `TaskCard.tsx` |
+| 3 | InstancesModal: muestra EST y REG por instancia. REG busca por `taskId`/`createdAt` camelCase, filtrado por día Barcelona | `Modals.tsx`, `App.tsx` |
+| — | Colores tiempo unificados: lima (< estimado), naranja (≥90%), rosa (> estimado), slate (0) | `Chips.tsx`, `Modals.tsx` |
+| — | Badge COMPLETADA en InstancesModal: cambiado de verde a azul | `Modals.tsx` |
+| — | Badge EDITADA eliminado: sustituido por icono lápiz junto a PENDIENTE | `Modals.tsx` |
+| — | TaskModal: botones ✓ Completar y 🗑 Eliminar en header para acceso rápido sin scrollar | `TaskModal.tsx`, `App.tsx` |
+
+### Pendientes activos
+| # | Descripción | Vista/Archivo | Fase |
+|---|-------------|---------------|------|
+| 4 | Highlight búsqueda — borde turquesa + scroll automático en SearchView y buscador global (sustituir fondo amarillo) | `TaskCard.tsx`, `SearchView.tsx` | 2 |
+| 6 | Limpiar logs debug: `[PICKING DEBUG]`, `[CHIP DEBUG]`, `[CHIP RENDER]`, `[STATS DEBUG]`, `[PENDING SUB]`, `[PENDING LEAF]`, `[BOTÓN ROSA]`, `[MOVE]` | Varios | 3 |
+| 7 | Limpiar instancias Picking en Supabase (verificar con SELECT antes): `DELETE FROM tasks WHERE id LIKE 'inst-t-%' AND parent_task_id IS NOT NULL AND is_exception = false` | Supabase | 3 |
+| 11 | WorkloadView — buscador no funciona, valorar si quitar | `WorkloadView.tsx` | 4 |
+| — | Rediseño completo TaskModal — modal muy largo y complejo | `TaskModal.tsx` | Próximo sprint |
 
 ---
 
@@ -393,6 +396,9 @@ Borde esmeralda en lateral y barra:
 - El div raíz de App.tsx DEBE ser `h-screen overflow-hidden` — no cambiar a `min-h-screen`
 - La StickyActionBar DEBE estar en App.tsx fuera del scroll container — no moverla a las vistas
 - Color turquesa oficial: `#14B8A6` (mismo que logo SVG en App.tsx)
+- **`time_entries` en JS son camelCase**: `taskId`, `subtaskId`, `duration`, `createdAt` (NO `task_id`, `created_at`)
+- **`time_entries` se guardan con IDs de templates** (`t-xxx`), NO con IDs de instancias (`inst-t-xxx-fecha`)
+- Para calcular tiempo registrado de una instancia: filtrar `timeEntries` por `taskId`/`subtaskId` del template + `createdAt` convertido a fecha Barcelona (`toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' })`)
 
 ---
 
