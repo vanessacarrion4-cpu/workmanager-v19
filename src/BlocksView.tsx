@@ -216,7 +216,7 @@ export function BlocksManagerView({
     return (
       <>
         {/* Header del bloque sticky */}
-        <div className="sticky top-0 z-20 dark:bg-bg-secondary bg-bg-secondary-light border-b dark:border-border-main border-border-main-light shadow-sm">
+        <div className="sticky top-[44px] z-20 dark:bg-bg-secondary bg-bg-secondary-light border-b dark:border-border-main border-border-main-light shadow-sm">
           <div className="flex items-center gap-3 p-4">
             <button onClick={() => setSelectedBlock(null)} className="p-2 dark:hover:bg-bg-main hover:bg-gray-100 rounded-xl transition-all shrink-0">
               <ChevronRight size={18} className="rotate-180 dark:text-white text-text-main-light" />
