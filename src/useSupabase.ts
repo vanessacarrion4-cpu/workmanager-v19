@@ -372,18 +372,26 @@ export function useSupabase({
 
         // Mapear time entries
         if (timeEntriesData && timeEntriesData.length > 0) {
-          const mappedEntries = timeEntriesData.map((e: any) => ({
-            id: e.id,
-            taskId: e.task_id,
-            subtaskId: e.subtask_id,
-            date: e.date,
-            duration: e.duration,
-            note: e.note || '',
-            source: e.source || 'manual',
-            createdAt: e.created_at
-          }));
+          const mappedEntries = timeEntriesData.map((e: any) => {
+            // Si task_id es un templateId (t-xxx) y tiene date, reconstruir el instanceId
+            // para que coincida con las instancias generadas en memoria
+            const rawTaskId = e.task_id;
+            const instanceTaskId = rawTaskId && e.date && !rawTaskId.startsWith('inst-')
+              ? `inst-${rawTaskId}-${e.date}`
+              : rawTaskId;
+            return {
+              id: e.id,
+              taskId: instanceTaskId,
+              subtaskId: e.subtask_id,
+              date: e.date,
+              duration: e.duration,
+              note: e.note || '',
+              source: e.source || 'manual',
+              createdAt: e.created_at
+            };
+          });
           setTimeEntries(mappedEntries);
-          console.log('[SUPABASE] Loaded time entries:', mappedEntries.length);
+        }
         }
 
         // Mapear reuniones
