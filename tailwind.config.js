@@ -24,8 +24,8 @@ export default {
         'border-main-light': '#E2E8F0',
         // Accent colors
         // Para volver al turquesa original: cambiar #0D9E90 → #06B6D4
-        'turquesa': '#17B8A3',   // esmeralda-teal A1 (antes #06B6D4 cyan, luego #0D9E90)
-        'esmeralda': '#17B8A3',  // alias
+        'turquesa': '#14B8A6',   // color oficial logo WorkManager
+        'esmeralda': '#14B8A6',  // alias
         'azul': '#3B82F6',
         'morado': '#8B5CF6',
         'rosa': '#EC4899',

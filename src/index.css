@@ -52,33 +52,33 @@ body.light {
 /* Scrollbar - Dark mode */
 .dark ::-webkit-scrollbar { width: 6px; height: 6px; }
 .dark ::-webkit-scrollbar-track { background: #1E293B; }
-.dark ::-webkit-scrollbar-thumb { background: #17B8A3; border-radius: 4px; opacity: 0.5; }
+.dark ::-webkit-scrollbar-thumb { background: #14B8A6; border-radius: 4px; opacity: 0.5; }
 .dark ::-webkit-scrollbar-thumb:hover { background: #0F9E90; }
 
 /* Scrollbar - Light mode */
 .light ::-webkit-scrollbar { width: 6px; height: 6px; }
 .light ::-webkit-scrollbar-track { background: #F1F5F9; }
-.light ::-webkit-scrollbar-thumb { background: rgba(23,184,163,0.25); border-radius: 4px; }
-.light ::-webkit-scrollbar-thumb:hover { background: rgba(23,184,163,0.45); }
+.light ::-webkit-scrollbar-thumb { background: rgba(20,184,166,0.25); border-radius: 4px; }
+.light ::-webkit-scrollbar-thumb:hover { background: rgba(20,184,166,0.45); }
 
 /* Borde esmeralda en el lateral y barra sticky — light mode */
 .light nav {
-  border-right: 2px solid rgba(23,184,163,0.3) !important;
+  border-right: 2px solid rgba(20,184,166,0.3) !important;
 }
 .light .sticky-action-bar-border {
-  border-bottom: 2px solid rgba(23,184,163,0.3);
+  border-bottom: 2px solid rgba(20,184,166,0.3);
 }
 
 /* Borde esmeralda — dark mode */
 .dark nav {
-  border-right: 2px solid rgba(23,184,163,0.2) !important;
+  border-right: 2px solid rgba(20,184,166,0.2) !important;
 }
 .dark .sticky-action-bar-border {
-  border-bottom: 2px solid rgba(23,184,163,0.2);
+  border-bottom: 2px solid rgba(20,184,166,0.2);
 }
 
 /* Selección de texto con color de marca */
 ::selection {
-  background: rgba(23,184,163,0.2);
+  background: rgba(20,184,166,0.2);
   color: inherit;
 }
