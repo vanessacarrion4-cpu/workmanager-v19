@@ -317,6 +317,7 @@ export function TaskModal({
               <TimeManagementPanel
                 taskId={localTask.templateId || localTask.id}
                 subtaskId={null}
+                instanceDate={localTask.templateId ? (localTask.instanceDate || localTask.dueDate) : null}
                 allTasksMap={allTasksMap}
                 timeEntries={timeEntries}
                 onAddEntry={(taskId: string, subtaskId: string | null, minutes: number, date: string, note: string, markComplete: boolean) => {
