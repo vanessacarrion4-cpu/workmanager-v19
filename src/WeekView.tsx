@@ -164,17 +164,26 @@ export function WeekView({
     return `${start.getDate()} ${months[start.getMonth()]} – ${end.getDate()} ${months[end.getMonth()]} ${end.getFullYear()}`;
   }, [days]);
 
+  const activeBlockIds = useMemo(() =>
+    new Set(blocks.filter(b => b.isActive).map(b => b.id)),
+    [blocks]
+  );
+
   // Para cada día: usar allTasksMap si está en ventana, calcular desde templates si no
   const tasksByDay = useMemo(() => {
     const map: Record<string, Task[]> = {};
     days.forEach(date => {
       const inWindow = date >= generatedStart && date <= generatedEnd;
       if (inWindow) {
-        map[date] = filterTasksForDay(Object.values(allTasksMap), date);
+        map[date] = filterTasksForDay(
+          Object.values(allTasksMap),
+          allTasksMap,
+          activeBlockIds,
+          date,
+          { hideCompleted: false, hideDelegatedNoTag: false }
+        );
       } else {
-        // Fuera de ventana: calcular desde templates
         const virtual = generateVirtualInstances(allTasksMap, date);
-        // También incluir tareas manuales con esa fecha
         const manual = Object.values(allTasksMap).filter(
           t => !t.isTemplate && !t.templateId && t.dueDate === date && !t.isDeleted
         );
@@ -182,7 +191,7 @@ export function WeekView({
       }
     });
     return map;
-  }, [days, allTasksMap, generatedStart, generatedEnd]);
+  }, [days, allTasksMap, activeBlockIds, generatedStart, generatedEnd]);
 
   const activeBlocks = useMemo(() => blocks.filter(b => b.isActive), [blocks]);
 
