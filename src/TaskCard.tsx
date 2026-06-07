@@ -113,15 +113,19 @@ export function TaskCard({
   };
   
   // En Dashboard con subtasksForGroup: solo sumar las subtareas de ese grupo
-  // En Bloques: sumar todas las subtareas
+  // En Bloques template: estimado fijo (sin filtrar completadas), registrado = 0
+  // En Bloques o tarea normal: sumar PENDIENTES
   const totalEstimated = (() => {
     if (subtasksForGroup !== null) {
       // Dashboard: contenedor dividido por grupos - solo sumar subtareas PENDIENTES del grupo
       return subtasksForGroup.reduce((acc: number, subId: string) => {
         return acc + getTaskEstimatedPending(subId, allTasksMap);
       }, 0);
+    } else if (task.isTemplate && !task.templateId) {
+      // Template en BlocksView: mostrar estimado base (suma de subtemplates, sin filtrar por estado)
+      return getTaskEstimatedCombo(task.id, allTasksMap);
     } else {
-      // Bloques o tarea normal: sumar PENDIENTES
+      // Instancia o tarea manual: sumar PENDIENTES
       return getTaskEstimatedPending(task.id, allTasksMap);
     }
   })();
@@ -132,8 +136,11 @@ export function TaskCard({
       return subtasksForGroup.reduce((acc: number, subId: string) => {
         return acc + getTaskRegisteredCombo(subId, allTasksMap, timeEntries);
       }, 0);
+    } else if (task.isTemplate && !task.templateId) {
+      // Template en BlocksView: no acumular tiempo registrado de instancias pasadas
+      return 0;
     } else {
-      // Bloques o tarea normal: sumar todo
+      // Instancia o tarea manual: sumar todo
       return getTaskRegisteredCombo(task.id, allTasksMap, timeEntries);
     }
   })();

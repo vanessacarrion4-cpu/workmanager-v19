@@ -1,7 +1,7 @@
 # WorkManager v19 — Documento de Contexto Completo
 
 > Usar este documento al inicio de cada sesión de desarrollo para dar contexto completo al asistente.
-> Última actualización: 07/06/2026 (sesión 3 — refactor completo + UX mejoras)
+> Última actualización: 07/06/2026 (sesión 4 — sticky fix, color esmeralda, goto búsqueda, UX barra)
 
 ---
 
@@ -164,21 +164,38 @@ Task {
 
 ---
 
-## 7. StickyActionBar — Componente Compartido
+## 7. StickyActionBar — Arquitectura CRÍTICA
 
-Barra sticky en todas las vistas (Dashboard, Bloques, Delegadas, Calendario).
+### Dónde vive
+La `StickyActionBar` está montada en **App.tsx** directamente, entre el `<header>` y el `<div overflow-y-auto>`. NO está dentro de ninguna vista. Esto es intencional y necesario para que el sticky funcione correctamente.
 
-**Estado normal — 3 zonas:**
 ```
-[Seleccionar] | [👁 Ocultar completadas] [⊞ Expandir/Contraer] | [+ Tarea]
+<main flex-col>
+  <header />                    ← fijo, shrink-0
+  <StickyActionBar />           ← fijo aquí, FUERA del overflow-y-auto
+  <div overflow-y-auto>         ← solo el contenido scrollea
+    <AnimatePresence>
+      <DashboardView />
+      <BlocksView />
+      ...
+    </AnimatePresence>
+  </div>
+</main>
 ```
 
-**Estado selección activa:**
-```
-[2 ✓] | [Delegar] [Fecha] [Completar] [Tiempo] [Duplicar] [Eliminar] | [✕]
-```
+### Por qué funciona así
+El scroll container es `<div className="flex-1 overflow-y-auto">` en App.tsx. El div raíz de la app es `h-screen overflow-hidden` — esto es crítico, sin esto el scroll ocurre en el body y el sticky no funciona.
 
-**Props:**
+### Estado de vista en App.tsx (lifted state)
+Los estados que controla la StickyActionBar para cada vista están en App.tsx:
+- `dashHideCompleted` / `setDashHideCompleted`
+- `dashExpandAll` / `setDashExpandAll`
+- `dashExpandedBlocks` / `setDashExpandedBlocks`
+- `delegadasHideCompleted` / `setDelegadasHideCompleted`
+- `blocksExpanded` / `setBlocksExpanded`
+- `blocksToggleExpandRef` — ref para callback de expand en BlocksView
+
+### Props de StickyActionBar
 ```typescript
 StickyActionBar {
   selectionMode: boolean
@@ -187,7 +204,12 @@ StickyActionBar {
   onAddTask?: () => void
   hideCompleted?: boolean
   onToggleHideCompleted?: () => void
-  expanded?: boolean
+  expandAll?: boolean | null          // Dashboard subtareas
+  onToggleExpandAll?: () => void
+  expandedBlocksCount?: number        // Dashboard grupos tag
+  expandedBlocksTotal?: number
+  onToggleExpandBlocks?: () => void
+  expanded?: boolean                  // BlocksView genérico
   onToggleExpand?: () => void
   onDelegate?: () => void
   onChangeDate?: () => void
@@ -198,11 +220,57 @@ StickyActionBar {
 }
 ```
 
-**PENDIENTE**: El botón `+ Tarea` debe estar SOLO en StickyActionBar (siempre visible al scrollear). Quitar duplicados del header de cada vista. En DashboardView aún quedan botones de expandir subtareas, expandir grupos (Tag) y ocultar completadas en el header de fecha — moverlos o limpiarlos.
+### Vistas que NO muestran ciertos controles en la barra
+- **Calendario**: solo Seleccionar (sin ocultar completadas, sin expandir, sin + Tarea)
+- **Búsqueda**: solo Seleccionar (sin ocultar completadas, sin expandir)
+- **Carga**: sin barra (pendiente implementar ocultación)
 
 ---
 
-## 8. Selección de Tareas — UX Mejorada
+## 8. BlocksView — Header de bloque
+
+El header del bloque seleccionado (nombre + icono + nº tareas + toggle ocultar completadas) es **sticky top-0** dentro del scroll container. Al seleccionar un bloque o volver atrás, se hace scroll automático al top:
+```js
+const scrollEl = document.querySelector('.overflow-y-auto');
+if (scrollEl) scrollEl.scrollTop = 0;
+```
+
+---
+
+## 9. Sistema de Colores — ACTUALIZADO sesión 4
+
+### Color principal
+`turquesa: #14B8A6` — color oficial del logo WorkManager. Usado en toda la app para acciones primarias, chips activos, highlights, botones.
+
+**Para volver al cyan original**: cambiar `#14B8A6` → `#06B6D4` en `tailwind.config.js` (una línea).
+
+### Paleta completa (tailwind.config.js)
+```js
+'turquesa': '#14B8A6',   // color oficial logo — antes #06B6D4
+'esmeralda': '#14B8A6',  // alias de turquesa
+'azul': '#3B82F6',
+'morado': '#8B5CF6',
+'rosa': '#EC4899',
+'verde': '#10B981',
+'lima': '#84CC16',
+'naranja': '#F97316',
+```
+
+### Acento estructural (index.css)
+Borde esmeralda en lateral y barra:
+- `nav`: `border-right: 2px solid rgba(20,184,166,0.3)` light / `rgba(20,184,166,0.2)` dark
+- `.sticky-action-bar-border`: `border-bottom: 2px solid rgba(20,184,166,0.3)` light / `rgba(20,184,166,0.2)` dark
+- Scrollbar: 6px, thumb con esmeralda al 25% en light
+
+### Colores semánticos en código
+- Contenedores estructurales: `dark:bg-bg-secondary bg-bg-secondary-light`
+- Cards: `dark:bg-bg-card bg-bg-card-light`
+- Bordes: `dark:border-border-main border-border-main-light`
+- Colores inline (hex directo): para colores dinámicos o condicionales que Tailwind no puede generar
+
+---
+
+## 10. Selección de Tareas — UX
 
 - **Toda la card es clickable** en modo selección (no solo el checkbox)
 - Click en zona libre de la card → selecciona/deselecciona
@@ -210,61 +278,78 @@ StickyActionBar {
 - **Checkbox** se transforma visualmente: borde azul (no seleccionado) → relleno azul (seleccionado)
 - **Ring azul** alrededor de la card seleccionada
 - Fondo azul sutil en cards seleccionadas
+- Selección en **cascada**: seleccionar contenedor selecciona todas sus subtareas
 
 ---
 
-## 9. Vistas — Estado Actual
-
-### BlocksView.tsx
-- Header compacto sticky con nombre del bloque + StickyActionBar integrada
-- `expandedIds` (estado local): todos colapsados por defecto (`forceExpanded={false}`)
-- `forceExpanded` se propaga a subtareas hijas también
-- Búsqueda por `searchQuery` filtra `coreTasks` y `adhocTasks`; auto-expande contenedores con coincidencias en subtareas
+## 11. Vistas — Estado Actual
 
 ### DashboardView.tsx
-- StickyActionBar arriba con seleccionar + ocultar completadas + añadir
-- Header de fecha con expandir subtareas, expandir grupos (Tag) — **pendiente limpiar duplicados**
-- `pendingDateChange` modal para cambio de fecha en instancias recurrentes (restaurado en sesión 3)
+- StickyActionBar en App.tsx recibe estados lifted: hideCompleted, expandAll, expandedBlocks
+- Header de fecha con 3 columnas simétricas (grid-cols-3): nav izquierda, fecha centrada, vacío derecha
+- `pendingDateChange` modal para cambio de fecha en instancias recurrentes
+
+### BlocksView.tsx
+- Header del bloque seleccionado: sticky top-0 dentro del scroll container
+- Al seleccionar bloque o volver: scroll automático al top via `document.querySelector('.overflow-y-auto').scrollTop = 0`
+- `expandedIds` (estado local): todos colapsados por defecto
+- Búsqueda por `searchQuery` filtra `coreTasks`/`adhocTasks`; auto-expande contenedores con coincidencias
 
 ### DelegadasView.tsx
-- StickyActionBar integrada
+- Botón "Reunión" compacto (sin "Nueva") en el header
+- `hideCompletedExternal` prop sincroniza con estado lifted en App.tsx
 - Filtro: solo `isTemplate:true` o `!templateId`
 
+### SearchView.tsx
+- `onGoToTemplate` prop conectado — muestra flechita ↗ en tareas recurrentes igual que Dashboard
+- Botón "BLOQUES →" en header de cada grupo navega a vista Bloques (onNavigateToBlocks)
+- Buscador propio (el del header global no aplica aquí)
+
 ### CalendarView.tsx
-- Import de StickyActionBar preparado, sin selección implementada aún
+- StickyActionBar muestra solo Seleccionar (sin + Tarea, sin ocultar completadas)
+
+### WorkloadView.tsx
+- Pendiente: ocultar StickyActionBar completa en esta vista
 
 ---
 
-## 10. Bugs Resueltos — Sesión 3 (07/06/2026)
+## 12. Bugs Resueltos — Sesión 4 (07/06/2026)
 
-31. Modal `pendingDateChange` se había perdido en refactor → restaurado en App.tsx
-32. `instanceDate` faltaba al confirmar cambio de fecha → corregido
-33. Imports faltantes en `Chips.tsx` (`ChevronDown`, `Plus`, `CalendarIcon`, `MonthDatePicker`) → corregidos
-34. Imports faltantes en `Modals.tsx` (`Circle`, `CheckCircle2`, `LayoutDashboard`) → corregidos
-35. Contenedores no colapsaban por defecto en BlocksView → `forceExpanded={false}` en vez de `undefined`
-36. `forceExpanded` no se propagaba a subtareas hijas → corregido en TaskCard recursivo
-37. Buscador en BlocksView no filtraba → `coreTasks`/`adhocTasks` ahora filtran por `searchQuery`
-38. Auto-expand de contenedores con coincidencias en subtareas al buscar
-
----
-
-## 11. Bugs / Mejoras Pendientes
-
-| # | Descripción | Prioridad |
-|---|-------------|-----------|
-| 1 | DashboardView — botones de expandir subtareas, expandir grupos y ocultar completadas duplicados en header de fecha. Limpiar y dejar solo en StickyActionBar | Alta |
-| 2 | StickyActionBar — quitar `+ Tarea` del header de cada vista, dejar solo en StickyActionBar | Alta |
-| 3 | Templates recurrentes en Bloques — tiempo estimado y registrado se suma incorrectamente en la plantilla. Verificar lógica | Media |
-| 4 | Tareas pasadas en Dashboard — mostrar tiempo estimado y tiempo registrado | Media |
-| 5 | Highlight en SearchView — borde turquesa + scroll en vez del fondo amarillo actual | Media |
-| 6 | Nivel 3 sin indentación visual — sub-subtareas visualmente iguales a nivel 2 | Baja |
-| 7 | Logs debug pendientes de limpiar: `[PICKING DEBUG]`, `[CHIP DEBUG]`, `[CHIP RENDER]`, `[STATS DEBUG]` | Baja |
-| 8 | Instancias Picking en Supabase — limpiar con SQL: `DELETE FROM tasks WHERE id LIKE 'inst-t-%' AND parent_task_id IS NOT NULL` | Baja |
-| 9 | Completar contenedor cuando todas las hijas están completadas — botón ya existe, verificar que funciona | Baja |
+39. Scroll en body en vez de en div → `h-screen overflow-hidden` en div raíz de App.tsx
+40. StickyActionBar no se mantenía fija → movida a App.tsx fuera del scroll container
+41. Fecha no centrada en Dashboard → grid-cols-3 simétrico
+42. Icono grupos chirriaba → cambiado Tag → Layers
+43. `overflow-hidden` en header BlocksView rompía sticky → eliminado
+44. Backtick escapado en App.tsx causaba build error → corregido
+45. Header bloque "volando" al scrollear → sticky top-0 dentro del scroll container correcto + scroll reset al seleccionar bloque
+46. `onGoToTemplate` no pasado a SearchView → corregido en SearchView.tsx y App.tsx
+47. Botón "Nueva reunión" demasiado grande en Delegadas → reducido a "Reunión"
+48. Color turquesa migrado de #06B6D4 (cyan) a #14B8A6 (esmeralda-teal, color del logo)
+49. Acento esmeralda en borde lateral y barra sticky via index.css
 
 ---
 
-## 12. Reglas de Negocio
+## 13. Bugs / Mejoras Pendientes
+
+| # | Descripción | Vista |
+|---|-------------|-------|
+| 1 | StickyActionBar — ocultar completamente en WorkloadView y CalendarView (solo mostrar Seleccionar si aplica) | App.tsx |
+| 2 | Templates recurrentes en Bloques — tiempo estimado y registrado se suma incorrectamente en la plantilla | BlocksView |
+| 3 | Tareas pasadas en Dashboard — mostrar tiempo estimado y tiempo registrado | DashboardView |
+| 4 | Highlight en SearchView — borde turquesa + scroll en vez del fondo amarillo actual | SearchView |
+| 5 | Nivel 3 sin indentación visual — sub-subtareas visualmente iguales a nivel 2 | TaskCard |
+| 6 | Logs debug pendientes de limpiar: `[PICKING DEBUG]`, `[CHIP DEBUG]`, `[CHIP RENDER]`, `[STATS DEBUG]` | Varios |
+| 7 | Instancias Picking en Supabase — limpiar con SQL: `DELETE FROM tasks WHERE id LIKE 'inst-t-%' AND parent_task_id IS NOT NULL` | Supabase |
+| 8 | Completar contenedor cuando todas las hijas están completadas — verificar que funciona | TaskCard |
+| 9 | Seleccionar en SearchView — activar funcionalidad bulk o ocultar el botón | SearchView |
+| 10 | Buscador global del header aparece en SearchView — debería ocultarse y dejar solo el buscador propio | App.tsx |
+| 11 | WorkloadView — buscador no funciona, valorar si debe funcionar o quitarse | WorkloadView |
+| 12 | Estado completado de subtarea no persiste después de reload | useSupabase / useGeneration |
+| 13 | Delegadas — botón "+" por persona navega correctamente a añadir tarea delegada | DelegadasView |
+
+---
+
+## 14. Reglas de Negocio
 
 1. Templates nunca aparecen en Dashboard
 2. Subtareas nunca aparecen solas
@@ -275,7 +360,7 @@ StickyActionBar {
 7. Contenedor desaparece cuando todas sus subtareas del día están completadas
 8. Instancias normales no se guardan en Supabase — solo excepciones
 9. `order` persiste en Supabase
-10. Zona horaria: Barcelona UTC+2. `formatLocalISO` evita desfases.
+10. Zona horaria: Barcelona UTC+2. `formatLocalISO` evita desfases
 11. Colores condicionales: inline styles hex, nunca Tailwind dinámico
 12. **Delegadas solo muestra templates y manuales** — no instancias ni excepciones
 13. **RecurrencePickerChip solo editable en manuales** — en templates/instancias es solo informativo
@@ -283,7 +368,7 @@ StickyActionBar {
 
 ---
 
-## 13. Workflow de Desarrollo
+## 15. Workflow de Desarrollo
 
 ```
 1. Abrir CMD como administrador (no PowerShell)
@@ -294,7 +379,7 @@ StickyActionBar {
 
 ---
 
-## 14. Notas para el Asistente
+## 16. Notas para el Asistente
 
 - **Siempre pedir el archivo antes de modificarlo**
 - **Verificar en Supabase con SQL** antes de asumir que es problema de código
@@ -305,11 +390,16 @@ StickyActionBar {
 - El Worker recibe copia serializada de `tasks` — no accede al estado React
 - **Un bug a la vez**
 - Preferencia: archivos completos de reemplazo, no edits parciales
+- El div raíz de App.tsx DEBE ser `h-screen overflow-hidden` — no cambiar a `min-h-screen`
+- La StickyActionBar DEBE estar en App.tsx fuera del scroll container — no moverla a las vistas
+- Color turquesa oficial: `#14B8A6` (mismo que logo SVG en App.tsx)
 
 ---
 
-## 15. Ideas Pendientes
+## 17. Ideas Pendientes
 
-1. **Completado con descarte** — `wasDiscarded:true`, X en vez de tick. Requiere columna en Supabase.
-2. **Tag "bloqueada"** — Tarea oculta hasta activarse manualmente.
-3. **WorkManager Assistant** — Agente Relevance AI integrado via Vercel serverless (construido, no funcional).
+1. **Barra ghost** — StickyActionBar que aparece solo al scrollear (scroll listener en overflow-y-auto)
+2. **Completado con descarte** — `wasDiscarded:true`, X en vez de tick. Requiere columna en Supabase
+3. **Tag "bloqueada"** — Tarea oculta hasta activarse manualmente
+4. **WorkManager Assistant** — Agente Relevance AI integrado via Vercel serverless (construido, no funcional)
+5. **Migración esmeralda completa** — actualmente `turquesa` y `esmeralda` son el mismo valor `#14B8A6`. En el futuro se pueden diferenciar: esmeralda para chrome estructural, turquesa para acciones interactivas

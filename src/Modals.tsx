@@ -191,9 +191,10 @@ export function BlockModal({ block, onClose, onSave, onDelete }: { block: WorkBl
 }
  
 
-export function InstancesModal({ task, allTasksMap, onClose, onEditTask, onDelete, onRestore }: {
+export function InstancesModal({ task, allTasksMap, timeEntries = [], onClose, onEditTask, onDelete, onRestore }: {
   task: Task;
   allTasksMap: Record<string, Task>;
+  timeEntries?: any[];
   onClose: () => void;
   onEditTask: (id: string) => void;
   onDelete: (id: string) => void;
@@ -283,6 +284,54 @@ export function InstancesModal({ task, allTasksMap, onClose, onEditTask, onDelet
     return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
+  // Tiempo estimado del template (suma de subtemplates hijos)
+  const templateEstimated = useMemo(() => {
+    const childIds = task.subtasks || [];
+    if (childIds.length === 0) return task.estimatedMinutes || 0;
+    return childIds.reduce((acc, subId) => {
+      const sub = allTasksMap[subId];
+      return acc + (sub?.estimatedMinutes || 0);
+    }, 0);
+  }, [task, allTasksMap]);
+
+  // Tiempo registrado para una fecha concreta: suma entries de inst-{subId}-{date} y de la instancia padre
+  const getRegisteredForDate = (date: string): number => {
+    if (!timeEntries || timeEntries.length === 0) return 0;
+    const childIds = task.subtasks || [];
+    let total = 0;
+    // Sumar entries de subtareas instanciadas
+    childIds.forEach(subId => {
+      const instId = `inst-${subId}-${date}`;
+      total += timeEntries
+        .filter(e => e && (e.subtaskId === instId || (!e.subtaskId && e.taskId === instId)))
+        .reduce((acc, e) => acc + (e.duration || 0), 0);
+    });
+    // Sumar entries del contenedor padre instanciado
+    const parentInstId = `inst-${task.id}-${date}`;
+    total += timeEntries
+      .filter(e => e && (e.subtaskId === parentInstId || (!e.subtaskId && e.taskId === parentInstId)))
+      .reduce((acc, e) => acc + (e.duration || 0), 0);
+    // También buscar por excepción si existe
+    const exc = Object.values(allTasksMap).find(t =>
+      t.templateId === task.id && t.isException && !t.isDeleted &&
+      (t.instanceDate === date || t.dueDate === date)
+    );
+    if (exc) {
+      total += timeEntries
+        .filter(e => e && (e.subtaskId === exc.id || (!e.subtaskId && e.taskId === exc.id)))
+        .reduce((acc, e) => acc + (e.duration || 0), 0);
+    }
+    return total;
+  };
+
+  const formatMins = (mins: number): string => {
+    if (mins === 0) return '0m';
+    if (mins < 60) return `${mins}m`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
       <div className="dark:bg-bg-card bg-white rounded-2xl border dark:border-border-main border-border-main-light w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
@@ -360,6 +409,26 @@ export function InstancesModal({ task, allTasksMap, onClose, onEditTask, onDelet
                   <div className={`shrink-0 px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wide ${cfg.bg} ${cfg.text} ${cfg.border}`}>
                     {cfg.label}
                   </div>
+
+                  {/* Tiempo: estimado siempre, registrado solo en pasadas */}
+                  {!isDeleted && templateEstimated > 0 && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-bold dark:text-text-secondary text-text-secondary-light">
+                        {formatMins(templateEstimated)}
+                      </span>
+                      {item.date < today && (() => {
+                        const registered = getRegisteredForDate(item.date);
+                        if (registered === 0) return null;
+                        const color = registered >= templateEstimated ? 'text-verde' : 'dark:text-yellow-400 text-yellow-600';
+                        return (
+                          <>
+                            <span className="dark:text-border-main text-border-main-light text-[10px]">/</span>
+                            <span className={`text-[10px] font-black ${color}`}>{formatMins(registered)}</span>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
 
                   {/* Spacer */}
                   <div className="flex-1" />

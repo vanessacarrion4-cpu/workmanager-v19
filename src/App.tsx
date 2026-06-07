@@ -843,6 +843,7 @@ export default function App() {
         <InstancesModal
           task={instancesModalTask}
           allTasksMap={tasks}
+          timeEntries={timeEntries}
           onClose={() => setInstancesModalTask(null)}
           onEditTask={(id) => { setInstancesModalTask(null); handleEditTaskRequest(id); }}
           onDelete={(id) => { handleDeleteTaskRequest(id); setInstancesModalTask(null); }}
