@@ -443,7 +443,7 @@ export default function App() {
           onChangeTime={() => setBulkTimeModal(true)}
           onDuplicate={() => bulkDuplicateTasks()}
           onDelete={() => {
-            if (confirm(\`¿Eliminar \${selectedTaskIds.size} tarea\${selectedTaskIds.size > 1 ? 's' : ''}?\`)) {
+            if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) {
               bulkDeleteTasks();
             }
           }}
