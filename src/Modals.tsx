@@ -296,7 +296,7 @@ export function InstancesModal({ task, allTasksMap, timeEntries = [], onClose, o
 
   // Tiempo registrado para una fecha concreta: suma entries de inst-{subId}-{date} y de la instancia padre
   // Los time_entries se guardan con IDs de templates (t-xxx), no de instancias.
-  // Filtramos por task_id/subtask_id del template y sus hijos, y por created_at del día.
+  // Filtramos por taskId/subtaskId del template y sus hijos, y por createdAt del día.
   const getRegisteredForDate = (date: string): number => {
     if (!timeEntries || timeEntries.length === 0) return 0;
     const childIds = task.subtasks || [];
@@ -306,8 +306,9 @@ export function InstancesModal({ task, allTasksMap, timeEntries = [], onClose, o
         if (!e) return false;
         const matchesId = relevantIds.has(e.taskId) || (e.subtaskId && relevantIds.has(e.subtaskId));
         if (!matchesId) return false;
-        if (!e.created_at) return false;
-        const entryDate = new Date(e.created_at).toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+        const dateStr = e.createdAt || e.created_at;
+        if (!dateStr) return false;
+        const entryDate = new Date(dateStr).toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
         return entryDate === date;
       })
       .reduce((acc, e) => acc + (e.duration || 0), 0);
@@ -401,19 +402,22 @@ export function InstancesModal({ task, allTasksMap, timeEntries = [], onClose, o
 
                   {/* Tiempo: estimado siempre, registrado solo en pasadas */}
                   {!isDeleted && templateEstimated > 0 && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[10px] font-bold dark:text-text-secondary text-text-secondary-light">
-                        {formatMins(templateEstimated)}
-                      </span>
+                    <div className="flex flex-col items-end shrink-0 gap-0">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] font-bold dark:text-text-secondary/50 text-text-secondary-light/50 uppercase tracking-wide">est</span>
+                        <span className="text-[10px] font-bold dark:text-text-secondary text-text-secondary-light">
+                          {formatMins(templateEstimated)}
+                        </span>
+                      </div>
                       {item.date < today && (() => {
                         const registered = getRegisteredForDate(item.date);
                         if (registered === 0) return null;
                         const color = registered >= templateEstimated ? 'text-verde' : 'dark:text-yellow-400 text-yellow-600';
                         return (
-                          <>
-                            <span className="dark:text-border-main text-border-main-light text-[10px]">/</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[9px] font-bold dark:text-text-secondary/50 text-text-secondary-light/50 uppercase tracking-wide">reg</span>
                             <span className={`text-[10px] font-black ${color}`}>{formatMins(registered)}</span>
-                          </>
+                          </div>
                         );
                       })()}
                     </div>
