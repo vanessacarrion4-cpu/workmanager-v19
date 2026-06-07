@@ -220,7 +220,11 @@ export function BlocksManagerView({
         {/* Header del bloque */}
         <div className="dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-[1.5rem] shadow-sm">
           <div className="flex items-center gap-3 p-4">
-            <button onClick={() => setSelectedBlock(null)} className="p-2 dark:hover:bg-bg-main hover:bg-gray-100 rounded-xl transition-all shrink-0">
+            <button onClick={() => {
+              setSelectedBlock(null);
+              const scrollEl = document.querySelector('.overflow-y-auto');
+              if (scrollEl) scrollEl.scrollTop = 0;
+            }} className="p-2 dark:hover:bg-bg-main hover:bg-gray-100 rounded-xl transition-all shrink-0">
               <ChevronRight size={18} className="rotate-180 dark:text-white text-text-main-light" />
             </button>
             <div className="w-9 h-9 rounded-xl dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light flex items-center justify-center text-xl shadow-inner shrink-0">
@@ -482,7 +486,11 @@ export function BlocksManagerView({
               className={`w-full group relative dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-[2rem] p-6 hover:border-turquesa/50 transition-all text-left flex items-center gap-6 shadow-xl overflow-hidden ${!block.isActive ? 'opacity-70' : ''}`}
             >
               <div
-                onClick={() => setSelectedBlock(block)}
+                onClick={() => {
+                  setSelectedBlock(block);
+                  const scrollEl = document.querySelector('.overflow-y-auto');
+                  if (scrollEl) scrollEl.scrollTop = 0;
+                }}
                 className="flex-1 flex items-center gap-6 cursor-pointer"
               >
                 <div className="w-16 h-16 rounded-3xl dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light flex items-center justify-center text-3xl group-hover:scale-110 transition-transform shadow-inner">
