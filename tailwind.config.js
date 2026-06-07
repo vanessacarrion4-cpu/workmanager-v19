@@ -22,11 +22,19 @@ export default {
         'text-main-light': '#0F172A',
         'text-secondary-light': '#64748B',
         'border-main-light': '#E2E8F0',
-        // Accent colors (same for both modes)
-        'turquesa': '#06B6D4',
+        // Accent colors
+        // Para volver al turquesa original: cambiar #0D9E90 → #06B6D4
+        'turquesa': '#0D9E90',   // esmeralda-teal (antes #06B6D4 cyan)
+        'esmeralda': '#0D9E90',  // alias — para uso futuro diferenciado
         'azul': '#3B82F6',
         'morado': '#8B5CF6',
         'rosa': '#EC4899',
+        'verde': '#10B981',
+        'lima': '#84CC16',
+        'naranja': '#F97316',
+      },
+      fontFamily: {
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'system-ui', 'sans-serif'],
       },
     },
   },

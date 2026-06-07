@@ -68,7 +68,7 @@ export function StickyActionBar({
     : false;
 
   return (
-    <div className="sticky top-0 z-20 dark:bg-bg-secondary/95 bg-bg-secondary-light/95 backdrop-blur-md border-b dark:border-border-main border-border-main-light">
+    <div className="sticky top-0 z-20 dark:bg-bg-secondary/95 bg-bg-secondary-light/95 backdrop-blur-md sticky-action-bar-border">
       <AnimatePresence mode="wait">
 
         {isSelectionActive ? (
