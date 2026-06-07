@@ -233,7 +233,7 @@ function ActiveBadge({ label, onRemove }: { label: string; onRemove: () => void 
 
 export function SearchView({
   tasks, allTasksMap, blocks, people = [], timeEntries = [], activeTimer,
-  onEditTask, onToggle, onDelete, onUpdateTask, onAddTask, onNavigateToBlocks,
+  onEditTask, onToggle, onDelete, onUpdateTask, onAddTask, onNavigateToBlocks, onGoToTemplate,
 }: any) {
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<Filters>(EMPTY);
@@ -462,6 +462,7 @@ export function SearchView({
                     onEditTask={onEditTask}
                     onAddTask={onAddTask}
                     onDelete={onDelete}
+                    onGoToTemplate={onGoToTemplate}
                     onReorderSubtasks={() => {}}
                     onToggleExpand={(taskId: string) =>
                       onUpdateTask({ ...allTasksMap[taskId], isExpanded: !allTasksMap[taskId]?.isExpanded })

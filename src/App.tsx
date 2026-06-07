@@ -678,6 +678,7 @@ export default function App() {
                 onUpdateTask={handleUpdateTask}
                 onAddTask={handleAddTask}
                 onNavigateToBlocks={() => setCurrentView('blocks')}
+                onGoToTemplate={handleGoToTemplate}
               />
             )}
           </AnimatePresence>
