@@ -38,7 +38,6 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
 
   // FIX instancias recurrentes: si viene instanceDate, filtrar solo entradas de ese día
   const entries = useMemo(() => {
-    console.log('[TIME DEBUG] taskId:', taskId, '| timeEntries IDs:', timeEntries.map((e:any) => e.taskId));
     return timeEntries.filter((e: TimeEntry) => {
       if (subtaskId) return e.subtaskId === subtaskId;
       const matchesTask = e.taskId === taskId;

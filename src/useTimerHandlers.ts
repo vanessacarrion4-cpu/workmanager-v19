@@ -159,21 +159,10 @@ export function useTimerHandlers({
       if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
     }
 
-    // En Supabase guardamos con templateId para respetar la FK de tasks
-    const resolveIdForDB = (id: string | null): string | null => {
-      if (!id) return null;
-      if (!id.startsWith('inst-')) return id;
-      const task = tasks[id];
-      if (task?.templateId) return task.templateId;
-      const parts = id.replace('inst-', '').split('-');
-      parts.pop(); parts.pop(); parts.pop();
-      return parts.join('-');
-    };
-
     supabase.from('time_entries').insert({
       id: newEntry.id,
-      task_id: resolveIdForDB(taskId),
-      subtask_id: resolveIdForDB(subtaskId) || null,
+      task_id: taskId,
+      subtask_id: subtaskId || null,
       date: newEntry.date,
       duration: newEntry.duration,
       note: newEntry.note || '',
