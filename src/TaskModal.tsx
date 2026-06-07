@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Task, TagType } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { TAG_LABELS } from './constants';
+import { getTaskRegisteredCombo, formatMinutes } from './utils';
 import {
   DelegationChip, DatePickerChip, TagPickerChip, RecurrencePickerChip,
   EstimatedTimeChip, TimePickerChip, MonthDatePicker
@@ -41,6 +42,8 @@ interface TaskModalProps {
   onUploadAttachment?: ((taskId: string, file: File) => void) | null;
   onDeleteAttachment?: ((taskId: string, attachmentId: string, path: string) => void) | null;
   onToggleStatus?: ((taskId: string) => void) | null;
+  timeEntries?: any[];
+  onAddTimeEntry?: ((taskId: string, subtaskId: string | null, minutes: number, date: string) => void) | null;
 }
 
 export function TaskModal({
@@ -60,12 +63,17 @@ export function TaskModal({
   onUploadAttachment = null,
   onDeleteAttachment = null,
   onToggleStatus = null,
+  timeEntries = [],
+  onAddTimeEntry = null,
 }: TaskModalProps) {
   const [localTask, setLocalTask] = useState<Task>(task);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
   const [showDateSelector, setShowDateSelector] = useState(false);
   const [showRecurrence, setShowRecurrence] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showTimeEntry, setShowTimeEntry] = useState(false);
+  const [timeEntryMinutes, setTimeEntryMinutes] = useState('');
+  const [timeEntryDate, setTimeEntryDate] = useState(formatLocalISO(new Date()));
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const tags: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
 
@@ -108,6 +116,16 @@ export function TaskModal({
     onSave(taskToSave);
     onClose();
   };
+
+  const totalEstimated = localTask.estimatedMinutes || 0;
+  const totalRegistered = getTaskRegisteredCombo(localTask.id, allTasksMap, timeEntries);
+  const regColor = totalRegistered === 0
+    ? 'dark:text-text-secondary/40 text-text-secondary-light/40'
+    : totalRegistered > totalEstimated && totalEstimated > 0
+      ? 'text-[#EC4899]'
+      : totalEstimated > 0 && totalRegistered >= totalEstimated * 0.9
+        ? 'text-[#F97316]'
+        : 'text-[#84CC16]';
 
   const frequencies = [
     { id: 'daily', label: 'Diaria' },
@@ -228,7 +246,7 @@ export function TaskModal({
         {/* ── BODY ── */}
         <div className="p-3 space-y-3 overflow-y-auto custom-scrollbar flex-1">
 
-          {/* FILA 1: Tipo + Bloque + Estimado */}
+          {/* FILA 1: Tipo + Bloque + Estimado + Registrado */}
           <div className="flex items-center gap-2 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-2">
             {/* Tipo Core/Adhoc */}
             <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light shrink-0">
@@ -270,27 +288,86 @@ export function TaskModal({
               <Clock size={12} className="text-turquesa" />
               <input
                 type="number"
-                className="w-14 bg-transparent text-[11px] font-bold dark:text-white text-text-main-light outline-none text-right"
+                className="w-12 bg-transparent text-[11px] font-bold dark:text-white text-text-main-light outline-none text-right"
                 value={localTask.estimatedMinutes || ''}
                 onChange={e => setLocalTask(prev => ({ ...prev, estimatedMinutes: parseInt(e.target.value) || 0 }))}
                 placeholder="0"
               />
               <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">min</span>
             </div>
+
+            <div className="w-px h-5 dark:bg-border-main bg-border-main-light shrink-0" />
+
+            {/* Registrado — clicable para añadir */}
+            <button
+              onClick={() => setShowTimeEntry(v => !v)}
+              className={`flex items-center gap-1 shrink-0 px-1.5 py-1 rounded-lg transition-all hover:bg-white/10 ${regColor}`}
+              title="Tiempo registrado — clic para añadir"
+            >
+              <Check size={11} strokeWidth={3} />
+              <span className="text-[11px] font-black">{formatMinutes(totalRegistered)}</span>
+            </button>
           </div>
 
-          {/* FILA 2: Tags + Fecha + Hora */}
-          <div className="flex items-center gap-2 flex-wrap dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-2">
+          {/* Panel añadir tiempo manual — expandible */}
+          <AnimatePresence>
+            {showTimeEntry && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="flex items-center gap-2 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-xl p-2">
+                  <Check size={11} className={regColor} strokeWidth={3} />
+                  <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest shrink-0">Añadir</span>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="min"
+                    value={timeEntryMinutes}
+                    onChange={e => setTimeEntryMinutes(e.target.value)}
+                    className="w-16 bg-transparent text-[11px] font-bold dark:text-white text-text-main-light outline-none border-b dark:border-border-main border-border-main-light focus:border-turquesa text-right"
+                  />
+                  <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">min</span>
+                  <input
+                    type="date"
+                    value={timeEntryDate}
+                    onChange={e => setTimeEntryDate(e.target.value)}
+                    className="flex-1 bg-transparent text-[11px] font-bold dark:text-white text-text-main-light outline-none border-b dark:border-border-main border-border-main-light focus:border-turquesa"
+                  />
+                  <button
+                    onClick={() => {
+                      const mins = parseInt(timeEntryMinutes);
+                      if (!mins || !onAddTimeEntry) return;
+                      onAddTimeEntry(localTask.id, null, mins, timeEntryDate);
+                      setTimeEntryMinutes('');
+                      setShowTimeEntry(false);
+                    }}
+                    className="w-7 h-7 flex items-center justify-center bg-turquesa text-white rounded-lg hover:bg-turquesa/80 transition-all shrink-0"
+                  >
+                    <Check size={12} />
+                  </button>
+                  <button onClick={() => setShowTimeEntry(false)} className="text-rosa hover:bg-rosa/10 rounded p-1 transition-all">
+                    <X size={11} />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* FILA 2: Tags + Delegación + Fecha */}
+          <div className="flex items-center gap-2 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl px-2 h-10">
             {/* Tags — solo si no es contenedor */}
             {!(localTask.subtasks && localTask.subtasks.length > 0) ? (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 shrink-0">
                 {tags.map(t => {
                   const active = localTask.tags.includes(t);
                   return (
                     <button
                       key={t}
                       onClick={() => setLocalTask(prev => ({ ...prev, tags: [t] }))}
-                      className={`w-7 h-7 flex items-center justify-center rounded-lg text-base border transition-all ${
+                      className={`w-7 h-7 flex items-center justify-center rounded-lg text-sm border transition-all ${
                         active
                           ? 'bg-turquesa border-turquesa shadow-sm'
                           : 'dark:border-border-main border-border-main-light hover:border-turquesa/50 dark:bg-bg-card bg-white'
@@ -303,68 +380,68 @@ export function TaskModal({
                 })}
               </div>
             ) : (
-              <span className="text-[10px] dark:text-text-secondary text-text-secondary-light italic">🗂️ Contenedor</span>
+              <span className="text-[10px] dark:text-text-secondary text-text-secondary-light italic shrink-0">🗂️ Contenedor</span>
             )}
 
             <div className="w-px h-5 dark:bg-border-main bg-border-main-light shrink-0" />
 
             {/* Delegación */}
-            <DelegationChip
-              delegation={localTask.delegation}
-              people={people}
-              onAddPerson={onAddPerson}
-              onRenamePerson={onRenamePerson}
-              onDeletePerson={onDeletePerson}
-              onRecurrenceDateChange={onRecurrenceDateChange}
-              onChange={(delegation: any) => setLocalTask(prev => ({ ...prev, delegation }))}
-            />
+            <div className="shrink-0">
+              <DelegationChip
+                delegation={localTask.delegation}
+                people={people}
+                onAddPerson={onAddPerson}
+                onRenamePerson={onRenamePerson}
+                onDeletePerson={onDeletePerson}
+                onRecurrenceDateChange={onRecurrenceDateChange}
+                onChange={(delegation: any) => setLocalTask(prev => ({ ...prev, delegation }))}
+              />
+            </div>
 
             <div className="w-px h-5 dark:bg-border-main bg-border-main-light shrink-0" />
 
             {/* Fecha */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 flex-1 min-w-0">
               <button
                 onClick={() => setShowDateSelector(!showDateSelector)}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                  localTask.dueDate
-                    ? 'text-turquesa hover:bg-turquesa/10'
-                    : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa'
+                className={`flex items-center gap-1.5 text-[11px] font-bold transition-all shrink-0 ${
+                  localTask.dueDate ? 'text-turquesa hover:opacity-70' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa'
                 }`}
               >
                 <CalendarIcon size={12} />
-                {localTask.dueDate ? (() => {
-                  const d = parseLocalISO(localTask.dueDate);
-                  return `${d.getDate().toString().padStart(2,'0')}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getFullYear()}`;
-                })() : 'Sin fecha'}
+                <span className="whitespace-nowrap">
+                  {localTask.dueDate ? (() => {
+                    const d = parseLocalISO(localTask.dueDate);
+                    return `${d.getDate().toString().padStart(2,'0')}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getFullYear()}`;
+                  })() : 'Sin fecha'}
+                </span>
               </button>
               {localTask.dueDate && (
-                <button onClick={() => setLocalTask(prev => ({ ...prev, dueDate: null, dueTime: '' }))} className="text-rosa hover:bg-rosa/10 rounded p-0.5 transition-all">
+                <button onClick={() => setLocalTask(prev => ({ ...prev, dueDate: null, dueTime: '' }))} className="text-rosa hover:bg-rosa/10 rounded p-0.5 transition-all shrink-0">
                   <X size={10} />
                 </button>
               )}
             </div>
-
-            {/* Hora — solo si tiene fecha y no es recurrente */}
-            {localTask.dueDate && !localTask.recurrence && (
-              <>
-                <div className="w-px h-5 dark:bg-border-main bg-border-main-light shrink-0" />
-                <div className="flex items-center gap-1">
-                  <Clock size={12} className="text-azul" />
-                  <input
-                    type="time"
-                    value={localTask.dueTime || ''}
-                    onChange={e => setLocalTask(prev => ({ ...prev, dueTime: e.target.value }))}
-                    className="bg-transparent text-[11px] font-bold text-azul outline-none w-20"
-                  />
-                  {localTask.dueTime && (
-                    <button onClick={() => setLocalTask(prev => ({ ...prev, dueTime: '' }))} className="text-rosa hover:bg-rosa/10 rounded p-0.5 transition-all">
-                      <X size={10} />
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
           </div>
+
+          {/* FILA 3: Hora — solo si tiene fecha y no es recurrente */}
+          {localTask.dueDate && !localTask.recurrence && (
+            <div className="flex items-center gap-2 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-xl px-3 py-2">
+              <Clock size={12} className="text-azul shrink-0" />
+              <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest shrink-0">Hora</span>
+              <input
+                type="time"
+                value={localTask.dueTime || ''}
+                onChange={e => setLocalTask(prev => ({ ...prev, dueTime: e.target.value }))}
+                className="flex-1 bg-transparent text-[11px] font-bold text-azul outline-none"
+              />
+              {localTask.dueTime && (
+                <button onClick={() => setLocalTask(prev => ({ ...prev, dueTime: '' }))} className="text-rosa hover:bg-rosa/10 rounded p-0.5 transition-all">
+                  <X size={10} />
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Selector de fecha expandible */}
           <AnimatePresence>
