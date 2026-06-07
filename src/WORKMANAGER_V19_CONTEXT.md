@@ -1,7 +1,7 @@
 # WorkManager v19 — Documento de Contexto Completo
 
 > Usar este documento al inicio de cada sesión de desarrollo para dar contexto completo al asistente.
-> Última actualización: 06/06/2026 (sesión 2)
+> Última actualización: 07/06/2026 (sesión 3 — refactor completo + UX mejoras)
 
 ---
 
@@ -21,29 +21,45 @@
 
 ```
 src/
-├── App.tsx                    # Componente raíz (~3800 líneas). Estado global, handlers, routing entre vistas
-├── types.ts                   # Interfaces TypeScript: Task, WorkBlock, TimeEntry, Person, etc.
-├── constants.ts               # INITIAL_BLOCKS, COLORS, TAG_LABELS
-├── supabaseClient.ts          # Inicialización cliente Supabase
-├── dateUtils.ts               # formatLocalISO(), parseLocalISO()
-├── utils.ts                   # generateInstances(), isTaskCompleted(), projectLoad(), etc.
-├── filters.ts                 # filterTasksForDay(), groupTasksByTag(), getStatsForDay()
-├── useSupabase.ts             # Hook: carga inicial desde Supabase + reparaciones automáticas
-├── useGeneration.ts           # Hook: genera instancias recurrentes via Web Worker
-├── generation.worker.ts       # Web Worker: ejecuta generateInstances en hilo separado
-├── useSupabaseData.ts         # Hook legacy (no usado activamente en producción)
-├── DashboardView.tsx          # Vista principal del día
-├── BlocksView.tsx             # Vista de gestión de bloques y tareas (templates)
-├── CalendarView.tsx           # Vista de calendario mensual con carga por día
-├── DelegadasView.tsx          # Vista de tareas delegadas por persona
-├── SearchView.tsx             # Búsqueda global de tareas con filtros
-├── WorkloadView.tsx           # Vista de carga de trabajo por bloques
-├── components.tsx             # Todos los componentes reutilizables (~3200 líneas)
-├── main.tsx                   # Entry point React (StrictMode)
-└── index.css                  # Tailwind + scrollbar custom dark/light
+├── App.tsx                      # ~500 líneas. Estado global, hooks, routing entre vistas
+├── types.ts                     # Interfaces TypeScript: Task, WorkBlock, TimeEntry, Person, etc.
+├── constants.ts                 # INITIAL_BLOCKS, COLORS, TAG_LABELS
+├── supabaseClient.ts            # Inicialización cliente Supabase
+├── dateUtils.ts                 # formatLocalISO(), parseLocalISO()
+├── utils.ts                     # generateInstances(), isTaskCompleted(), projectLoad(), etc.
+├── filters.ts                   # filterTasksForDay(), groupTasksByTag(), getStatsForDay()
+├── helpers.ts                   # getTagColor() y funciones helper compartidas
+├── useSupabase.ts               # Hook: carga inicial desde Supabase + reparaciones automáticas
+├── useGeneration.ts             # Hook: genera instancias recurrentes via Web Worker
+├── useTaskCRUD.ts               # Hook: handleAddTask, handleUpdateTask, handleDeleteTask, handleToggleStatus, handleAddRule
+├── useTaskOrdering.ts           # Hook: handleUpdateTasksOrder, handleUpdateSubtasksOrder, handleGoToTemplate, expand/collapse, promote/demote
+├── useBlockHandlers.ts          # Hook: CRUD de bloques de trabajo
+├── useTimerHandlers.ts          # Hook: cronómetro, tiempo manual, adjuntos
+├── useBulkActions.ts            # Hook: bulkUpdateTasks, bulkDeleteTasks, bulkDuplicateTasks
+├── generation.worker.ts         # Web Worker: ejecuta generateInstances en hilo separado
+├── useSupabaseData.ts           # Hook legacy (no usar)
+├── TaskModal.tsx                # Modal de configuración de tarea (extraído de App.tsx)
+├── StickyActionBar.tsx          # Barra de acciones sticky compartida entre vistas
+├── DashboardView.tsx            # Vista principal del día
+├── BlocksView.tsx               # Vista de gestión de bloques y tareas (templates)
+├── CalendarView.tsx             # Vista de calendario mensual con carga por día
+├── DelegadasView.tsx            # Vista de tareas delegadas por persona
+├── SearchView.tsx               # Búsqueda global de tareas con filtros
+├── WorkloadView.tsx             # Vista de carga de trabajo por bloques
+├── TaskCard.tsx                 # Componente principal de tarjeta de tarea
+├── Chips.tsx                    # Todos los chips inline: DelegationChip, DatePickerChip, RecurrencePickerChip, etc.
+├── Modals.tsx                   # RecurrenceChoiceModal, BlockModal, InstancesModal
+├── TimeComponents.tsx           # TimerDisplay, TimeManagementPanel, MonthDatePicker
+├── DashboardComponents.tsx      # DashboardHarmonicCalendar, BulkActionBar, ToggleExpandButton
+├── components.tsx               # Barrel re-export de todos los componentes (~16 líneas)
+├── main.tsx                     # Entry point React (StrictMode)
+└── index.css                    # Tailwind + scrollbar custom dark/light
 ```
 
-**IMPORTANTE**: El `TaskModal` está en `App.tsx`, NO en `components.tsx`.
+**IMPORTANTE**:
+- `TaskModal` está en `TaskModal.tsx`, NO en `components.tsx` ni en `App.tsx`
+- `components.tsx` es solo barrel — todos los imports desde `'./components'` siguen funcionando
+- `useSupabaseData.ts` es legacy — no tocar
 
 ---
 
@@ -81,7 +97,7 @@ src/
 ```typescript
 Task {
   id: string                  // "t-{timestamp}" o "inst-{templateId}-{YYYY-MM-DD}"
-  blockId: string             // A qué bloque pertenece
+  blockId: string
   title: string
   status: 'pending' | 'completed'
   dueDate: string | null      // YYYY-MM-DD. NUNCA en contenedores.
@@ -89,34 +105,26 @@ Task {
   tags: TagType[]             // 'con_hora' | 'focus' | 'dirección' | 'espera' | 'resto'
   priority: 'alta' | 'media' | 'baja'
   estimatedMinutes: number
-  
-  // Jerarquía
-  parentTaskId?: string       // ID del padre (si es subtarea)
-  subtasks?: string[]         // IDs de hijos directos (reconstruido en memoria)
-  
-  // Recurrencia
-  isTemplate?: boolean        // true = plantilla maestra (no aparece en Dashboard)
-  templateId?: string         // ID del template del que viene esta instancia
-  instanceDate?: string       // Fecha original a la que pertenece esta instancia
-  isException?: boolean       // true = instancia modificada → guardada en Supabase
-  recurrence?: {              // SOLO en subtareas template, NUNCA en contenedores
+  parentTaskId?: string
+  subtasks?: string[]         // IDs hijos (reconstruido en memoria)
+  isTemplate?: boolean
+  templateId?: string
+  instanceDate?: string
+  isException?: boolean
+  recurrence?: {
     frequency: 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'yearly'
-    weekDays?: number[]       // [0=lunes...6=domingo]
-    monthDay?: number         // 1-31
-    yearDay?: number          // 1-31 (día del mes para recurrencia anual)
-    yearMonth?: number        // 1-12 (mes para recurrencia anual)
-    startDate: string         // YYYY-MM-DD (fecha inicio de la serie, no la fecha de ocurrencia)
+    weekDays?: number[]
+    monthDay?: number
+    yearDay?: number
+    yearMonth?: number
+    startDate: string
     endDate?: string | null
   }
-  
-  // Flags
-  isDeleted?: boolean         // Soft delete
-  isActive?: boolean          // Si el template genera instancias
-  isExpanded?: boolean        // UI: expandido/colapsado
-  wasRecurring?: boolean      // Marca informativa al completar
-  existsInSupabase?: boolean  // Solo en memoria: protege instancias en useGeneration
-  
-  // Otros
+  isDeleted?: boolean
+  isActive?: boolean
+  isExpanded?: boolean
+  wasRecurring?: boolean
+  existsInSupabase?: boolean
   delegation?: { personId: string, delegatedAt: string }
   attachments?: Attachment[]
   taskType?: 'core' | 'adhoc'
@@ -130,32 +138,18 @@ Task {
 
 ## 5. Arquitectura de Recurrencia — CRÍTICO
 
-### Estructura en Supabase (persistido)
-```
-Contenedor template (isTemplate:true, dueDate:null, recurrence:null)
-  └── Subtarea template (isTemplate:true, recurrence:{frequency:'monthly', monthDay:1}, dueDate:null)
-  └── Subtarea template (isTemplate:true, recurrence:{frequency:'monthly', monthDay:16}, dueDate:null)
-```
-
-### Instancias generadas en memoria (NO en Supabase)
-```
-inst-{containerTemplateId}-2026-06-01  (isTemplate:false, dueDate:'2026-06-01')
-  └── inst-{subtaskTemplateId}-2026-06-01  (isTemplate:false, dueDate:'2026-06-01')
-```
-
-### Excepción (persistida en Supabase con is_exception:true)
-```
-inst-{subtaskTemplateId}-2026-06-05  (is_exception:true, instance_date:'2026-06-06', due_date:'2026-06-05')
-```
-
-### Reglas CRÍTICAS de recurrencia
-1. Los **contenedores** son comparsa — NUNCA tienen `recurrence`, `dueDate`, `dueTime`, `tags`, ni `delegation`
+### Reglas CRÍTICAS
+1. Los **contenedores** NUNCA tienen `recurrence`, `dueDate`, `dueTime`, `tags`, ni `delegation`
 2. La **recurrencia va solo en las subtareas** (nivel 2)
-3. Las **instancias normales NO se guardan** en Supabase — se regeneran en memoria cada vez
+3. Las **instancias normales NO se guardan** en Supabase — se regeneran en memoria
 4. Solo se guardan si `isException: true` (modificadas individualmente)
 5. `useGeneration` solo modifica instancias (`templateId` presente), **NUNCA** templates
-6. Modificar un template → cambia `templateKey` → dispara `useGeneration` → nuevo ciclo de generación
-7. **Recurrencia anual**: usa `yearDay` + `yearMonth`. `startDate` es inicio de serie (distinto de ocurrencia). `matchesRecurrence` tiene caso `'yearly'` en `utils.ts` y `generation.worker.ts`.
+6. **Recurrencia anual**: usa `yearDay` + `yearMonth`
+
+### Cambio de fecha en instancia recurrente
+- Desde Dashboard → abre modal preguntando "¿Solo este día o toda la serie?"
+- "Solo este día" → llama `handleUpdateTask` con `instanceDate: task.instanceDate || task.dueDate` y `dueDate: newDate`
+- Sin `instanceDate`, el cambio de fecha no activa el flujo de excepción (bug resuelto sesión 3)
 
 ---
 
@@ -163,105 +157,110 @@ inst-{subtaskTemplateId}-2026-06-05  (is_exception:true, instance_date:'2026-06-
 
 1. Carga `work_blocks`, `persons`, `time_entries`, `meetings`
 2. Carga `tasks` con filtro: `template_id IS NULL OR is_exception = true`
-3. Reconstruye jerarquía en **3 pasadas**:
-   - `reconstructHierarchy`: parentTaskId → subtasks[] — **ordena por campo `order`** al final
-   - `reconstructInstanceHierarchy`: reconstruye padre de excepciones sin FK
-   - `reconstructExceptionContainerSubtasks`: vincula subtareas a contenedores excepción
-4. **Reparaciones automáticas**: `repairContainersWithForbiddenData`, `repairRecurringContainers`
+3. Reconstruye jerarquía en 3 pasadas
+4. Reparaciones automáticas
 5. Limpieza de instancias borradas >30 días
 6. `setIsDataLoaded(true)`
 
 ---
 
-## 7. Handlers Principales (App.tsx)
+## 7. StickyActionBar — Componente Compartido
 
-### `handleGoToTemplate(templateId)`
-- Navega a vista Bloques (`setCurrentView('blocks')`)
-- Si la tarea tiene padre, lo expande (`isExpanded:true`, persiste a Supabase)
-- Activa `highlightTaskId` → BlocksView hace scroll y resalta la tarea
-- Auto-limpia highlight a los 4 segundos
+Barra sticky en todas las vistas (Dashboard, Bloques, Delegadas, Calendario).
 
-### `handleUpdateSubtasksOrder(parentId, subtaskIds)`
-- Persiste `order` de cada subtarea en Supabase
-- El orden real al recargar viene del campo `order` (reconstructHierarchy ordena por él)
-
-### `bulkDuplicateTasks()`
-- Parámetro `isRoot:true` añade "(copia)" a la tarea seleccionada; `isRoot:false` para sus hijos
-- Si subtarea tiene padre, la copia se inserta después del original y actualiza el padre
-
----
-
-## 8. Componentes Reutilizables (components.tsx)
-
-### TaskCard — Props clave nuevas (sesión 06/06/2026)
-```typescript
-onGoToTemplate?: (templateId: string) => void  // navega a Bloques y resalta
-onViewInstances?: (task: Task) => void          // abre InstancesModal (SOLO Bloques)
-highlightTaskId?: string | null                 // resalta y hace scroll (ref + setTimeout 500ms)
-showDelegationDates?: boolean                   // muestra EJEC./DELEG. (SOLO Delegadas)
-forceExpanded?: boolean | null                  // fuerza expandido/colapsado (Bloques)
+**Estado normal — 3 zonas:**
+```
+[Seleccionar] | [👁 Ocultar completadas] [⊞ Expandir/Contraer] | [+ Tarea]
 ```
 
-### Chips de recurrencia
-- **Instancias** (`task.templateId && !hasSubtasks`): chip turquesa + botón ↗
-- **Templates** (`task.isTemplate && task.recurrence && !task.templateId`): botón ↗ turquesa + botón ⓘ azul (solo si `onViewInstances`)
-- **Editable** (`!hasSubtasks && !task.templateId && !task.isTemplate`): RecurrencePickerChip
-- `hasSubtasks` filtra IDs `inst-...` — solo cuenta subtareas `t-...`
+**Estado selección activa:**
+```
+[2 ✓] | [Delegar] [Fecha] [Completar] [Tiempo] [Duplicar] [Eliminar] | [✕]
+```
 
-### InstancesModal
-- Abierto desde ⓘ en Bloques
-- Futuros (60d) + pasados (180d, toggle)
-- Estados: Pendiente / Editada / Movida / Completada / Borrada
-- Acciones: Editar (TaskModal), Borrar, **Restaurar** (borra excepción is_deleted de Supabase → instancia se regenera)
+**Props:**
+```typescript
+StickyActionBar {
+  selectionMode: boolean
+  selectedCount: number
+  onToggleSelectionMode: () => void
+  onAddTask?: () => void
+  hideCompleted?: boolean
+  onToggleHideCompleted?: () => void
+  expanded?: boolean
+  onToggleExpand?: () => void
+  onDelegate?: () => void
+  onChangeDate?: () => void
+  onComplete?: () => void
+  onChangeTime?: () => void
+  onDuplicate?: () => void
+  onDelete?: () => void
+}
+```
+
+**PENDIENTE**: El botón `+ Tarea` debe estar SOLO en StickyActionBar (siempre visible al scrollear). Quitar duplicados del header de cada vista. En DashboardView aún quedan botones de expandir subtareas, expandir grupos (Tag) y ocultar completadas en el header de fecha — moverlos o limpiarlos.
 
 ---
 
-## 9. Vistas
+## 8. Selección de Tareas — UX Mejorada
+
+- **Toda la card es clickable** en modo selección (no solo el checkbox)
+- Click en zona libre de la card → selecciona/deselecciona
+- Click en botones/inputs → comportamiento normal (stopPropagation)
+- **Checkbox** se transforma visualmente: borde azul (no seleccionado) → relleno azul (seleccionado)
+- **Ring azul** alrededor de la card seleccionada
+- Fondo azul sutil en cards seleccionadas
+
+---
+
+## 9. Vistas — Estado Actual
 
 ### BlocksView.tsx
-- **`expandedIds` (estado local)**: todos colapsados por defecto. Expand/collapse local, no persiste.
-- Al recibir `highlightTaskId`: expande padre automáticamente + scroll via `ref` en TaskCard
-- Pasa `onViewInstances` → botón ⓘ en TaskCards
+- Header compacto sticky con nombre del bloque + StickyActionBar integrada
+- `expandedIds` (estado local): todos colapsados por defecto (`forceExpanded={false}`)
+- `forceExpanded` se propaga a subtareas hijas también
+- Búsqueda por `searchQuery` filtra `coreTasks` y `adhocTasks`; auto-expande contenedores con coincidencias en subtareas
+
+### DashboardView.tsx
+- StickyActionBar arriba con seleccionar + ocultar completadas + añadir
+- Header de fecha con expandir subtareas, expandir grupos (Tag) — **pendiente limpiar duplicados**
+- `pendingDateChange` modal para cambio de fecha en instancias recurrentes (restaurado en sesión 3)
 
 ### DelegadasView.tsx
-- **Lista principal usa TaskCard** (no render custom) con `variant="FULL"`
-- `showDelegationDates={true}` → fechas EJEC./DELEG. a la derecha
-- **Filtro**: solo `isTemplate:true` o `!templateId` (no instancias, no excepciones)
-- Subtareas del contenedor también filtradas igual
-- `onGoToTemplate` en todos los TaskCards → botón ↗ en recurrentes
+- StickyActionBar integrada
+- Filtro: solo `isTemplate:true` o `!templateId`
+
+### CalendarView.tsx
+- Import de StickyActionBar preparado, sin selección implementada aún
 
 ---
 
-## 10. Bugs Resueltos — Sesión 06/06/2026
+## 10. Bugs Resueltos — Sesión 3 (07/06/2026)
 
-21. Recurrencia anual no funcionaba — `matchesRecurrence` sin caso `yearly`, chips leían `startDate`
-22. Duplicar subtarea creaba como raíz — no preservaba `parentTaskId`
-23. Título "(copia)" no aparecía en subtareas — lógica `isRoot` rota
-24. Orden subtareas en Bloques no persistía — `reconstructHierarchy` no ordenaba por `order`
-25. InstancesModal implementado con Restaurar
-26. Navegación Dashboard/Delegadas → Bloques con ↗ y highlight/scroll
-27. BlocksView estado local expandedIds — todo colapsado por defecto
-28. DelegadasView usa TaskCard en lista principal
-29. RecurrencePickerChip editable solo en tareas manuales
-30. `hasSubtasks` ignora instancias generadas
+31. Modal `pendingDateChange` se había perdido en refactor → restaurado en App.tsx
+32. `instanceDate` faltaba al confirmar cambio de fecha → corregido
+33. Imports faltantes en `Chips.tsx` (`ChevronDown`, `Plus`, `CalendarIcon`, `MonthDatePicker`) → corregidos
+34. Imports faltantes en `Modals.tsx` (`Circle`, `CheckCircle2`, `LayoutDashboard`) → corregidos
+35. Contenedores no colapsaban por defecto en BlocksView → `forceExpanded={false}` en vez de `undefined`
+36. `forceExpanded` no se propagaba a subtareas hijas → corregido en TaskCard recursivo
+37. Buscador en BlocksView no filtraba → `coreTasks`/`adhocTasks` ahora filtran por `searchQuery`
+38. Auto-expand de contenedores con coincidencias en subtareas al buscar
 
 ---
 
-## 11. Bugs Pendientes
+## 11. Bugs / Mejoras Pendientes
 
-| Bug | Síntoma | Prioridad |
-|-----|---------|-----------|
-| Tareas completadas no desaparecen del Dashboard | Al marcar como completada, sigue visible | Alta |
-| Vista Bloques — contenedores no colapsan por defecto | Al entrar a un bloque, aparecen expandidos. `expandedIds` implementado pero no funciona | Alta |
-| Highlight en SearchView | Debería funcionar igual que `highlightTaskId` (borde turquesa + scroll) en vez del fondo amarillo | Media |
-| Nivel 3 sin indentación visual | Sub-subtareas iguales a nivel 2 | Media |
-| Logs debug en components.tsx | `[PICKING DEBUG]`, `[CHIP DEBUG]`, `[CHIP RENDER]` pendientes de limpiar | Baja |
-| Logs debug en DashboardView | `[STATS DEBUG]` pendientes de limpiar | Baja |
-| Bloques sin iconos diferentes | Todos los bloques con el mismo icono | Baja |
-| Instancias Picking en Supabase | Muchas `inst-t-1778445167981-...` con `parent_task_id` guardadas — limpiar con SQL | Baja |
-| Completar tarea padre en Bloques | Cuando todas las hijas están completadas, poder completar el contenedor | Media |
-| Buscador en Vista Bloques | El buscador de la parte superior no funciona | Media |
-| Barra de selección flotante | La barra (Delegar/Fecha/Completar/Duplicar/Eliminar) queda arriba, hay que scrollear. Mejorar posición y experiencia de selección | Media |
+| # | Descripción | Prioridad |
+|---|-------------|-----------|
+| 1 | DashboardView — botones de expandir subtareas, expandir grupos y ocultar completadas duplicados en header de fecha. Limpiar y dejar solo en StickyActionBar | Alta |
+| 2 | StickyActionBar — quitar `+ Tarea` del header de cada vista, dejar solo en StickyActionBar | Alta |
+| 3 | Templates recurrentes en Bloques — tiempo estimado y registrado se suma incorrectamente en la plantilla. Verificar lógica | Media |
+| 4 | Tareas pasadas en Dashboard — mostrar tiempo estimado y tiempo registrado | Media |
+| 5 | Highlight en SearchView — borde turquesa + scroll en vez del fondo amarillo actual | Media |
+| 6 | Nivel 3 sin indentación visual — sub-subtareas visualmente iguales a nivel 2 | Baja |
+| 7 | Logs debug pendientes de limpiar: `[PICKING DEBUG]`, `[CHIP DEBUG]`, `[CHIP RENDER]`, `[STATS DEBUG]` | Baja |
+| 8 | Instancias Picking en Supabase — limpiar con SQL: `DELETE FROM tasks WHERE id LIKE 'inst-t-%' AND parent_task_id IS NOT NULL` | Baja |
+| 9 | Completar contenedor cuando todas las hijas están completadas — botón ya existe, verificar que funciona | Baja |
 
 ---
 
@@ -300,13 +299,12 @@ forceExpanded?: boolean | null                  // fuerza expandido/colapsado (B
 - **Siempre pedir el archivo antes de modificarlo**
 - **Verificar en Supabase con SQL** antes de asumir que es problema de código
 - **La tabla tasks NO tiene columna `subtasks`** — es array reconstruido en memoria
-- **`hasSubtasks` en TaskCard** filtra instancias (`inst-...`)
-- El TaskModal está en App.tsx (no en components.tsx)
+- El TaskModal está en `TaskModal.tsx`
 - `generation.worker.ts` es archivo separado en src/ (no import normal)
-- Logs debug pendientes de limpiar: `[PICKING DEBUG]`, `[CHIP DEBUG]`, `[CHIP RENDER]`, `[STATS DEBUG]`
 - `useSupabaseData.ts` es legacy — no tocar
 - El Worker recibe copia serializada de `tasks` — no accede al estado React
 - **Un bug a la vez**
+- Preferencia: archivos completos de reemplazo, no edits parciales
 
 ---
 
