@@ -195,8 +195,9 @@ export function BlocksManagerView({
 
   if (selectedBlock) {
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32">
-        <div className="sticky top-0 z-20 dark:bg-bg-secondary bg-bg-secondary-light rounded-[2rem] border dark:border-border-main border-border-main-light shadow-xl overflow-hidden">
+      <>
+        {/* StickyActionBar con header del bloque — FUERA del motion.div */}
+        <div className="sticky top-0 z-20 dark:bg-bg-secondary bg-bg-secondary-light rounded-b-[2rem] border-b border-x dark:border-border-main border-border-main-light shadow-xl">
           {/* Header del bloque */}
           <div className="flex items-center gap-3 p-4">
             <button onClick={() => setSelectedBlock(null)} className="p-2 dark:hover:bg-bg-main hover:bg-gray-100 rounded-xl transition-all shrink-0">
@@ -246,6 +247,8 @@ export function BlocksManagerView({
             }}
           />
         </div>
+
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32 mt-4">
 
         <div className="space-y-12">
           {/* Ad-hoc Tasks Section */}
@@ -393,6 +396,7 @@ export function BlocksManagerView({
           </div>
         </div>
       </motion.div>
+    </>
     );
   }
 

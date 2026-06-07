@@ -166,13 +166,8 @@ export function DashboardView({
   const { dayName, dayNum } = formatDate(activeDate);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-10"
-    >
-      {/* StickyActionBar — selección y acciones */}
+    <>
+      {/* StickyActionBar — FUERA del motion.div para que sticky funcione */}
       <StickyActionBar
         selectionMode={selectionMode}
         selectedCount={selectedTaskIds.size}
@@ -200,18 +195,22 @@ export function DashboardView({
         }}
       />
 
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-10"
+    >
       {/* Date Header */}
       <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between dark:bg-bg-card bg-bg-card-light p-4 rounded-[2rem] border dark:border-border-main border-border-main-light shadow-xl">
+        <div className="grid grid-cols-3 items-center dark:bg-bg-card bg-bg-card-light p-4 rounded-[2rem] border dark:border-border-main border-border-main-light shadow-xl">
+          {/* Izquierda: navegación */}
           <div className="flex gap-2">
             <button onClick={() => onDayChange(-1)} className="p-3 dark:hover:bg-bg-main hover:bg-bg-secondary-light rounded-2xl transition-all dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light">
               <ChevronRight size={20} className="rotate-180" />
             </button>
             <button
-              onClick={() => {
-                const today = formatLocalISO(new Date());
-                onSetDate(today);
-              }}
+              onClick={() => { const today = formatLocalISO(new Date()); onSetDate(today); }}
               className="px-6 py-2 bg-turquesa/10 text-turquesa rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-turquesa hover:text-white transition-all"
             >
               HOY
@@ -607,6 +606,7 @@ export function DashboardView({
         </div>
       )}
     </motion.div>
+    </>
   );
 }
 

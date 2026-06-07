@@ -400,13 +400,13 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
   const getBlock = (blockId: string) => blocks.find((b: any) => b.id === blockId);
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32">
-
-      {/* StickyActionBar — selección y acciones */}
+    <>
+      {/* StickyActionBar — FUERA del motion.div */}
       <StickyActionBar
         selectionMode={selectionMode}
         selectedCount={selectedTaskIds.size}
         onToggleSelectionMode={() => onToggleSelectionMode && onToggleSelectionMode()}
+        onAddTask={() => onAddTask && onAddTask()}
         hideCompleted={hideCompletedDelegadas}
         onToggleHideCompleted={() => setHideCompletedDelegadas(!hideCompletedDelegadas)}
         onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
@@ -416,6 +416,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
         onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
         onDelete={() => { if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) { bulkDeleteTasks && bulkDeleteTasks(); } }}
       />
+
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -433,13 +435,6 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
           >
             <History size={14} />
             Nueva reunión
-          </button>
-          <button
-            onClick={() => onAddTask && onAddTask()}
-            className="flex items-center gap-2 px-4 py-2.5 bg-morado dark:text-white text-text-main-light rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-morado/80 transition-all shadow-lg shadow-morado/20"
-          >
-            <Plus size={14} />
-            Nueva tarea
           </button>
           <button
             onClick={() => setShowManageTeam(true)}
@@ -1269,5 +1264,6 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
         )}
       </AnimatePresence>
     </motion.div>
+    </>
   );
 }

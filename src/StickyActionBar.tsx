@@ -10,7 +10,7 @@ import React from 'react';
 import {
   Plus, Eye, EyeOff, CheckSquare,
   Users, Calendar, Clock, Copy, Trash2, X, Check,
-  ChevronsDown, ChevronsUp, Tag
+  ChevronsDown, ChevronsUp, Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -185,8 +185,8 @@ export function StickyActionBar({
                   onClick={onToggleExpandBlocks}
                   active={allBlocksExpanded}
                   activeColor="morado"
-                  activeIcon={<Tag size={13} />}
-                  inactiveIcon={<Tag size={13} />}
+                  activeIcon={<Layers size={13} />}
+                  inactiveIcon={<Layers size={13} />}
                   activeLabel="Contraer grupos"
                   inactiveLabel="Expandir grupos"
                 />
