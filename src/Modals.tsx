@@ -295,33 +295,22 @@ export function InstancesModal({ task, allTasksMap, timeEntries = [], onClose, o
   }, [task, allTasksMap]);
 
   // Tiempo registrado para una fecha concreta: suma entries de inst-{subId}-{date} y de la instancia padre
+  // Los time_entries se guardan con IDs de templates (t-xxx), no de instancias.
+  // Filtramos por task_id/subtask_id del template y sus hijos, y por created_at del día.
   const getRegisteredForDate = (date: string): number => {
     if (!timeEntries || timeEntries.length === 0) return 0;
     const childIds = task.subtasks || [];
-    let total = 0;
-    // Sumar entries de subtareas instanciadas
-    childIds.forEach(subId => {
-      const instId = `inst-${subId}-${date}`;
-      total += timeEntries
-        .filter(e => e && (e.subtaskId === instId || (!e.subtaskId && e.taskId === instId)))
-        .reduce((acc, e) => acc + (e.duration || 0), 0);
-    });
-    // Sumar entries del contenedor padre instanciado
-    const parentInstId = `inst-${task.id}-${date}`;
-    total += timeEntries
-      .filter(e => e && (e.subtaskId === parentInstId || (!e.subtaskId && e.taskId === parentInstId)))
+    const relevantIds = new Set<string>([task.id, ...childIds]);
+    return timeEntries
+      .filter(e => {
+        if (!e) return false;
+        const matchesId = relevantIds.has(e.taskId) || (e.subtaskId && relevantIds.has(e.subtaskId));
+        if (!matchesId) return false;
+        if (!e.created_at) return false;
+        const entryDate = new Date(e.created_at).toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+        return entryDate === date;
+      })
       .reduce((acc, e) => acc + (e.duration || 0), 0);
-    // También buscar por excepción si existe
-    const exc = Object.values(allTasksMap).find(t =>
-      t.templateId === task.id && t.isException && !t.isDeleted &&
-      (t.instanceDate === date || t.dueDate === date)
-    );
-    if (exc) {
-      total += timeEntries
-        .filter(e => e && (e.subtaskId === exc.id || (!e.subtaskId && e.taskId === exc.id)))
-        .reduce((acc, e) => acc + (e.duration || 0), 0);
-    }
-    return total;
   };
 
   const formatMins = (mins: number): string => {
