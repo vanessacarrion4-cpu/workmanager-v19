@@ -215,8 +215,10 @@ export function BlocksManagerView({
   if (selectedBlock) {
     return (
       <>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 pb-32">
+
         {/* Header del bloque */}
-        <div className="dark:bg-bg-secondary bg-bg-secondary-light border-b dark:border-border-main border-border-main-light rounded-[1.5rem] mb-6">
+        <div className="dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-[1.5rem] shadow-sm">
           <div className="flex items-center gap-3 p-4">
             <button onClick={() => setSelectedBlock(null)} className="p-2 dark:hover:bg-bg-main hover:bg-gray-100 rounded-xl transition-all shrink-0">
               <ChevronRight size={18} className="rotate-180 dark:text-white text-text-main-light" />
@@ -244,8 +246,6 @@ export function BlocksManagerView({
             </button>
           </div>
         </div>
-
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32">
 
         <div className="space-y-12">
           {/* Ad-hoc Tasks Section */}
