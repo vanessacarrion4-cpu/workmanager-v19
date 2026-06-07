@@ -1,23 +1,23 @@
 /**
- * WeekView.tsx
- * Vista semanal — Modo Bloques (default) + Modo Cards expandible
- * Para semanas dentro de ±60 días usa allTasksMap (instancias generadas por Worker)
- * Para semanas fuera de esa ventana calcula recurrentes desde templates
+ * WeekView.tsx — v2
+ * - Tiempo estimado correcto (suma subtareas hoja)
+ * - Header día: pasado → registrado, futuro → estimado
+ * - Toggle "Carga" para ver Core/Adhoc por bloque
  */
 
 import React, { useState, useMemo } from 'react';
 import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
-  Plus, Check, CalendarDays, RefreshCw
+  Plus, Check, RefreshCw, Layers, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task, WorkBlock, TimeEntry } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { filterTasksForDay } from './filters';
-import { formatMinutes } from './utils';
+import { formatMinutes, getTaskEstimatedCombo } from './utils';
 import { TAG_LABELS } from './constants';
 
-// ─── Colores carga (igual que WorkloadView) ───────────────────────────────────
+// ─── Colores carga ────────────────────────────────────────────────────────────
 function getPctColor(pct: number): string {
   if (pct === 0) return 'transparent';
   if (pct < 60) return '#10B981';
@@ -53,13 +53,13 @@ function formatDayLabel(dateStr: string) {
   return { day: days[d.getDay()], num: d.getDate(), month: months[d.getMonth()] };
 }
 
-// ─── Calcular si una fecha de recurrencia aplica ──────────────────────────────
+// ─── Recurrencia fuera de ventana ─────────────────────────────────────────────
 function occursOnDate(recurrence: any, dateStr: string): boolean {
   if (!recurrence) return false;
   if (dateStr < recurrence.startDate) return false;
   if (recurrence.endDate && dateStr > recurrence.endDate) return false;
   const d = parseLocalISO(dateStr);
-  const dow = (d.getDay() + 6) % 7; // 0=lun...6=dom
+  const dow = (d.getDay() + 6) % 7;
   switch (recurrence.frequency) {
     case 'daily': return true;
     case 'weekdays': return dow <= 4;
@@ -71,67 +71,40 @@ function occursOnDate(recurrence: any, dateStr: string): boolean {
     default: return false;
   }
 }
-
-// ─── Generar instancias virtuales desde templates para fechas fuera del Worker ─
-function generateVirtualInstances(
-  allTasksMap: Record<string, Task>,
-  date: string
-): Task[] {
+function generateVirtualInstances(allTasksMap: Record<string, Task>, date: string): Task[] {
   const result: Task[] = [];
-  const templates = Object.values(allTasksMap).filter(
-    t => t.isTemplate && !t.templateId && !t.isDeleted
-  );
-
+  const templates = Object.values(allTasksMap).filter(t => t.isTemplate && !t.templateId && !t.isDeleted);
   templates.forEach(container => {
-    const subtasks = (container.subtasks || [])
-      .map(id => allTasksMap[id])
-      .filter(Boolean);
-
+    const subtasks = (container.subtasks || []).map(id => allTasksMap[id]).filter(Boolean);
     subtasks.forEach(sub => {
-      if (!sub.recurrence) return;
-      if (!occursOnDate(sub.recurrence, date)) return;
-
-      // Crear instancia virtual del contenedor
+      if (!sub.recurrence || !occursOnDate(sub.recurrence, date)) return;
       const contInstId = `inst-${container.id}-${date}`;
       if (!result.find(r => r.id === contInstId)) {
-        result.push({
-          ...container,
-          id: contInstId,
-          templateId: container.id,
-          instanceDate: date,
-          dueDate: date,
-          isTemplate: false,
-          isException: false,
-        });
+        result.push({ ...container, id: contInstId, templateId: container.id, instanceDate: date, dueDate: date, isTemplate: false, isException: false });
       }
-      // Crear instancia virtual de la subtarea
-      const subInstId = `inst-${sub.id}-${date}`;
-      result.push({
-        ...sub,
-        id: subInstId,
-        templateId: sub.id,
-        instanceDate: date,
-        dueDate: date,
-        parentTaskId: contInstId,
-        isTemplate: false,
-        isException: false,
-      });
+      result.push({ ...sub, id: `inst-${sub.id}-${date}`, templateId: sub.id, instanceDate: date, dueDate: date, parentTaskId: contInstId, isTemplate: false, isException: false });
     });
   });
   return result;
 }
 
+// ─── Calcular minutos de una tarea (suma subtareas hoja) ─────────────────────
+function getTaskMins(task: Task, allTasksMap: Record<string, Task>): number {
+  if (!task.subtasks || task.subtasks.length === 0) return task.estimatedMinutes || 0;
+  return (task.subtasks || []).reduce((acc, subId) => {
+    const sub = allTasksMap[subId];
+    return acc + (sub ? getTaskMins(sub, allTasksMap) : 0);
+  }, 0);
+}
+
 const MINS_CAPACITY_DAY = 480;
+const TURQUESA = '#14B8A6';
+const ROSA = '#EC4899';
 
 // ─── WeekView ─────────────────────────────────────────────────────────────────
 export function WeekView({
-  allTasksMap,
-  blocks,
-  timeEntries = [],
-  onEditTask,
-  onToggle,
-  onAddTask,
-  onNavigateToDashboard,
+  allTasksMap, blocks, timeEntries = [],
+  onEditTask, onToggle, onAddTask, onNavigateToDashboard,
 }: {
   allTasksMap: Record<string, Task>;
   blocks: WorkBlock[];
@@ -145,12 +118,11 @@ export function WeekView({
   const generatedEnd = addDays(today, 60);
   const generatedStart = addDays(today, -30);
 
-  const [weekStart, setWeekStart] = useState(() =>
-    formatLocalISO(getMondayOfWeek(new Date()))
-  );
+  const [weekStart, setWeekStart] = useState(() => formatLocalISO(getMondayOfWeek(new Date())));
   const [showWeekend, setShowWeekend] = useState(false);
   const [jumpDate, setJumpDate] = useState('');
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
+  const [showCarga, setShowCarga] = useState(false); // Toggle modo carga
 
   const days = useMemo(() => {
     const count = showWeekend ? 7 : 5;
@@ -158,74 +130,55 @@ export function WeekView({
   }, [weekStart, showWeekend]);
 
   const weekLabel = useMemo(() => {
-    const start = parseLocalISO(days[0]);
-    const end = parseLocalISO(days[days.length - 1]);
-    const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-    return `${start.getDate()} ${months[start.getMonth()]} – ${end.getDate()} ${months[end.getMonth()]} ${end.getFullYear()}`;
+    const s = parseLocalISO(days[0]);
+    const e = parseLocalISO(days[days.length - 1]);
+    const m = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    return `${s.getDate()} ${m[s.getMonth()]} – ${e.getDate()} ${m[e.getMonth()]} ${e.getFullYear()}`;
   }, [days]);
 
-  const activeBlockIds = useMemo(() =>
-    new Set(blocks.filter(b => b.isActive).map(b => b.id)),
-    [blocks]
-  );
+  const activeBlockIds = useMemo(() => new Set(blocks.filter(b => b.isActive).map(b => b.id)), [blocks]);
+  const activeBlocks = useMemo(() => blocks.filter(b => b.isActive), [blocks]);
 
-  // Para cada día: usar allTasksMap si está en ventana, calcular desde templates si no
   const tasksByDay = useMemo(() => {
     const map: Record<string, Task[]> = {};
     days.forEach(date => {
-      const inWindow = date >= generatedStart && date <= generatedEnd;
-      if (inWindow) {
-        map[date] = filterTasksForDay(
-          Object.values(allTasksMap),
-          allTasksMap,
-          activeBlockIds,
-          date,
-          { hideCompleted: false, hideDelegatedNoTag: false }
-        );
+      if (date >= generatedStart && date <= generatedEnd) {
+        map[date] = filterTasksForDay(Object.values(allTasksMap), allTasksMap, activeBlockIds, date, { hideCompleted: false, hideDelegatedNoTag: false });
       } else {
         const virtual = generateVirtualInstances(allTasksMap, date);
-        const manual = Object.values(allTasksMap).filter(
-          t => !t.isTemplate && !t.templateId && t.dueDate === date && !t.isDeleted
-        );
+        const manual = Object.values(allTasksMap).filter(t => !t.isTemplate && !t.templateId && t.dueDate === date && !t.isDeleted);
         map[date] = [...manual, ...virtual];
       }
     });
     return map;
   }, [days, allTasksMap, activeBlockIds, generatedStart, generatedEnd]);
 
-  const activeBlocks = useMemo(() => blocks.filter(b => b.isActive), [blocks]);
-
+  // Stats por día: estimado (futuro) y registrado (pasado)
   const statsByDay = useMemo(() => {
-    const map: Record<string, { totalMins: number; pct: number }> = {};
+    const map: Record<string, { estimatedMins: number; registeredMins: number; pct: number }> = {};
     days.forEach(date => {
       const tasks = tasksByDay[date] || [];
-      const totalMins = tasks.reduce((acc, t) => {
-        if (!t.subtasks || t.subtasks.length === 0) return acc + (t.estimatedMinutes || 0);
-        return acc;
-      }, 0);
-      map[date] = { totalMins, pct: Math.round((totalMins / MINS_CAPACITY_DAY) * 100) };
+      const estimatedMins = tasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+      const registeredMins = timeEntries
+        .filter(e => e.date === date)
+        .reduce((acc, e) => acc + (e.duration || 0), 0);
+      const pct = Math.round((estimatedMins / MINS_CAPACITY_DAY) * 100);
+      map[date] = { estimatedMins, registeredMins, pct };
     });
     return map;
-  }, [days, tasksByDay]);
+  }, [days, tasksByDay, timeEntries, allTasksMap]);
 
   const toggleBlock = (date: string, blockId: string) => {
     const key = `${date}__${blockId}`;
-    setExpandedBlocks(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
+    setExpandedBlocks(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   };
 
   const isOutsideWindow = days.some(d => d < generatedStart || d > generatedEnd);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-4 pb-32 max-w-full"
-    >
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+      className="space-y-4 pb-32 max-w-full">
+
       {/* ── HEADER ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -233,6 +186,13 @@ export function WeekView({
           <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-0.5">{weekLabel}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Toggle Carga */}
+          <button onClick={() => setShowCarga(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
+              showCarga ? 'bg-morado text-white border-morado shadow-md shadow-morado/20' : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-morado/50'
+            }`}>
+            <Layers size={12} /> Carga
+          </button>
           {/* Toggle L-V / L-D */}
           <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
             <button onClick={() => setShowWeekend(false)}
@@ -259,42 +219,42 @@ export function WeekView({
           </div>
           {/* Jump to date */}
           <input type="date" value={jumpDate}
-            onChange={e => {
-              setJumpDate(e.target.value);
-              if (e.target.value) setWeekStart(formatLocalISO(getMondayOfWeek(parseLocalISO(e.target.value))));
-            }}
+            onChange={e => { setJumpDate(e.target.value); if (e.target.value) setWeekStart(formatLocalISO(getMondayOfWeek(parseLocalISO(e.target.value)))); }}
             className="h-8 px-3 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl text-[11px] font-bold dark:text-white text-text-main-light outline-none focus:border-turquesa/50 transition-all"
           />
         </div>
       </div>
 
-      {/* Aviso semana fuera de ventana generada */}
       {isOutsideWindow && (
         <div className="flex items-center gap-2 px-4 py-2.5 dark:bg-azul/10 bg-azul/5 border dark:border-azul/20 border-azul/20 rounded-2xl">
           <RefreshCw size={13} className="text-azul shrink-0" />
           <p className="text-[11px] dark:text-text-secondary text-text-secondary-light">
-            Semana fuera de la ventana generada — mostrando tareas recurrentes calculadas desde plantillas. Las tareas manuales fuera del rango no aparecen.
+            Semana fuera de la ventana generada — recurrentes calculadas desde plantillas.
           </p>
         </div>
       )}
 
-      {/* ── GRID SEMANAL ── */}
+      {/* ── GRID ── */}
       <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
         {days.map(date => {
-          const { totalMins, pct } = statsByDay[date] || { totalMins: 0, pct: 0 };
+          const { estimatedMins, registeredMins, pct } = statsByDay[date] || { estimatedMins: 0, registeredMins: 0, pct: 0 };
+          const isPast = date < today;
           const isToday = date === today;
           const label = formatDayLabel(date);
           const dayTasks = tasksByDay[date] || [];
           const d = parseLocalISO(date);
           const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+          // Para días pasados: mostrar registrado; para hoy/futuro: estimado
+          const displayMins = isPast ? registeredMins : estimatedMins;
+          const displayPct = isPast
+            ? Math.round((registeredMins / MINS_CAPACITY_DAY) * 100)
+            : pct;
 
           return (
             <div key={date} className={`flex flex-col rounded-2xl border overflow-hidden transition-all ${
-              isToday
-                ? 'dark:border-turquesa/50 border-turquesa/40 dark:bg-turquesa/5 bg-turquesa/3'
-                : isWeekend
-                  ? 'dark:border-border-main/30 border-border-main-light/30 dark:bg-white/[0.01] bg-gray-50/50'
-                  : 'dark:border-border-main border-border-main-light dark:bg-bg-card bg-white'
+              isToday ? 'dark:border-turquesa/50 border-turquesa/40 dark:bg-turquesa/5 bg-turquesa/3'
+              : isWeekend ? 'dark:border-border-main/30 border-border-main-light/30 dark:bg-white/[0.01] bg-gray-50/50'
+              : 'dark:border-border-main border-border-main-light dark:bg-bg-card bg-white'
             }`}>
 
               {/* Header día */}
@@ -308,19 +268,20 @@ export function WeekView({
                     <span className={`text-lg font-black leading-none ${isToday ? 'text-turquesa' : 'dark:text-white text-text-main-light'}`}>
                       {label.num}
                     </span>
-                    <span className="text-[10px] dark:text-text-secondary/50 text-text-secondary-light/50">
-                      {label.month}
-                    </span>
+                    <span className="text-[10px] dark:text-text-secondary/50 text-text-secondary-light/50">{label.month}</span>
                   </div>
-                  {totalMins > 0 && (
-                    <span className={`text-[10px] font-black ${getPctTextClass(pct)}`}>
-                      {formatMinutes(totalMins)}
-                    </span>
+                  {displayMins > 0 && (
+                    <div className="flex items-center gap-1">
+                      {isPast && <Clock size={9} className="text-turquesa" />}
+                      <span className={`text-[10px] font-black ${getPctTextClass(displayPct)}`}>
+                        {formatMinutes(displayMins)}
+                      </span>
+                    </div>
                   )}
                 </div>
                 <div className="w-full h-1.5 dark:bg-white/10 bg-black/8 rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(100, pct)}%`, backgroundColor: getPctColor(pct) }} />
+                    style={{ width: `${Math.min(100, displayPct)}%`, backgroundColor: getPctColor(displayPct) }} />
                 </div>
               </button>
 
@@ -332,13 +293,17 @@ export function WeekView({
                   const key = `${date}__${block.id}`;
                   const isExpanded = expandedBlocks.has(key);
                   const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
-                  const blockMins = blockTasks.reduce((acc, t) =>
-                    (!t.subtasks || t.subtasks.length === 0) ? acc + (t.estimatedMinutes || 0) : acc, 0);
+                  // Tiempo correcto: suma subtareas hoja
+                  const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+
+                  // Carga Core/Adhoc
+                  const coreMins = blockTasks.filter(t => t.taskType === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                  const adhocMins = blockTasks.filter(t => t.taskType === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
 
                   return (
                     <div key={block.id} className="rounded-xl overflow-hidden">
                       <button onClick={() => toggleBlock(date, block.id)}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 hover:dark:bg-white/5 hover:bg-black/5 transition-all rounded-xl">
+                        className="w-full flex items-center gap-1.5 px-2 py-1.5 hover:dark:bg-white/5 hover:bg-black/5 transition-all rounded-xl">
                         <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
                         <span className="text-[10px] font-black dark:text-white text-text-main-light truncate flex-1 text-left uppercase tracking-wide">
                           {block.icon} {block.name}
@@ -347,32 +312,45 @@ export function WeekView({
                           {pendingCount}/{blockTasks.length}
                         </span>
                         {blockMins > 0 && (
-                          <span className={`text-[9px] font-black shrink-0 ${getPctTextClass(pct)}`}>
+                          <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">
                             {formatMinutes(blockMins)}
                           </span>
                         )}
-                        {isExpanded
-                          ? <ChevronUp size={10} className="shrink-0 dark:text-text-secondary/50 text-text-secondary-light/50" />
-                          : <ChevronDown size={10} className="shrink-0 dark:text-text-secondary/50 text-text-secondary-light/50" />
-                        }
+                        {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
                       </button>
+
+                      {/* Modo Carga: Core/Adhoc */}
+                      {showCarga && (coreMins > 0 || adhocMins > 0) && (
+                        <div className="flex items-center gap-2 px-2 pb-1.5">
+                          {coreMins > 0 && (
+                            <div className="flex items-center gap-1">
+                              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: TURQUESA }} />
+                              <span className="text-[9px] font-bold" style={{ color: TURQUESA }}>{formatMinutes(coreMins)}</span>
+                            </div>
+                          )}
+                          {adhocMins > 0 && (
+                            <div className="flex items-center gap-1">
+                              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: ROSA }} />
+                              <span className="text-[9px] font-bold" style={{ color: ROSA }}>{formatMinutes(adhocMins)}</span>
+                            </div>
+                          )}
+                          {/* Barra Core/Adhoc */}
+                          {blockMins > 0 && (
+                            <div className="flex-1 h-1 dark:bg-white/10 bg-black/8 rounded-full overflow-hidden flex">
+                              <div className="h-full" style={{ width: `${Math.round((coreMins / blockMins) * 100)}%`, backgroundColor: TURQUESA }} />
+                              <div className="h-full" style={{ width: `${Math.round((adhocMins / blockMins) * 100)}%`, backgroundColor: ROSA }} />
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       <AnimatePresence>
                         {isExpanded && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="overflow-hidden"
-                          >
+                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                             <div className="space-y-0.5 pb-1 px-1">
                               {blockTasks.map(task => (
-                                <WeekTaskCard
-                                  key={task.id}
-                                  task={task}
-                                  onEdit={() => onEditTask(task.id)}
-                                  onToggle={() => onToggle(task.id)}
-                                />
+                                <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
+                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
                               ))}
                             </div>
                           </motion.div>
@@ -388,10 +366,8 @@ export function WeekView({
                   </div>
                 )}
 
-                <button
-                  onClick={() => onAddTask(null, undefined, date)}
-                  className="w-full flex items-center justify-center gap-1 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest dark:text-text-secondary/30 text-text-secondary-light/30 hover:dark:text-turquesa hover:text-turquesa hover:dark:bg-turquesa/5 hover:bg-turquesa/5 transition-all border border-dashed dark:border-border-main/20 border-border-main-light/20 hover:border-turquesa/30"
-                >
+                <button onClick={() => onAddTask(null, undefined, date)}
+                  className="w-full flex items-center justify-center gap-1 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest dark:text-text-secondary/30 text-text-secondary-light/30 hover:dark:text-turquesa hover:text-turquesa hover:dark:bg-turquesa/5 hover:bg-turquesa/5 transition-all border border-dashed dark:border-border-main/20 border-border-main-light/20 hover:border-turquesa/30">
                   <Plus size={10} /> Añadir
                 </button>
               </div>
@@ -404,13 +380,13 @@ export function WeekView({
 }
 
 // ─── WeekTaskCard ─────────────────────────────────────────────────────────────
-function WeekTaskCard({ task, onEdit, onToggle }: {
-  task: Task;
-  onEdit: () => void;
-  onToggle: () => void;
+function WeekTaskCard({ task, allTasksMap, onEdit, onToggle }: {
+  task: Task; allTasksMap: Record<string, Task>;
+  onEdit: () => void; onToggle: () => void;
 }) {
   const tagEmoji = task.tags?.[0] ? TAG_LABELS[task.tags[0]]?.icon : null;
   const isCompleted = task.status === 'completed';
+  const taskMins = getTaskMins(task, allTasksMap);
 
   return (
     <div onClick={onEdit}
@@ -426,9 +402,9 @@ function WeekTaskCard({ task, onEdit, onToggle }: {
         {task.title}
       </span>
       {task.templateId && <RefreshCw size={9} className="text-turquesa shrink-0 opacity-60" />}
-      {(task.estimatedMinutes || 0) > 0 && (
+      {taskMins > 0 && (
         <span className="text-[9px] dark:text-text-secondary/60 text-text-secondary-light/60 shrink-0 font-bold">
-          {formatMinutes(task.estimatedMinutes)}
+          {formatMinutes(taskMins)}
         </span>
       )}
     </div>
