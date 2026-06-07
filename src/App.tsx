@@ -704,6 +704,7 @@ export default function App() {
           blocks={blocks}
           onUploadAttachment={handleUploadAttachment}
           onDeleteAttachment={handleDeleteAttachment}
+          onToggleStatus={handleToggleStatus}
         />
       )}
 
@@ -726,6 +727,7 @@ export default function App() {
           blocks={blocks}
           onUploadAttachment={handleUploadAttachment}
           onDeleteAttachment={handleDeleteAttachment}
+          onToggleStatus={handleToggleStatus}
         />
       )}
 

@@ -35,6 +35,7 @@ interface TaskModalProps {
   onRecurrenceDateChange?: ((task: any, newDate: string) => void) | null;
   onUploadAttachment?: ((taskId: string, file: File) => void) | null;
   onDeleteAttachment?: ((taskId: string, attachmentId: string, path: string) => void) | null;
+  onToggleStatus?: ((taskId: string) => void) | null;
 }
 
 export function TaskModal({
@@ -53,6 +54,7 @@ export function TaskModal({
   onRecurrenceDateChange = null,
   onUploadAttachment = null,
   onDeleteAttachment = null,
+  onToggleStatus = null,
 }: TaskModalProps) {
   const [localTask, setLocalTask] = useState<Task>(task);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
@@ -136,12 +138,37 @@ export function TaskModal({
               />
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-3 dark:bg-bg-secondary bg-bg-secondary-light dark:hover:bg-bg-main hover:bg-gray-200 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light transition-all"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            {onToggleStatus && (
+              <button
+                onClick={() => {
+                  onToggleStatus(localTask.id);
+                  onClose();
+                }}
+                title={localTask.status === 'completed' ? 'Marcar pendiente' : 'Completar'}
+                className={`p-3 rounded-2xl border transition-all ${
+                  localTask.status === 'completed'
+                    ? 'dark:bg-bg-secondary bg-bg-secondary-light dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'
+                    : 'bg-turquesa/10 border-turquesa/40 text-turquesa hover:bg-turquesa/20'
+                }`}
+              >
+                <Check size={18} />
+              </button>
+            )}
+            <button
+              onClick={() => { onDeleteTask(localTask.id); onClose(); }}
+              title="Eliminar tarea"
+              className="p-3 dark:bg-bg-secondary bg-bg-secondary-light dark:hover:bg-rosa/10 hover:bg-rosa/5 rounded-2xl border dark:border-border-main border-border-main-light text-rosa border-rosa/20 transition-all"
+            >
+              <Trash2 size={18} />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-3 dark:bg-bg-secondary bg-bg-secondary-light dark:hover:bg-bg-main hover:bg-gray-200 rounded-2xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light transition-all"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
