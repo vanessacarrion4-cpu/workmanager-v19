@@ -18,7 +18,6 @@ import { isTaskCompleted, getTaskEstimatedCombo, formatMinutes } from './utils';
 import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
-import { StickyActionBar } from './StickyActionBar';
 
 interface DashboardViewProps {
   tasks: Task[];
@@ -65,6 +64,12 @@ interface DashboardViewProps {
   bulkTimeModal?: boolean;
   setBulkTimeModal?: ((open: boolean) => void) | null;
   searchQuery?: string;
+  hideCompleted?: boolean;
+  onHideCompletedChange?: (v: boolean) => void;
+  expandAll?: boolean | null;
+  onExpandAllChange?: (v: boolean | null) => void;
+  expandedBlocks?: Set<string>;
+  onExpandedBlocksChange?: (v: Set<string>) => void;
 }
 
 export function DashboardView({
@@ -79,13 +84,29 @@ export function DashboardView({
   bulkDateModal = false, setBulkDateModal = null, bulkTimeModal = false, setBulkTimeModal = null,
   onDeleteTimeEntry = null,
   onUpdateTimeEntry = null,
-  searchQuery = ''
+  searchQuery = '',
+  hideCompleted: hideCompletedProp,
+  onHideCompletedChange,
+  expandAll: expandAllProp,
+  onExpandAllChange,
+  expandedBlocks: expandedBlocksProp,
+  onExpandedBlocksChange,
 }: DashboardViewProps) {
 
-  const [hideCompleted, setHideCompleted] = useState(true);
+  const [hideCompletedLocal, setHideCompletedLocal] = useState(true);
+  const hideCompleted = hideCompletedProp !== undefined ? hideCompletedProp : hideCompletedLocal;
+  const setHideCompleted = (v: boolean) => { setHideCompletedLocal(v); onHideCompletedChange?.(v); };
   const [showDashboardCalendar, setShowDashboardCalendar] = useState(false);
-  const [expandAll, setExpandAll] = useState<boolean | null>(null);
-  const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set(['con_hora', 'focus', 'dirección', 'espera', 'resto']));
+  const [expandAllLocal, setExpandAllLocal] = useState<boolean | null>(null);
+  const expandAll = expandAllProp !== undefined ? expandAllProp : expandAllLocal;
+  const setExpandAll = (fn: ((prev: boolean | null) => boolean | null) | (boolean | null)) => {
+    const next = typeof fn === 'function' ? fn(expandAll) : fn;
+    setExpandAllLocal(next);
+    onExpandAllChange?.(next);
+  };
+  const [expandedBlocksLocal, setExpandedBlocksLocal] = useState<Set<string>>(new Set(['con_hora', 'focus', 'dirección', 'espera', 'resto']));
+  const expandedBlocks = expandedBlocksProp !== undefined ? expandedBlocksProp : expandedBlocksLocal;
+  const setExpandedBlocks = (v: Set<string>) => { setExpandedBlocksLocal(v); onExpandedBlocksChange?.(v); };
   const [isFrozen, setIsFrozen] = useState(false);
   const frozenOrderRef = React.useRef<string[]>([]);
   const [dragOrders, setDragOrders] = useState<Record<string, string[]>>({});
@@ -166,35 +187,6 @@ export function DashboardView({
   const { dayName, dayNum } = formatDate(activeDate);
 
   return (
-    <>
-      {/* StickyActionBar — FUERA del motion.div para que sticky funcione */}
-      <StickyActionBar
-        selectionMode={selectionMode}
-        selectedCount={selectedTaskIds.size}
-        onToggleSelectionMode={() => onToggleSelectionMode && onToggleSelectionMode()}
-        onAddTask={() => onAddTask()}
-        hideCompleted={hideCompleted}
-        onToggleHideCompleted={() => setHideCompleted(!hideCompleted)}
-        expandAll={expandAll}
-        onToggleExpandAll={() => setExpandAll(prev => prev === true ? false : true)}
-        expandedBlocksCount={expandedBlocks.size}
-        expandedBlocksTotal={5}
-        onToggleExpandBlocks={() => {
-          const allTags = new Set(['con_hora', 'focus', 'dirección', 'espera', 'resto']);
-          setExpandedBlocks(expandedBlocks.size === 5 ? new Set() : allTags);
-        }}
-        onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
-        onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
-        onComplete={() => bulkUpdateTasks && bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
-        onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
-        onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
-        onDelete={() => {
-          if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) {
-            bulkDeleteTasks && bulkDeleteTasks();
-          }
-        }}
-      />
-
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -606,7 +598,6 @@ export function DashboardView({
         </div>
       )}
     </motion.div>
-    </>
   );
 }
 

@@ -24,7 +24,6 @@ import {
 import { getTaskRegisteredCombo, getTaskEstimatedCombo } from './utils';
 
 import { supabase } from './supabaseClient';
-import { StickyActionBar } from './StickyActionBar';
 
 // ─── Colores por persona ─────────────────────────────────────────────────────
 const PERSON_COLORS = [
@@ -40,7 +39,7 @@ function getPersonColor(people: any[], personId: string) {
   return PERSON_COLORS[idx >= 0 ? idx % PERSON_COLORS.length : 0];
 }
 
-export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '', onGoToTemplate = null }: any) {
+export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '', onGoToTemplate = null, hideCompletedExternal }: any) {
 
   // Highlight helper
   const HighlightText = ({ text }: { text: string }) => {
@@ -93,6 +92,9 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [editingPersonName, setEditingPersonName] = useState('');
   const [hideCompletedDelegadas, setHideCompletedDelegadas] = useState(false);
+  React.useEffect(() => {
+    if (hideCompletedExternal !== undefined) setHideCompletedDelegadas(hideCompletedExternal);
+  }, [hideCompletedExternal]);
   // Expandir/contraer todos los contenedores de una persona
   const [allContainersExpanded, setAllContainersExpanded] = useState<Record<string, boolean>>({});
 
@@ -400,23 +402,6 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
   const getBlock = (blockId: string) => blocks.find((b: any) => b.id === blockId);
 
   return (
-    <>
-      {/* StickyActionBar — FUERA del motion.div */}
-      <StickyActionBar
-        selectionMode={selectionMode}
-        selectedCount={selectedTaskIds.size}
-        onToggleSelectionMode={() => onToggleSelectionMode && onToggleSelectionMode()}
-        onAddTask={() => onAddTask && onAddTask()}
-        hideCompleted={hideCompletedDelegadas}
-        onToggleHideCompleted={() => setHideCompletedDelegadas(!hideCompletedDelegadas)}
-        onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
-        onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
-        onComplete={() => bulkUpdateTasks && bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
-        onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
-        onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
-        onDelete={() => { if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) { bulkDeleteTasks && bulkDeleteTasks(); } }}
-      />
-
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32">
 
       {/* Header */}
@@ -431,10 +416,10 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
               setShowNewMeeting(true); 
               setNewMeeting({ personId: '', date: formatLocalISO(new Date()), notes: '', items: [] }); 
             }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-azul/10 border border-azul/30 text-azul rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-azul/20 transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 bg-azul/10 border border-azul/30 text-azul rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-azul/20 transition-all"
           >
-            <History size={14} />
-            Nueva reunión
+            <History size={13} />
+            Reunión
           </button>
           <button
             onClick={() => setShowManageTeam(true)}
@@ -1264,6 +1249,5 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
         )}
       </AnimatePresence>
     </motion.div>
-    </>
   );
 }

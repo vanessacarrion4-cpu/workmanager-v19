@@ -184,7 +184,7 @@ export function StickyActionBar({
                 <ViewToggle
                   onClick={onToggleExpandBlocks}
                   active={allBlocksExpanded}
-                  activeColor="morado"
+                  activeColor="turquesa"
                   activeIcon={<Layers size={13} />}
                   inactiveIcon={<Layers size={13} />}
                   activeLabel="Contraer grupos"

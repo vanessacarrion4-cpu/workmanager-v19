@@ -28,6 +28,7 @@ import { DelegadasView } from './DelegadasView';
 import { SearchView } from './SearchView';
 import { WorkloadView } from './WorkloadView';
 import { TaskModal } from './TaskModal';
+import { StickyActionBar } from './StickyActionBar';
 import {
   BlockModal, TimeManagementPanel, RecurrenceChoiceModal,
   TimerDisplay, InstancesModal
@@ -84,6 +85,16 @@ export default function App() {
   const [bulkDelegateModal, setBulkDelegateModal] = useState(false);
   const [bulkDateModal, setBulkDateModal] = useState(false);
   const [bulkTimeModal, setBulkTimeModal] = useState(false);
+
+  // --- StickyActionBar view states (lifted from views) ---
+  const [dashHideCompleted, setDashHideCompleted] = useState(true);
+  const [dashExpandAll, setDashExpandAll] = useState<boolean | null>(null);
+  const [dashExpandedBlocks, setDashExpandedBlocks] = useState<Set<string>>(
+    new Set(['con_hora', 'focus', 'dirección', 'espera', 'resto'])
+  );
+  const [delegadasHideCompleted, setDelegadasHideCompleted] = useState(false);
+  const [blocksExpanded, setBlocksExpanded] = useState(false);
+  const blocksToggleExpandRef = React.useRef<(() => void) | null>(null);
 
   // Reset selection on view change
   useEffect(() => {
@@ -404,6 +415,40 @@ export default function App() {
           </div>
         </header>
 
+        {/* StickyActionBar — fuera del scroll container, se ancla correctamente */}
+        <StickyActionBar
+          selectionMode={selectionMode}
+          selectedCount={selectedTaskIds.size}
+          onToggleSelectionMode={toggleSelectionMode}
+          onAddTask={currentView === 'dashboard' || currentView === 'delegadas' || currentView === 'blocks' ? () => handleAddTask() : undefined}
+          hideCompleted={currentView === 'dashboard' ? dashHideCompleted : currentView === 'delegadas' ? delegadasHideCompleted : undefined}
+          onToggleHideCompleted={
+            currentView === 'dashboard' ? () => setDashHideCompleted(p => !p) :
+            currentView === 'delegadas' ? () => setDelegadasHideCompleted(p => !p) :
+            undefined
+          }
+          expandAll={currentView === 'dashboard' ? dashExpandAll : undefined}
+          onToggleExpandAll={currentView === 'dashboard' ? () => setDashExpandAll(p => p === true ? false : true) : undefined}
+          expandedBlocksCount={currentView === 'dashboard' ? dashExpandedBlocks.size : undefined}
+          expandedBlocksTotal={currentView === 'dashboard' ? 5 : undefined}
+          onToggleExpandBlocks={currentView === 'dashboard' ? () => {
+            const allTags = new Set(['con_hora', 'focus', 'dirección', 'espera', 'resto']);
+            setDashExpandedBlocks(prev => prev.size === 5 ? new Set() : allTags);
+          } : undefined}
+          expanded={currentView === 'blocks' ? blocksExpanded : undefined}
+          onToggleExpand={currentView === 'blocks' && blocksToggleExpandRef.current ? () => blocksToggleExpandRef.current!() : undefined}
+          onDelegate={() => setBulkDelegateModal(true)}
+          onChangeDate={() => setBulkDateModal(true)}
+          onComplete={() => bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
+          onChangeTime={() => setBulkTimeModal(true)}
+          onDuplicate={() => bulkDuplicateTasks()}
+          onDelete={() => {
+            if (confirm(\`¿Eliminar \${selectedTaskIds.size} tarea\${selectedTaskIds.size > 1 ? 's' : ''}?\`)) {
+              bulkDeleteTasks();
+            }
+          }}
+        />
+
         {/* Content Container */}
         <div className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar dark:bg-bg-main bg-bg-main-light">
           <AnimatePresence mode="wait">
@@ -456,6 +501,12 @@ export default function App() {
                 onDeleteTimeEntry={timerHandlers.handleDeleteTimeEntry}
                 onUpdateTimeEntry={timerHandlers.handleUpdateTimeEntry}
                 searchQuery={searchQuery}
+                hideCompleted={dashHideCompleted}
+                onHideCompletedChange={setDashHideCompleted}
+                expandAll={dashExpandAll}
+                onExpandAllChange={setDashExpandAll}
+                expandedBlocks={dashExpandedBlocks}
+                onExpandedBlocksChange={setDashExpandedBlocks}
               />
             )}
 
@@ -514,6 +565,8 @@ export default function App() {
                 setBulkDateModal={setBulkDateModal}
                 setBulkTimeModal={setBulkTimeModal}
                 searchQuery={searchQuery}
+                onExpandedChange={setBlocksExpanded}
+                onRegisterExpandToggle={(fn) => { blocksToggleExpandRef.current = fn; }}
               />
             )}
 
@@ -554,6 +607,7 @@ export default function App() {
 
             {currentView === 'delegadas' && (
               <DelegadasView
+                hideCompletedExternal={delegadasHideCompleted}
                 tasks={allActiveTasks}
                 allTasksMap={tasks}
                 blocks={blocks}

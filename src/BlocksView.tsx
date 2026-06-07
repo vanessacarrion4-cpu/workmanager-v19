@@ -23,7 +23,6 @@ import { Reorder } from 'framer-motion';
 import { WorkBlock, Task } from './types';
 import { isTaskRepetitive } from './utils';
 import { TaskCard, BulkActionBar, ToggleExpandButton } from './components';
-import { StickyActionBar } from './StickyActionBar';
 
 // Componentes compartidos importados desde App.tsx vía props
 // (TaskCard, BulkActionBar, ToggleExpandButton se pasan como props o se importarán
@@ -82,6 +81,8 @@ interface BlocksViewProps {
   TaskCard: React.ComponentType<any>;
   BulkActionBar: React.ComponentType<any>;
   setBulkTimeModal?: ((open: boolean) => void) | null;
+  onExpandedChange?: (expanded: boolean) => void;
+  onRegisterExpandToggle?: (fn: () => void) => void;
 }
 
 export function BlocksManagerView({
@@ -94,7 +95,8 @@ export function BlocksManagerView({
   onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(),
   onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null,
   bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null,
-  setBulkDateModal = null, setBulkTimeModal = null, searchQuery = ''
+  setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '',
+  onExpandedChange, onRegisterExpandToggle
 }: BlocksViewProps) {
 
   // Seleccionar bloque, expandir padre y hacer scroll al template resaltado
@@ -121,6 +123,11 @@ export function BlocksManagerView({
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [hideCompleted, setHideCompleted] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Notify parent of expand state changes
+  React.useEffect(() => {
+    onExpandedChange?.(expandedIds.size > 0);
+  }, [expandedIds]);
 
   // Toggle expand local (no persiste, solo para vista Bloques)
   const handleLocalToggleExpand = (taskId: string) => {
@@ -193,12 +200,23 @@ export function BlocksManagerView({
     return blocks;
   }, [blocks, filter]);
 
+  // Register expand toggle with App.tsx StickyActionBar
+  React.useEffect(() => {
+    if (!selectedBlock) return;
+    onRegisterExpandToggle?.(() => {
+      setExpandedIds(prev => {
+        if (prev.size > 0) return new Set();
+        const allIds = new Set([...coreTasks.map((t: any) => t.id), ...adhocTasks.map((t: any) => t.id)]);
+        return allIds;
+      });
+    });
+  }, [selectedBlock, coreTasks, adhocTasks]);
+
   if (selectedBlock) {
     return (
       <>
-        {/* StickyActionBar con header del bloque — FUERA del motion.div */}
-        <div className="sticky top-0 z-20 dark:bg-bg-secondary bg-bg-secondary-light rounded-b-[2rem] border-b border-x dark:border-border-main border-border-main-light shadow-xl">
-          {/* Header del bloque */}
+        {/* Header del bloque sticky */}
+        <div className="sticky top-0 z-20 dark:bg-bg-secondary bg-bg-secondary-light border-b dark:border-border-main border-border-main-light shadow-sm">
           <div className="flex items-center gap-3 p-4">
             <button onClick={() => setSelectedBlock(null)} className="p-2 dark:hover:bg-bg-main hover:bg-gray-100 rounded-xl transition-all shrink-0">
               <ChevronRight size={18} className="rotate-180 dark:text-white text-text-main-light" />
@@ -217,35 +235,14 @@ export function BlocksManagerView({
                 {coreTasks.length + adhocTasks.length} tareas
               </p>
             </div>
+            <button
+              onClick={() => setHideCompleted(p => !p)}
+              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all ${hideCompleted ? 'bg-turquesa text-white border-turquesa' : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light'}`}
+              title={hideCompleted ? 'Ver completadas' : 'Ocultar completadas'}
+            >
+              {hideCompleted ? <EyeOff size={13} /> : <Eye size={13} />}
+            </button>
           </div>
-          {/* StickyActionBar integrada */}
-          <StickyActionBar
-            selectionMode={selectionMode}
-            selectedCount={selectedTaskIds.size}
-            onToggleSelectionMode={() => onToggleSelectionMode && onToggleSelectionMode()}
-            onAddTask={() => onAddTask(null, selectedBlock.id)}
-            hideCompleted={hideCompleted}
-            onToggleHideCompleted={() => setHideCompleted(!hideCompleted)}
-            expanded={expandedIds.size > 0}
-            onToggleExpand={() => {
-              if (expandedIds.size > 0) {
-                setExpandedIds(new Set());
-              } else {
-                const allIds = new Set([...coreTasks.map((t: any) => t.id), ...adhocTasks.map((t: any) => t.id)]);
-                setExpandedIds(allIds);
-              }
-            }}
-            onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
-            onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
-            onComplete={() => bulkUpdateTasks && bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
-            onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
-            onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
-            onDelete={() => {
-              if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) {
-                bulkDeleteTasks && bulkDeleteTasks();
-              }
-            }}
-          />
         </div>
 
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32 mt-4">
