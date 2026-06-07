@@ -747,16 +747,16 @@ export function RegisteredTimeChip({ value, estimated, onClick }: any) {
   const label = formatMinutes(safeValue);
   
   // Colores con estilos inline para garantizar visibilidad en light y dark mode
-  let color = '#14B8A6'; // turquesa
-  let bg = 'rgba(20,184,166,0.1)';
-  let border = 'rgba(20,184,166,0.5)';
+  let color = '#84CC16'; // lima — por debajo del estimado, eficiente
+  let bg = 'rgba(132,204,22,0.1)';
+  let border = 'rgba(132,204,22,0.5)';
   
   if (safeValue > 0 && estimated > 0 && safeValue > estimated) {
-    color = '#EC4899'; bg = 'rgba(236,72,153,0.1)'; border = 'rgba(236,72,153,0.5)'; // rosa
+    color = '#EC4899'; bg = 'rgba(236,72,153,0.1)'; border = 'rgba(236,72,153,0.5)'; // rosa — pasado
   } else if (safeValue > 0 && estimated > 0 && safeValue >= estimated * 0.9) {
-    color = '#F97316'; bg = 'rgba(249,115,22,0.1)'; border = 'rgba(249,115,22,0.5)'; // naranja
+    color = '#F97316'; bg = 'rgba(249,115,22,0.1)'; border = 'rgba(249,115,22,0.5)'; // naranja — cerca
   } else if (safeValue === 0) {
-    color = '#94A3B8'; bg = 'transparent'; border = '#CBD5E1'; // slate
+    color = '#94A3B8'; bg = 'transparent'; border = '#CBD5E1'; // slate — sin registrar
   }
  
   return (

@@ -275,7 +275,7 @@ export function InstancesModal({ task, allTasksMap, timeEntries = [], onClose, o
     pending:   { label: 'Pendiente', bg: 'dark:bg-turquesa/10 bg-turquesa/5', text: 'text-turquesa', border: 'dark:border-turquesa/30 border-turquesa/40' },
     exception: { label: 'Editada',   bg: 'dark:bg-azul/10 bg-azul/5',         text: 'text-azul',    border: 'dark:border-azul/30 border-azul/40' },
     moved:     { label: 'Movida',    bg: 'dark:bg-yellow-500/10 bg-yellow-50', text: 'dark:text-yellow-400 text-yellow-700', border: 'dark:border-yellow-500/30 border-yellow-400/40' },
-    completed: { label: 'Completada',bg: 'dark:bg-green-500/10 bg-green-50',   text: 'dark:text-green-400 text-green-700',  border: 'dark:border-green-500/30 border-green-400/40' },
+    completed: { label: 'Completada',bg: 'dark:bg-azul/10 bg-azul/5',          text: 'text-azul',                           border: 'dark:border-azul/30 border-azul/40' },
     deleted:   { label: 'Borrada',   bg: 'dark:bg-red-500/10 bg-red-50',       text: 'dark:text-red-400 text-red-600',      border: 'dark:border-red-500/30 border-red-400/40' },
   };
 
@@ -412,11 +412,16 @@ export function InstancesModal({ task, allTasksMap, timeEntries = [], onClose, o
                       {item.date < today && (() => {
                         const registered = getRegisteredForDate(item.date);
                         if (registered === 0) return null;
-                        const color = registered >= templateEstimated ? 'text-verde' : 'dark:text-yellow-400 text-yellow-600';
+                        let regColor = '#84CC16'; // lima — por debajo del estimado, eficiente
+                        if (registered > templateEstimated) {
+                          regColor = '#EC4899'; // rosa — pasado del estimado
+                        } else if (registered >= templateEstimated * 0.9) {
+                          regColor = '#F97316'; // naranja — cerca del estimado (≥90%)
+                        }
                         return (
                           <div className="flex items-center gap-1">
                             <span className="text-[9px] font-bold dark:text-text-secondary/50 text-text-secondary-light/50 uppercase tracking-wide">reg</span>
-                            <span className={`text-[10px] font-black ${color}`}>{formatMins(registered)}</span>
+                            <span className="text-[10px] font-black" style={{ color: regColor }}>{formatMins(registered)}</span>
                           </div>
                         );
                       })()}
