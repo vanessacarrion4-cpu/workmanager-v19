@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
-  LayoutDashboard, Grid2X2, Calendar as CalendarIcon, Settings,
+  LayoutDashboard, Grid2X2, Calendar as CalendarIcon, CalendarDays, Settings,
   Search, Users, Zap, Moon, Sun, ChevronRight, BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,6 +27,7 @@ import { CalendarView } from './CalendarView';
 import { DelegadasView } from './DelegadasView';
 import { SearchView } from './SearchView';
 import { WorkloadView } from './WorkloadView';
+import { WeekView } from './WeekView';
 import { TaskModal } from './TaskModal';
 import { StickyActionBar } from './StickyActionBar';
 import {
@@ -363,6 +364,7 @@ export default function App() {
 
         <div className="flex flex-col gap-1 w-full px-4">
           <NavItem active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} icon={<LayoutDashboard size={20} />} label="Mi Día" />
+          <NavItem active={currentView === 'week'} onClick={() => setCurrentView('week')} icon={<CalendarDays size={20} />} label="Semana" />
           <NavItem active={currentView === 'blocks'} onClick={() => setCurrentView('blocks')} icon={<Grid2X2 size={20} />} label="Bloques" />
           <NavItem active={currentView === 'calendar'} onClick={() => setCurrentView('calendar')} icon={<CalendarIcon size={20} />} label="Calendario" />
           <NavItem active={currentView === 'delegadas'} onClick={() => setCurrentView('delegadas')} icon={<Users size={20} />} label="Delegadas" />
@@ -386,16 +388,18 @@ export default function App() {
                 <Zap size={18} />
               </div>
             </div>
-            <div className="relative max-w-sm w-full hidden sm:block">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 dark:text-text-secondary text-text-secondary-light" size={16} />
-              <input
-                type="text"
-                placeholder="Buscar tareas, bloques..."
-                className="w-full pl-11 pr-4 py-2.5 dark:bg-bg-secondary bg-white rounded-xl text-sm dark:text-text-main text-text-main-light border dark:border-border-main border-border-main-light focus:ring-2 focus:ring-turquesa/20 outline-none transition-all dark:placeholder:text-text-secondary/50 placeholder:text-text-secondary-light/50"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+            {currentView !== 'search' && currentView !== 'calendar' && currentView !== 'workload' && currentView !== 'week' && (
+              <div className="relative max-w-sm w-full hidden sm:block">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 dark:text-text-secondary text-text-secondary-light" size={16} />
+                <input
+                  type="text"
+                  placeholder="Buscar tareas, bloques..."
+                  className="w-full pl-11 pr-4 py-2.5 dark:bg-bg-secondary bg-white rounded-xl text-sm dark:text-text-main text-text-main-light border dark:border-border-main border-border-main-light focus:ring-2 focus:ring-turquesa/20 outline-none transition-all dark:placeholder:text-text-secondary/50 placeholder:text-text-secondary-light/50"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-5">
             <button className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light transition-colors">
@@ -660,6 +664,21 @@ export default function App() {
                 allTasksMap={tasks}
                 blocks={blocks}
                 timeEntries={timeEntries}
+                onNavigateToDashboard={(date: string) => { setActiveDate(date); setCurrentView('dashboard'); }}
+              />
+            )}
+
+            {currentView === 'week' && (
+              <WeekView
+                allTasksMap={tasks}
+                blocks={blocks}
+                timeEntries={timeEntries}
+                onEditTask={(id: string) => setEditingTaskId(id)}
+                onToggle={handleToggleStatus}
+                onAddTask={(parentId, blockId, date) => {
+                  if (date) setActiveDate(date);
+                  handleAddTask(parentId, blockId, date);
+                }}
                 onNavigateToDashboard={(date: string) => { setActiveDate(date); setCurrentView('dashboard'); }}
               />
             )}
