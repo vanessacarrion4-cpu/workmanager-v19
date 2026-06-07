@@ -46,8 +46,6 @@ interface TaskModalProps {
   onAddTimeEntry?: ((taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string, markComplete?: boolean) => void) | null;
   onDeleteTimeEntry?: ((entryId: string) => void) | null;
   onUpdateTimeEntry?: ((entryId: string, updates: any) => void) | null;
-  onDeleteTimeEntry?: ((entryId: string) => void) | null;
-  onUpdateTimeEntry?: ((entryId: string, updates: any) => void) | null;
 }
 
 export function TaskModal({
@@ -122,7 +120,8 @@ export function TaskModal({
   };
 
   const totalEstimated = localTask.estimatedMinutes || 0;
-  const totalRegistered = getTaskRegisteredCombo(localTask.id, allTasksMap, timeEntries);
+  const registeredTaskId = localTask.templateId || localTask.id;
+  const totalRegistered = getTaskRegisteredCombo(registeredTaskId, allTasksMap, timeEntries);
   const regColor = totalRegistered === 0
     ? 'dark:text-text-secondary/40 text-text-secondary-light/40'
     : totalRegistered > totalEstimated && totalEstimated > 0
@@ -314,7 +313,6 @@ export function TaskModal({
           </div>
 
           {/* Panel tiempo — TimeManagementPanel completo como overlay */}
-          {/* Panel tiempo — TimeManagementPanel completo como overlay */}
           {showTimeEntry && (
             <TimeManagementPanel
               taskId={localTask.templateId || localTask.id}
@@ -362,7 +360,7 @@ export function TaskModal({
             <div className="w-px h-5 dark:bg-border-main bg-border-main-light shrink-0" />
 
             {/* Delegación */}
-            <div className="shrink-0">
+            <div className="shrink-0 h-7 flex items-center">
               <DelegationChip
                 delegation={localTask.delegation}
                 people={people}
