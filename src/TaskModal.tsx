@@ -71,8 +71,6 @@ export function TaskModal({
   onAddTimeEntry = null,
   onDeleteTimeEntry = null,
   onUpdateTimeEntry = null,
-  onDeleteTimeEntry = null,
-  onUpdateTimeEntry = null,
 }: TaskModalProps) {
   const [localTask, setLocalTask] = useState<Task>(task);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
