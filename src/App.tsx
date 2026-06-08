@@ -728,6 +728,7 @@ export default function App() {
           onAddTimeEntry={(taskId, subtaskId, minutes, date, note, markComplete) => timerHandlers.handleManualTimeEntry(taskId, subtaskId, minutes, date, note, markComplete)}
           onDeleteTimeEntry={timerHandlers.handleDeleteTimeEntry}
           onUpdateTimeEntry={timerHandlers.handleUpdateTimeEntry}
+          onGoToTemplate={handleGoToTemplate}
         />
       )}
 
@@ -755,6 +756,7 @@ export default function App() {
           onAddTimeEntry={(taskId, subtaskId, minutes, date, note, markComplete) => timerHandlers.handleManualTimeEntry(taskId, subtaskId, minutes, date, note, markComplete)}
           onDeleteTimeEntry={timerHandlers.handleDeleteTimeEntry}
           onUpdateTimeEntry={timerHandlers.handleUpdateTimeEntry}
+          onGoToTemplate={handleGoToTemplate}
         />
       )}
 

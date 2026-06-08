@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Calendar as CalendarIcon, Clock, Trash2, X, RefreshCw,
-  Plus, Edit, Check, ArrowUpLeft, Paperclip, Eye, ChevronDown, Save
+  Plus, Edit, Check, ArrowUpLeft, Paperclip, Eye, ChevronDown, Save, LayoutGrid
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task, TagType } from './types';
@@ -46,6 +46,7 @@ interface TaskModalProps {
   onAddTimeEntry?: ((taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string, markComplete?: boolean) => void) | null;
   onDeleteTimeEntry?: ((entryId: string) => void) | null;
   onUpdateTimeEntry?: ((entryId: string, updates: any) => void) | null;
+  onGoToTemplate?: ((taskId: string) => void) | null;
 }
 
 export function TaskModal({
@@ -69,6 +70,7 @@ export function TaskModal({
   onAddTimeEntry = null,
   onDeleteTimeEntry = null,
   onUpdateTimeEntry = null,
+  onGoToTemplate = null,
 }: TaskModalProps) {
   const [localTask, setLocalTask] = useState<Task>(task);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
@@ -222,6 +224,20 @@ export function TaskModal({
                 }`}
               >
                 <Check size={14} />
+              </button>
+            )}
+            {/* Ir a Bloques — siempre visible si onGoToTemplate está disponible */}
+            {onGoToTemplate && (
+              <button
+                onClick={() => {
+                  const targetId = localTask.templateId || localTask.id;
+                  onGoToTemplate(targetId);
+                  onClose();
+                }}
+                title="Ver en Bloques"
+                className="w-8 h-8 flex items-center justify-center dark:bg-bg-secondary bg-bg-secondary-light rounded-xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:text-turquesa transition-all"
+              >
+                <LayoutGrid size={14} />
               </button>
             )}
             <button

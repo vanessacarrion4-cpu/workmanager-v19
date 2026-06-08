@@ -1,7 +1,7 @@
 # WorkManager v19 — Documento de Contexto Completo
 
 > Usar este documento al inicio de cada sesión de desarrollo para dar contexto completo al asistente.
-> Última actualización: 07/06/2026 (sesión 5 — tiempo instancias, colores tiempo, InstancesModal mejoras, TaskModal acciones)
+> Última actualización: 08/06/2026 (sesión 6 — TaskModal rediseño, WeekView, tiempo instancias, debug cleanup)
 
 ---
 
@@ -21,7 +21,7 @@
 
 ```
 src/
-├── App.tsx                      # ~500 líneas. Estado global, hooks, routing entre vistas
+├── App.tsx                      # Estado global, hooks, routing entre vistas
 ├── types.ts                     # Interfaces TypeScript: Task, WorkBlock, TimeEntry, Person, etc.
 ├── constants.ts                 # INITIAL_BLOCKS, COLORS, TAG_LABELS
 ├── supabaseClient.ts            # Inicialización cliente Supabase
@@ -38,7 +38,7 @@ src/
 ├── useBulkActions.ts            # Hook: bulkUpdateTasks, bulkDeleteTasks, bulkDuplicateTasks
 ├── generation.worker.ts         # Web Worker: ejecuta generateInstances en hilo separado
 ├── useSupabaseData.ts           # Hook legacy (no usar)
-├── TaskModal.tsx                # Modal de configuración de tarea (extraído de App.tsx)
+├── TaskModal.tsx                # Modal de configuración de tarea — rediseñado sesión 6
 ├── StickyActionBar.tsx          # Barra de acciones sticky compartida entre vistas
 ├── DashboardView.tsx            # Vista principal del día
 ├── BlocksView.tsx               # Vista de gestión de bloques y tareas (templates)
@@ -46,6 +46,7 @@ src/
 ├── DelegadasView.tsx            # Vista de tareas delegadas por persona
 ├── SearchView.tsx               # Búsqueda global de tareas con filtros
 ├── WorkloadView.tsx             # Vista de carga de trabajo por bloques
+├── WeekView.tsx                 # Vista semanal — NUEVA sesión 6
 ├── TaskCard.tsx                 # Componente principal de tarjeta de tarea
 ├── Chips.tsx                    # Todos los chips inline: DelegationChip, DatePickerChip, RecurrencePickerChip, etc.
 ├── Modals.tsx                   # RecurrenceChoiceModal, BlockModal, InstancesModal
@@ -60,6 +61,7 @@ src/
 - `TaskModal` está en `TaskModal.tsx`, NO en `components.tsx` ni en `App.tsx`
 - `components.tsx` es solo barrel — todos los imports desde `'./components'` siguen funcionando
 - `useSupabaseData.ts` es legacy — no tocar
+- `WeekView.tsx` es nuevo en sesión 6 — importado en App.tsx
 
 ---
 
@@ -77,6 +79,8 @@ src/
 | `delegation_meetings` / `delegation_meeting_items` | Tablas legacy |
 
 **NOTA**: La tabla `tasks` NO tiene columna `subtasks`. El array `subtasks[]` se reconstruye en memoria desde `parent_task_id` en `reconstructHierarchy`.
+
+**CRÍTICO time_entries**: La columna `task_id` en `time_entries` **NO tiene FK activa** contra `tasks`. Se puede guardar cualquier ID — incluyendo IDs de instancias (`inst-t-xxx-fecha`). NO usar `resolveIdForDB` al guardar tiempo manual. Guardar el `taskId` tal cual llega.
 
 ### Convención de columnas: snake_case en BD, camelCase en código
 
@@ -132,6 +136,11 @@ Task {
   notes?: string
   completedAt?: string | null
 }
+```
+
+**ViewType** (types.ts):
+```typescript
+export type ViewType = 'dashboard' | 'blocks' | 'calendar' | 'delegadas' | 'search' | 'workload' | 'week';
 ```
 
 ---
@@ -220,10 +229,11 @@ StickyActionBar {
 }
 ```
 
-### Vistas que NO muestran ciertos controles en la barra
-- **Calendario**: solo Seleccionar (sin ocultar completadas, sin expandir, sin + Tarea)
-- **Búsqueda**: solo Seleccionar (sin ocultar completadas, sin expandir)
-- **Carga**: sin barra (pendiente implementar ocultación)
+### Vistas que NO muestran buscador en header
+- **Búsqueda** (`search`)
+- **Calendario** (`calendar`)
+- **Carga** (`workload`)
+- **Semana** (`week`)
 
 ---
 
@@ -237,7 +247,7 @@ if (scrollEl) scrollEl.scrollTop = 0;
 
 ---
 
-## 9. Sistema de Colores — ACTUALIZADO sesión 4
+## 9. Sistema de Colores
 
 ### Color principal
 `turquesa: #14B8A6` — color oficial del logo WorkManager. Usado en toda la app para acciones primarias, chips activos, highlights, botones.
@@ -267,6 +277,18 @@ Borde esmeralda en lateral y barra:
 - Cards: `dark:bg-bg-card bg-bg-card-light`
 - Bordes: `dark:border-border-main border-border-main-light`
 - Colores inline (hex directo): para colores dinámicos o condicionales que Tailwind no puede generar
+
+### Colores de tiempo registrado
+- **Lima** `#84CC16`: registrado < estimado
+- **Naranja** `#F97316`: registrado ≥ 90% del estimado
+- **Rosa** `#EC4899`: registrado > estimado
+- **Slate**: sin registrar (0)
+
+### Colores de carga (WorkloadView y WeekView)
+- Verde `#10B981`: < 60%
+- Naranja `#F59E0B`: 60–80%
+- Morado `#A855F7`: 80–100%
+- Rosa `#EC4899`: > 100%
 
 ---
 
@@ -303,56 +325,118 @@ Borde esmeralda en lateral y barra:
 ### SearchView.tsx
 - `onGoToTemplate` prop conectado — muestra flechita ↗ en tareas recurrentes igual que Dashboard
 - Botón "BLOQUES →" en header de cada grupo navega a vista Bloques (onNavigateToBlocks)
-- Buscador propio (el del header global no aplica aquí)
+- Buscador propio interno (el del header global no aplica aquí — está oculto)
 
 ### CalendarView.tsx
 - StickyActionBar muestra solo Seleccionar (sin + Tarea, sin ocultar completadas)
+- Buscador del header oculto en esta vista
 
 ### WorkloadView.tsx
-- Pendiente: ocultar StickyActionBar completa en esta vista
+- Header sticky: `th` de meses y semanas tienen fondo opaco `dark:bg-bg-card bg-white` para tapar contenido al scrollear
+- Buscador del header oculto en esta vista
+
+### WeekView.tsx — NUEVA sesión 6
+- Vista semanal entre Dashboard y Bloques en el nav (icono `CalendarDays`)
+- Toggle L-V / L-D para mostrar fin de semana
+- Navegación `< Hoy >` + input de fecha para saltar
+- Toggle **Carga** (morado): muestra desglose Core (turquesa) / Adhoc (rosa) por bloque con barra proporcional
+- Header de cada día: día/fecha + tiempo (pasado → registrado con 🕐, futuro → estimado)
+- Barra de carga coloreada por % capacidad (mismos colores que WorkloadView)
+- Bloques colapsables por día — clic expande cards compactas (WeekTaskCard)
+- Tiempo correcto: `getTaskMins` suma subtareas hoja recursivamente
+- Ventana ±60 días: dentro usa `filterTasksForDay` + instancias Worker; fuera genera instancias virtuales desde templates (`generateVirtualInstances`)
+- Clic en header de día → navega al Dashboard de ese día
+- `+ Añadir` al fondo de cada columna
 
 ---
 
-## 12. Bugs Resueltos — Sesión 4 (07/06/2026)
+## 12. TaskModal — Rediseño Sesión 6
 
-39. Scroll en body en vez de en div → `h-screen overflow-hidden` en div raíz de App.tsx
-40. StickyActionBar no se mantenía fija → movida a App.tsx fuera del scroll container
-41. Fecha no centrada en Dashboard → grid-cols-3 simétrico
-42. Icono grupos chirriaba → cambiado Tag → Layers
-43. `overflow-hidden` en header BlocksView rompía sticky → eliminado
-44. Backtick escapado en App.tsx causaba build error → corregido
-45. Header bloque "volando" al scrollear → sticky top-0 dentro del scroll container correcto + scroll reset al seleccionar bloque
-46. `onGoToTemplate` no pasado a SearchView → corregido en SearchView.tsx y App.tsx
-47. Botón "Nueva reunión" demasiado grande en Delegadas → reducido a "Reunión"
-48. Color turquesa migrado de #06B6D4 (cyan) a #14B8A6 (esmeralda-teal, color del logo)
-49. Acento esmeralda en borde lateral y barra sticky via index.css
+### Estructura
+- **Sin footer** — botones en el header
+- **Header**: `[←padre] título | [✓][🗑][💾][X]`
+- **Fila 1**: tipo Core/Adhoc + bloque (select) + estimado (input min) + registrado (✓ Xm clicable)
+- **Fila 2**: grid `[tags][delegación][fecha]` — altura uniforme, separadores border-x
+- **Fila 3**: hora — solo aparece cuando hay fecha y no es recurrente
+- **Recurrencia**: colapsada por defecto, badge muestra patrón activo (ej. "L-V")
+- **Subtareas**: lista compacta con chips inline
+- **Notas**: textarea autosize (2 filas mínimo, crece sola)
+- **Adjuntos**: thumbnails 32px
+
+### Tiempo registrado en TaskModal
+- El chip `✓ Xm` en fila 1 usa `useMemo` con `getTaskRegisteredCombo(localTask.id, ...)`
+- Al clicar abre `TimeManagementPanel` con `fromModal=true` (se centra en pantalla, bordes redondeados)
+- `taskId={localTask.id}` — siempre el ID de la instancia, nunca el templateId
+- Props necesarios: `timeEntries`, `onAddTimeEntry`, `onDeleteTimeEntry`, `onUpdateTimeEntry`
+
+### DelegationChip
+- Color cambiado de **morado** a **azul** en sesión 6
 
 ---
 
-## 13. Bugs / Mejoras Pendientes
+## 13. TimeManagementPanel — Rediseño Sesión 6
 
-### Resueltos en sesión 5 (07/06/2026)
+### Estructura
+- Panel flotante: desde TaskCard → bottom sheet; desde TaskModal (`fromModal=true`) → centrado
+- **Header compacto**: título + barra de progreso + `Xm / Ym` en una línea
+- **Solo tab Historial** — el formulario de registro siempre visible, sin tab "Registro"
+- **Orden**: `[Registrar][Cerrar]` arriba → minutos/fecha → nota → checkbox completar
+- **Historial**: lista compacta, una línea por entrada, edición inline
+
+### onOpenTimePanel
+- En App.tsx, `onOpenTimePanel` en TaskCard ahora llama `setEditingTaskId(subtaskId || taskId)` — abre el **TaskModal** directamente en vez del panel inline
+- Hay una sola pantalla de gestión de tiempo — el TaskModal
+- El `TimeManagementPanel` standalone sigue disponible para el cronómetro (TimerStopModal)
+
+---
+
+## 14. Tiempo Registrado — Arquitectura CRÍTICA sesión 6
+
+### Cómo se guarda
+- `handleManualTimeEntry` guarda `taskId` tal cual — sin `resolveIdForDB`
+- `task_id` en Supabase puede ser `inst-t-xxx-fecha` (instancias) o `t-xxx` (tareas normales)
+- **No hay FK activa** en `time_entries.task_id` — confirmado con SELECT en Supabase
+
+### Cómo se carga
+- `useSupabase.ts` mapea `e.task_id → taskId` directamente, sin conversión
+- Las entradas de instancias vienen con `task_id = inst-t-xxx-fecha` ya correcto
+
+### Cómo se calcula
+- `getTaskRegisteredCombo(localTask.id, ...)` busca por el instanceId directamente
+- Para el panel inline: `TimeManagementPanel` filtra `e.taskId === taskId`
+- Para el chip en fila 1 del TaskModal: `useMemo` sobre `timeEntries` filtrados por `localTask.id`
+
+---
+
+## 15. Bugs Resueltos — Sesión 6 (08/06/2026)
+
 | # | Descripción | Archivos |
 |---|-------------|---------|
-| 2 | Templates en Bloques: tiempo estimado fijo (sin acumular instancias), registrado = 0 | `TaskCard.tsx` |
-| 3 | InstancesModal: muestra EST y REG por instancia. REG busca por `taskId`/`createdAt` camelCase, filtrado por día Barcelona | `Modals.tsx`, `App.tsx` |
-| — | Colores tiempo unificados: lima (< estimado), naranja (≥90%), rosa (> estimado), slate (0) | `Chips.tsx`, `Modals.tsx` |
-| — | Badge COMPLETADA en InstancesModal: cambiado de verde a azul | `Modals.tsx` |
-| — | Badge EDITADA eliminado: sustituido por icono lápiz junto a PENDIENTE | `Modals.tsx` |
-| — | TaskModal: botones ✓ Completar y 🗑 Eliminar en header para acceso rápido sin scrollar | `TaskModal.tsx`, `App.tsx` |
-
-### Pendientes activos
-| # | Descripción | Vista/Archivo | Fase |
-|---|-------------|---------------|------|
-| 4 | Highlight búsqueda — borde turquesa + scroll automático en SearchView y buscador global (sustituir fondo amarillo) | `TaskCard.tsx`, `SearchView.tsx` | 2 |
-| 6 | Limpiar logs debug: `[PICKING DEBUG]`, `[CHIP DEBUG]`, `[CHIP RENDER]`, `[STATS DEBUG]`, `[PENDING SUB]`, `[PENDING LEAF]`, `[BOTÓN ROSA]`, `[MOVE]` | Varios | 3 |
-| 7 | Limpiar instancias Picking en Supabase (verificar con SELECT antes): `DELETE FROM tasks WHERE id LIKE 'inst-t-%' AND parent_task_id IS NOT NULL AND is_exception = false` | Supabase | 3 |
-| 11 | WorkloadView — buscador no funciona, valorar si quitar | `WorkloadView.tsx` | 4 |
-| — | Rediseño completo TaskModal — modal muy largo y complejo | `TaskModal.tsx` | Próximo sprint |
+| 4 | Highlight búsqueda: borde turquesa fijo (no amarillo) mientras searchQuery activo | `TaskCard.tsx` |
+| 6 | Logs debug eliminados: PICKING, BOTÓN ROSA, CHIP DEBUG, CHIP RENDER, MOVE, STATS DEBUG, PENDING LEAF, PENDING SUB | `TaskCard.tsx`, `DashboardView.tsx` |
+| 11 | WorkloadView buscador: oculto header en search/calendar/workload/week | `App.tsx` |
+| — | WorkloadView sticky header: fondos opacos en th meses y semanas | `WorkloadView.tsx` |
+| — | TaskModal rediseñado completo (ver sección 12) | `TaskModal.tsx`, `App.tsx` |
+| — | DelegationChip color morado → azul | `Chips.tsx` |
+| — | TimeManagementPanel rediseñado (ver sección 13) | `TimeComponents.tsx` |
+| — | Tiempo manual instancias: eliminado resolveIdForDB, guardar taskId tal cual | `useTimerHandlers.ts` |
+| — | onOpenTimePanel → abre TaskModal en vez de panel inline | `App.tsx` |
+| — | WeekView creada (ver sección 11) | `WeekView.tsx`, `App.tsx`, `types.ts` |
 
 ---
 
-## 14. Reglas de Negocio
+## 16. Bugs / Mejoras Pendientes
+
+| # | Descripción | Archivo | Notas |
+|---|-------------|---------|-------|
+| 7 | Limpiar instancias Picking en Supabase | Supabase SQL | Verificar con SELECT primero |
+| B1 | Bug: completado no persiste tras recarga | `useTaskCRUD.ts` / `useSupabase.ts` | Identificado, no resuelto |
+| W1 | WeekView: pulir detalles visuales | `WeekView.tsx` | Ver notas próxima sesión |
+| HR | DPTs y Guía Operativa payroll | Docs HR | Pendiente redactar |
+
+---
+
+## 17. Reglas de Negocio
 
 1. Templates nunca aparecen en Dashboard
 2. Subtareas nunca aparecen solas
@@ -368,10 +452,11 @@ Borde esmeralda en lateral y barra:
 12. **Delegadas solo muestra templates y manuales** — no instancias ni excepciones
 13. **RecurrencePickerChip solo editable en manuales** — en templates/instancias es solo informativo
 14. **Recurrencia solo se edita desde Bloques**
+15. **time_entries**: guardar taskId tal cual — sin resolver a templateId
 
 ---
 
-## 15. Workflow de Desarrollo
+## 18. Workflow de Desarrollo
 
 ```
 1. Abrir CMD como administrador (no PowerShell)
@@ -382,7 +467,7 @@ Borde esmeralda en lateral y barra:
 
 ---
 
-## 16. Notas para el Asistente
+## 19. Notas para el Asistente
 
 - **Siempre pedir el archivo antes de modificarlo**
 - **Verificar en Supabase con SQL** antes de asumir que es problema de código
@@ -396,16 +481,18 @@ Borde esmeralda en lateral y barra:
 - El div raíz de App.tsx DEBE ser `h-screen overflow-hidden` — no cambiar a `min-h-screen`
 - La StickyActionBar DEBE estar en App.tsx fuera del scroll container — no moverla a las vistas
 - Color turquesa oficial: `#14B8A6` (mismo que logo SVG en App.tsx)
-- **`time_entries` en JS son camelCase**: `taskId`, `subtaskId`, `duration`, `createdAt` (NO `task_id`, `created_at`)
-- **`time_entries` se guardan con IDs de templates** (`t-xxx`), NO con IDs de instancias (`inst-t-xxx-fecha`)
-- Para calcular tiempo registrado de una instancia: filtrar `timeEntries` por `taskId`/`subtaskId` del template + `createdAt` convertido a fecha Barcelona (`toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' })`)
+- **`time_entries` en JS son camelCase**: `taskId`, `subtaskId`, `duration`, `createdAt`
+- **`time_entries` NO tiene FK activa** — guardar taskId tal cual, incluyendo `inst-t-xxx-fecha`
+- **`filterTasksForDay` firma completa**: `(tasks, allTasksMap, activeBlockIds: Set<string>, activeDate, options)`
+- **WeekView**: usa `filterTasksForDay` para fechas dentro de ventana ±60 días; `generateVirtualInstances` para fuera
 
 ---
 
-## 17. Ideas Pendientes
+## 20. Ideas Pendientes
 
 1. **Barra ghost** — StickyActionBar que aparece solo al scrollear (scroll listener en overflow-y-auto)
 2. **Completado con descarte** — `wasDiscarded:true`, X en vez de tick. Requiere columna en Supabase
 3. **Tag "bloqueada"** — Tarea oculta hasta activarse manualmente
 4. **WorkManager Assistant** — Agente Relevance AI integrado via Vercel serverless (construido, no funcional)
-5. **Migración esmeralda completa** — actualmente `turquesa` y `esmeralda` son el mismo valor `#14B8A6`. En el futuro se pueden diferenciar: esmeralda para chrome estructural, turquesa para acciones interactivas
+5. **Migración esmeralda completa** — actualmente `turquesa` y `esmeralda` son el mismo valor `#14B8A6`
+6. **WeekView mejoras**: ocultar completadas toggle, reordenar días con drag, mover tarea entre días

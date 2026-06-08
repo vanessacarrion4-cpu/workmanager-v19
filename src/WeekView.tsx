@@ -1,14 +1,15 @@
 /**
- * WeekView.tsx — v2
+ * WeekView.tsx — v3
  * - Tiempo estimado correcto (suma subtareas hoja)
  * - Header día: pasado → registrado, futuro → estimado
  * - Toggle "Carga" para ver Core/Adhoc por bloque
+ * - Dropdown agrupación: Bloque / Tipo / Bloque→Tipo / Tipo→Bloque
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
-  Plus, Check, RefreshCw, Layers, Clock
+  Plus, Check, RefreshCw, Layers, Clock, LayoutGrid, Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task, WorkBlock, TimeEntry } from './types';
@@ -101,6 +102,65 @@ const MINS_CAPACITY_DAY = 480;
 const TURQUESA = '#14B8A6';
 const ROSA = '#EC4899';
 
+type GroupMode = 'bloque' | 'tipo' | 'bloque-tipo' | 'tipo-bloque';
+
+const GROUP_OPTIONS: { id: GroupMode; label: string; desc: string; icon: React.ReactNode }[] = [
+  { id: 'bloque',      label: 'Bloque',        desc: 'Agrupar por bloque de trabajo',     icon: <LayoutGrid size={13} /> },
+  { id: 'tipo',        label: 'Tipo',          desc: 'Agrupar por Core / Adhoc',          icon: <Tag size={13} /> },
+  { id: 'bloque-tipo', label: 'Bloque → Tipo', desc: 'Bloque, luego Core / Adhoc dentro', icon: <><LayoutGrid size={11} /><ChevronRight size={9} /><Tag size={11} /></> },
+  { id: 'tipo-bloque', label: 'Tipo → Bloque', desc: 'Core / Adhoc, luego bloque dentro', icon: <><Tag size={11} /><ChevronRight size={9} /><LayoutGrid size={11} /></> },
+];
+
+function GroupDropdown({ value, onChange }: { value: GroupMode; onChange: (v: GroupMode) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = GROUP_OPTIONS.find(o => o.id === value)!;
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:text-turquesa dark:bg-bg-card bg-white`}
+      >
+        <span className="flex items-center gap-0.5">{current.icon}</span>
+        <span>{current.label}</span>
+        <ChevronDown size={10} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 z-50 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-2xl shadow-xl overflow-hidden min-w-[200px]">
+          {GROUP_OPTIONS.map(opt => (
+            <button
+              key={opt.id}
+              onClick={() => { onChange(opt.id); setOpen(false); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all hover:dark:bg-white/5 hover:bg-black/5 ${value === opt.id ? 'dark:bg-turquesa/10 bg-turquesa/5' : ''}`}
+            >
+              <span className={`flex items-center gap-0.5 shrink-0 ${value === opt.id ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`}>
+                {opt.icon}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-[11px] font-black uppercase tracking-widest ${value === opt.id ? 'text-turquesa' : 'dark:text-white text-text-main-light'}`}>
+                  {opt.label}
+                </p>
+                <p className="text-[9px] dark:text-text-secondary text-text-secondary-light mt-0.5">{opt.desc}</p>
+              </div>
+              {value === opt.id && <Check size={11} className="text-turquesa shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── WeekView ─────────────────────────────────────────────────────────────────
 export function WeekView({
   allTasksMap, blocks, timeEntries = [],
@@ -123,6 +183,7 @@ export function WeekView({
   const [jumpDate, setJumpDate] = useState('');
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [showCarga, setShowCarga] = useState(false); // Toggle modo carga
+  const [groupMode, setGroupMode] = useState<GroupMode>('bloque');
 
   const days = useMemo(() => {
     const count = showWeekend ? 7 : 5;
@@ -175,6 +236,129 @@ export function WeekView({
 
   const isOutsideWindow = days.some(d => d < generatedStart || d > generatedEnd);
 
+  // ─── Helpers de renderizado ───────────────────────────────────────────────────
+
+  const renderCargaBar = (coreMins: number, adhocMins: number, totalMins: number) => (
+    <div className="flex items-center gap-2 px-2 pb-1.5">
+      {coreMins > 0 && (
+        <div className="flex items-center gap-1">
+          <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: TURQUESA }} />
+          <span className="text-[9px] font-bold" style={{ color: TURQUESA }}>{formatMinutes(coreMins)}</span>
+        </div>
+      )}
+      {adhocMins > 0 && (
+        <div className="flex items-center gap-1">
+          <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: ROSA }} />
+          <span className="text-[9px] font-bold" style={{ color: ROSA }}>{formatMinutes(adhocMins)}</span>
+        </div>
+      )}
+      {totalMins > 0 && (
+        <div className="flex-1 h-1 dark:bg-white/10 bg-black/8 rounded-full overflow-hidden flex">
+          <div className="h-full" style={{ width: `${Math.round((coreMins / totalMins) * 100)}%`, backgroundColor: TURQUESA }} />
+          <div className="h-full" style={{ width: `${Math.round((adhocMins / totalMins) * 100)}%`, backgroundColor: ROSA }} />
+        </div>
+      )}
+    </div>
+  );
+
+  const renderBlockGroup = (date: string, block: WorkBlock, dayTasks: Task[]) => {
+    const blockTasks = dayTasks.filter(t => t.blockId === block.id && !t.isDeleted);
+    if (blockTasks.length === 0) return null;
+    const key = `${date}__${block.id}`;
+    const isExpanded = expandedBlocks.has(key);
+    const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
+    const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+    const coreMins = blockTasks.filter(t => t.taskType === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+    const adhocMins = blockTasks.filter(t => t.taskType === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+    return (
+      <div key={block.id} className="rounded-xl overflow-hidden">
+        <button onClick={() => toggleBlock(date, block.id)}
+          className="w-full flex items-center gap-1.5 px-2 py-1.5 hover:dark:bg-white/5 hover:bg-black/5 transition-all rounded-xl">
+          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
+          <span className="text-[10px] font-black dark:text-white text-text-main-light truncate flex-1 text-left uppercase tracking-wide">{block.icon} {block.name}</span>
+          <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">{pendingCount}/{blockTasks.length}</span>
+          {blockMins > 0 && <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(blockMins)}</span>}
+          {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
+        </button>
+        {showCarga && (coreMins > 0 || adhocMins > 0) && renderCargaBar(coreMins, adhocMins, blockMins)}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+              <div className="space-y-0.5 pb-1 px-1">
+                {blockTasks.map(task => (
+                  <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
+                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
+  const renderTipoGroups = (date: string, dayTasks: Task[], subMode: 'con-bloques' | null) => {
+    const tipos: { id: 'core' | 'adhoc' | 'sin', label: string, color: string }[] = [
+      { id: 'core',  label: '⬡ Core',     color: TURQUESA },
+      { id: 'adhoc', label: '◇ Adhoc',    color: ROSA },
+      { id: 'sin',   label: '— Sin tipo', color: '#6B7280' },
+    ];
+    return tipos.map(tipo => {
+      const tipoTasks = dayTasks.filter(t => !t.isDeleted && (
+        tipo.id === 'core'  ? t.taskType === 'core' :
+        tipo.id === 'adhoc' ? t.taskType === 'adhoc' :
+        (!t.taskType || (t.taskType !== 'core' && t.taskType !== 'adhoc'))
+      ));
+      if (tipoTasks.length === 0) return null;
+      const key = `${date}__tipo__${tipo.id}`;
+      const isExpanded = expandedBlocks.has(key);
+      const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+      const pendingCount = tipoTasks.filter(t => t.status !== 'completed').length;
+      return (
+        <div key={tipo.id} className="rounded-xl overflow-hidden">
+          <button onClick={() => toggleBlock(date, `tipo__${tipo.id}`)}
+            className="w-full flex items-center gap-1.5 px-2 py-1.5 hover:dark:bg-white/5 hover:bg-black/5 transition-all rounded-xl">
+            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tipo.color }} />
+            <span className="text-[10px] font-black truncate flex-1 text-left uppercase tracking-wide" style={{ color: tipo.color }}>{tipo.label}</span>
+            <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">{pendingCount}/{tipoTasks.length}</span>
+            {tipoMins > 0 && <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(tipoMins)}</span>}
+            {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
+          </button>
+          <AnimatePresence>
+            {isExpanded && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                <div className="space-y-0.5 pb-1 px-1">
+                  {subMode === 'con-bloques'
+                    ? activeBlocks.map(block => {
+                        const bTasks = tipoTasks.filter(t => t.blockId === block.id);
+                        if (bTasks.length === 0) return null;
+                        return (
+                          <div key={block.id}>
+                            <p className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-1 py-0.5 opacity-50 dark:text-white text-text-main-light">
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block" style={{ backgroundColor: block.color }} />
+                              {block.name}
+                            </p>
+                            {bTasks.map(task => (
+                              <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
+                                onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
+                            ))}
+                          </div>
+                        );
+                      })
+                    : tipoTasks.map(task => (
+                        <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
+                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
+                      ))
+                  }
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      );
+    });
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
       className="space-y-4 pb-32 max-w-full">
@@ -186,6 +370,8 @@ export function WeekView({
           <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-0.5">{weekLabel}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Dropdown agrupación */}
+          <GroupDropdown value={groupMode} onChange={setGroupMode} />
           {/* Toggle Carga */}
           <button onClick={() => setShowCarga(v => !v)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
@@ -285,80 +471,68 @@ export function WeekView({
                 </div>
               </button>
 
-              {/* Bloques */}
+              {/* Bloques / agrupación */}
               <div className="flex-1 p-2 pt-0 space-y-1 min-h-[80px]">
-                {activeBlocks.map(block => {
-                  const blockTasks = dayTasks.filter(t => t.blockId === block.id && !t.isDeleted);
-                  if (blockTasks.length === 0) return null;
-                  const key = `${date}__${block.id}`;
-                  const isExpanded = expandedBlocks.has(key);
-                  const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
-                  // Tiempo correcto: suma subtareas hoja
-                  const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
-
-                  // Carga Core/Adhoc
-                  const coreMins = blockTasks.filter(t => t.taskType === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
-                  const adhocMins = blockTasks.filter(t => t.taskType === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
-
-                  return (
-                    <div key={block.id} className="rounded-xl overflow-hidden">
-                      <button onClick={() => toggleBlock(date, block.id)}
-                        className="w-full flex items-center gap-1.5 px-2 py-1.5 hover:dark:bg-white/5 hover:bg-black/5 transition-all rounded-xl">
-                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
-                        <span className="text-[10px] font-black dark:text-white text-text-main-light truncate flex-1 text-left uppercase tracking-wide">
-                          {block.icon} {block.name}
-                        </span>
-                        <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">
-                          {pendingCount}/{blockTasks.length}
-                        </span>
-                        {blockMins > 0 && (
-                          <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">
-                            {formatMinutes(blockMins)}
-                          </span>
-                        )}
-                        {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
-                      </button>
-
-                      {/* Modo Carga: Core/Adhoc */}
-                      {showCarga && (coreMins > 0 || adhocMins > 0) && (
-                        <div className="flex items-center gap-2 px-2 pb-1.5">
-                          {coreMins > 0 && (
-                            <div className="flex items-center gap-1">
-                              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: TURQUESA }} />
-                              <span className="text-[9px] font-bold" style={{ color: TURQUESA }}>{formatMinutes(coreMins)}</span>
-                            </div>
-                          )}
-                          {adhocMins > 0 && (
-                            <div className="flex items-center gap-1">
-                              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: ROSA }} />
-                              <span className="text-[9px] font-bold" style={{ color: ROSA }}>{formatMinutes(adhocMins)}</span>
-                            </div>
-                          )}
-                          {/* Barra Core/Adhoc */}
-                          {blockMins > 0 && (
-                            <div className="flex-1 h-1 dark:bg-white/10 bg-black/8 rounded-full overflow-hidden flex">
-                              <div className="h-full" style={{ width: `${Math.round((coreMins / blockMins) * 100)}%`, backgroundColor: TURQUESA }} />
-                              <div className="h-full" style={{ width: `${Math.round((adhocMins / blockMins) * 100)}%`, backgroundColor: ROSA }} />
-                            </div>
-                          )}
+                {(() => {
+                  if (groupMode === 'bloque') {
+                    return activeBlocks.map(block => renderBlockGroup(date, block, dayTasks));
+                  }
+                  if (groupMode === 'tipo') {
+                    return renderTipoGroups(date, dayTasks, null);
+                  }
+                  if (groupMode === 'bloque-tipo') {
+                    return activeBlocks.map(block => {
+                      const blockTasks = dayTasks.filter(t => t.blockId === block.id && !t.isDeleted);
+                      if (blockTasks.length === 0) return null;
+                      const key = `${date}__${block.id}`;
+                      const isExpanded = expandedBlocks.has(key);
+                      const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                      const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
+                      const coreMins = blockTasks.filter(t => t.taskType === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                      const adhocMins = blockTasks.filter(t => t.taskType === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                      return (
+                        <div key={block.id} className="rounded-xl overflow-hidden">
+                          <button onClick={() => toggleBlock(date, block.id)}
+                            className="w-full flex items-center gap-1.5 px-2 py-1.5 hover:dark:bg-white/5 hover:bg-black/5 transition-all rounded-xl">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
+                            <span className="text-[10px] font-black dark:text-white text-text-main-light truncate flex-1 text-left uppercase tracking-wide">{block.icon} {block.name}</span>
+                            <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">{pendingCount}/{blockTasks.length}</span>
+                            {blockMins > 0 && <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(blockMins)}</span>}
+                            {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
+                          </button>
+                          {showCarga && (coreMins > 0 || adhocMins > 0) && renderCargaBar(coreMins, adhocMins, blockMins)}
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                                <div className="space-y-0.5 pb-1 px-1">
+                                  {(['core', 'adhoc', undefined] as const).map(tipo => {
+                                    const tipoTasks = blockTasks.filter(t => (tipo === undefined ? (!t.taskType || (t.taskType !== 'core' && t.taskType !== 'adhoc')) : t.taskType === tipo));
+                                    if (tipoTasks.length === 0) return null;
+                                    return (
+                                      <div key={tipo ?? 'sin-tipo'}>
+                                        <p className="text-[8px] font-black uppercase tracking-widest px-1 py-0.5 opacity-40 dark:text-white text-text-main-light">
+                                          {tipo === 'core' ? '⬡ Core' : tipo === 'adhoc' ? '◇ Adhoc' : '— Sin tipo'}
+                                        </p>
+                                        {tipoTasks.map(task => (
+                                          <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
+                                            onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
+                                        ))}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
-                      )}
-
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                            <div className="space-y-0.5 pb-1 px-1">
-                              {blockTasks.map(task => (
-                                <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
+                      );
+                    });
+                  }
+                  if (groupMode === 'tipo-bloque') {
+                    return renderTipoGroups(date, dayTasks, 'con-bloques');
+                  }
+                  return null;
+                })()}
 
                 {dayTasks.length === 0 && (
                   <div className="flex items-center justify-center py-4 opacity-20">
