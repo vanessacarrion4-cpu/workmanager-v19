@@ -63,6 +63,7 @@ export function TaskCard({
   onViewInstances = null,
   onGoToTemplate = null,
   highlightTaskId = null,
+  onAddTimeEntry = null,
   taskIndex = null,
   taskCount = null,
   onMoveUp = null,
