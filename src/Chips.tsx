@@ -798,7 +798,6 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
 
   const handleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log('[RegisteredTimeChip] onAddEntry:', onAddEntry, 'taskId:', taskId, 'date:', date);
     if (onAddEntry && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - 20;

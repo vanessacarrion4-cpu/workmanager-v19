@@ -735,6 +735,7 @@ export function TaskCard({
                         inlineEditingTaskId={inlineEditingTaskId}
                         setInlineEditingTaskId={setInlineEditingTaskId}
                         onOpenTimePanel={onOpenTimePanel}
+                        onAddTimeEntry={onAddTimeEntry}
                         onAddTask={onAddTask}
                         onDelete={onDelete}
                         onPromote={onPromote}
