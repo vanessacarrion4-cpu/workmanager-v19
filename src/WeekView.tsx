@@ -98,6 +98,35 @@ function getTaskMins(task: Task, allTasksMap: Record<string, Task>): number {
   }, 0);
 }
 
+// ─── Inferir tipo efectivo de una tarea ──────────────────────────────────────
+// Para contenedores: usa el tipo mayoritario de sus subtareas hoja
+// Para tareas hoja: usa su propio taskType
+function getEffectiveType(task: Task, allTasksMap: Record<string, Task>): 'core' | 'adhoc' | 'sin' {
+  if (!task.subtasks || task.subtasks.length === 0) {
+    if (task.taskType === 'core') return 'core';
+    if (task.taskType === 'adhoc') return 'adhoc';
+    return 'sin';
+  }
+  // Contenedor: sumar minutos por tipo en subtareas hoja
+  let coreMins = 0, adhocMins = 0, sinMins = 0;
+  const countLeafs = (t: Task) => {
+    if (!t.subtasks || t.subtasks.length === 0) {
+      const mins = t.estimatedMinutes || 0;
+      if (t.taskType === 'core') coreMins += mins;
+      else if (t.taskType === 'adhoc') adhocMins += mins;
+      else sinMins += mins;
+    } else {
+      (t.subtasks || []).forEach(id => { const s = allTasksMap[id]; if (s) countLeafs(s); });
+    }
+  };
+  countLeafs(task);
+  const max = Math.max(coreMins, adhocMins, sinMins);
+  if (max === 0) return 'sin';
+  if (coreMins === max) return 'core';
+  if (adhocMins === max) return 'adhoc';
+  return 'sin';
+}
+
 const MINS_CAPACITY_DAY = 480;
 const TURQUESA = '#14B8A6';
 const ROSA = '#EC4899';
@@ -268,8 +297,8 @@ export function WeekView({
     const isExpanded = expandedBlocks.has(key);
     const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
     const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
-    const coreMins = blockTasks.filter(t => t.taskType === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
-    const adhocMins = blockTasks.filter(t => t.taskType === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+    const coreMins = blockTasks.filter(t => getEffectiveType(t, allTasksMap) === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+    const adhocMins = blockTasks.filter(t => getEffectiveType(t, allTasksMap) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
     return (
       <div key={block.id} className="rounded-xl overflow-hidden">
         <button onClick={() => toggleBlock(date, block.id)}
@@ -304,11 +333,7 @@ export function WeekView({
       { id: 'sin',   label: '— Sin tipo', color: '#6B7280' },
     ];
     return tipos.map(tipo => {
-      const tipoTasks = dayTasks.filter(t => !t.isDeleted && (
-        tipo.id === 'core'  ? t.taskType === 'core' :
-        tipo.id === 'adhoc' ? t.taskType === 'adhoc' :
-        (!t.taskType || (t.taskType !== 'core' && t.taskType !== 'adhoc'))
-      ));
+      const tipoTasks = dayTasks.filter(t => !t.isDeleted && getEffectiveType(t, allTasksMap) === tipo.id);
       if (tipoTasks.length === 0) return null;
       const key = `${date}__tipo__${tipo.id}`;
       const isExpanded = expandedBlocks.has(key);
@@ -332,12 +357,16 @@ export function WeekView({
                     ? activeBlocks.map(block => {
                         const bTasks = tipoTasks.filter(t => t.blockId === block.id);
                         if (bTasks.length === 0) return null;
+                        const bMins = bTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                        const bPending = bTasks.filter(t => t.status !== 'completed').length;
                         return (
                           <div key={block.id}>
-                            <p className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-1 py-0.5 opacity-50 dark:text-white text-text-main-light">
+                            <div className="flex items-center gap-1 px-1 py-0.5">
                               <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block" style={{ backgroundColor: block.color }} />
-                              {block.name}
-                            </p>
+                              <span className="text-[8px] font-black uppercase tracking-widest dark:text-white/50 text-text-main-light/50 flex-1">{block.name}</span>
+                              <span className="text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50">{bPending}/{bTasks.length}</span>
+                              {bMins > 0 && <span className="text-[8px] font-black dark:text-text-secondary/50 text-text-secondary-light/50">{formatMinutes(bMins)}</span>}
+                            </div>
                             {bTasks.map(task => (
                               <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
                                 onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
@@ -488,8 +517,8 @@ export function WeekView({
                       const isExpanded = expandedBlocks.has(key);
                       const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
                       const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
-                      const coreMins = blockTasks.filter(t => t.taskType === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
-                      const adhocMins = blockTasks.filter(t => t.taskType === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                      const coreMins = blockTasks.filter(t => getEffectiveType(t, allTasksMap) === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                      const adhocMins = blockTasks.filter(t => getEffectiveType(t, allTasksMap) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
                       return (
                         <div key={block.id} className="rounded-xl overflow-hidden">
                           <button onClick={() => toggleBlock(date, block.id)}
@@ -505,14 +534,21 @@ export function WeekView({
                             {isExpanded && (
                               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                 <div className="space-y-0.5 pb-1 px-1">
-                                  {(['core', 'adhoc', undefined] as const).map(tipo => {
-                                    const tipoTasks = blockTasks.filter(t => (tipo === undefined ? (!t.taskType || (t.taskType !== 'core' && t.taskType !== 'adhoc')) : t.taskType === tipo));
+                                  {(['core', 'adhoc', 'sin'] as const).map(tipoId => {
+                                    const tipoTasks = blockTasks.filter(t => getEffectiveType(t, allTasksMap) === tipoId);
                                     if (tipoTasks.length === 0) return null;
+                                    const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                                    const tipoPending = tipoTasks.filter(t => t.status !== 'completed').length;
+                                    const tipoColor = tipoId === 'core' ? TURQUESA : tipoId === 'adhoc' ? ROSA : '#6B7280';
+                                    const tipoLabel = tipoId === 'core' ? '⬡ Core' : tipoId === 'adhoc' ? '◇ Adhoc' : '— Sin tipo';
                                     return (
-                                      <div key={tipo ?? 'sin-tipo'}>
-                                        <p className="text-[8px] font-black uppercase tracking-widest px-1 py-0.5 opacity-40 dark:text-white text-text-main-light">
-                                          {tipo === 'core' ? '⬡ Core' : tipo === 'adhoc' ? '◇ Adhoc' : '— Sin tipo'}
-                                        </p>
+                                      <div key={tipoId}>
+                                        <div className="flex items-center gap-1 px-1 py-0.5">
+                                          <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block" style={{ backgroundColor: tipoColor }} />
+                                          <span className="text-[8px] font-black uppercase tracking-widest flex-1" style={{ color: tipoColor }}>{tipoLabel}</span>
+                                          <span className="text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50">{tipoPending}/{tipoTasks.length}</span>
+                                          {tipoMins > 0 && <span className="text-[8px] font-black dark:text-text-secondary/50 text-text-secondary-light/50">{formatMinutes(tipoMins)}</span>}
+                                        </div>
                                         {tipoTasks.map(task => (
                                           <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
                                             onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />

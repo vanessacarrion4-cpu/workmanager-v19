@@ -100,8 +100,8 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
           </div>
         </div>
 
-        {/* Solo botón Historial — el formulario siempre visible */}
-        <div className="flex px-4 gap-1 mb-3 shrink-0">
+        {/* Tabs + Cerrar — siempre visible */}
+        <div className="flex items-center px-4 gap-1 mb-3 shrink-0">
           <button onClick={() => setActiveTab(activeTab === 'history' ? 'register' : 'history')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all border ${
               activeTab === 'history'
@@ -111,28 +111,27 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
           >
             <History size={12} /> Historial ({entries.length})
           </button>
+          <button
+            onClick={onClose}
+            className="ml-auto px-3 py-1.5 dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all text-[11px] font-black uppercase tracking-widest"
+          >
+            Cerrar
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-4">
           {activeTab === 'register' ? (
             <div className="space-y-3">
-              {/* Botones acción — arriba */}
+              {/* Botón registrar — cierra el panel al guardar */}
               <div className="flex gap-2">
                 <button
                   onClick={() => {
                     onAddEntry(taskId, subtaskId, newMinutes, newDate, newNote, markComplete);
-                    setNewNote('');
-                    setMarkComplete(false);
+                    onClose();
                   }}
                   className="flex-1 py-2 bg-turquesa hover:bg-turquesa/85 text-white font-black uppercase tracking-widest rounded-xl shadow-md shadow-turquesa/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98] text-[11px]"
                 >
                   <Plus size={13} strokeWidth={3} /> Registrar
-                </button>
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2 dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light rounded-xl dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light transition-all text-[11px] font-black uppercase tracking-widest"
-                >
-                  Cerrar
                 </button>
               </div>
 
