@@ -478,7 +478,7 @@ export default function App() {
                 editingTaskId={editingTaskId}
                 inlineEditingTaskId={inlineEditingTaskId}
                 setInlineEditingTaskId={setInlineEditingTaskId}
-                onOpenTimePanel={(taskId: string, subtaskId: string | null) => setShowTimePanel({ taskId, subtaskId })}
+                onOpenTimePanel={(taskId: string, subtaskId: string | null) => setEditingTaskId(subtaskId || taskId)}
                 activeDate={activeDate}
                 onSetDate={setActiveDate}
                 onDayChange={handleDayChange}
@@ -540,7 +540,7 @@ export default function App() {
                 editingTaskId={editingTaskId}
                 inlineEditingTaskId={inlineEditingTaskId}
                 setInlineEditingTaskId={setInlineEditingTaskId}
-                onOpenTimePanel={(taskId: string, subtaskId: string | null) => setShowTimePanel({ taskId, subtaskId })}
+                onOpenTimePanel={(taskId: string, subtaskId: string | null) => setEditingTaskId(subtaskId || taskId)}
                 onEditRule={setEditingRuleId}
                 onToggleRule={(id: string) => setTasks(prev => ({
                   ...prev,
@@ -593,7 +593,7 @@ export default function App() {
                 editingTaskId={editingTaskId}
                 inlineEditingTaskId={inlineEditingTaskId}
                 setInlineEditingTaskId={setInlineEditingTaskId}
-                onOpenTimePanel={(taskId: string, subtaskId: string | null) => setShowTimePanel({ taskId, subtaskId })}
+                onOpenTimePanel={(taskId: string, subtaskId: string | null) => setEditingTaskId(subtaskId || taskId)}
                 activeDate={activeDate}
                 onDateSelect={(d: string) => { setActiveDate(d); setCurrentView('dashboard'); }}
                 onAddTask={handleAddTask}
