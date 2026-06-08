@@ -359,18 +359,28 @@ export function WeekView({
                         if (bTasks.length === 0) return null;
                         const bMins = bTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
                         const bPending = bTasks.filter(t => t.status !== 'completed').length;
+                        const bKey = `${date}__tipo__${tipo.id}__bloque__${block.id}`;
+                        const isBExpanded = expandedBlocks.has(bKey);
                         return (
                           <div key={block.id}>
-                            <div className="flex items-center gap-1 px-1 py-0.5">
+                            <button onClick={() => toggleBlock(date, `tipo__${tipo.id}__bloque__${block.id}`)}
+                              className="w-full flex items-center gap-1 px-1 py-1 rounded-lg hover:dark:bg-white/5 hover:bg-black/5 transition-all">
                               <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block" style={{ backgroundColor: block.color }} />
-                              <span className="text-[8px] font-black uppercase tracking-widest dark:text-white/50 text-text-main-light/50 flex-1">{block.name}</span>
-                              <span className="text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50">{bPending}/{bTasks.length}</span>
-                              {bMins > 0 && <span className="text-[8px] font-black dark:text-text-secondary/50 text-text-secondary-light/50">{formatMinutes(bMins)}</span>}
-                            </div>
-                            {bTasks.map(task => (
-                              <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                                onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
-                            ))}
+                              <span className="text-[8px] font-black uppercase tracking-widest dark:text-white/60 text-text-main-light/60 flex-1 text-left">{block.icon} {block.name}</span>
+                              <span className="text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0">{bPending}/{bTasks.length}</span>
+                              {bMins > 0 && <span className="text-[8px] font-black dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0 ml-1">{formatMinutes(bMins)}</span>}
+                              {isBExpanded ? <ChevronUp size={8} className="shrink-0 opacity-30 ml-0.5" /> : <ChevronDown size={8} className="shrink-0 opacity-30 ml-0.5" />}
+                            </button>
+                            <AnimatePresence>
+                              {isBExpanded && (
+                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                                  {bTasks.map(task => (
+                                    <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
+                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
+                                  ))}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                           </div>
                         );
                       })
@@ -541,18 +551,28 @@ export function WeekView({
                                     const tipoPending = tipoTasks.filter(t => t.status !== 'completed').length;
                                     const tipoColor = tipoId === 'core' ? TURQUESA : tipoId === 'adhoc' ? ROSA : '#6B7280';
                                     const tipoLabel = tipoId === 'core' ? '⬡ Core' : tipoId === 'adhoc' ? '◇ Adhoc' : '— Sin tipo';
+                                    const tipoKey = `${date}__${block.id}__tipo__${tipoId}`;
+                                    const isTipoExpanded = expandedBlocks.has(tipoKey);
                                     return (
                                       <div key={tipoId}>
-                                        <div className="flex items-center gap-1 px-1 py-0.5">
+                                        <button onClick={() => toggleBlock(date, `${block.id}__tipo__${tipoId}`)}
+                                          className="w-full flex items-center gap-1 px-1 py-1 rounded-lg hover:dark:bg-white/5 hover:bg-black/5 transition-all">
                                           <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block" style={{ backgroundColor: tipoColor }} />
-                                          <span className="text-[8px] font-black uppercase tracking-widest flex-1" style={{ color: tipoColor }}>{tipoLabel}</span>
-                                          <span className="text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50">{tipoPending}/{tipoTasks.length}</span>
-                                          {tipoMins > 0 && <span className="text-[8px] font-black dark:text-text-secondary/50 text-text-secondary-light/50">{formatMinutes(tipoMins)}</span>}
-                                        </div>
-                                        {tipoTasks.map(task => (
-                                          <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                                            onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
-                                        ))}
+                                          <span className="text-[8px] font-black uppercase tracking-widest flex-1 text-left" style={{ color: tipoColor }}>{tipoLabel}</span>
+                                          <span className="text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0">{tipoPending}/{tipoTasks.length}</span>
+                                          {tipoMins > 0 && <span className="text-[8px] font-black dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0 ml-1">{formatMinutes(tipoMins)}</span>}
+                                          {isTipoExpanded ? <ChevronUp size={8} className="shrink-0 opacity-30 ml-0.5" /> : <ChevronDown size={8} className="shrink-0 opacity-30 ml-0.5" />}
+                                        </button>
+                                        <AnimatePresence>
+                                          {isTipoExpanded && (
+                                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                                              {tipoTasks.map(task => (
+                                                <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
+                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
+                                              ))}
+                                            </motion.div>
+                                          )}
+                                        </AnimatePresence>
                                       </div>
                                     );
                                   })}
