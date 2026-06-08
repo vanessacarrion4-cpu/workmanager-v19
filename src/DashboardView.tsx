@@ -40,6 +40,7 @@ interface DashboardViewProps {
   inlineEditingTaskId?: string | null;
   setInlineEditingTaskId?: (id: string | null) => void;
   onOpenTimePanel?: (taskId: string, subtaskId: string | null) => void;
+  onAddTimeEntry?: ((taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string, markComplete?: boolean) => void) | null;
   activeDate: string;
   onSetDate: (date: string) => void;
   onDayChange: (delta: number) => void;
@@ -78,6 +79,7 @@ export function DashboardView({
   onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId,
   onOpenTimePanel, activeDate, onSetDate, onDayChange, onReorderTasks, onReorderSubtasks, onBatchUpdateOrder,
   onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null, onGoToTemplate = null,
+  onAddTimeEntry = null,
   selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null,
   onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null,
   bulkDuplicateTasks = null, bulkDelegateModal = false, setBulkDelegateModal = null,
@@ -432,6 +434,7 @@ export function DashboardView({
                                   inlineEditingTaskId={inlineEditingTaskId}
                                   setInlineEditingTaskId={setInlineEditingTaskId}
                                   onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel && onOpenTimePanel(taskId, subtaskId)}
+                                  onAddTimeEntry={onAddTimeEntry}
                                   onAddTask={onAddTask}
                                   onDelete={onDelete}
                                   onPromote={onPromote}

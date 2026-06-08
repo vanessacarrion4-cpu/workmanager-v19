@@ -670,12 +670,73 @@ export function TagPickerChip({ selectedTags = [], onChange }: any) {
 }
  
 
+// ─── Popover de tiempo compartido ────────────────────────────────────────────
+function TimePopover({
+  title, icon, color, value, onConfirm, onClose, extraBottom
+}: {
+  title: string; icon: React.ReactNode; color: string;
+  value: number; onConfirm: (v: number) => void; onClose: () => void;
+  extraBottom?: React.ReactNode;
+}) {
+  const [local, setLocal] = useState(value || 0);
+  const PRESETS = [15, 30, 45, 60, 90, 120];
+  return (
+    <div className="p-4 space-y-3 min-w-[256px]">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">{title}</p>
+        <button onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded-lg dark:hover:bg-white/10 hover:bg-black/5 transition-all dark:text-text-secondary text-text-secondary-light">
+          <X size={12} />
+        </button>
+      </div>
+      {/* Input */}
+      <div className="flex items-center gap-3 dark:bg-bg-main bg-gray-100 rounded-2xl px-4 py-3 border dark:border-border-main border-border-main-light">
+        <span style={{ color }}>{icon}</span>
+        <input
+          type="number" min={0}
+          value={local || ''}
+          onChange={e => setLocal(parseInt(e.target.value) || 0)}
+          onKeyDown={e => { if (e.key === 'Enter') { onConfirm(local); onClose(); } }}
+          className="flex-1 bg-transparent text-2xl font-black dark:text-white text-text-main-light outline-none w-full"
+          autoFocus placeholder="0"
+        />
+        <span className="text-[11px] dark:text-text-secondary text-text-secondary-light font-bold">min</span>
+      </div>
+      {/* Presets */}
+      <div className="grid grid-cols-3 gap-1.5">
+        {PRESETS.map(v => (
+          <button key={v} onClick={() => { setLocal(v); }}
+            className={`py-2 rounded-xl text-[11px] font-black transition-all border ${
+              local === v
+                ? 'text-white border-transparent'
+                : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light dark:hover:border-white/30 hover:border-black/20 dark:hover:text-white hover:text-text-main-light'
+            }`}
+            style={local === v ? { backgroundColor: color, borderColor: color } : {}}
+          >
+            {v >= 60 ? `${v/60}h` : `${v}m`}
+          </button>
+        ))}
+      </div>
+      {extraBottom}
+      {/* Confirmar */}
+      <button onClick={() => { if (local > 0) { onConfirm(local); onClose(); } }}
+        className="w-full py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest text-white transition-all active:scale-[0.98] disabled:opacity-40"
+        style={{ backgroundColor: color }}
+        disabled={local === 0}
+      >
+        Confirmar {local > 0 ? `· ${local >= 60 ? `${Math.floor(local/60)}h${local%60>0?` ${local%60}m`:''}` : `${local}m`}` : ''}
+      </button>
+    </div>
+  );
+}
+
 export function EstimatedTimeChip({ value, onChange, variant = 'default', readonly = false }: any) {
   const [show, setShow] = useState(false);
-  const [modalPos, setModalPos] = useState({ top: 0, left: 0 });
+  const [modalPos, setModalPos] = useState({ top: 0, left: 0, maxHeight: 500 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const label = formatMinutes(value);
   const isMini = variant === 'mini';
+  const COLOR = '#3B82F6'; // azul
 
   const handleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -683,56 +744,31 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - 20;
       setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
+      setShow(true);
     }
-    if (!readonly) setShow(!show);
   };
- 
+
   return (
     <div className="relative">
-      <button 
-        ref={buttonRef}
-        onClick={handleOpen}
-        className={`${isMini ? 'h-6 px-1.5 py-0.5' : 'h-6 px-2 py-0.5'} rounded-lg bg-azul/10 border-2 border-azul/50 text-azul font-black uppercase tracking-widest transition-all flex items-center gap-1 shadow-sm ${readonly ? 'opacity-60 cursor-default' : 'hover:bg-azul/20'}`}
+      <button ref={buttonRef} onClick={handleOpen}
+        className={`${isMini ? 'h-6 px-1.5' : 'h-6 px-2'} rounded-lg bg-azul/10 border-2 border-azul/50 text-azul font-black uppercase tracking-widest transition-all flex items-center gap-1 shadow-sm ${readonly ? 'opacity-60 cursor-default' : 'hover:bg-azul/20'}`}
         title={readonly ? 'Suma de subtareas' : 'Editar tiempo estimado'}
       >
         <Clock size={9} />
         <span className="text-[11px]">{label}</span>
       </button>
-
       <AnimatePresence>
         {show && !readonly && (
           <>
             <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              className="fixed bg-bg-card border border-border-main rounded-2xl shadow-2xl p-5 z-[220] min-w-[280px] overflow-y-auto"
-              style={{ 
-                top: `${modalPos.top}px`, 
-                left: `${modalPos.left}px`,
-                maxHeight: `${modalPos.maxHeight || 500}px`
-              }}
+            <motion.div initial={{ opacity: 0, y: -8, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.97 }}
+              className="fixed dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl z-[220] overflow-hidden"
+              style={{ top: `${modalPos.top}px`, left: `${modalPos.left}px`, maxHeight: `${modalPos.maxHeight}px` }}
             >
-               <p className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-4 pl-1">Tiempo Estimado (min)</p>
-               <div className="flex gap-4 items-center mb-6">
-                 <Zap size={20} className="text-azul" />
-                 <input 
-                  type="number"
-                  className="w-full bg-bg-main p-4 rounded-2xl border border-border-main text-2xl font-black text-white outline-none focus:ring-4 focus:ring-azul/20 transition-all"
-                  value={value}
-                  onChange={(e) => onChange(parseInt(e.target.value) || 0)}
-                 />
-               </div>
-               <div className="grid grid-cols-4 gap-2">
-                 {[15, 30, 45, 60, 90, 120].map(v => (
-                   <button 
-                     key={v} 
-                     onClick={() => { onChange(v); setShow(false); }}
-                     className="p-2 bg-bg-main rounded-lg text-[10px] font-black text-white border border-border-main hover:border-azul transition-all"
-                   >
-                     {v}m
-                   </button>
-                 ))}
-               </div>
+              <TimePopover
+                title="Tiempo estimado" icon={<Clock size={16} />} color={COLOR}
+                value={value} onConfirm={v => onChange(v)} onClose={() => setShow(false)}
+              />
             </motion.div>
           </>
         )}
@@ -740,34 +776,138 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
     </div>
   );
 }
- 
 
-export function RegisteredTimeChip({ value, estimated, onClick }: any) {
+export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subtaskId, date, onMoreOptions, onClick }: any) {
+  const [show, setShow] = useState(false);
+  const [manualVal, setManualVal] = useState<number | ''>('');
+  const [markComplete, setMarkComplete] = useState(false);
+  const [modalPos, setModalPos] = useState({ top: 0, left: 0, maxHeight: 500 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const safeValue = (value === undefined || value === null || isNaN(value)) ? 0 : value;
   const label = formatMinutes(safeValue);
-  
-  // Colores con estilos inline para garantizar visibilidad en light y dark mode
-  let color = '#84CC16'; // lima — por debajo del estimado, eficiente
-  let bg = 'rgba(132,204,22,0.1)';
-  let border = 'rgba(132,204,22,0.5)';
-  
+  const COLOR = '#14B8A6';
+
+  let color = '#94A3B8'; let bg = 'transparent'; let border = '#CBD5E1';
   if (safeValue > 0 && estimated > 0 && safeValue > estimated) {
-    color = '#EC4899'; bg = 'rgba(236,72,153,0.1)'; border = 'rgba(236,72,153,0.5)'; // rosa — pasado
+    color = '#EC4899'; bg = 'rgba(236,72,153,0.1)'; border = 'rgba(236,72,153,0.5)';
   } else if (safeValue > 0 && estimated > 0 && safeValue >= estimated * 0.9) {
-    color = '#F97316'; bg = 'rgba(249,115,22,0.1)'; border = 'rgba(249,115,22,0.5)'; // naranja — cerca
-  } else if (safeValue === 0) {
-    color = '#94A3B8'; bg = 'transparent'; border = '#CBD5E1'; // slate — sin registrar
+    color = '#F97316'; bg = 'rgba(249,115,22,0.1)'; border = 'rgba(249,115,22,0.5)';
+  } else if (safeValue > 0) {
+    color = '#84CC16'; bg = 'rgba(132,204,22,0.1)'; border = 'rgba(132,204,22,0.5)';
   }
- 
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onAddEntry && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom - 20;
+      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
+      setManualVal('');
+      setMarkComplete(false);
+      setShow(true);
+    } else if (onClick) {
+      onClick();
+    }
+  };
+
+  const register = (mins: number) => {
+    if (mins <= 0) return;
+    onAddEntry(taskId, subtaskId, mins, date, '', markComplete);
+    setShow(false);
+  };
+
+  const PRESETS = [15, 30, 45, 60, 90, 120];
+
   return (
-    <button 
-      onClick={onClick}
-      className="h-6 px-2 py-0.5 rounded-lg font-black uppercase tracking-widest transition-all border shadow-sm flex items-center gap-1"
-      style={{ color, backgroundColor: bg, borderColor: border }}
-    >
-      <Target size={9} />
-      <span className="text-[11px]">{label}</span>
-    </button>
+    <div className="relative">
+      <button ref={buttonRef} onClick={handleOpen}
+        className="h-6 px-2 py-0.5 rounded-lg font-black uppercase tracking-widest transition-all border shadow-sm flex items-center gap-1 hover:opacity-80"
+        style={{ color, backgroundColor: bg, borderColor: border }}
+      >
+        <Target size={9} />
+        <span className="text-[11px]">{label}</span>
+      </button>
+
+      <AnimatePresence>
+        {show && onAddEntry && (
+          <>
+            <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.97 }}
+              className="fixed dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl z-[220] overflow-hidden"
+              style={{ top: `${modalPos.top}px`, left: `${modalPos.left}px`, maxHeight: `${modalPos.maxHeight}px` }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-4 space-y-3 min-w-[240px]">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Registrar tiempo</p>
+                  <button onClick={() => setShow(false)} className="w-6 h-6 flex items-center justify-center rounded-lg dark:hover:bg-white/10 hover:bg-black/5 transition-all dark:text-text-secondary text-text-secondary-light">
+                    <X size={12} />
+                  </button>
+                </div>
+
+                {/* Presets — clic directo registra */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {PRESETS.map(v => (
+                    <button key={v} onClick={() => register(v)}
+                      className="py-2 rounded-xl text-[11px] font-black transition-all border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:text-white hover:border-transparent active:scale-95"
+                      style={{} }
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = COLOR; (e.currentTarget as HTMLButtonElement).style.borderColor = COLOR; (e.currentTarget as HTMLButtonElement).style.color = 'white'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = ''; (e.currentTarget as HTMLButtonElement).style.borderColor = ''; (e.currentTarget as HTMLButtonElement).style.color = ''; }}
+                    >
+                      {v >= 60 ? `${v/60}h` : `${v}m`}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Input manual */}
+                <div className="flex items-center gap-2 dark:bg-bg-main bg-gray-100 rounded-xl px-3 py-2 border dark:border-border-main border-border-main-light">
+                  <Target size={12} style={{ color: COLOR }} />
+                  <input
+                    type="number" min={1} placeholder="Otro..."
+                    value={manualVal}
+                    onChange={e => setManualVal(parseInt(e.target.value) || '')}
+                    onKeyDown={e => { if (e.key === 'Enter' && manualVal) register(manualVal as number); }}
+                    className="flex-1 bg-transparent text-sm font-black dark:text-white text-text-main-light outline-none"
+                  />
+                  <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">min</span>
+                  {manualVal ? (
+                    <button onClick={() => register(manualVal as number)}
+                      className="w-6 h-6 rounded-lg flex items-center justify-center text-white transition-all"
+                      style={{ backgroundColor: COLOR }}
+                    >
+                      <Check size={10} strokeWidth={3} />
+                    </button>
+                  ) : null}
+                </div>
+
+                {/* Marcar completada */}
+                <button onClick={() => setMarkComplete(v => !v)}
+                  className={`w-full flex items-center gap-2 py-1.5 px-2 rounded-xl border text-[11px] font-black transition-all ${markComplete ? 'border-turquesa bg-turquesa/10 text-turquesa' : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light'}`}
+                >
+                  <div className={`w-4 h-4 rounded flex items-center justify-center border-2 shrink-0 transition-all ${markComplete ? 'bg-turquesa border-turquesa' : 'dark:border-border-main border-border-main-light'}`}>
+                    {markComplete && <Check size={9} strokeWidth={3} className="text-white" />}
+                  </div>
+                  Marcar como completada
+                </button>
+
+                {/* Más opciones */}
+                {onMoreOptions && (
+                  <button onClick={() => { setShow(false); onMoreOptions(); }}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light transition-all"
+                  >
+                    Más opciones <span className="opacity-50">→</span>
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
  

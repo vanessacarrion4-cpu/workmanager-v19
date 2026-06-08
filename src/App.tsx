@@ -479,6 +479,7 @@ export default function App() {
                 inlineEditingTaskId={inlineEditingTaskId}
                 setInlineEditingTaskId={setInlineEditingTaskId}
                 onOpenTimePanel={(taskId: string, subtaskId: string | null) => setEditingTaskId(subtaskId || taskId)}
+                onAddTimeEntry={(taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string, markComplete?: boolean) => timerHandlers.handleManualTimeEntry(taskId, subtaskId, minutes, date, note, markComplete)}
                 activeDate={activeDate}
                 onSetDate={setActiveDate}
                 onDayChange={handleDayChange}

@@ -572,6 +572,11 @@ export function TaskCard({
                   {!inMeeting && <RegisteredTimeChip 
                     value={totalRegistered} 
                     estimated={totalEstimated}
+                    onAddEntry={onAddTimeEntry}
+                    taskId={currentRootId}
+                    subtaskId={level === 1 ? null : task.id}
+                    date={task.dueDate || task.instanceDate || formatLocalISO(new Date())}
+                    onMoreOptions={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)}
                     onClick={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)} 
                   />}
                   {!inMeeting && <button 
