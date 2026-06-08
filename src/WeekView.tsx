@@ -96,9 +96,11 @@ function getTaskMins(task: Task): number {
 }
 
 // ─── Tipo efectivo — directo del taskType del contenedor ─────────────────────
+// ─── Tipo efectivo — igual que WorkloadView: taskType directo || 'core' ───────
 function getEffectiveType(task: Task): 'core' | 'adhoc' | 'sin' {
   if (task.taskType === 'core') return 'core';
   if (task.taskType === 'adhoc') return 'adhoc';
+  if (!task.taskType) return 'core'; // default como WorkloadView: || 'core'
   return 'sin';
 }
 

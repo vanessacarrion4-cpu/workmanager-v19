@@ -131,6 +131,11 @@ export function useTaskCRUD({
     setTasks(prev => {
       const next = { ...prev };
       tasksToUpsert.forEach(t => { next[t.id] = t; });
+      // Si la tarea tiene padre, forzar re-render del contenedor padre
+      // para que el filtro del dashboard lo oculte inmediatamente
+      if (task.parentTaskId && next[task.parentTaskId]) {
+        next[task.parentTaskId] = { ...next[task.parentTaskId], modifiedAt: timestamp };
+      }
       return next;
     });
 
