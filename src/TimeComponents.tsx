@@ -122,21 +122,6 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
         <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-4">
           {activeTab === 'register' ? (
             <div className="space-y-3">
-              {/* Presets rápidos de tiempo */}
-              <div className="flex gap-1.5 flex-wrap">
-                {[15, 30, 45, 60, 90, 120].map(m => (
-                  <button key={m} onClick={() => setNewMinutes(m)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border ${
-                      newMinutes === m
-                        ? 'bg-turquesa text-white border-turquesa'
-                        : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:text-turquesa'
-                    }`}
-                  >
-                    {m >= 60 ? `${m/60}h` : `${m}m`}
-                  </button>
-                ))}
-              </div>
-
               {/* Botón registrar */}
               <button
                 onClick={() => {
