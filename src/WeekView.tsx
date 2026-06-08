@@ -89,18 +89,24 @@ function generateVirtualInstances(allTasksMap: Record<string, Task>, date: strin
   return result;
 }
 
-// ─── Calcular minutos de una tarea para UN DÍA concreto ──────────────────────
-// Igual que WorkloadView: usa estimatedMinutes del propio contenedor raíz
-function getTaskMins(task: Task): number {
-  return task.estimatedMinutes || 0;
+// ─── Minutos de una tarea para un día ────────────────────────────────────────
+// Si el contenedor tiene estimatedMinutes propio lo usa (como WorkloadView).
+// Si es 0 o null, suma sus subtareas directas (Guillem Tell case).
+function getTaskMins(task: Task, allTasksMap: Record<string, Task>): number {
+  if (task.estimatedMinutes) return task.estimatedMinutes;
+  if (task.subtasks && task.subtasks.length > 0) {
+    return task.subtasks.reduce((acc, subId) => {
+      const sub = allTasksMap[subId];
+      return acc + (sub ? (sub.estimatedMinutes || 0) : 0);
+    }, 0);
+  }
+  return 0;
 }
 
 // ─── Tipo efectivo — directo del taskType del contenedor ─────────────────────
-// ─── Tipo efectivo — igual que WorkloadView: taskType directo || 'core' ───────
 function getEffectiveType(task: Task): 'core' | 'adhoc' | 'sin' {
   if (task.taskType === 'core') return 'core';
   if (task.taskType === 'adhoc') return 'adhoc';
-  if (!task.taskType) return 'core'; // default como WorkloadView: || 'core'
   return 'sin';
 }
 
@@ -226,7 +232,7 @@ export function WeekView({
     const map: Record<string, { estimatedMins: number; registeredMins: number; pct: number }> = {};
     days.forEach(date => {
       const tasks = tasksByDay[date] || [];
-      const estimatedMins = tasks.reduce((acc, t) => acc + getTaskMins(t), 0);
+      const estimatedMins = tasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
       const registeredMins = timeEntries
         .filter(e => e.date === date)
         .reduce((acc, e) => acc + (e.duration || 0), 0);
@@ -274,9 +280,9 @@ export function WeekView({
     const key = `${date}__${block.id}`;
     const isExpanded = expandedBlocks.has(key);
     const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
-    const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t), 0);
-    const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t), 0);
-    const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t), 0);
+    const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+    const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+    const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
     return (
       <div key={block.id} className="rounded-xl overflow-hidden">
         <button onClick={() => toggleBlock(date, block.id)}
@@ -315,7 +321,7 @@ export function WeekView({
       if (tipoTasks.length === 0) return null;
       const key = `${date}__tipo__${tipo.id}`;
       const isExpanded = expandedBlocks.has(key);
-      const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t), 0);
+      const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
       const pendingCount = tipoTasks.filter(t => t.status !== 'completed').length;
       return (
         <div key={tipo.id} className="rounded-xl overflow-hidden">
@@ -335,7 +341,7 @@ export function WeekView({
                     ? activeBlocks.map(block => {
                         const bTasks = tipoTasks.filter(t => t.blockId === block.id);
                         if (bTasks.length === 0) return null;
-                        const bMins = bTasks.reduce((acc, t) => acc + getTaskMins(t), 0);
+                        const bMins = bTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
                         const bPending = bTasks.filter(t => t.status !== 'completed').length;
                         const bKey = `${date}__tipo__${tipo.id}__bloque__${block.id}`;
                         const isBExpanded = expandedBlocks.has(bKey);
@@ -503,10 +509,10 @@ export function WeekView({
                       if (blockTasks.length === 0) return null;
                       const key = `${date}__${block.id}`;
                       const isExpanded = expandedBlocks.has(key);
-                      const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t), 0);
+                      const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
                       const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
-                      const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t), 0);
-                      const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t), 0);
+                      const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                      const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
                       return (
                         <div key={block.id} className="rounded-xl overflow-hidden">
                           <button onClick={() => toggleBlock(date, block.id)}
@@ -525,7 +531,7 @@ export function WeekView({
                                   {(['core', 'adhoc', 'sin'] as const).map(tipoId => {
                                     const tipoTasks = blockTasks.filter(t => getEffectiveType(t) === tipoId);
                                     if (tipoTasks.length === 0) return null;
-                                    const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t), 0);
+                                    const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
                                     const tipoPending = tipoTasks.filter(t => t.status !== 'completed').length;
                                     const tipoColor = tipoId === 'core' ? TURQUESA : tipoId === 'adhoc' ? ROSA : '#6B7280';
                                     const tipoLabel = tipoId === 'core' ? '⬡ Core' : tipoId === 'adhoc' ? '◇ Adhoc' : '— Sin tipo';
@@ -594,7 +600,7 @@ function WeekTaskCard({ task, allTasksMap, onEdit, onToggle }: {
 }) {
   const tagEmoji = task.tags?.[0] ? TAG_LABELS[task.tags[0]]?.icon : null;
   const isCompleted = task.status === 'completed';
-  const taskMins = getTaskMins(task);
+  const taskMins = getTaskMins(task, allTasksMap);
 
   return (
     <div onClick={onEdit}
