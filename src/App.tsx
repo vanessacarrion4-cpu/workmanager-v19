@@ -208,7 +208,7 @@ export default function App() {
   });
 
   const { bulkUpdateTasks, bulkDeleteTasks, bulkDuplicateTasks } = useBulkActions({
-    tasks, setTasks, selectedTaskIds, setSelectedTaskIds, setSelectionMode,
+    tasks, setTasks, selectedTaskIds, setSelectedTaskIds, setSelectionMode, activeDate,
   });
 
   // Wrappers for attachment handlers (they need handleUpdateTask as param)

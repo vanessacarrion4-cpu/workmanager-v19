@@ -15,6 +15,7 @@ interface UseBulkActionsOptions {
   selectedTaskIds: Set<string>;
   setSelectedTaskIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   setSelectionMode: React.Dispatch<React.SetStateAction<boolean>>;
+  activeDate: string;
 }
 
 export function useBulkActions({
@@ -23,6 +24,7 @@ export function useBulkActions({
   selectedTaskIds,
   setSelectedTaskIds,
   setSelectionMode,
+  activeDate,
 }: UseBulkActionsOptions) {
 
   const bulkUpdateTasks = useCallback((updates: Partial<Task>) => {
@@ -35,24 +37,34 @@ export function useBulkActions({
       if (!task) return;
       const isContainer = task.subtasks && task.subtasks.length > 0;
       if (isContainer && !isContainerSafeUpdate) {
+        // Solo subtareas pendientes del día activo — nunca completadas ni de otro día
         const instanceDate = task.instanceDate || task.dueDate;
+        let found = false;
         Object.values(tasks).forEach((t: Task) => {
           if (t.isDeleted) return;
-          if (t.parentTaskId === id) { effectiveIds.add(t.id); return; }
+          if (t.status === 'completed') return; // ← NUNCA mover completadas
+          // subtarea directa del día activo
+          if (t.parentTaskId === id && t.dueDate === activeDate) {
+            effectiveIds.add(t.id); found = true; return;
+          }
+          // instancia recurrente del día activo
           if (t.templateId && instanceDate) {
             const tmpl = tasks[t.templateId];
-            if (tmpl && tmpl.parentTaskId === id) { effectiveIds.add(t.id); return; }
+            if (tmpl && tmpl.parentTaskId === id && t.dueDate === activeDate) {
+              effectiveIds.add(t.id); found = true; return;
+            }
             if (task.templateId) {
-              if (tmpl && tmpl.parentTaskId === task.templateId && t.dueDate === instanceDate) {
-                effectiveIds.add(t.id); return;
+              if (tmpl && tmpl.parentTaskId === task.templateId && t.dueDate === activeDate) {
+                effectiveIds.add(t.id); found = true; return;
               }
             }
           }
         });
-        if (effectiveIds.size === 0 && task.subtasks) {
+        // fallback: subtareas directas pendientes sin fecha (subtareas de templates)
+        if (!found && task.subtasks) {
           task.subtasks.forEach((subId: string) => {
             const sub = tasks[subId];
-            if (sub && !sub.isDeleted) effectiveIds.add(subId);
+            if (sub && !sub.isDeleted && sub.status !== 'completed') effectiveIds.add(subId);
           });
         }
       } else {
