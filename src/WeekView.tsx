@@ -89,41 +89,16 @@ function generateVirtualInstances(allTasksMap: Record<string, Task>, date: strin
   return result;
 }
 
-// ─── Calcular minutos de una tarea (suma subtareas hoja) ─────────────────────
-function getTaskMins(task: Task, allTasksMap: Record<string, Task>): number {
-  if (!task.subtasks || task.subtasks.length === 0) return task.estimatedMinutes || 0;
-  return (task.subtasks || []).reduce((acc, subId) => {
-    const sub = allTasksMap[subId];
-    return acc + (sub ? getTaskMins(sub, allTasksMap) : 0);
-  }, 0);
+// ─── Calcular minutos de una tarea para UN DÍA concreto ──────────────────────
+// Igual que WorkloadView: usa estimatedMinutes del propio contenedor raíz
+function getTaskMins(task: Task): number {
+  return task.estimatedMinutes || 0;
 }
 
-// ─── Inferir tipo efectivo de una tarea ──────────────────────────────────────
-// Para contenedores: usa el tipo mayoritario de sus subtareas hoja
-// Para tareas hoja: usa su propio taskType
-function getEffectiveType(task: Task, allTasksMap: Record<string, Task>): 'core' | 'adhoc' | 'sin' {
-  if (!task.subtasks || task.subtasks.length === 0) {
-    if (task.taskType === 'core') return 'core';
-    if (task.taskType === 'adhoc') return 'adhoc';
-    return 'sin';
-  }
-  // Contenedor: sumar minutos por tipo en subtareas hoja
-  let coreMins = 0, adhocMins = 0, sinMins = 0;
-  const countLeafs = (t: Task) => {
-    if (!t.subtasks || t.subtasks.length === 0) {
-      const mins = t.estimatedMinutes || 0;
-      if (t.taskType === 'core') coreMins += mins;
-      else if (t.taskType === 'adhoc') adhocMins += mins;
-      else sinMins += mins;
-    } else {
-      (t.subtasks || []).forEach(id => { const s = allTasksMap[id]; if (s) countLeafs(s); });
-    }
-  };
-  countLeafs(task);
-  const max = Math.max(coreMins, adhocMins, sinMins);
-  if (max === 0) return 'sin';
-  if (coreMins === max) return 'core';
-  if (adhocMins === max) return 'adhoc';
+// ─── Tipo efectivo — directo del taskType del contenedor ─────────────────────
+function getEffectiveType(task: Task): 'core' | 'adhoc' | 'sin' {
+  if (task.taskType === 'core') return 'core';
+  if (task.taskType === 'adhoc') return 'adhoc';
   return 'sin';
 }
 
@@ -233,11 +208,12 @@ export function WeekView({
     const map: Record<string, Task[]> = {};
     days.forEach(date => {
       if (date >= generatedStart && date <= generatedEnd) {
-        map[date] = filterTasksForDay(Object.values(allTasksMap), allTasksMap, activeBlockIds, date, { hideCompleted: false, hideDelegatedNoTag: false });
+        const all = filterTasksForDay(Object.values(allTasksMap), allTasksMap, activeBlockIds, date, { hideCompleted: false, hideDelegatedNoTag: false });
+        map[date] = all.filter(t => !t.parentTaskId);
       } else {
         const virtual = generateVirtualInstances(allTasksMap, date);
-        const manual = Object.values(allTasksMap).filter(t => !t.isTemplate && !t.templateId && t.dueDate === date && !t.isDeleted);
-        map[date] = [...manual, ...virtual];
+        const manual = Object.values(allTasksMap).filter(t => !t.isTemplate && !t.templateId && t.dueDate === date && !t.isDeleted && !t.parentTaskId);
+        map[date] = [...manual, ...virtual.filter(t => !t.parentTaskId)];
       }
     });
     return map;
@@ -248,7 +224,7 @@ export function WeekView({
     const map: Record<string, { estimatedMins: number; registeredMins: number; pct: number }> = {};
     days.forEach(date => {
       const tasks = tasksByDay[date] || [];
-      const estimatedMins = tasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+      const estimatedMins = tasks.reduce((acc, t) => acc + getTaskMins(t), 0);
       const registeredMins = timeEntries
         .filter(e => e.date === date)
         .reduce((acc, e) => acc + (e.duration || 0), 0);
@@ -296,9 +272,9 @@ export function WeekView({
     const key = `${date}__${block.id}`;
     const isExpanded = expandedBlocks.has(key);
     const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
-    const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
-    const coreMins = blockTasks.filter(t => getEffectiveType(t, allTasksMap) === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
-    const adhocMins = blockTasks.filter(t => getEffectiveType(t, allTasksMap) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+    const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t), 0);
+    const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t), 0);
+    const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t), 0);
     return (
       <div key={block.id} className="rounded-xl overflow-hidden">
         <button onClick={() => toggleBlock(date, block.id)}
@@ -333,11 +309,11 @@ export function WeekView({
       { id: 'sin',   label: '— Sin tipo', color: '#6B7280' },
     ];
     return tipos.map(tipo => {
-      const tipoTasks = dayTasks.filter(t => !t.isDeleted && getEffectiveType(t, allTasksMap) === tipo.id);
+      const tipoTasks = dayTasks.filter(t => !t.isDeleted && getEffectiveType(t) === tipo.id);
       if (tipoTasks.length === 0) return null;
       const key = `${date}__tipo__${tipo.id}`;
       const isExpanded = expandedBlocks.has(key);
-      const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+      const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t), 0);
       const pendingCount = tipoTasks.filter(t => t.status !== 'completed').length;
       return (
         <div key={tipo.id} className="rounded-xl overflow-hidden">
@@ -357,7 +333,7 @@ export function WeekView({
                     ? activeBlocks.map(block => {
                         const bTasks = tipoTasks.filter(t => t.blockId === block.id);
                         if (bTasks.length === 0) return null;
-                        const bMins = bTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                        const bMins = bTasks.reduce((acc, t) => acc + getTaskMins(t), 0);
                         const bPending = bTasks.filter(t => t.status !== 'completed').length;
                         const bKey = `${date}__tipo__${tipo.id}__bloque__${block.id}`;
                         const isBExpanded = expandedBlocks.has(bKey);
@@ -525,10 +501,10 @@ export function WeekView({
                       if (blockTasks.length === 0) return null;
                       const key = `${date}__${block.id}`;
                       const isExpanded = expandedBlocks.has(key);
-                      const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                      const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t), 0);
                       const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
-                      const coreMins = blockTasks.filter(t => getEffectiveType(t, allTasksMap) === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
-                      const adhocMins = blockTasks.filter(t => getEffectiveType(t, allTasksMap) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                      const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t), 0);
+                      const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t), 0);
                       return (
                         <div key={block.id} className="rounded-xl overflow-hidden">
                           <button onClick={() => toggleBlock(date, block.id)}
@@ -545,9 +521,9 @@ export function WeekView({
                               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                 <div className="space-y-0.5 pb-1 px-1">
                                   {(['core', 'adhoc', 'sin'] as const).map(tipoId => {
-                                    const tipoTasks = blockTasks.filter(t => getEffectiveType(t, allTasksMap) === tipoId);
+                                    const tipoTasks = blockTasks.filter(t => getEffectiveType(t) === tipoId);
                                     if (tipoTasks.length === 0) return null;
-                                    const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap), 0);
+                                    const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t), 0);
                                     const tipoPending = tipoTasks.filter(t => t.status !== 'completed').length;
                                     const tipoColor = tipoId === 'core' ? TURQUESA : tipoId === 'adhoc' ? ROSA : '#6B7280';
                                     const tipoLabel = tipoId === 'core' ? '⬡ Core' : tipoId === 'adhoc' ? '◇ Adhoc' : '— Sin tipo';
@@ -616,7 +592,7 @@ function WeekTaskCard({ task, allTasksMap, onEdit, onToggle }: {
 }) {
   const tagEmoji = task.tags?.[0] ? TAG_LABELS[task.tags[0]]?.icon : null;
   const isCompleted = task.status === 'completed';
-  const taskMins = getTaskMins(task, allTasksMap);
+  const taskMins = getTaskMins(task);
 
   return (
     <div onClick={onEdit}
