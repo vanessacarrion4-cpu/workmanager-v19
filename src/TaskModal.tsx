@@ -73,6 +73,7 @@ export function TaskModal({
   onGoToTemplate = null,
 }: TaskModalProps) {
   const [localTask, setLocalTask] = useState<Task>(task);
+  const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
   const [subtaskTitles, setSubtaskTitles] = useState<Record<string, string>>({});
   const [showDateSelector, setShowDateSelector] = useState(false);
   const [showRecurrence, setShowRecurrence] = useState(false);
