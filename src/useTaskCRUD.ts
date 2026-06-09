@@ -131,11 +131,6 @@ export function useTaskCRUD({
     setTasks(prev => {
       const next = { ...prev };
       tasksToUpsert.forEach(t => { next[t.id] = t; });
-      // Si la tarea tiene padre, forzar re-render del contenedor padre
-      // para que el filtro del dashboard lo oculte inmediatamente
-      if (task.parentTaskId && next[task.parentTaskId]) {
-        next[task.parentTaskId] = { ...next[task.parentTaskId], modifiedAt: timestamp };
-      }
       return next;
     });
 
@@ -187,16 +182,28 @@ export function useTaskCRUD({
   }, [tasks, setTasks]);
 
   const handleAddTask = useCallback((parentTaskId: string | null = null, blockId?: string, overrideDate?: string, defaultPersonId?: string) => {
-    if (parentTaskId && tasks[parentTaskId]) {
-      const parent = tasks[parentTaskId];
-      const hasDate = !!parent.dueDate;
-      const hasTag = parent.tags && parent.tags.length > 0;
-      const hasRecurrence = !!parent.recurrence;
-      const hasTime = !!parent.dueTime;
-      const hasDelegation = !!parent.delegation;
-      if ((hasDate || hasTag || hasRecurrence || hasTime || hasDelegation) && (!parent.subtasks || parent.subtasks.length === 0)) {
-        setAddSubtaskWarning({ parentTaskId, blockId, overrideDate });
-        return;
+    if (parentTaskId) {
+      // Si es instancia recurrente, resolver al template para verificar propiedades
+      let parent = tasks[parentTaskId];
+      if (!parent && parentTaskId.startsWith('inst-')) {
+        // Extraer templateId del ID de instancia: inst-{templateId}-{date} o inst-{templateId}-{subId}-{date}
+        const parts = parentTaskId.replace('inst-', '').split('-');
+        // El templateId es "t-{timestamp}" — buscar en tasks
+        const possibleTemplateId = Object.keys(tasks).find(id =>
+          parentTaskId.startsWith(`inst-${id}`)
+        );
+        if (possibleTemplateId) parent = tasks[possibleTemplateId];
+      }
+      if (parent) {
+        const hasDate = !!parent.dueDate;
+        const hasTag = parent.tags && parent.tags.length > 0;
+        const hasRecurrence = !!parent.recurrence;
+        const hasTime = !!parent.dueTime;
+        const hasDelegation = !!parent.delegation;
+        if ((hasDate || hasTag || hasRecurrence || hasTime || hasDelegation) && (!parent.subtasks || parent.subtasks.length === 0)) {
+          setAddSubtaskWarning({ parentTaskId, blockId, overrideDate });
+          return;
+        }
       }
     }
     return doAddTask(parentTaskId, blockId, overrideDate, defaultPersonId);
@@ -209,8 +216,15 @@ export function useTaskCRUD({
     let finalBlockId = blockId;
     let isTemplate = false;
 
-    if (parentTaskId && tasks[parentTaskId]) {
-      const parent = tasks[parentTaskId];
+    // Resolver parentTaskId: si es instancia, usar su templateId como padre real
+    let effectiveParentId = parentTaskId;
+    if (parentTaskId && parentTaskId.startsWith('inst-') && !tasks[parentTaskId]) {
+      const templateId = Object.keys(tasks).find(tid => parentTaskId.startsWith(`inst-${tid}`));
+      if (templateId) effectiveParentId = templateId;
+    }
+
+    if (effectiveParentId && tasks[effectiveParentId]) {
+      const parent = tasks[effectiveParentId];
       if (!finalBlockId) finalBlockId = parent.blockId;
       isTemplate = parent.isTemplate || false;
     }
@@ -228,7 +242,7 @@ export function useTaskCRUD({
       status: 'pending',
       dueDate: isTemplate ? null : (overrideDate || activeDate),
       dueTime: '',
-      parentTaskId,
+      parentTaskId: effectiveParentId,
       ...(defaultPersonId ? { delegation: { personId: defaultPersonId, delegatedAt: formatLocalISO(new Date()) } } : {}),
       subtasks: [],
       estimatedMinutes: 0,
@@ -242,15 +256,15 @@ export function useTaskCRUD({
     };
 
     const updatedTasks = { ...tasks, [id]: newTask };
-    if (parentTaskId && updatedTasks[parentTaskId]) {
-      const isFirstSubtask = (updatedTasks[parentTaskId].subtasks || []).length === 0;
-      updatedTasks[parentTaskId] = {
-        ...updatedTasks[parentTaskId],
-        subtasks: [...(updatedTasks[parentTaskId].subtasks || []), id],
+    if (effectiveParentId && updatedTasks[effectiveParentId]) {
+      const isFirstSubtask = (updatedTasks[effectiveParentId].subtasks || []).length === 0;
+      updatedTasks[effectiveParentId] = {
+        ...updatedTasks[effectiveParentId],
+        subtasks: [...(updatedTasks[effectiveParentId].subtasks || []), id],
         isExpanded: true,
-        dueDate: isFirstSubtask ? null : updatedTasks[parentTaskId].dueDate,
-        tags: isFirstSubtask ? [] : updatedTasks[parentTaskId].tags,
-        estimatedMinutes: isFirstSubtask ? 0 : updatedTasks[parentTaskId].estimatedMinutes,
+        dueDate: isFirstSubtask ? null : updatedTasks[effectiveParentId].dueDate,
+        tags: isFirstSubtask ? [] : updatedTasks[effectiveParentId].tags,
+        estimatedMinutes: isFirstSubtask ? 0 : updatedTasks[effectiveParentId].estimatedMinutes,
         modifiedAt: timestamp
       };
     }
@@ -304,7 +318,7 @@ export function useTaskCRUD({
       }
     })();
 
-    if (!parentTaskId) {
+    if (!effectiveParentId) {
       setTimeout(() => setEditingTaskId(id), 50);
     } else {
       setInlineEditingTaskId(id);
