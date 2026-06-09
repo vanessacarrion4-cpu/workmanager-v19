@@ -211,16 +211,12 @@ export function useTaskCRUD({
     let finalBlockId = blockId;
     let isTemplate = false;
 
-    // Resolver parentTaskId: si es instancia recurrente, usar el templateId como padre real
-    // Formato instancia: inst-{templateId}-{date} o inst-{templateId}-{subId}-{date}
-    // templateId siempre es t-{números}
+    // Resolver parentTaskId: si es instancia, usar su templateId como padre real
+    // Formato: inst-{templateId}-{date} o inst-{templateId}-{subId}-{date}
     let effectiveParentId = parentTaskId;
     if (parentTaskId && parentTaskId.startsWith('inst-') && !tasks[parentTaskId]) {
       const match = parentTaskId.match(/^inst-(t-\d+)/);
-      if (match) {
-        const candidateId = match[1];
-        if (tasks[candidateId]) effectiveParentId = candidateId;
-      }
+      if (match && tasks[match[1]]) effectiveParentId = match[1];
     }
 
     if (effectiveParentId && tasks[effectiveParentId]) {
