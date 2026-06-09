@@ -99,10 +99,10 @@ function getVisibleSubtasksForDay(
       if (!isDirectChild) return false;
       
       // Si el contenedor es una instancia (tiene templateId), excluir subtareas manuales
-      // que apuntan al template pero no son instancias recurrentes.
-      // Estas subtareas manuales pertenecen al template, no a esta instancia concreta.
+      // que apuntan al template EXCEPTO si tienen dueDate (son subtareas creadas manualmente ese día)
       if (container.templateId && task.parentTaskId === containerTemplateId && !task.templateId) {
-        return false;
+        if (!task.dueDate) return false; // sin fecha → pertenece al template, no a esta instancia
+        // con fecha === activeDate → subtarea manual creada desde el Dashboard, sí mostrar
       }
     }
 
