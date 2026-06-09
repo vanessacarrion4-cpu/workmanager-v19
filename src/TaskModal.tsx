@@ -73,7 +73,7 @@ export function TaskModal({
   onGoToTemplate = null,
 }: TaskModalProps) {
   const [localTask, setLocalTask] = useState<Task>(task);
-  const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
+  const [subtaskTitles, setSubtaskTitles] = useState<Record<string, string>>({});
   const [showDateSelector, setShowDateSelector] = useState(false);
   const [showRecurrence, setShowRecurrence] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -706,14 +706,7 @@ export function TaskModal({
               <button
                 onClick={() => {
                   const nid = onAddTask(localTask.id, localTask.blockId, localTask.dueDate || localTask.instanceDate || undefined);
-                  if (nid) {
-                    setFocusedSubtaskId(nid);
-                    // Añadir el nuevo ID a localTask para que aparezca en el modal
-                    setLocalTask(prev => ({
-                      ...prev,
-                      subtasks: [...(prev.subtasks || []), nid]
-                    }));
-                  }
+                  if (nid) setFocusedSubtaskId(nid);
                 }}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-turquesa/10 hover:bg-turquesa/20 text-turquesa rounded-xl transition-all text-[10px] font-black uppercase tracking-widest border border-turquesa/20"
               >
@@ -735,10 +728,24 @@ export function TaskModal({
                   <div className="flex-1 space-y-1.5 min-w-0">
                     <input
                       autoFocus={st.id === focusedSubtaskId}
-                      onFocus={() => { if (st.id === focusedSubtaskId) setFocusedSubtaskId(null); }}
+                      onFocus={() => { 
+                        if (st.id === focusedSubtaskId) setFocusedSubtaskId(null);
+                        // Inicializar título local si no existe
+                        if (subtaskTitles[st.id] === undefined) {
+                          setSubtaskTitles(prev => ({ ...prev, [st.id]: st.title }));
+                        }
+                      }}
                       className={`w-full bg-transparent text-[12px] font-bold dark:text-white text-text-main-light outline-none border-b dark:border-border-main border-border-main-light/20 focus:border-turquesa transition-all pb-0.5 ${st.status === 'completed' ? 'line-through opacity-50' : ''}`}
-                      value={st.title}
-                      onChange={e => handleUpdateSubtask(st.id, { title: e.target.value })}
+                      value={subtaskTitles[st.id] !== undefined ? subtaskTitles[st.id] : st.title}
+                      onChange={e => setSubtaskTitles(prev => ({ ...prev, [st.id]: e.target.value }))}
+                      onBlur={e => {
+                        const newTitle = subtaskTitles[st.id] !== undefined ? subtaskTitles[st.id] : st.title;
+                        handleUpdateSubtask(st.id, { title: newTitle });
+                        setSubtaskTitles(prev => { const n = { ...prev }; delete n[st.id]; return n; });
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') e.currentTarget.blur();
+                      }}
                       placeholder="Título del paso..."
                     />
                     <div className="flex flex-wrap items-center gap-1">
