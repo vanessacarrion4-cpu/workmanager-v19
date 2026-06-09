@@ -705,7 +705,7 @@ export function TaskModal({
               <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Subtareas</span>
               <button
                 onClick={() => {
-                  const nid = onAddTask(localTask.id);
+                  const nid = onAddTask(localTask.id, localTask.blockId, localTask.dueDate || localTask.instanceDate || undefined);
                   if (nid) setFocusedSubtaskId(nid);
                 }}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-turquesa/10 hover:bg-turquesa/20 text-turquesa rounded-xl transition-all text-[10px] font-black uppercase tracking-widest border border-turquesa/20"

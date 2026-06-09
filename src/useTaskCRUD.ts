@@ -222,10 +222,10 @@ export function useTaskCRUD({
     if (effectiveParentId && tasks[effectiveParentId]) {
       const parent = tasks[effectiveParentId];
       if (!finalBlockId) finalBlockId = parent.blockId;
-      // No heredar isTemplate si venimos del Dashboard (parentTaskId era una instancia)
-      // Desde Dashboard siempre creamos subtareas manuales con dueDate
-      const cameFromInstance = parentTaskId && parentTaskId.startsWith('inst-');
-      isTemplate = (parent.isTemplate || false) && !cameFromInstance;
+      // Si el parentTaskId original era una instancia (inst-xxx), no heredar isTemplate
+      // → la subtarea es manual con fecha, no template
+      const cameFromInstance = parentTaskId && parentTaskId !== effectiveParentId;
+      isTemplate = cameFromInstance ? false : (parent.isTemplate || false);
     }
 
     if (!finalBlockId) {
@@ -239,7 +239,7 @@ export function useTaskCRUD({
       notes: '',
       priority: 'media',
       status: 'pending',
-      dueDate: isTemplate ? null : (overrideDate || activeDate),
+      dueDate: overrideDate ? overrideDate : (isTemplate ? null : activeDate),
       dueTime: '',
       parentTaskId: effectiveParentId,
       ...(defaultPersonId ? { delegation: { personId: defaultPersonId, delegatedAt: formatLocalISO(new Date()) } } : {}),
