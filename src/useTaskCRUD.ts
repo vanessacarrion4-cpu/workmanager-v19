@@ -186,8 +186,8 @@ export function useTaskCRUD({
       // Si es instancia recurrente, resolver al template para verificar propiedades
       let parent = tasks[parentTaskId];
       if (!parent && parentTaskId.startsWith('inst-')) {
-        const match = parentTaskId.match(/^inst-(t-\d+)/);
-        if (match && tasks[match[1]]) parent = tasks[match[1]];
+        const templateId = parentTaskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
+        if (tasks[templateId]) parent = tasks[templateId];
       }
       if (parent) {
         const hasDate = !!parent.dueDate;
@@ -215,8 +215,8 @@ export function useTaskCRUD({
     // Formato: inst-{templateId}-{date} o inst-{templateId}-{subId}-{date}
     let effectiveParentId = parentTaskId;
     if (parentTaskId && parentTaskId.startsWith('inst-') && !tasks[parentTaskId]) {
-      const match = parentTaskId.match(/^inst-(t-\d+)/);
-      if (match && tasks[match[1]]) effectiveParentId = match[1];
+      const templateId = parentTaskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
+      if (tasks[templateId]) effectiveParentId = templateId;
     }
 
     if (effectiveParentId && tasks[effectiveParentId]) {
@@ -270,16 +270,17 @@ export function useTaskCRUD({
       try {
         let supabaseParentId = newTask.parentTaskId || null;
         if (supabaseParentId && supabaseParentId.startsWith('inst-')) {
-          const parentInstance = tasks[supabaseParentId];
-          if (parentInstance?.templateId) {
-            supabaseParentId = parentInstance.templateId;
-            setTasks(prev => ({
-              ...prev,
-              [newTask.id]: { ...prev[newTask.id], parentTaskId: supabaseParentId }
-            }));
+          const templateId = supabaseParentId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
+          if (tasks[templateId]) {
+            supabaseParentId = templateId;
           } else {
-            supabaseParentId = null;
+            const parentInstance = tasks[supabaseParentId];
+            supabaseParentId = parentInstance?.templateId || null;
           }
+          setTasks(prev => ({
+            ...prev,
+            [newTask.id]: { ...prev[newTask.id], parentTaskId: supabaseParentId }
+          }));
         }
 
         const dbTask = {
