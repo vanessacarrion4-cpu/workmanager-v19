@@ -75,7 +75,6 @@ export function TaskModal({
   const [localTask, setLocalTask] = useState<Task>(task);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
   const [subtaskTitles, setSubtaskTitles] = useState<Record<string, string>>({});
-  const [pendingSubtaskIds, setPendingSubtaskIds] = useState<string[]>([]);
   const [showDateSelector, setShowDateSelector] = useState(false);
   const [showRecurrence, setShowRecurrence] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -84,10 +83,6 @@ export function TaskModal({
   const tags: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
 
   useEffect(() => { setLocalTask(task); }, [task.id]);
-  // Limpiar pendingSubtaskIds cuando las tareas llegan al allTasksMap
-  useEffect(() => {
-    setPendingSubtaskIds(prev => prev.filter(id => !allTasksMap[id]));
-  }, [allTasksMap]);
   useEffect(() => {
     setLocalTask(prev => ({ ...prev, attachments: task.attachments || [] }));
   }, [JSON.stringify(task.attachments)]);
@@ -101,18 +96,10 @@ export function TaskModal({
   }, [localTask.notes]);
 
   const subtasks = useMemo(() => {
-    const existing = (localTask.subtasks || [])
-      .filter(id => !pendingSubtaskIds.includes(id)) // evitar duplicados
-      .map(id => allTasksMap[id])
-      .filter(Boolean)
+    return (localTask.subtasks || [])
+      .map(id => allTasksMap[id] || { id, title: subtaskTitles[id] || '', status: 'pending' as const, blockId: localTask.blockId, parentTaskId: localTask.id, subtasks: [], tags: [], estimatedMinutes: 0, order: -1, priority: 'media' as const })
       .sort((a, b) => (a?.order || 0) - (b?.order || 0));
-    // Añadir pending al principio con datos mínimos si no están en allTasksMap aún
-    const pending = pendingSubtaskIds.map(id => allTasksMap[id] || {
-      id, title: subtaskTitles[id] || '', status: 'pending', dueDate: localTask.dueDate || localTask.instanceDate || null,
-      blockId: localTask.blockId, parentTaskId: localTask.id, subtasks: [], tags: [], estimatedMinutes: 0, order: -1,
-    } as Task);
-    return [...pending, ...existing];
-  }, [localTask.subtasks, localTask.id, allTasksMap, pendingSubtaskIds, subtaskTitles]);
+  }, [localTask.subtasks, localTask.id, localTask.blockId, allTasksMap, subtaskTitles]);
 
   const handleUpdateSubtask = (sid: string, updates: Partial<Task>) => {
     const subtask = allTasksMap[sid];
@@ -718,12 +705,14 @@ export function TaskModal({
               <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Subtareas</span>
               <button
                 onClick={() => {
+                onClick={() => {
                   const nid = onAddTask(localTask.id, localTask.blockId, localTask.dueDate || localTask.instanceDate || undefined);
                   if (nid) {
-                    setPendingSubtaskIds(prev => [nid, ...prev]);
+                    setLocalTask(prev => ({ ...prev, subtasks: [nid, ...(prev.subtasks || [])] }));
                     setSubtaskTitles(prev => ({ ...prev, [nid]: '' }));
                     setFocusedSubtaskId(nid);
                   }
+                }}
                 }}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-turquesa/10 hover:bg-turquesa/20 text-turquesa rounded-xl transition-all text-[10px] font-black uppercase tracking-widest border border-turquesa/20"
               >
