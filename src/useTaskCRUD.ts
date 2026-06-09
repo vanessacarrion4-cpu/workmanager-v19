@@ -187,8 +187,10 @@ export function useTaskCRUD({
       let parent = tasks[parentTaskId];
       if (!parent && parentTaskId.startsWith('inst-')) {
         const templateId = parentTaskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
+        console.log('[handleAddTask] inst detected, templateId:', templateId, 'exists:', !!tasks[templateId]);
         if (tasks[templateId]) parent = tasks[templateId];
       }
+      console.log('[handleAddTask] parent:', parent?.id, 'subtasks:', parent?.subtasks?.length);
       if (parent) {
         const hasDate = !!parent.dueDate;
         const hasTag = parent.tags && parent.tags.length > 0;
@@ -216,8 +218,10 @@ export function useTaskCRUD({
     let effectiveParentId = parentTaskId;
     if (parentTaskId && parentTaskId.startsWith('inst-') && !tasks[parentTaskId]) {
       const templateId = parentTaskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
+      console.log('[doAddTask] inst detected, templateId:', templateId, 'exists:', !!tasks[templateId]);
       if (tasks[templateId]) effectiveParentId = templateId;
     }
+    console.log('[doAddTask] effectiveParentId:', effectiveParentId);
 
     if (effectiveParentId && tasks[effectiveParentId]) {
       const parent = tasks[effectiveParentId];
@@ -264,33 +268,22 @@ export function useTaskCRUD({
         modifiedAt: timestamp
       };
     }
-    // Si parentTaskId era una instancia (inst-xxx), también actualizar la instancia en memoria
-    // para que el Dashboard la vea inmediatamente
-    if (parentTaskId && parentTaskId !== effectiveParentId && updatedTasks[parentTaskId]) {
-      updatedTasks[parentTaskId] = {
-        ...updatedTasks[parentTaskId],
-        subtasks: [...(updatedTasks[parentTaskId].subtasks || []), id],
-        isExpanded: true,
-        modifiedAt: timestamp
-      };
-    }
     setTasks(updatedTasks);
 
     (async () => {
       try {
         let supabaseParentId = newTask.parentTaskId || null;
         if (supabaseParentId && supabaseParentId.startsWith('inst-')) {
-          const templateId = supabaseParentId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
-          if (tasks[templateId]) {
-            supabaseParentId = templateId;
+          const parentInstance = tasks[supabaseParentId];
+          if (parentInstance?.templateId) {
+            supabaseParentId = parentInstance.templateId;
+            setTasks(prev => ({
+              ...prev,
+              [newTask.id]: { ...prev[newTask.id], parentTaskId: supabaseParentId }
+            }));
           } else {
-            const parentInstance = tasks[supabaseParentId];
-            supabaseParentId = parentInstance?.templateId || null;
+            supabaseParentId = null;
           }
-          setTasks(prev => ({
-            ...prev,
-            [newTask.id]: { ...prev[newTask.id], parentTaskId: supabaseParentId }
-          }));
         }
 
         const dbTask = {
