@@ -186,8 +186,8 @@ export function useTaskCRUD({
       // Si es instancia recurrente, resolver al template para verificar propiedades
       let parent = tasks[parentTaskId];
       if (!parent && parentTaskId.startsWith('inst-')) {
-        const templateId = parentTaskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
-        if (tasks[templateId]) parent = tasks[templateId];
+        const match = parentTaskId.match(/^inst-(t-\d+)/);
+        if (match && tasks[match[1]]) parent = tasks[match[1]];
       }
       if (parent) {
         const hasDate = !!parent.dueDate;
@@ -211,20 +211,21 @@ export function useTaskCRUD({
     let finalBlockId = blockId;
     let isTemplate = false;
 
-    // Resolver parentTaskId: si es instancia, SIEMPRE usar el template como padre real
-    // Las subtareas manuales nuevas van bajo el template, no bajo la instancia
+    // Resolver parentTaskId: si es instancia, usar su templateId como padre real
+    // Formato: inst-{templateId}-{date} o inst-{templateId}-{subId}-{date}
     let effectiveParentId = parentTaskId;
-    if (parentTaskId && parentTaskId.startsWith('inst-')) {
-      const templateId = parentTaskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
-      if (tasks[templateId]) {
-        effectiveParentId = templateId;
-      }
+    if (parentTaskId && parentTaskId.startsWith('inst-') && !tasks[parentTaskId]) {
+      const match = parentTaskId.match(/^inst-(t-\d+)/);
+      if (match && tasks[match[1]]) effectiveParentId = match[1];
     }
 
     if (effectiveParentId && tasks[effectiveParentId]) {
       const parent = tasks[effectiveParentId];
       if (!finalBlockId) finalBlockId = parent.blockId;
-      isTemplate = parent.isTemplate || false;
+      // No heredar isTemplate si venimos del Dashboard (parentTaskId era una instancia)
+      // Desde Dashboard siempre creamos subtareas manuales con dueDate
+      const cameFromInstance = parentTaskId && parentTaskId.startsWith('inst-');
+      isTemplate = (parent.isTemplate || false) && !cameFromInstance;
     }
 
     if (!finalBlockId) {
@@ -319,7 +320,7 @@ export function useTaskCRUD({
     if (!effectiveParentId) {
       setTimeout(() => setEditingTaskId(id), 50);
     } else {
-      setTimeout(() => setInlineEditingTaskId(id), 50);
+      setInlineEditingTaskId(id);
     }
     return id;
   }, [tasks, setTasks, blocks, selectedBlockId, activeDate, setEditingTaskId, setInlineEditingTaskId]);
