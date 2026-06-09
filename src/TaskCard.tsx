@@ -655,7 +655,7 @@ export function TaskCard({
                 </button>
                 {level < 3 && (
                   <button 
-                    onClick={() => onAddTask(task.id, task.blockId)} 
+                    onClick={(e) => { e.stopPropagation(); onAddTask(task.id, task.blockId); }} 
                     className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-lg transition-all border border-turquesa/20" 
                     title="Añadir subtarea"
                   >

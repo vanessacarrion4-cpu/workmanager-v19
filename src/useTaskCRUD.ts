@@ -264,6 +264,16 @@ export function useTaskCRUD({
         modifiedAt: timestamp
       };
     }
+    // Si parentTaskId era una instancia (inst-xxx), también actualizar la instancia en memoria
+    // para que el Dashboard la vea inmediatamente
+    if (parentTaskId && parentTaskId !== effectiveParentId && updatedTasks[parentTaskId]) {
+      updatedTasks[parentTaskId] = {
+        ...updatedTasks[parentTaskId],
+        subtasks: [...(updatedTasks[parentTaskId].subtasks || []), id],
+        isExpanded: true,
+        modifiedAt: timestamp
+      };
+    }
     setTasks(updatedTasks);
 
     (async () => {
