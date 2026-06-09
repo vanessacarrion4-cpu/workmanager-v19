@@ -178,6 +178,17 @@ export default function App() {
           }
         });
       }
+      // También incluir subtareas manuales del template con dueDate===activeDate
+      // (nuevas subtareas creadas desde el Dashboard que no son instancias recurrentes)
+      const templateId = t.templateId || (t.id.startsWith('inst-') ? t.id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '') : t.id);
+      if (templateId && tasks[templateId]?.subtasks) {
+        tasks[templateId].subtasks?.forEach((subId: string) => {
+          const sub = tasks[subId];
+          if (sub && !sub.isDeleted && sub.dueDate === activeDate && !sub.templateId && !subId.startsWith('inst-')) {
+            map[subId] = sub;
+          }
+        });
+      }
     });
     return map;
   }, [tasks, dashboardTasks, activeDate]);
