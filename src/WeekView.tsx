@@ -103,7 +103,8 @@ function getTaskMins(task: Task, allTasksMap: Record<string, Task>, date?: strin
     return task.subtasks.reduce((acc, subId) => {
       const sub = allTasksMap[subId];
       if (!sub || sub.isDeleted) return acc;
-      if (sub.dueDate && sub.dueDate !== date) return acc;
+      if (!sub.dueDate) return acc;           // sin fecha → no cuenta para ningún día
+      if (sub.dueDate !== date) return acc;   // fecha distinta → no cuenta
       return acc + (sub.estimatedMinutes || 0);
     }, 0);
   }
@@ -311,7 +312,7 @@ export function WeekView({
               <div className="space-y-0.5 pb-1 px-1">
                 {blockTasks.map(task => (
                   <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
+                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} />
                 ))}
               </div>
             </motion.div>
@@ -371,7 +372,7 @@ export function WeekView({
                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                   {bTasks.map(task => (
                                     <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
+                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} />
                                   ))}
                                 </motion.div>
                               )}
@@ -381,7 +382,7 @@ export function WeekView({
                       })
                     : tipoTasks.map(task => (
                         <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
+                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} />
                       ))
                   }
                 </div>
@@ -563,7 +564,7 @@ export function WeekView({
                                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                               {tipoTasks.map(task => (
                                                 <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} />
+                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} />
                                               ))}
                                             </motion.div>
                                           )}
@@ -605,13 +606,13 @@ export function WeekView({
 }
 
 // ─── WeekTaskCard ─────────────────────────────────────────────────────────────
-function WeekTaskCard({ task, allTasksMap, onEdit, onToggle }: {
+function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date }: {
   task: Task; allTasksMap: Record<string, Task>;
-  onEdit: () => void; onToggle: () => void;
+  onEdit: () => void; onToggle: () => void; date: string;
 }) {
   const tagEmoji = task.tags?.[0] ? TAG_LABELS[task.tags[0]]?.icon : null;
   const isCompleted = task.status === 'completed';
-  const taskMins = getTaskMins(task, allTasksMap, task.dueDate || task.instanceDate);
+  const taskMins = getTaskMins(task, allTasksMap, date);
 
   return (
     <div onClick={onEdit}
