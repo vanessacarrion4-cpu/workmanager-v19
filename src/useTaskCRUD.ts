@@ -186,13 +186,8 @@ export function useTaskCRUD({
       // Si es instancia recurrente, resolver al template para verificar propiedades
       let parent = tasks[parentTaskId];
       if (!parent && parentTaskId.startsWith('inst-')) {
-        // Extraer templateId del ID de instancia: inst-{templateId}-{date} o inst-{templateId}-{subId}-{date}
-        const parts = parentTaskId.replace('inst-', '').split('-');
-        // El templateId es "t-{timestamp}" — buscar en tasks
-        const possibleTemplateId = Object.keys(tasks).find(id =>
-          parentTaskId.startsWith(`inst-${id}`)
-        );
-        if (possibleTemplateId) parent = tasks[possibleTemplateId];
+        const match = parentTaskId.match(/^inst-(t-\d+)/);
+        if (match && tasks[match[1]]) parent = tasks[match[1]];
       }
       if (parent) {
         const hasDate = !!parent.dueDate;
@@ -216,11 +211,16 @@ export function useTaskCRUD({
     let finalBlockId = blockId;
     let isTemplate = false;
 
-    // Resolver parentTaskId: si es instancia, usar su templateId como padre real
+    // Resolver parentTaskId: si es instancia recurrente, usar el templateId como padre real
+    // Formato instancia: inst-{templateId}-{date} o inst-{templateId}-{subId}-{date}
+    // templateId siempre es t-{números}
     let effectiveParentId = parentTaskId;
     if (parentTaskId && parentTaskId.startsWith('inst-') && !tasks[parentTaskId]) {
-      const templateId = Object.keys(tasks).find(tid => parentTaskId.startsWith(`inst-${tid}`));
-      if (templateId) effectiveParentId = templateId;
+      const match = parentTaskId.match(/^inst-(t-\d+)/);
+      if (match) {
+        const candidateId = match[1];
+        if (tasks[candidateId]) effectiveParentId = candidateId;
+      }
     }
 
     if (effectiveParentId && tasks[effectiveParentId]) {
