@@ -89,20 +89,29 @@ function generateVirtualInstances(allTasksMap: Record<string, Task>, date: strin
   return result;
 }
 
-// ─── Minutos de una tarea para un día concreto ───────────────────────────────
-// Si tiene estimatedMinutes propio lo usa.
-// Si es contenedor sin estimatedMinutes, suma solo subtareas con dueDate===date.
+// ─── Minutos de una tarea para un día ────────────────────────────────────────
+// Si el contenedor tiene estimatedMinutes propio lo usa (como WorkloadView).
+// Si es 0 o null, suma sus subtareas directas (Guillem Tell case).
 function getTaskMins(task: Task, allTasksMap: Record<string, Task>, date?: string): number {
-  if (task.estimatedMinutes) return task.estimatedMinutes;
-  if (task.subtasks && task.subtasks.length > 0 && date) {
+  // Tarea hoja (sin subtareas): su propio estimatedMinutes
+  if (!task.subtasks || task.subtasks.length === 0) {
+    return task.estimatedMinutes || 0;
+  }
+  // Contenedor: sumar SOLO subtareas del día (si se pasa date)
+  // Nunca usar estimatedMinutes del contenedor — es la suma histórica total
+  if (date) {
     return task.subtasks.reduce((acc, subId) => {
       const sub = allTasksMap[subId];
       if (!sub || sub.isDeleted) return acc;
-      if (sub.dueDate && sub.dueDate !== date) return acc; // solo subtareas del día
+      if (sub.dueDate && sub.dueDate !== date) return acc;
       return acc + (sub.estimatedMinutes || 0);
     }, 0);
   }
-  return 0;
+  // Sin date: sumar todas las subtareas directas
+  return task.subtasks.reduce((acc, subId) => {
+    const sub = allTasksMap[subId];
+    return acc + (sub ? (sub.estimatedMinutes || 0) : 0);
+  }, 0);
 }
 
 // ─── Tipo efectivo — directo del taskType del contenedor ─────────────────────
