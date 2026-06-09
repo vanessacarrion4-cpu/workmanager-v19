@@ -187,10 +187,8 @@ export function useTaskCRUD({
       let parent = tasks[parentTaskId];
       if (!parent && parentTaskId.startsWith('inst-')) {
         const templateId = parentTaskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
-        console.log('[handleAddTask] inst detected, templateId:', templateId, 'exists:', !!tasks[templateId]);
         if (tasks[templateId]) parent = tasks[templateId];
       }
-      console.log('[handleAddTask] parent:', parent?.id, 'subtasks:', parent?.subtasks?.length);
       if (parent) {
         const hasDate = !!parent.dueDate;
         const hasTag = parent.tags && parent.tags.length > 0;
@@ -213,15 +211,15 @@ export function useTaskCRUD({
     let finalBlockId = blockId;
     let isTemplate = false;
 
-    // Resolver parentTaskId: si es instancia, usar su templateId como padre real
-    // Formato: inst-{templateId}-{date} o inst-{templateId}-{subId}-{date}
+    // Resolver parentTaskId: si es instancia, SIEMPRE usar el template como padre real
+    // Las subtareas manuales nuevas van bajo el template, no bajo la instancia
     let effectiveParentId = parentTaskId;
-    if (parentTaskId && parentTaskId.startsWith('inst-') && !tasks[parentTaskId]) {
+    if (parentTaskId && parentTaskId.startsWith('inst-')) {
       const templateId = parentTaskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
-      console.log('[doAddTask] inst detected, templateId:', templateId, 'exists:', !!tasks[templateId]);
-      if (tasks[templateId]) effectiveParentId = templateId;
+      if (tasks[templateId]) {
+        effectiveParentId = templateId;
+      }
     }
-    console.log('[doAddTask] effectiveParentId:', effectiveParentId);
 
     if (effectiveParentId && tasks[effectiveParentId]) {
       const parent = tasks[effectiveParentId];
@@ -321,7 +319,7 @@ export function useTaskCRUD({
     if (!effectiveParentId) {
       setTimeout(() => setEditingTaskId(id), 50);
     } else {
-      setInlineEditingTaskId(id);
+      setTimeout(() => setInlineEditingTaskId(id), 50);
     }
     return id;
   }, [tasks, setTasks, blocks, selectedBlockId, activeDate, setEditingTaskId, setInlineEditingTaskId]);
