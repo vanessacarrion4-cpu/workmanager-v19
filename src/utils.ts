@@ -397,17 +397,22 @@ export function getTaskEstimatedPending(taskId: string, tasks: Record<string, Ta
 
 export function getTaskRegisteredSelf(taskId: string, timeEntries: any[], filterDate?: string): number {
   if (!taskId || !timeEntries) return 0;
-  const resolveInst = (id: string) => id.startsWith('inst-')
-    ? id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '')
-    : id;
+  const resolveInst = (id: string | null | undefined): string => {
+    if (!id) return '';
+    return id.startsWith('inst-')
+      ? id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '')
+      : id;
+  };
+  const resolvedTaskId = resolveInst(taskId);
   return timeEntries
     .filter(e => {
       if (!e) return false;
-      // Match directo por taskId o subtaskId (incluyendo resolución de instancia)
-      const directMatch = (e.subtaskId === taskId) || (!e.subtaskId && e.taskId === taskId);
-      const instanceMatch = (e.subtaskId && resolveInst(e.subtaskId) === taskId) ||
-        (!e.subtaskId && e.taskId && resolveInst(e.taskId) === taskId);
-      if (!directMatch && !instanceMatch) return false;
+      const eTaskId = resolveInst(e.taskId);
+      const eSubtaskId = resolveInst(e.subtaskId);
+      // Match: la entrada apunta a esta tarea como taskId o subtaskId (directo o como instancia)
+      const matches = e.taskId === taskId || eTaskId === resolvedTaskId ||
+                      e.subtaskId === taskId || eSubtaskId === resolvedTaskId;
+      if (!matches) return false;
       if (filterDate) return e.date === filterDate;
       return true;
     })

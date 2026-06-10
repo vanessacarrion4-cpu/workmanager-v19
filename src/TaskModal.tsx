@@ -336,7 +336,7 @@ export function TaskModal({
             <TimeManagementPanel
               taskId={localTask.id}
               subtaskId={null}
-              instanceDate={null}
+              instanceDate={localTask.instanceDate || localTask.dueDate || null}
               allTasksMap={allTasksMap}
               timeEntries={timeEntries}
               fromModal={true}

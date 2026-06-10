@@ -38,17 +38,37 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
 
   // FIX instancias recurrentes: si viene instanceDate, filtrar solo entradas de ese día
   const entries = useMemo(() => {
+    // Resuelve inst-t-xxx-YYYY-MM-DD → t-xxx (templateId)
+    const resolveInst = (id: string | null | undefined): string => {
+      if (!id) return '';
+      return id.startsWith('inst-')
+        ? id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '')
+        : id;
+    };
+    const resolvedTaskId = resolveInst(taskId);
+    const resolvedSubtaskId = resolveInst(subtaskId);
+
     return timeEntries.filter((e: TimeEntry) => {
-      if (subtaskId) return e.subtaskId === subtaskId;
-      const matchesTask = e.taskId === taskId;
-      // Entrada guardada con ID de instancia (inst-xxx-fecha) cuyo template es el taskId del panel
-      const matchesInstance = !matchesTask && !!e.taskId?.startsWith('inst-') &&
-        e.taskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '') === taskId;
-      const isSubtaskEntry = !matchesTask && !matchesInstance && (Object.values(allTasksMap) as Task[]).some(
-        t => t.id === e.taskId && t.parentTaskId === taskId
-      );
-      if (!matchesTask && !matchesInstance && !isSubtaskEntry) return false;
-      // Si hay instanceDate, filtrar por fecha de la entrada (e.date es siempre YYYY-MM-DD)
+      if (!e) return false;
+
+      // Resolver IDs de la entrada
+      const eTaskId = resolveInst(e.taskId);
+      const eSubtaskId = resolveInst(e.subtaskId);
+
+      let matches = false;
+      if (subtaskId) {
+        // Panel abierto para subtarea específica: match por subtaskId resuelto
+        matches = eSubtaskId === resolvedSubtaskId || e.subtaskId === subtaskId;
+      } else {
+        // Panel abierto para tarea/contenedor: match si taskId o subtaskId de la entrada
+        // apuntan a la misma tarea (directamente o como instancia)
+        matches = eTaskId === resolvedTaskId || e.taskId === taskId ||
+                  eSubtaskId === resolvedTaskId || e.subtaskId === taskId;
+      }
+
+      if (!matches) return false;
+
+      // Si hay instanceDate, filtrar por fecha
       if (instanceDate) {
         return (e.date || '').slice(0, 10) === instanceDate.slice(0, 10);
       }
