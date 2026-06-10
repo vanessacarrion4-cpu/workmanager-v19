@@ -55,6 +55,7 @@ export default function App() {
   // --- UI State ---
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [openModalWithTime, setOpenModalWithTime] = useState(false);
+  const [modalInstanceDate, setModalInstanceDate] = useState<string | null>(null);
   const [inlineEditingTaskId, setInlineEditingTaskId] = useState<string | null>(null);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
@@ -492,7 +493,10 @@ export default function App() {
                 setInlineEditingTaskId={setInlineEditingTaskId}
                 onOpenTimePanel={(taskId: string, subtaskId: string | null) => {
                   const resolveToTemplate = (id: string) => id.startsWith("inst-") ? id.replace(/^inst-/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "") : id;
+                  const instId = subtaskId || taskId;
+                  const dateMatch = instId.match(/-(\d{4}-\d{2}-\d{2})$/);
                   const resolved = subtaskId ? resolveToTemplate(subtaskId) : resolveToTemplate(taskId);
+                  setModalInstanceDate(dateMatch ? dateMatch[1] : null);
                   setOpenModalWithTime(true);
                   setEditingTaskId(resolved);
                 }}
@@ -560,7 +564,10 @@ export default function App() {
                 setInlineEditingTaskId={setInlineEditingTaskId}
                 onOpenTimePanel={(taskId: string, subtaskId: string | null) => {
                   const resolveToTemplate = (id: string) => id.startsWith("inst-") ? id.replace(/^inst-/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "") : id;
+                  const instId = subtaskId || taskId;
+                  const dateMatch = instId.match(/-(\d{4}-\d{2}-\d{2})$/);
                   const resolved = subtaskId ? resolveToTemplate(subtaskId) : resolveToTemplate(taskId);
+                  setModalInstanceDate(dateMatch ? dateMatch[1] : null);
                   setOpenModalWithTime(true);
                   setEditingTaskId(resolved);
                 }}
@@ -618,7 +625,10 @@ export default function App() {
                 setInlineEditingTaskId={setInlineEditingTaskId}
                 onOpenTimePanel={(taskId: string, subtaskId: string | null) => {
                   const resolveToTemplate = (id: string) => id.startsWith("inst-") ? id.replace(/^inst-/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "") : id;
+                  const instId = subtaskId || taskId;
+                  const dateMatch = instId.match(/-(\d{4}-\d{2}-\d{2})$/);
                   const resolved = subtaskId ? resolveToTemplate(subtaskId) : resolveToTemplate(taskId);
+                  setModalInstanceDate(dateMatch ? dateMatch[1] : null);
                   setOpenModalWithTime(true);
                   setEditingTaskId(resolved);
                 }}
@@ -743,7 +753,7 @@ export default function App() {
           onRenamePerson={handleRenamePerson}
           onDeletePerson={handleDeletePerson}
           onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
-          onClose={() => { setEditingTaskId(null); setOpenModalWithTime(false); }}
+          onClose={() => { setEditingTaskId(null); setOpenModalWithTime(false); setModalInstanceDate(null); }}
           onSave={handleUpdateTask}
           onAddTask={handleAddTask}
           onDeleteTask={handleDeleteTask}
@@ -758,6 +768,7 @@ export default function App() {
           onUpdateTimeEntry={timerHandlers.handleUpdateTimeEntry}
           onGoToTemplate={handleGoToTemplate}
           initialShowTime={openModalWithTime}
+          initialInstanceDate={modalInstanceDate}
         />
       )}
 

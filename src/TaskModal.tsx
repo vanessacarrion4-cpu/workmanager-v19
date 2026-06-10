@@ -48,6 +48,7 @@ interface TaskModalProps {
   onUpdateTimeEntry?: ((entryId: string, updates: any) => void) | null;
   onGoToTemplate?: ((taskId: string) => void) | null;
   initialShowTime?: boolean;
+  initialInstanceDate?: string | null;
 }
 
 export function TaskModal({
@@ -73,6 +74,7 @@ export function TaskModal({
   onUpdateTimeEntry = null,
   onGoToTemplate = null,
   initialShowTime = false,
+  initialInstanceDate = null,
 }: TaskModalProps) {
   const [localTask, setLocalTask] = useState<Task>(task);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
@@ -336,7 +338,7 @@ export function TaskModal({
             <TimeManagementPanel
               taskId={localTask.id}
               subtaskId={null}
-              instanceDate={localTask.instanceDate || localTask.dueDate || null}
+              instanceDate={initialInstanceDate || localTask.instanceDate || localTask.dueDate || null}
               allTasksMap={allTasksMap}
               timeEntries={timeEntries}
               fromModal={true}
