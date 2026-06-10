@@ -54,6 +54,7 @@ export default function App() {
 
   // --- UI State ---
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [openModalWithTime, setOpenModalWithTime] = useState(false);
   const [inlineEditingTaskId, setInlineEditingTaskId] = useState<string | null>(null);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
@@ -489,7 +490,12 @@ export default function App() {
                 editingTaskId={editingTaskId}
                 inlineEditingTaskId={inlineEditingTaskId}
                 setInlineEditingTaskId={setInlineEditingTaskId}
-                onOpenTimePanel={(taskId: string, subtaskId: string | null) => setEditingTaskId(subtaskId || taskId)}
+                onOpenTimePanel={(taskId: string, subtaskId: string | null) => {
+                  const resolveToTemplate = (id: string) => id.startsWith("inst-") ? id.replace(/^inst-/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "") : id;
+                  const resolved = subtaskId ? resolveToTemplate(subtaskId) : resolveToTemplate(taskId);
+                  setOpenModalWithTime(true);
+                  setEditingTaskId(resolved);
+                }}
                 onAddTimeEntry={(taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string, markComplete?: boolean) => timerHandlers.handleManualTimeEntry(taskId, subtaskId, minutes, date, note, markComplete)}
                 activeDate={activeDate}
                 onSetDate={setActiveDate}
@@ -552,7 +558,12 @@ export default function App() {
                 editingTaskId={editingTaskId}
                 inlineEditingTaskId={inlineEditingTaskId}
                 setInlineEditingTaskId={setInlineEditingTaskId}
-                onOpenTimePanel={(taskId: string, subtaskId: string | null) => setEditingTaskId(subtaskId || taskId)}
+                onOpenTimePanel={(taskId: string, subtaskId: string | null) => {
+                  const resolveToTemplate = (id: string) => id.startsWith("inst-") ? id.replace(/^inst-/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "") : id;
+                  const resolved = subtaskId ? resolveToTemplate(subtaskId) : resolveToTemplate(taskId);
+                  setOpenModalWithTime(true);
+                  setEditingTaskId(resolved);
+                }}
                 onEditRule={setEditingRuleId}
                 onToggleRule={(id: string) => setTasks(prev => ({
                   ...prev,
@@ -605,7 +616,12 @@ export default function App() {
                 editingTaskId={editingTaskId}
                 inlineEditingTaskId={inlineEditingTaskId}
                 setInlineEditingTaskId={setInlineEditingTaskId}
-                onOpenTimePanel={(taskId: string, subtaskId: string | null) => setEditingTaskId(subtaskId || taskId)}
+                onOpenTimePanel={(taskId: string, subtaskId: string | null) => {
+                  const resolveToTemplate = (id: string) => id.startsWith("inst-") ? id.replace(/^inst-/, "").replace(/-\d{4}-\d{2}-\d{2}$/, "") : id;
+                  const resolved = subtaskId ? resolveToTemplate(subtaskId) : resolveToTemplate(taskId);
+                  setOpenModalWithTime(true);
+                  setEditingTaskId(resolved);
+                }}
                 activeDate={activeDate}
                 onDateSelect={(d: string) => { setActiveDate(d); setCurrentView('dashboard'); }}
                 onAddTask={handleAddTask}
@@ -727,7 +743,7 @@ export default function App() {
           onRenamePerson={handleRenamePerson}
           onDeletePerson={handleDeletePerson}
           onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
-          onClose={() => setEditingTaskId(null)}
+          onClose={() => { setEditingTaskId(null); setOpenModalWithTime(false); }}
           onSave={handleUpdateTask}
           onAddTask={handleAddTask}
           onDeleteTask={handleDeleteTask}
@@ -741,6 +757,7 @@ export default function App() {
           onDeleteTimeEntry={timerHandlers.handleDeleteTimeEntry}
           onUpdateTimeEntry={timerHandlers.handleUpdateTimeEntry}
           onGoToTemplate={handleGoToTemplate}
+          initialShowTime={openModalWithTime}
         />
       )}
 

@@ -474,15 +474,7 @@ export function TaskCard({
                           <RefreshCw size={9} className="text-turquesa shrink-0" />
                           <span className="text-[10px] font-black text-turquesa uppercase tracking-wide">{label}</span>
                         </div>
-                        {onGoToTemplate && (task.templateId || task.isTemplate) && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId || task.id); }}
-                            className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors"
-                            title="Ir al template en Bloques"
-                          >
-                            <ArrowUpRight size={10} className="text-turquesa" />
-                          </button>
-                        )}
+
                       </div>
                     );
                   })()}
@@ -514,15 +506,7 @@ export function TaskCard({
                     else label = freq;
                     return (
                       <div className="flex items-center gap-1 shrink-0">
-                        {onGoToTemplate && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.id); }}
-                            className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors"
-                            title="Ir al template en Bloques"
-                          >
-                            <ArrowUpRight size={10} className="text-turquesa" />
-                          </button>
-                        )}
+
                         {onViewInstances && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onViewInstances(task); }}

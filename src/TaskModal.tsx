@@ -47,6 +47,7 @@ interface TaskModalProps {
   onDeleteTimeEntry?: ((entryId: string) => void) | null;
   onUpdateTimeEntry?: ((entryId: string, updates: any) => void) | null;
   onGoToTemplate?: ((taskId: string) => void) | null;
+  initialShowTime?: boolean;
 }
 
 export function TaskModal({
@@ -71,6 +72,7 @@ export function TaskModal({
   onDeleteTimeEntry = null,
   onUpdateTimeEntry = null,
   onGoToTemplate = null,
+  initialShowTime = false,
 }: TaskModalProps) {
   const [localTask, setLocalTask] = useState<Task>(task);
   const [focusedSubtaskId, setFocusedSubtaskId] = useState<string | null>(null);
@@ -78,7 +80,7 @@ export function TaskModal({
   const [showDateSelector, setShowDateSelector] = useState(false);
   const [showRecurrence, setShowRecurrence] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [showTimeEntry, setShowTimeEntry] = useState(false);
+  const [showTimeEntry, setShowTimeEntry] = useState(initialShowTime);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const tags: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
 
@@ -332,7 +334,7 @@ export function TaskModal({
           {/* Panel tiempo — TimeManagementPanel completo como overlay */}
           {showTimeEntry && (
             <TimeManagementPanel
-              taskId={localTask.id}
+              taskId={localTask.templateId || localTask.id}
               subtaskId={null}
               instanceDate={null}
               allTasksMap={allTasksMap}
