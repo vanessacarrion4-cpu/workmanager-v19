@@ -144,6 +144,7 @@ export function useTimerHandlers({
     // Resolver siempre instancia→templateId, igual que el cronómetro
     const resolvedTaskId = resolveId(taskId, tasks) || taskId;
     const resolvedSubtaskId = resolveId(subtaskId, tasks);
+    console.log('[handleManualTimeEntry]', { taskId, subtaskId, resolvedTaskId, resolvedSubtaskId, minutes, date });
 
     const newEntry: TimeEntry = {
       id: `te-${Date.now()}`,
