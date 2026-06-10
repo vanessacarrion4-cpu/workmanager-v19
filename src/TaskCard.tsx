@@ -592,8 +592,6 @@ export function TaskCard({
                   )}
                   {/* Ir a Bloques — todas las tareas excepto en BlocksView (variant FULL) */}
                   {onGoToTemplate && variant !== 'FULL' && (
-                  {/* Ir a Bloques — todas las tareas excepto en BlocksView (variant FULL) */}
-                  {onGoToTemplate && variant !== 'FULL' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId || task.id); }}
                       className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors shrink-0"
