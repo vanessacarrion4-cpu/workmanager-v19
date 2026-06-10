@@ -254,9 +254,11 @@ export function SearchView({
 
   const resetAll = () => { setQuery(''); setFilters(EMPTY); };
 
+  // Incluye contenedores (isTemplate:true sin templateId) además de tareas manuales e instancias excepción.
+  // Los templates de subtareas recurrentes tienen templateId → siguen excluidos.
   const rootTasks = useMemo(() =>
     Object.values(allTasksMap).filter((t: any) =>
-      t && !t.isDeleted && !t.parentTaskId && (!t.templateId || t.isException) && !t.isTemplate
+      t && !t.isDeleted && !t.parentTaskId && (!t.templateId || t.isException)
     ), [allTasksMap]);
 
   const availableTags = useMemo(() => {
