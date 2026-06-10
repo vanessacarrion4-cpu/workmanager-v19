@@ -811,7 +811,9 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
   };
 
   const register = (mins: number) => {
+    console.log('[RegisteredTimeChip] register called', { mins, taskId, subtaskId, date, onAddEntry: typeof onAddEntry });
     if (mins <= 0) return;
+    if (!onAddEntry) { console.warn('[RegisteredTimeChip] onAddEntry is null/undefined'); return; }
     onAddEntry(taskId, subtaskId, mins, date, '', markComplete);
     setShow(false);
   };
