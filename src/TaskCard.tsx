@@ -104,7 +104,7 @@ export function TaskCard({
     return (
       <>
         {text.slice(0, idx)}
-        <mark style={{ backgroundColor: '#facc15', color: 'inherit', borderRadius: '2px', padding: '0 1px' }}>
+        <mark style={{ backgroundColor: 'rgba(20,184,166,0.25)', color: 'inherit', borderRadius: '2px', padding: '0 1px' }}>
           {text.slice(idx, idx + searchQuery.length)}
         </mark>
         {text.slice(idx + searchQuery.length)}
@@ -279,7 +279,7 @@ export function TaskCard({
                 : 'cursor-pointer hover:dark:bg-azul/5 hover:bg-azul/3'
               : 'hover:dark:bg-white/[0.02] hover:bg-black/[0.02]'
             }
-            ${searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) && !selectionMode ? 'dark:bg-yellow-400/5 bg-yellow-400/10' : ''}
+            ${searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) && !selectionMode ? 'dark:bg-turquesa/5 bg-turquesa/10' : ''}
           `}
           style={isHighlighted ? {
             outline: '3px solid #14B8A6',
@@ -288,7 +288,7 @@ export function TaskCard({
             backgroundColor: 'rgba(20,184,166,0.15)',
             boxShadow: '0 0 0 6px rgba(20,184,166,0.12)'
           } : searchQuery && task.title.toLowerCase().includes(searchQuery.toLowerCase()) && !selectionMode ? {
-            outline: '2px solid #facc15',
+            outline: '2px solid #14B8A6',
             outlineOffset: '-1px',
             borderRadius: '1rem'
           } : undefined}
@@ -602,6 +602,16 @@ export function TaskCard({
                       blocks={blocks}
                       onChange={(blockId: string) => onUpdateTask({ ...task, blockId })}
                     />
+                  )}
+                  {/* Ir a Bloques — todas las tareas excepto en BlocksView (variant FULL) */}
+                  {onGoToTemplate && variant !== 'FULL' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId || task.id); }}
+                      className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors shrink-0"
+                      title="Ir a Bloques"
+                    >
+                      <ArrowUpRight size={10} className="text-turquesa" />
+                    </button>
                   )}
                 </div>
               </div>

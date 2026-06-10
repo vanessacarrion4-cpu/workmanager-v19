@@ -41,10 +41,13 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
     return timeEntries.filter((e: TimeEntry) => {
       if (subtaskId) return e.subtaskId === subtaskId;
       const matchesTask = e.taskId === taskId;
-      const isSubtaskEntry = !matchesTask && (Object.values(allTasksMap) as Task[]).some(
+      // Entrada guardada con ID de instancia (inst-xxx-fecha) cuyo template es el taskId del panel
+      const matchesInstance = !matchesTask && !!e.taskId?.startsWith('inst-') &&
+        e.taskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '') === taskId;
+      const isSubtaskEntry = !matchesTask && !matchesInstance && (Object.values(allTasksMap) as Task[]).some(
         t => t.id === e.taskId && t.parentTaskId === taskId
       );
-      if (!matchesTask && !isSubtaskEntry) return false;
+      if (!matchesTask && !matchesInstance && !isSubtaskEntry) return false;
       // Si hay instanceDate, filtrar por fecha Barcelona
       if (instanceDate) {
         const entryDate = new Date(e.createdAt || e.date)
