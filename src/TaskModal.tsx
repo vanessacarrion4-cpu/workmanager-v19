@@ -127,8 +127,9 @@ export function TaskModal({
 
   const totalEstimated = localTask.estimatedMinutes || 0;
   const totalRegistered = useMemo(() => {
-    return getTaskRegisteredCombo(localTask.id, allTasksMap, timeEntries);
-  }, [timeEntries, localTask.id, allTasksMap]);
+    const filterDate = initialInstanceDate || localTask.instanceDate || localTask.dueDate || undefined;
+    return getTaskRegisteredCombo(localTask.id, allTasksMap, timeEntries, new Set(), filterDate);
+  }, [timeEntries, localTask.id, allTasksMap, initialInstanceDate, localTask.instanceDate, localTask.dueDate]);
   const regColor = totalRegistered === 0
     ? 'dark:text-text-secondary/40 text-text-secondary-light/40'
     : totalRegistered > totalEstimated && totalEstimated > 0
