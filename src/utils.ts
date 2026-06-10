@@ -395,22 +395,34 @@ export function getTaskEstimatedPending(taskId: string, tasks: Record<string, Ta
   return task.estimatedMinutes || 0;
 }
 
-export function getTaskRegisteredSelf(taskId: string, timeEntries: any[]): number {
+export function getTaskRegisteredSelf(taskId: string, timeEntries: any[], filterDate?: string): number {
   if (!taskId || !timeEntries) return 0;
+  const resolveInst = (id: string) => id.startsWith('inst-')
+    ? id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '')
+    : id;
   return timeEntries
-    .filter(e => e && ((e.subtaskId === taskId) || (!e.subtaskId && e.taskId === taskId)))
+    .filter(e => {
+      if (!e) return false;
+      // Match directo por taskId o subtaskId (incluyendo resolución de instancia)
+      const directMatch = (e.subtaskId === taskId) || (!e.subtaskId && e.taskId === taskId);
+      const instanceMatch = (e.subtaskId && resolveInst(e.subtaskId) === taskId) ||
+        (!e.subtaskId && e.taskId && resolveInst(e.taskId) === taskId);
+      if (!directMatch && !instanceMatch) return false;
+      if (filterDate) return e.date === filterDate;
+      return true;
+    })
     .reduce((acc, e) => acc + (e.duration || 0), 0);
 }
 
-export function getTaskRegisteredCombo(taskId: string, tasks: Record<string, Task>, timeEntries: any[], visited = new Set<string>()): number {
+export function getTaskRegisteredCombo(taskId: string, tasks: Record<string, Task>, timeEntries: any[], visited = new Set<string>(), filterDate?: string): number {
   if (visited.has(taskId)) return 0;
   visited.add(taskId);
   const task = tasks[taskId];
   if (!task) return 0;
 
-  let total = getTaskRegisteredSelf(taskId, timeEntries);
+  let total = getTaskRegisteredSelf(taskId, timeEntries, filterDate);
   if (task.subtasks && task.subtasks.length > 0) {
-    total += task.subtasks.reduce((acc, subId) => acc + getTaskRegisteredCombo(subId, tasks, timeEntries, visited), 0);
+    total += task.subtasks.reduce((acc, subId) => acc + getTaskRegisteredCombo(subId, tasks, timeEntries, visited, filterDate), 0);
   }
   return total;
 }

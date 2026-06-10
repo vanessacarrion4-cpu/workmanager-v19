@@ -334,7 +334,7 @@ export function TaskModal({
           {/* Panel tiempo — TimeManagementPanel completo como overlay */}
           {showTimeEntry && (
             <TimeManagementPanel
-              taskId={localTask.templateId || localTask.id}
+              taskId={localTask.id}
               subtaskId={null}
               instanceDate={null}
               allTasksMap={allTasksMap}

@@ -141,15 +141,13 @@ export function useTimerHandlers({
     note?: string,
     markComplete?: boolean
   ) => {
-    // Resolver siempre instancia→templateId, igual que el cronómetro
     const resolvedTaskId = resolveId(taskId, tasks) || taskId;
     const resolvedSubtaskId = resolveId(subtaskId, tasks);
-    console.log('[handleManualTimeEntry]', { taskId, subtaskId, resolvedTaskId, resolvedSubtaskId, minutes, date });
 
     const newEntry: TimeEntry = {
       id: `te-${Date.now()}`,
-      taskId: resolvedTaskId,
-      subtaskId: resolvedSubtaskId,
+      taskId,       // ID original — para que getTaskRegisteredSelf lo encuentre por instancia
+      subtaskId,
       date,
       duration: minutes,
       note,
