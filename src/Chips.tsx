@@ -852,7 +852,7 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
                 {/* Presets — clic directo registra */}
                 <div className="grid grid-cols-3 gap-1.5">
                   {PRESETS.map(v => (
-                    <button key={v} onClick={() => register(v)}
+                    <button key={v} onClick={(e) => { e.stopPropagation(); register(v); }}
                       className="py-2 rounded-xl text-[11px] font-black transition-all border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:text-white hover:border-transparent active:scale-95"
                       style={{} }
                       onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = COLOR; (e.currentTarget as HTMLButtonElement).style.borderColor = COLOR; (e.currentTarget as HTMLButtonElement).style.color = 'white'; }}
@@ -875,7 +875,7 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
                   />
                   <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">min</span>
                   {manualVal ? (
-                    <button onClick={() => register(manualVal as number)}
+                    <button onClick={(e) => { e.stopPropagation(); register(manualVal as number); }}
                       className="w-6 h-6 rounded-lg flex items-center justify-center text-white transition-all"
                       style={{ backgroundColor: COLOR }}
                     >
