@@ -130,18 +130,21 @@ export function TaskCard({
     }
   })();
   
+  // Filtrar tiempo por fecha del día para instancias recurrentes
+  const registeredFilterDate = (task.instanceDate || task.dueDate) || undefined;
+
   const totalRegistered = (() => {
     if (subtasksForGroup !== null) {
-      // Dashboard: solo tiempo de subtareas del grupo
+      // Dashboard: solo tiempo de subtareas del grupo, filtrado por fecha
       return subtasksForGroup.reduce((acc: number, subId: string) => {
-        return acc + getTaskRegisteredCombo(subId, allTasksMap, timeEntries);
+        return acc + getTaskRegisteredCombo(subId, allTasksMap, timeEntries, new Set(), registeredFilterDate);
       }, 0);
     } else if (task.isTemplate && !task.templateId) {
-      // Template en BlocksView: no acumular tiempo registrado de instancias pasadas
+      // Template en BlocksView: no acumular tiempo de instancias pasadas
       return 0;
     } else {
-      // Instancia o tarea manual: sumar todo
-      return getTaskRegisteredCombo(task.id, allTasksMap, timeEntries);
+      // Instancia o tarea manual: filtrar por fecha si la tiene
+      return getTaskRegisteredCombo(task.id, allTasksMap, timeEntries, new Set(), registeredFilterDate);
     }
   })();
   
@@ -587,6 +590,8 @@ export function TaskCard({
                       onChange={(blockId: string) => onUpdateTask({ ...task, blockId })}
                     />
                   )}
+                  {/* Ir a Bloques — todas las tareas excepto en BlocksView (variant FULL) */}
+                  {onGoToTemplate && variant !== 'FULL' && (
                   {/* Ir a Bloques — todas las tareas excepto en BlocksView (variant FULL) */}
                   {onGoToTemplate && variant !== 'FULL' && (
                     <button
