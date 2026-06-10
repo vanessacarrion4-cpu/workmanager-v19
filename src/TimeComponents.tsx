@@ -48,11 +48,9 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
         t => t.id === e.taskId && t.parentTaskId === taskId
       );
       if (!matchesTask && !matchesInstance && !isSubtaskEntry) return false;
-      // Si hay instanceDate, filtrar por fecha Barcelona
+      // Si hay instanceDate, filtrar por fecha de la entrada (e.date es siempre YYYY-MM-DD)
       if (instanceDate) {
-        const entryDate = new Date(e.createdAt || e.date)
-          .toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
-        return entryDate === instanceDate;
+        return (e.date || '').slice(0, 10) === instanceDate.slice(0, 10);
       }
       return true;
     }).sort((a: any, b: any) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime());

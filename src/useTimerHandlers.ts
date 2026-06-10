@@ -141,10 +141,14 @@ export function useTimerHandlers({
     note?: string,
     markComplete?: boolean
   ) => {
+    // Resolver siempre instancia→templateId, igual que el cronómetro
+    const resolvedTaskId = resolveId(taskId, tasks) || taskId;
+    const resolvedSubtaskId = resolveId(subtaskId, tasks);
+
     const newEntry: TimeEntry = {
       id: `te-${Date.now()}`,
-      taskId,       // ID original (puede ser inst-xxx): se guarda en memoria así
-      subtaskId,
+      taskId: resolvedTaskId,
+      subtaskId: resolvedSubtaskId,
       date,
       duration: minutes,
       note,
@@ -161,8 +165,8 @@ export function useTimerHandlers({
 
     supabase.from('time_entries').insert({
       id: newEntry.id,
-      task_id: taskId,
-      subtask_id: subtaskId || null,
+      task_id: resolvedTaskId,
+      subtask_id: resolvedSubtaskId || null,
       date: newEntry.date,
       duration: newEntry.duration,
       note: newEntry.note || '',
@@ -171,7 +175,7 @@ export function useTimerHandlers({
     }).then(({ error }) => {
       if (error) console.error('[SUPABASE] Error saving manual time entry:', error);
     });
-  }, [tasks, setTimeEntries, handleUpdateTask]);
+  }, [tasks, setTimeEntries, handleUpdateTask, resolveId]);
 
   const handleDeleteTimeEntry = useCallback((entryId: string) => {
     setTimeEntries(prev => prev.filter(e => e.id !== entryId));
