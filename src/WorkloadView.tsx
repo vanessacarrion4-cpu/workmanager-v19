@@ -820,35 +820,51 @@ export function WorkloadView({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Navegación meses */}
+          {/* Navegación meses — estilo WeekView */}
           <div className="flex items-center gap-1">
             <button onClick={() => setBaseOffset(v => v - 6)}
               className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
               title="6 meses atrás">
-              <ChevronLeft size={14} />
+              <ChevronLeft size={12} />
+            </button>
+            <button onClick={() => setBaseOffset(v => v - 1)}
+              className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
+              title="1 mes atrás">
+              <ChevronLeft size={16} />
             </button>
             <button onClick={() => setBaseOffset(0)}
               className="px-3 h-8 text-[10px] font-black uppercase tracking-widest dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa">
               Hoy
             </button>
-            <input
-              type="month"
-              value={(() => {
-                const base = new Date(todayDate.getFullYear(), todayDate.getMonth() + baseOffset, 1);
-                return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
-              })()}
-              onChange={e => {
-                if (!e.target.value) return;
-                const [y, m] = e.target.value.split('-').map(Number);
-                const diff = (y - todayDate.getFullYear()) * 12 + (m - 1 - todayDate.getMonth());
-                setBaseOffset(diff);
-              }}
-              className="h-8 px-2 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl text-[11px] font-bold dark:text-white text-text-main-light outline-none focus:border-turquesa/50 transition-all"
-            />
+            {/* Jump a fecha — input oculto, label visible */}
+            <div className="relative">
+              <input
+                type="date"
+                value={(() => {
+                  const base = new Date(todayDate.getFullYear(), todayDate.getMonth() + baseOffset, 1);
+                  return formatLocalISO(base);
+                })()}
+                onChange={e => {
+                  if (!e.target.value) return;
+                  const d = new Date(e.target.value + 'T12:00:00');
+                  const diff = (d.getFullYear() - todayDate.getFullYear()) * 12 + (d.getMonth() - todayDate.getMonth());
+                  setBaseOffset(diff);
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+              <div className="h-8 px-3 flex items-center gap-1.5 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl dark:text-white text-text-main-light text-[11px] font-black uppercase tracking-widest pointer-events-none select-none min-w-[120px] justify-center">
+                <span>{months.length > 0 ? months[0].label : '—'}</span>
+              </div>
+            </div>
+            <button onClick={() => setBaseOffset(v => v + 1)}
+              className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
+              title="1 mes adelante">
+              <ChevronRight size={16} />
+            </button>
             <button onClick={() => setBaseOffset(v => v + 6)}
               className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
               title="6 meses adelante">
-              <ChevronRight size={14} />
+              <ChevronRight size={12} />
             </button>
           </div>
           <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
