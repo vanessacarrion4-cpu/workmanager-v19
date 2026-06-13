@@ -249,9 +249,22 @@ function countOccurrencesInRange(recurrence: any, startStr: string, endStr: stri
       case 'weekdays': matches = specDay <= 4; break;
       case 'weekly': matches = (recurrence.weekDays || []).includes(specDay); break;
       case 'monthly': matches = date.getDate() === (recurrence.monthDay || 1); break;
+      case 'yearly': {
+        const targetDay = recurrence.yearDay ?? (recurrence.startDate ? parseLocalISO(recurrence.startDate).getDate() : null);
+        const targetMonth = recurrence.yearMonth ?? (recurrence.startDate ? parseLocalISO(recurrence.startDate).getMonth() + 1 : null);
+        matches = targetDay !== null && targetMonth !== null &&
+                  date.getDate() === targetDay && (date.getMonth() + 1) === targetMonth;
+        break;
+      }
     }
     if (matches) count++;
-    current = addDays(current, 1);
+    // Optimización: para yearly saltar al año siguiente tras encontrar la fecha
+    if (recurrence.frequency === 'yearly' && matches) {
+      const next = new Date(date.getFullYear() + 1, date.getMonth(), date.getDate());
+      current = formatLocalISO(next);
+    } else {
+      current = addDays(current, 1);
+    }
   }
   return count;
 }
@@ -380,7 +393,9 @@ function buildTaskLoads(
     if (isContainer) {
       const subs = (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => {
         if (!s || s.isDeleted) return false;
-        if (s.status === 'completed' && !s.recurrence && s.dueDate && s.dueDate < today) return false;
+        // Sin recurrencia y con fecha pasada → no tiene carga futura
+        if (!s.recurrence && s.dueDate && s.dueDate < today) return false;
+        // Completada sin recurrencia y sin fecha → ya hecha
         if (s.status === 'completed' && !s.recurrence && !s.dueDate) return false;
         return true;
       });
@@ -423,9 +438,9 @@ function buildTaskLoads(
       (task.subtasks || []).forEach((subId: string) => {
         const sub = allTasksMap[subId] as any;
         if (!sub || sub.isDeleted) return;
-        // Subtarea completada sin recurrencia y con fecha pasada → no tiene carga futura
-        if (sub.status === 'completed' && !sub.recurrence && sub.dueDate && sub.dueDate < today) return;
-        // Subtarea completada sin recurrencia y sin fecha → tarea puntual ya hecha
+        // Sin recurrencia y con fecha pasada → no tiene carga futura (completada o pendiente vencida)
+        if (!sub.recurrence && sub.dueDate && sub.dueDate < today) return;
+        // Sin recurrencia y sin fecha y completada → tarea puntual ya hecha
         if (sub.status === 'completed' && !sub.recurrence && !sub.dueDate) return;
         processTask(sub, task.id);
       });
@@ -438,7 +453,7 @@ function buildTaskLoads(
 
   Object.values(allTasksMap).filter((t: any) =>
     t && !t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId && t.dueDate &&
-    !(t.status === 'completed' && !t.recurrence)
+    !(!t.recurrence && t.dueDate < today)
   ).forEach((t: any) => {
     const inRange = months.some(mo => {
       const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));

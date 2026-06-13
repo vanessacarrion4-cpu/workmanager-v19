@@ -639,7 +639,7 @@ function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date, dayTasks = []
   return (
     <div className={isCompleted ? 'opacity-40' : ''}>
       <div
-        onClick={isContainer ? () => setExpanded(v => !v) : onEdit}
+        onClick={isContainer && subTasksForDay.length > 0 ? () => setExpanded(v => !v) : onEdit}
         className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all cursor-pointer hover:dark:bg-white/5 hover:bg-black/5"
       >
         <button onClick={e => { e.stopPropagation(); onToggle(); }}
@@ -690,11 +690,7 @@ function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date, dayTasks = []
           ))}
         </div>
       )}
-      {isContainer && expanded && subTasksForDay.length === 0 && (
-        <div className="ml-4 pl-2 py-1">
-          <span className="text-[9px] dark:text-text-secondary/40 text-text-secondary-light/40 italic">Sin subtareas para este día</span>
-        </div>
-      )}
+      {isContainer && expanded && subTasksForDay.length === 0 && null}
     </div>
   );
 }
