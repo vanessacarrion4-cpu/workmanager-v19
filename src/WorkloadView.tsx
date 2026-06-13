@@ -820,23 +820,21 @@ export function WorkloadView({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Navegación meses — estilo WeekView */}
+          {/* Navegación meses */}
           <div className="flex items-center gap-1">
-            <button onClick={() => setBaseOffset(v => v - 6)}
-              className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
-              title="6 meses atrás">
-              <ChevronLeft size={12} />
-            </button>
             <button onClick={() => setBaseOffset(v => v - 1)}
-              className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
-              title="1 mes atrás">
+              className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa">
               <ChevronLeft size={16} />
             </button>
             <button onClick={() => setBaseOffset(0)}
               className="px-3 h-8 text-[10px] font-black uppercase tracking-widest dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa">
               Hoy
             </button>
-            {/* Jump a fecha — input oculto, label visible */}
+            <button onClick={() => setBaseOffset(v => v + 1)}
+              className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa">
+              <ChevronRight size={16} />
+            </button>
+            {/* Label con picker nativo */}
             <div className="relative">
               <input
                 type="date"
@@ -852,20 +850,15 @@ export function WorkloadView({
                 }}
                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
               />
-              <div className="h-8 px-3 flex items-center gap-1.5 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl dark:text-white text-text-main-light text-[11px] font-black uppercase tracking-widest pointer-events-none select-none min-w-[120px] justify-center">
-                <span>{months.length > 0 ? months[0].label : '—'}</span>
+              <div className="h-8 px-3 flex items-center gap-2 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl pointer-events-none select-none">
+                <span className="text-[11px] font-black dark:text-white text-text-main-light uppercase tracking-widest">
+                  {months.length > 0 ? months[0].label : '—'}
+                </span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="dark:text-text-secondary text-text-secondary-light shrink-0">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
               </div>
             </div>
-            <button onClick={() => setBaseOffset(v => v + 1)}
-              className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
-              title="1 mes adelante">
-              <ChevronRight size={16} />
-            </button>
-            <button onClick={() => setBaseOffset(v => v + 6)}
-              className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
-              title="6 meses adelante">
-              <ChevronRight size={12} />
-            </button>
           </div>
           <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
           {([
