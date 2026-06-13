@@ -1,7 +1,7 @@
 # WorkManager v19 — Documento de Contexto Completo
 
 > Usar este documento al inicio de cada sesión de desarrollo para dar contexto completo al asistente.
-> Última actualización: 09/06/2026 (sesión 8 — WeekView tiempo, añadir subtarea desde Dashboard, filtros, TaskModal subtareas)
+> Última actualización: 13/06/2026 (sesión 9 — bugs tiempo registrado, búsqueda, goto bloques, espabila)
 
 ---
 
@@ -80,7 +80,7 @@ src/
 
 **NOTA**: La tabla `tasks` NO tiene columna `subtasks`. El array `subtasks[]` se reconstruye en memoria desde `parent_task_id` en `reconstructHierarchy`.
 
-**CRÍTICO time_entries**: La columna `task_id` en `time_entries` **NO tiene FK activa** contra `tasks`. Se puede guardar cualquier ID — incluyendo IDs de instancias (`inst-t-xxx-fecha`). NO usar `resolveIdForDB` al guardar tiempo manual. Guardar el `taskId` tal cual llega.
+**CRÍTICO time_entries**: La columna `task_id` en `time_entries` **NO tiene FK activa** contra `tasks`. Se puede guardar cualquier ID. Guardar el `taskId` tal cual llega en memoria. Solo resolver a templateId en Supabase (`resolveId`).
 
 **NOTA tasks**: La tabla `tasks` NO tiene columna `updated_at`. Solo tiene `created_at` y `modified_at`.
 
@@ -167,55 +167,104 @@ Usar siempre: `parentTaskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/,
 
 ## 7. Sistema de Tipos de Tarea
 
-- `taskType: 'core' | 'adhoc'` — propiedad directa de cada tarea y contenedor
-- **Todos los contenedores tienen `taskType`** — no hay que inferirlo
-- **Todas las subtareas tienen `taskType`** — directo en la tarea
-- En WeekView: `getEffectiveType(task)` usa `task.taskType || 'core'` (igual que WorkloadView)
-- Default siempre es `'core'` cuando `taskType` es null/undefined
+### TaskType (taskType)
+- `core` — tarea principal del bloque
+- `adhoc` — tarea puntual
+
+### TagType (tags[])
+- `con_hora` — tiene hora fija
+- `focus` — requiere concentración
+- `dirección` — tarea de gestión/dirección
+- `espera` — esperando algo externo
+- `resto` — sin clasificar
 
 ---
 
-## 8. WeekView — Arquitectura
+## 8. Gestión de Tiempo — CRÍTICO (sesión 9)
 
-### Agrupación
-- Dropdown en header con 4 modos: **Bloque** (default) / **Tipo** / **Bloque→Tipo** / **Tipo→Bloque**
-- Toggle **Carga** (morado): desglose Core/Adhoc con barra proporcional
-- Toggle L-V / L-D + navegación semanas + jump to date
+### Arquitectura de IDs en time_entries
+Las entradas se guardan con el **ID original** tal cual llega (puede ser instancia o templateId):
+- **En memoria** (`setTimeEntries`): `taskId` original — para que el chip y `getTaskRegisteredSelf` lo encuentren directamente
+- **En Supabase**: `task_id = resolveId(taskId)` — resuelve instancia→templateId para consistencia
 
-### Filtrado de tareas por día
-- Solo raíces (`!parentTaskId`) — subtareas nunca aparecen solas
-- Dentro de ventana ±60 días: `filterTasksForDay` con `hideCompleted: false`
-- Fuera de ventana: `generateVirtualInstances` + manuales sin templateId
+### resolveId (en useTimerHandlers.ts)
+```typescript
+const resolveId = (id: string | null, tasksMap): string | null => {
+  if (!id) return null;
+  if (!id.startsWith('inst-')) return id;
+  const t = tasksMap[id];
+  if (t?.templateId) return t.templateId;
+  const parts = id.replace('inst-', '').split('-');
+  parts.pop(); parts.pop(); parts.pop();
+  return parts.join('-');
+};
+```
 
-### Tiempo por día (`getTaskMins(task, allTasksMap, date)`)
-- Tarea hoja: `task.estimatedMinutes`
-- Contenedor: suma subtareas con `dueDate === date` Y `dueDate !== null`
-- Subtareas sin `dueDate` no se suman para ningún día
-- `WeekTaskCard` recibe `date` prop del día en que se renderiza (no `task.dueDate` del contenedor)
+### resolveInst (en utils.ts y TimeComponents.tsx)
+```typescript
+const resolveInst = (id: string | null | undefined): string => {
+  if (!id) return '';
+  return id.startsWith('inst-')
+    ? id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '')
+    : id;
+};
+```
 
-### Colapsado
-- Modo Bloque→Tipo: bloque colapsable → subgrupos tipo colapsables (contraídos por defecto)
-- Modo Tipo→Bloque: tipo colapsable → subgrupos bloque colapsables (contraídos por defecto)
+### getTaskRegisteredSelf (utils.ts)
+Matchea entradas por taskId o subtaskId, resolviendo instancias a templateId:
+```typescript
+const matches = e.taskId === taskId || resolveInst(e.taskId) === resolvedTaskId ||
+                e.subtaskId === taskId || resolveInst(e.subtaskId) === resolvedTaskId;
+```
+Acepta `filterDate` opcional para filtrar por fecha (instancias recurrentes).
+
+### getTaskRegisteredCombo (utils.ts)
+Acepta `filterDate` como 5º parámetro: `getTaskRegisteredCombo(taskId, tasks, timeEntries, new Set(), filterDate)`
+
+### Filtro por fecha (TaskCard, TaskModal)
+- `registeredFilterDate = task.instanceDate || task.dueDate || undefined`
+- Se pasa a `getTaskRegisteredCombo` para que el chip muestre solo el tiempo del día de la instancia
+- Sin filterDate en BlocksView (templates)
+
+### TimeManagementPanel — instanceDate
+- Recibe `instanceDate` para filtrar el historial por fecha
+- En TaskModal: `instanceDate={initialInstanceDate || localTask.instanceDate || localTask.dueDate || null}`
+- `initialInstanceDate` viene de App.tsx cuando se abre desde `onOpenTimePanel`
+
+### App.tsx — openModalWithTime + modalInstanceDate
+```typescript
+const [openModalWithTime, setOpenModalWithTime] = useState(false);
+const [modalInstanceDate, setModalInstanceDate] = useState<string | null>(null);
+```
+En `onOpenTimePanel`:
+```typescript
+const dateMatch = instId.match(/-(\d{4}-\d{2}-\d{2})$/);
+setModalInstanceDate(dateMatch ? dateMatch[1] : null);
+setOpenModalWithTime(true);
+setEditingTaskId(resolved);
+```
+
+### TimeComponents.tsx — entries filter
+Filtra usando `resolveInst` para cubrir todos los casos de IDs (directo, instancia, como subtaskId):
+```typescript
+matches = eTaskId === resolvedTaskId || e.taskId === taskId ||
+          eSubtaskId === resolvedTaskId || e.subtaskId === taskId;
+if (instanceDate) return (e.date || '').slice(0, 10) === instanceDate.slice(0, 10);
+```
 
 ---
 
-## 9. Registro de Tiempo Inline (Chips.tsx)
+## 9. Vistas
 
-### RegisteredTimeChip
-- **Con `onAddEntry`** (Dashboard): abre popover inline
-- **Sin `onAddEntry`** (otras vistas): abre TaskModal via `onClick`
-
-### Popover inline
-- **Presets** (15m, 30m, 45m, 1h, 1.5h, 2h): clic directo registra y cierra
-- **Input manual**: escribir + Enter o botón ✓
-- **Toggle "Marcar completada"**: afecta al registro
-- **"Más opciones →"**: cierra popover y abre TaskModal completo
-
-### Cadena de props
-```
-App.tsx → DashboardView (onAddTimeEntry) → TaskCard (onAddTimeEntry) → TaskCard recursivo (onAddTimeEntry) → RegisteredTimeChip (onAddEntry)
-```
-**CRÍTICO**: El TaskCard recursivo TAMBIÉN debe recibir `onAddTimeEntry`.
+| Vista | ViewType | Descripción |
+|-------|----------|-------------|
+| Dashboard | `'dashboard'` | Vista principal del día |
+| Bloques | `'blocks'` | Gestión templates y estructura |
+| Calendario | `'calendar'` | Vista mensual |
+| Delegadas | `'delegadas'` | Por persona |
+| Búsqueda | `'search'` | Filtros globales |
+| Workload | `'workload'` | Carga por bloques |
+| Week | `'week'` | Vista semanal |
 
 ---
 
@@ -254,33 +303,75 @@ Cuando el contenedor en el Dashboard es una **instancia** (`inst-t-xxx-subId-fec
 
 ---
 
-## 11. TaskModal — Subtareas
+## 11. TaskModal — Props nuevas (sesión 9)
 
-### Estado local de títulos
-```ts
-const [subtaskTitles, setSubtaskTitles] = useState<Record<string, string>>({});
+```typescript
+initialShowTime?: boolean       // Abre directamente en panel de tiempo
+initialInstanceDate?: string | null  // Fecha de la instancia para filtrar historial
 ```
-- Input de título usa `subtaskTitles[st.id]` mientras edita
-- Guarda en Supabase solo en `onBlur` o Enter — evita re-render por tecla
-- Al crear nueva subtarea: `setLocalTask(prev => ({ ...prev, subtasks: [nid, ...prev.subtasks] }))` → aparece arriba inmediatamente
+
+- `initialShowTime` se activa desde `onOpenTimePanel` (más opciones → directo al panel)
+- `initialInstanceDate` se extrae del ID de instancia con regex `/-(\d{4}-\d{2}-\d{2})$/`
+- `totalRegistered` en modal usa `filterDate = initialInstanceDate || localTask.instanceDate || localTask.dueDate`
 
 ---
 
-## 12. TimeManagementPanel (TimeComponents.tsx)
+## 12. SearchView — Contenedores (sesión 9)
+
+`rootTasks` incluye ahora contenedores (`isTemplate:true` sin `templateId`):
+```typescript
+t && !t.isDeleted && !t.parentTaskId && (!t.templateId || t.isException)
+// Sin !t.isTemplate — los contenedores son templates sin templateId
+```
+Esto permite que al buscar una subtarea manual, aparezca el contenedor padre con todas sus subtareas (comportamiento igual que Dashboard).
+
+---
+
+## 13. TaskCard — Botón Ir a Bloques (sesión 9)
+
+- Un solo `↗` (`ArrowUpRight`) universal para todas las tareas
+- Solo en `variant !== 'FULL'` (no en BlocksView)
+- Posición: después del `BlockPickerChip`, al final de la fila de chips
+- Lógica: `onGoToTemplate(task.templateId || task.id)`
+- Los `↗` internos de los bloques de recurrencia fueron eliminados
+
+---
+
+## 14. Resaltado de Búsqueda (sesión 9)
+
+- Color cambiado de amarillo (`#facc15`) a turquesa (`rgba(20,184,166,0.25)`)
+- `<mark>` en `HighlightText` en TaskCard
+- Fondo card: `dark:bg-turquesa/5 bg-turquesa/10`
+- Outline: `2px solid #14B8A6`
+- `searchQuery` se pasa desde SearchView y DelegadasView al TaskCard
+
+---
+
+## 15. Chips.tsx — RegisteredTimeChip (sesión 9)
+
+Los botones de preset tienen `e.stopPropagation()` para evitar que el click cierre el popover:
+```typescript
+<button onClick={(e) => { e.stopPropagation(); register(v); }}>
+```
+
+---
+
+## 16. TimeManagementPanel (TimeComponents.tsx)
 
 - **Cerrar** siempre visible en la barra de tabs
 - **Registrar** llama `onClose()` después de guardar
+- Historial filtra por `instanceDate` usando `(e.date || '').slice(0, 10) === instanceDate.slice(0, 10)`
 
 ---
 
-## 13. useBulkActions
+## 17. useBulkActions
 
 - `activeDate` se pasa como prop desde App.tsx
 - Solo mueve subtareas con `dueDate === activeDate` y `status !== 'completed'`
 
 ---
 
-## 14. Reglas de Negocio
+## 18. Reglas de Negocio
 
 1. Templates nunca aparecen en Dashboard
 2. Subtareas nunca aparecen solas
@@ -296,13 +387,29 @@ const [subtaskTitles, setSubtaskTitles] = useState<Record<string, string>>({});
 12. **Delegadas solo muestra templates y manuales** — no instancias ni excepciones
 13. **RecurrencePickerChip solo editable en manuales** — en templates/instancias es solo informativo
 14. **Recurrencia solo se edita desde Bloques**
-15. **time_entries**: guardar taskId tal cual — sin resolver a templateId
+15. **time_entries**: guardar taskId original en memoria, resolver a templateId solo en Supabase
 16. **Bulk fecha**: solo mueve subtareas pendientes del día activo — nunca completadas ni de otro día
 17. **Subtareas manuales creadas desde Dashboard**: `parentTaskId` → template, `dueDate` → activeDate, `isTemplate` → false
+18. **Tiempo registrado**: siempre filtrar por `instanceDate || dueDate` en Dashboard y Modal — nunca acumular histórico
+19. **Feature espabila**: solo para tareas manuales (primera fase) — recurrentes pendiente
 
 ---
 
-## 15. Bugs Resueltos — Sesión 8 (09/06/2026)
+## 19. Bugs Resueltos — Sesión 9 (13/06/2026)
+
+| # | Descripción | Archivos |
+|---|-------------|---------|
+| — | SearchView: contenedores no aparecían al buscar subtareas manuales | `SearchView.tsx` |
+| — | Resaltado búsqueda: amarillo → turquesa | `TaskCard.tsx` |
+| — | Botón ↗ unificado para todas las tareas (antes solo recurrentes) | `TaskCard.tsx` |
+| — | Registro tiempo inline no aparecía en historial | `TimeComponents.tsx`, `utils.ts`, `TaskModal.tsx`, `App.tsx`, `useTimerHandlers.ts` |
+| — | Historial mostraba entradas de todos los días (sin filtro de fecha) | `TimeComponents.tsx`, `TaskModal.tsx`, `App.tsx` |
+| — | Chip tiempo modal mostraba acumulado histórico en vez de solo el día | `TaskModal.tsx`, `TaskCard.tsx` |
+| — | Modal abre directo en panel de tiempo desde "más opciones" | `App.tsx`, `TaskModal.tsx` |
+| — | Presets inline no guardaban (stopPropagation faltante) | `Chips.tsx` |
+| — | getTaskRegisteredSelf no matcheaba subtaskId como instancia | `utils.ts` |
+
+## Bugs Resueltos — Sesión 8 (09/06/2026)
 
 | # | Descripción | Archivos |
 |---|-------------|---------|
@@ -329,17 +436,18 @@ const [subtaskTitles, setSubtaskTitles] = useState<Record<string, string>>({});
 
 ---
 
-## 16. Bugs / Mejoras Pendientes
+## 20. Bugs / Mejoras Pendientes
 
 | # | Descripción | Archivo | Notas |
 |---|-------------|---------|-------|
 | 7 | Limpiar instancias Picking en Supabase | Supabase SQL | Verificar con SELECT primero |
 | B1 | Bug: completado no persiste tras recarga | `useTaskCRUD.ts` / `useSupabase.ts` | Identificado, no resuelto |
 | HR | DPTs y Guía Operativa payroll | Docs HR | Pendiente redactar |
+| ESP | Feature espabila: aviso tras 5 aplazamientos | `TaskCard.tsx`, `Chips.tsx`, `App.tsx`, Supabase | Solo manuales primera fase. Requiere columna `postpone_count int default 0` en tasks. Visual: chip fecha en naranja/rojo a los 3+. Modal a los 5. |
 
 ---
 
-## 17. Workflow de Desarrollo
+## 21. Workflow de Desarrollo
 
 ```
 1. Abrir CMD como administrador (no PowerShell)
@@ -350,7 +458,7 @@ const [subtaskTitles, setSubtaskTitles] = useState<Record<string, string>>({});
 
 ---
 
-## 18. Notas para el Asistente
+## 22. Notas para el Asistente
 
 - **Siempre pedir el archivo antes de modificarlo**
 - **Verificar en Supabase con SQL** antes de asumir que es problema de código
@@ -365,16 +473,18 @@ const [subtaskTitles, setSubtaskTitles] = useState<Record<string, string>>({});
 - El div raíz de App.tsx DEBE ser `h-screen overflow-hidden`
 - La StickyActionBar DEBE estar en App.tsx fuera del scroll container
 - Color turquesa oficial: `#14B8A6`
-- **`time_entries` NO tiene FK activa** — guardar taskId tal cual
+- **`time_entries` NO tiene FK activa** — guardar taskId original en memoria, resolver en Supabase
 - **`filterTasksForDay` firma**: `(tasks, allTasksMap, activeBlockIds: Set<string>, activeDate, options)`
 - **NUNCA usar `/^inst-(t-\d+)/` para extraer templateId** — los templateId de contenedores tienen letras
 - **Regex correcto**: `id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '')`
 - **RegisteredTimeChip**: pasar `onAddTimeEntry` también en TaskCard recursivo
 - **Todos los contenedores y subtareas tienen `taskType`** — usar `|| 'core'` como default
+- **getTaskRegisteredCombo firma**: `(taskId, tasks, timeEntries, visited = new Set(), filterDate?)`
+- **Tiempo siempre filtrar por fecha en instancias** — nunca acumular histórico de todas las instancias
 
 ---
 
-## 19. Ideas Pendientes
+## 23. Ideas Pendientes
 
 1. **Barra ghost** — StickyActionBar que aparece solo al scrollear
 2. **Completado con descarte** — `wasDiscarded:true`, X en vez de tick. Requiere columna en Supabase
@@ -383,3 +493,12 @@ const [subtaskTitles, setSubtaskTitles] = useState<Record<string, string>>({});
 5. **Migración esmeralda completa** — actualmente `turquesa` y `esmeralda` son el mismo valor `#14B8A6`
 6. **WeekView mejoras**: ocultar completadas toggle, reordenar días con drag, mover tarea entre días
 7. **Presets tiempo en WeekView** — registrar tiempo directamente desde WeekTaskCard
+8. **Espabila** — aviso tras 5 aplazamientos en tareas manuales con tag con_hora/focus/dirección. Ver sección 20.
+9. **Plantillas de proyecto** — onboarding empleado, apertura franquicia: conjunto de tareas con fechas relativas
+10. **Tareas de temporada** — aparecen X días antes de su fecha anual (cierre trimestral, declaraciones, etc.)
+11. **Captura rápida / inbox GTD** — bandeja de entrada sin fecha/bloque, procesado diferido
+12. **Patrón de productividad** — análisis de time_entries: bloque más consumido, día más productivo
+13. **Modo focus / Pomodoro** — oculta todo excepto tareas focus del día + cronómetro
+14. **Seguimiento delegadas vencidas** — resaltado en DelegadasView
+15. **Exportar semana** — PDF o texto con tareas de la semana
+16. **Búsqueda rápida con `/`** — atajo de teclado desde cualquier vista

@@ -6,6 +6,8 @@
  * 
  * REGLA CRÍTICA: Solo modifica instancias (templateId presente), NUNCA templates.
  * Modificar templates → cambia templateKey → dispara el effect → bucle infinito.
+ *
+ * FIX sesión 10: ventana ampliada a 400 días si hay templates con recurrencia anual
  */
 
 import { useEffect, useRef, useMemo } from 'react';
@@ -19,8 +21,9 @@ interface UseGenerationOptions {
 }
 
 const MAX_GENERATION_CYCLES = 20;
-const DAYS_PAST = 30;      // 1 mes atrás
-const DAYS_FUTURE = 60;    // 2 meses adelante (suficiente para Dashboard y Calendario)
+const DAYS_PAST = 30;           // 1 mes atrás (siempre)
+const DAYS_FUTURE_DEFAULT = 60; // 2 meses adelante (tareas no anuales)
+const DAYS_FUTURE_YEARLY = 400; // ~13 meses adelante (para ver la próxima ocurrencia anual)
 
 /**
  * Calcula una clave que solo cambia cuando se crean/modifican/borran templates reales.
@@ -34,6 +37,25 @@ export function useTemplateKey(tasks: Record<string, Task>): string {
       .sort()
       .join('|');
   }, [tasks]);
+}
+
+/**
+ * Detecta si hay algún template con recurrencia anual activo.
+ * En ese caso usamos ventana ampliada para que la próxima ocurrencia sea visible.
+ */
+function hasYearlyTemplates(tasks: Record<string, Task>): boolean {
+  return Object.values(tasks).some(t => {
+    if (!t || t.isDeleted || !t.isTemplate || t.templateId) return false;
+    // Template contenedor: buscar en sus subtareas
+    if (t.subtasks && t.subtasks.length > 0) {
+      return t.subtasks.some(subId => {
+        const sub = tasks[subId];
+        return sub?.recurrence?.frequency === 'yearly';
+      });
+    }
+    // Template simple con recurrencia propia
+    return t.recurrence?.frequency === 'yearly';
+  });
 }
 
 /**
@@ -60,11 +82,16 @@ export function useGeneration({ tasks, isDataLoaded, setTasks }: UseGenerationOp
     prevTemplateKeyRef.current = templateKey;
     console.log('[GENERATION] useEffect triggered #', generationCountRef.current);
 
+    // Ampliar ventana si hay recurrencias anuales
+    const yearlyExists = hasYearlyTemplates(tasks);
+    const daysFuture = yearlyExists ? DAYS_FUTURE_YEARLY : DAYS_FUTURE_DEFAULT;
+    console.log(`[GENERATION] Ventana: ${DAYS_PAST} pasado + ${daysFuture} futuro${yearlyExists ? ' (yearly detectado)' : ''}`);
+
     const today = new Date();
     const startDate = new Date(today);
     startDate.setDate(startDate.getDate() - DAYS_PAST);
     const endDate = new Date(today);
-    endDate.setDate(endDate.getDate() + DAYS_FUTURE);
+    endDate.setDate(endDate.getDate() + daysFuture);
     const startStr = formatLocalISO(startDate);
     const endStr = formatLocalISO(endDate);
 
@@ -118,8 +145,6 @@ export function useGeneration({ tasks, isDataLoaded, setTasks }: UseGenerationOp
     workerRef.current = worker;
 
     // Serializar solo los datos que el Worker necesita
-    // (templates + excepciones + instancias existentes)
-    // Esto reduce el tamaño del mensaje al Worker
     const tasksForWorker: Record<string, Task> = {};
     Object.values(tasks).forEach((t: Task) => {
       if (t.isDeleted) return;
@@ -212,11 +237,11 @@ export function useGeneration({ tasks, isDataLoaded, setTasks }: UseGenerationOp
       workerRef.current = null;
     };
 
-    // Enviar datos al Worker
+    // Enviar datos al Worker con la ventana correcta
     worker.postMessage({
       tasks: tasksForWorker,
       startDateStr: startStr,
-      daysToProject: DAYS_PAST + DAYS_FUTURE
+      daysToProject: DAYS_PAST + daysFuture
     });
 
   }, [isDataLoaded, templateKey]);

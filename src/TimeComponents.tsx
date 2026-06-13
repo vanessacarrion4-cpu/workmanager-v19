@@ -1,6 +1,8 @@
 /**
  * TimeComponents.tsx
  * TimerDisplay, TimeManagementPanel, MonthDatePicker
+ *
+ * FIX sesión 10: presets de tiempo muestran estimado de la tarea como valor destacado
  */
 import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Check, X, Clock, Edit, Trash2, History, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -81,7 +83,8 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
   const pct = estimated > 0 ? Math.min(100, Math.round((totalRegistered / estimated) * 100)) : 0;
   const barColor = totalRegistered > estimated && estimated > 0 ? '#EC4899' : '#14B8A6';
 
-  const [newMinutes, setNewMinutes] = useState(estimated || 30);
+  // FIX Bug presets: valor inicial = estimado de la tarea (si existe), si no 30
+  const [newMinutes, setNewMinutes] = useState(estimated > 0 ? estimated : 30);
   const [newDate, setNewDate] = useState(instanceDate || formatLocalISO(new Date()));
   const [newNote, setNewNote] = useState('');
   const [markComplete, setMarkComplete] = useState(false);
@@ -89,6 +92,10 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editMinutes, setEditMinutes] = useState(0);
   const [editNote, setEditNote] = useState('');
+
+  // Presets fijos + estimado si no coincide con ninguno
+  const FIXED_PRESETS = [15, 30, 45, 60, 90, 120];
+  const estimatedPreset = estimated > 0 && !FIXED_PRESETS.includes(estimated) ? estimated : null;
 
   const startEdit = (entry: any) => { setEditingEntryId(entry.id); setEditMinutes(entry.duration); setEditNote(entry.note || ''); };
   const saveEdit = () => {
@@ -153,6 +160,55 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
               >
                 <Plus size={13} strokeWidth={3} /> Registrar
               </button>
+
+              {/* Presets rápidos — estimado destacado + fijos */}
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">
+                  Presets rápidos
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {/* Preset estimado destacado (solo si no coincide con los fijos) */}
+                  {estimatedPreset && (
+                    <button
+                      onClick={() => setNewMinutes(estimatedPreset)}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border ${
+                        newMinutes === estimatedPreset
+                          ? 'bg-turquesa text-white border-turquesa shadow-sm shadow-turquesa/20'
+                          : 'bg-turquesa/10 border-turquesa/40 text-turquesa hover:bg-turquesa/20'
+                      }`}
+                    >
+                      {estimatedPreset}m ★
+                    </button>
+                  )}
+                  {/* Preset estimado cuando SÍ coincide con los fijos — marcado especial */}
+                  {estimated > 0 && FIXED_PRESETS.includes(estimated) && (
+                    <button
+                      onClick={() => setNewMinutes(estimated)}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border ${
+                        newMinutes === estimated
+                          ? 'bg-turquesa text-white border-turquesa shadow-sm shadow-turquesa/20'
+                          : 'bg-turquesa/10 border-turquesa/40 text-turquesa hover:bg-turquesa/20'
+                      }`}
+                    >
+                      {estimated}m ★
+                    </button>
+                  )}
+                  {/* Presets fijos (excluyendo el estimado si ya aparece arriba como destacado) */}
+                  {FIXED_PRESETS.filter(p => p !== estimated).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setNewMinutes(p)}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border ${
+                        newMinutes === p
+                          ? 'dark:bg-bg-main bg-gray-100 border-turquesa/60 dark:text-white text-text-main-light'
+                          : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/40'
+                      }`}
+                    >
+                      {p >= 60 ? `${p / 60}h` : `${p}m`}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {/* Minutos + Fecha */}
               <div className="grid grid-cols-2 gap-2">
@@ -315,16 +371,44 @@ export function MonthDatePicker({ value, onChange }: { value: string | null, onC
  
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between px-1">
-         <button onClick={() => setViewDate(prev => { 
-           const n = new Date(prev); n.setMonth(n.getMonth() - 1); return n; 
-         })} className="p-2 hover:bg-white/5 rounded-xl text-turquesa transition-all"><ChevronLeft size={20}/></button>
-         <span className="text-[12px] font-black uppercase tracking-[0.2em] text-white">
-           {viewDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}
-         </span>
-         <button onClick={() => setViewDate(prev => { 
-           const n = new Date(prev); n.setMonth(n.getMonth() + 1); return n; 
-         })} className="p-2 hover:bg-white/5 rounded-xl text-turquesa transition-all"><ChevronRight size={20}/></button>
+      {/* Navegación mes + año */}
+      <div className="flex items-center justify-between px-1 gap-1">
+        {/* Año anterior */}
+        <button
+          onClick={() => setViewDate(prev => { const n = new Date(prev); n.setFullYear(n.getFullYear() - 1); return n; })}
+          className="p-1.5 hover:bg-white/5 rounded-xl text-turquesa/60 hover:text-turquesa transition-all"
+          title="Año anterior"
+        >
+          <ChevronLeft size={14}/>
+        </button>
+        {/* Mes anterior */}
+        <button
+          onClick={() => setViewDate(prev => { const n = new Date(prev); n.setMonth(n.getMonth() - 1); return n; })}
+          className="p-1.5 hover:bg-white/5 rounded-xl text-turquesa transition-all"
+          title="Mes anterior"
+        >
+          <ChevronLeft size={20}/>
+        </button>
+        {/* Mes y año actual */}
+        <span className="text-[12px] font-black uppercase tracking-[0.2em] text-white flex-1 text-center">
+          {viewDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}
+        </span>
+        {/* Mes siguiente */}
+        <button
+          onClick={() => setViewDate(prev => { const n = new Date(prev); n.setMonth(n.getMonth() + 1); return n; })}
+          className="p-1.5 hover:bg-white/5 rounded-xl text-turquesa transition-all"
+          title="Mes siguiente"
+        >
+          <ChevronRight size={20}/>
+        </button>
+        {/* Año siguiente */}
+        <button
+          onClick={() => setViewDate(prev => { const n = new Date(prev); n.setFullYear(n.getFullYear() + 1); return n; })}
+          className="p-1.5 hover:bg-white/5 rounded-xl text-turquesa/60 hover:text-turquesa transition-all"
+          title="Año siguiente"
+        >
+          <ChevronRight size={14}/>
+        </button>
       </div>
       
       <div className="grid grid-cols-7 gap-1">

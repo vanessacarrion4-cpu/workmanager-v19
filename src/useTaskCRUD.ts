@@ -3,6 +3,8 @@
  *
  * Handlers de creación, edición, borrado y toggle de tareas.
  * Extraído de App.tsx para reducir su tamaño.
+ *
+ * FIX sesión 10: parent_task_id correcto en excepciones al mover fecha de subtarea
  */
 
 import { useCallback } from 'react';
@@ -22,6 +24,13 @@ interface UseTaskCRUDOptions {
   setRecurrenceAction: (action: { taskId: string; type: 'edit' | 'delete'; ruleId: string } | null) => void;
   setAddSubtaskWarning: (val: { parentTaskId: string; blockId?: string; overrideDate?: string } | null) => void;
   dashboardTasks: Task[];
+}
+
+/** Resuelve un parentTaskId (puede ser inst-xxx-fecha) al templateId real para Supabase */
+function resolveParentIdForSupabase(parentTaskId: string | null | undefined): string | null {
+  if (!parentTaskId) return null;
+  if (!parentTaskId.startsWith('inst-')) return parentTaskId;
+  return parentTaskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
 }
 
 export function useTaskCRUD({
@@ -538,6 +547,10 @@ export function useTaskCRUD({
           const _newDate = updatedTask.dueDate;
           const _oldDate = updatedTask.instanceDate;
           const _newSubtaskId = `inst-${updatedTask.templateId}-${_newDate}`;
+
+          // FIX Bug4: resolver parent_task_id correcto (nunca inst-xxx, siempre templateId)
+          const _parentIdForSupabase = resolveParentIdForSupabase(updatedTask.parentTaskId);
+
           await supabase.from('tasks')
             .update({ is_deleted: true, deleted_at: new Date().toISOString() })
             .eq('id', updatedTask.id);
@@ -563,7 +576,7 @@ export function useTaskCRUD({
             is_deleted: false,
             is_expanded: updatedTask.isExpanded || false,
             task_type: updatedTask.taskType || null,
-            parent_task_id: null,
+            parent_task_id: _parentIdForSupabase,  // ← FIX: antes era null siempre
             template_id: updatedTask.templateId,
             instance_date: _oldDate,
             recurrence: null,
