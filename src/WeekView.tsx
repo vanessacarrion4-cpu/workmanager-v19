@@ -98,14 +98,15 @@ function getTaskMins(task: Task, allTasksMap: Record<string, Task>, date?: strin
     return task.estimatedMinutes || 0;
   }
   // Contenedor: sumar SOLO subtareas del día (si se pasa date)
-  // Nunca usar estimatedMinutes del contenedor — es la suma histórica total
   if (date) {
     return task.subtasks.reduce((acc, subId) => {
       const sub = allTasksMap[subId];
       if (!sub || sub.isDeleted) return acc;
-      if (!sub.dueDate) return acc;           // sin fecha → no cuenta para ningún día
-      if (sub.dueDate !== date) return acc;   // fecha distinta → no cuenta
-      return acc + (sub.estimatedMinutes || 0);
+      // Subtarea con fecha fija ese día
+      if (sub.dueDate === date) return acc + (sub.estimatedMinutes || 0);
+      // Subtarea recurrente que ocurre ese día
+      if (sub.recurrence && occursOnDate(sub.recurrence, date)) return acc + (sub.estimatedMinutes || 0);
+      return acc;
     }, 0);
   }
   // Sin date: sumar todas las subtareas directas
@@ -616,20 +617,20 @@ function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date, dayTasks = []
   const isCompleted = task.status === 'completed';
   const taskMins = getTaskMins(task, allTasksMap, date);
 
-  // Contenedor: buscar subtareas del día en allTasksMap Y en dayTasks (instancias virtuales)
+  // Contenedor: mostrar subtareas del día al expandir
   const [expanded, setExpanded] = useState(false);
   const isContainer = !!(task.subtasks && task.subtasks.length > 0);
   const subTasksForDay = isContainer ? (() => {
-    // 1. Subtareas directas en allTasksMap con dueDate === date
     const fromMap = (task.subtasks || [])
       .map(id => allTasksMap[id])
-      .filter((s): s is Task => !!s && !s.isDeleted && s.dueDate === date);
-    // 2. Instancias virtuales del día que son hijas de este contenedor
+      .filter((s): s is Task => !!s && !s.isDeleted && (
+        s.dueDate === date || (!!s.recurrence && occursOnDate(s.recurrence, date))
+      ));
+    // También instancias virtuales del día que son hijas de este contenedor
     const containerInstId = `inst-${task.templateId || task.id}-${date}`;
     const fromVirtual = dayTasks.filter(t =>
       t.parentTaskId === task.id || t.parentTaskId === containerInstId
     ).filter((s): s is Task => !!s && !s.isDeleted);
-    // Merge sin duplicados
     const seen = new Set(fromMap.map(s => s.id));
     const merged = [...fromMap];
     fromVirtual.forEach(s => { if (!seen.has(s.id)) { seen.add(s.id); merged.push(s); } });
@@ -639,7 +640,7 @@ function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date, dayTasks = []
   return (
     <div className={isCompleted ? 'opacity-40' : ''}>
       <div
-        onClick={isContainer && subTasksForDay.length > 0 ? () => setExpanded(v => !v) : onEdit}
+        onClick={isContainer ? () => setExpanded(v => !v) : onEdit}
         className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all cursor-pointer hover:dark:bg-white/5 hover:bg-black/5"
       >
         <button onClick={e => { e.stopPropagation(); onToggle(); }}
@@ -690,7 +691,11 @@ function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date, dayTasks = []
           ))}
         </div>
       )}
-      {isContainer && expanded && subTasksForDay.length === 0 && null}
+      {isContainer && expanded && subTasksForDay.length === 0 && (
+        <div className="ml-4 pl-2 py-1">
+          <span className="text-[9px] dark:text-text-secondary/40 text-text-secondary-light/40 italic">Sin subtareas para este día</span>
+        </div>
+      )}
     </div>
   );
 }

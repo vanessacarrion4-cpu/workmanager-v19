@@ -438,10 +438,17 @@ function buildTaskLoads(
       (task.subtasks || []).forEach((subId: string) => {
         const sub = allTasksMap[subId] as any;
         if (!sub || sub.isDeleted) return;
-        // Sin recurrencia y con fecha pasada → no tiene carga futura (completada o pendiente vencida)
+        // Sin recurrencia y con fecha pasada → no tiene carga futura
         if (!sub.recurrence && sub.dueDate && sub.dueDate < today) return;
-        // Sin recurrencia y sin fecha y completada → tarea puntual ya hecha
-        if (sub.status === 'completed' && !sub.recurrence && !sub.dueDate) return;
+        // Sin recurrencia y completada → ya hecha
+        if (sub.status === 'completed' && !sub.recurrence) return;
+        // Sin recurrencia y sin dueDate → verificar si tiene excepciones con fecha futura
+        if (!sub.recurrence && !sub.dueDate) {
+          const hasFutureException = Object.values(allTasksMap).some((t: any) =>
+            t && t.templateId === sub.id && !t.isDeleted && t.dueDate && t.dueDate >= today
+          );
+          if (!hasFutureException) return;
+        }
         processTask(sub, task.id);
       });
     }
