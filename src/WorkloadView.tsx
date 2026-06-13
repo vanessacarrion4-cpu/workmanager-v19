@@ -378,7 +378,12 @@ function buildTaskLoads(
     const weekMinutes: Record<string, number> = {};
 
     if (isContainer) {
-      const subs = (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted);
+      const subs = (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => {
+        if (!s || s.isDeleted) return false;
+        if (s.status === 'completed' && !s.recurrence && s.dueDate && s.dueDate < today) return false;
+        if (s.status === 'completed' && !s.recurrence && !s.dueDate) return false;
+        return true;
+      });
       months.forEach(mo => {
         const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
         const lastDay = formatLocalISO(new Date(mo.year, mo.month + 1, 0));
@@ -418,6 +423,10 @@ function buildTaskLoads(
       (task.subtasks || []).forEach((subId: string) => {
         const sub = allTasksMap[subId] as any;
         if (!sub || sub.isDeleted) return;
+        // Subtarea completada sin recurrencia y con fecha pasada → no tiene carga futura
+        if (sub.status === 'completed' && !sub.recurrence && sub.dueDate && sub.dueDate < today) return;
+        // Subtarea completada sin recurrencia y sin fecha → tarea puntual ya hecha
+        if (sub.status === 'completed' && !sub.recurrence && !sub.dueDate) return;
         processTask(sub, task.id);
       });
     }
@@ -428,7 +437,8 @@ function buildTaskLoads(
   ).forEach((t: any) => processTask(t));
 
   Object.values(allTasksMap).filter((t: any) =>
-    t && !t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId && t.dueDate
+    t && !t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId && t.dueDate &&
+    !(t.status === 'completed' && !t.recurrence)
   ).forEach((t: any) => {
     const inRange = months.some(mo => {
       const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
@@ -788,6 +798,20 @@ export function WorkloadView({
               className="px-3 h-8 text-[10px] font-black uppercase tracking-widest dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa">
               Hoy
             </button>
+            <input
+              type="month"
+              value={(() => {
+                const base = new Date(todayDate.getFullYear(), todayDate.getMonth() + baseOffset, 1);
+                return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
+              })()}
+              onChange={e => {
+                if (!e.target.value) return;
+                const [y, m] = e.target.value.split('-').map(Number);
+                const diff = (y - todayDate.getFullYear()) * 12 + (m - 1 - todayDate.getMonth());
+                setBaseOffset(diff);
+              }}
+              className="h-8 px-2 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl text-[11px] font-bold dark:text-white text-text-main-light outline-none focus:border-turquesa/50 transition-all"
+            />
             <button onClick={() => setBaseOffset(v => v + 6)}
               className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
               title="6 meses adelante">

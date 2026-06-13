@@ -312,7 +312,7 @@ export function WeekView({
               <div className="space-y-0.5 pb-1 px-1">
                 {blockTasks.map(task => (
                   <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} />
+                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} onEditTask={onEditTask} />
                 ))}
               </div>
             </motion.div>
@@ -372,7 +372,7 @@ export function WeekView({
                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                   {bTasks.map(task => (
                                     <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} />
+                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} onEditTask={onEditTask} />
                                   ))}
                                 </motion.div>
                               )}
@@ -382,7 +382,7 @@ export function WeekView({
                       })
                     : tipoTasks.map(task => (
                         <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} />
+                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} onEditTask={onEditTask} />
                       ))
                   }
                 </div>
@@ -564,7 +564,7 @@ export function WeekView({
                                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                               {tipoTasks.map(task => (
                                                 <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} />
+                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} onEditTask={onEditTask} />
                                               ))}
                                             </motion.div>
                                           )}
@@ -606,10 +606,11 @@ export function WeekView({
 }
 
 // ─── WeekTaskCard ─────────────────────────────────────────────────────────────
-function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date, dayTasks = [] }: {
+function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date, dayTasks = [], onEditTask }: {
   task: Task; allTasksMap: Record<string, Task>;
   onEdit: () => void; onToggle: () => void; date: string;
   dayTasks?: Task[];
+  onEditTask?: (id: string) => void;
 }) {
   const tagEmoji = task.tags?.[0] ? TAG_LABELS[task.tags[0]]?.icon : null;
   const isCompleted = task.status === 'completed';
@@ -669,7 +670,7 @@ function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date, dayTasks = []
           {subTasksForDay.map(sub => (
             <div
               key={sub.id}
-              onClick={onEdit}
+              onClick={(e) => { e.stopPropagation(); onEditTask ? onEditTask(sub.id) : onEdit(); }}
               className={`flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-pointer hover:dark:bg-white/5 hover:bg-black/5 transition-all ${sub.status === 'completed' ? 'opacity-40' : ''}`}
             >
               <div className={`w-3 h-3 rounded flex items-center justify-center shrink-0 border-2 transition-all ${
