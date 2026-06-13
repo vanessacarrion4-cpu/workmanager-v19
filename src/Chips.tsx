@@ -853,20 +853,9 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
                 {/* Header */}
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Registrar tiempo</p>
-                  <div className="flex items-center gap-1">
-                    {/* Tick — registra el valor seleccionado */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); if (manualVal) register(manualVal as number); }}
-                      disabled={!manualVal}
-                      className="w-6 h-6 rounded-lg flex items-center justify-center text-white transition-all disabled:opacity-30"
-                      style={{ backgroundColor: COLOR }}
-                    >
-                      <Check size={10} strokeWidth={3} />
-                    </button>
-                    <button onClick={() => setShow(false)} className="w-6 h-6 flex items-center justify-center rounded-lg dark:hover:bg-white/10 hover:bg-black/5 transition-all dark:text-text-secondary text-text-secondary-light">
-                      <X size={12} />
-                    </button>
-                  </div>
+                  <button onClick={() => setShow(false)} className="w-6 h-6 flex items-center justify-center rounded-lg dark:hover:bg-white/10 hover:bg-black/5 transition-all dark:text-text-secondary text-text-secondary-light">
+                    <X size={12} />
+                  </button>
                 </div>
 
                 {/* Presets — seleccionan sin registrar */}
@@ -876,15 +865,14 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
                     return (
                       <button key={v}
                         onClick={(e) => { e.stopPropagation(); setManualVal(isSelected ? '' : v); }}
-                        className="py-2 rounded-xl text-[11px] font-black transition-all border active:scale-95"
-                        style={isSelected
-                          ? { backgroundColor: COLOR, borderColor: COLOR, color: 'white' }
-                          : {}
-                        }
-                        onMouseEnter={e => { if (!isSelected) { (e.currentTarget as HTMLButtonElement).style.backgroundColor = COLOR + '20'; (e.currentTarget as HTMLButtonElement).style.borderColor = COLOR; (e.currentTarget as HTMLButtonElement).style.color = COLOR; } }}
-                        onMouseLeave={e => { if (!isSelected) { (e.currentTarget as HTMLButtonElement).style.backgroundColor = ''; (e.currentTarget as HTMLButtonElement).style.borderColor = ''; (e.currentTarget as HTMLButtonElement).style.color = ''; } }}
+                        className={`py-2 rounded-xl text-[11px] font-black transition-all border active:scale-95 ${
+                          isSelected
+                            ? 'text-white border-transparent'
+                            : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'
+                        }`}
+                        style={isSelected ? { backgroundColor: COLOR, borderColor: COLOR } : {}}
                       >
-                        {v >= 60 ? `${v/60}h` : `${v}m`}
+                        {v >= 60 ? `${v / 60}h` : `${v}m`}
                       </button>
                     );
                   })}
@@ -903,15 +891,26 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
                   <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">min</span>
                 </div>
 
-                {/* Marcar completada */}
-                <button onClick={() => setMarkComplete(v => !v)}
-                  className={`w-full flex items-center gap-2 py-1.5 px-2 rounded-xl border text-[11px] font-black transition-all ${markComplete ? 'border-turquesa bg-turquesa/10 text-turquesa' : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light'}`}
-                >
-                  <div className={`w-4 h-4 rounded flex items-center justify-center border-2 shrink-0 transition-all ${markComplete ? 'bg-turquesa border-turquesa' : 'dark:border-border-main border-border-main-light'}`}>
-                    {markComplete && <Check size={9} strokeWidth={3} className="text-white" />}
-                  </div>
-                  Marcar como completada
-                </button>
+                {/* Marcar completada + tick registrar en la misma fila */}
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setMarkComplete(v => !v)}
+                    className={`flex-1 flex items-center gap-2 py-1.5 px-2 rounded-xl border text-[11px] font-black transition-all ${markComplete ? 'border-turquesa bg-turquesa/10 text-turquesa' : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light'}`}
+                  >
+                    <div className={`w-4 h-4 rounded flex items-center justify-center border-2 shrink-0 transition-all ${markComplete ? 'bg-turquesa border-turquesa' : 'dark:border-border-main border-border-main-light'}`}>
+                      {markComplete && <Check size={9} strokeWidth={3} className="text-white" />}
+                    </div>
+                    Marcar como completada
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); if (manualVal) register(manualVal as number); }}
+                    disabled={!manualVal}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl text-white shrink-0 transition-all disabled:opacity-30"
+                    style={{ backgroundColor: COLOR }}
+                    title="Registrar"
+                  >
+                    <Check size={14} strokeWidth={3} />
+                  </button>
+                </div>
 
                 {/* Más opciones */}
                 {onMoreOptions && (
