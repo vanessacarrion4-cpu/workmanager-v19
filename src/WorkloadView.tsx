@@ -442,12 +442,13 @@ function buildTaskLoads(
         if (!sub.recurrence && sub.dueDate && sub.dueDate < today) return;
         // Sin recurrencia y completada → ya hecha
         if (sub.status === 'completed' && !sub.recurrence) return;
-        // Sin recurrencia y sin dueDate → verificar si tiene excepciones con fecha futura
-        if (!sub.recurrence && !sub.dueDate) {
-          const hasFutureException = Object.values(allTasksMap).some((t: any) =>
-            t && t.templateId === sub.id && !t.isDeleted && t.dueDate && t.dueDate >= today
-          );
-          if (!hasFutureException) return;
+        // Sin recurrencia → verificar si tiene alguna excepción futura o fecha futura
+        if (!sub.recurrence) {
+          const hasFutureLoad = (sub.dueDate && sub.dueDate >= today) ||
+            Object.values(allTasksMap).some((t: any) =>
+              t && t.templateId === sub.id && !t.isDeleted && t.dueDate && t.dueDate >= today
+            );
+          if (!hasFutureLoad) return;
         }
         processTask(sub, task.id);
       });
