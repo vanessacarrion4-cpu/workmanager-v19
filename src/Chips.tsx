@@ -732,18 +732,24 @@ function TimePopover({
 
 export function EstimatedTimeChip({ value, onChange, variant = 'default', readonly = false }: any) {
   const [show, setShow] = useState(false);
-  const [modalPos, setModalPos] = useState({ top: 0, left: 0, maxHeight: 500 });
+  const [modalPos, setModalPos] = useState({ top: 0, left: 0, maxHeight: 500, openUp: false });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const label = formatMinutes(value);
   const isMini = variant === 'mini';
   const COLOR = '#3B82F6'; // azul
+  const PANEL_HEIGHT = 260;
 
   const handleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!readonly && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - 20;
-      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
+      const spaceAbove = rect.top - 20;
+      if (spaceBelow >= PANEL_HEIGHT || spaceBelow >= spaceAbove) {
+        setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow, openUp: false });
+      } else {
+        setModalPos({ top: rect.top - PANEL_HEIGHT - 8, left: rect.left, maxHeight: spaceAbove, openUp: true });
+      }
       setShow(true);
     }
   };
@@ -761,7 +767,7 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
         {show && !readonly && (
           <>
             <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
-            <motion.div initial={{ opacity: 0, y: -8, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            <motion.div initial={{ opacity: 0, y: modalPos.openUp ? 8 : -8, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: modalPos.openUp ? 8 : -8, scale: 0.97 }}
               className="fixed dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl z-[220] overflow-hidden"
               style={{ top: `${modalPos.top}px`, left: `${modalPos.left}px`, maxHeight: `${modalPos.maxHeight}px` }}
             >

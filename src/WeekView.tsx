@@ -312,7 +312,7 @@ export function WeekView({
               <div className="space-y-0.5 pb-1 px-1">
                 {blockTasks.map(task => (
                   <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} />
+                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} />
                 ))}
               </div>
             </motion.div>
@@ -372,7 +372,7 @@ export function WeekView({
                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                   {bTasks.map(task => (
                                     <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} />
+                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} />
                                   ))}
                                 </motion.div>
                               )}
@@ -382,7 +382,7 @@ export function WeekView({
                       })
                     : tipoTasks.map(task => (
                         <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} />
+                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} />
                       ))
                   }
                 </div>
@@ -564,7 +564,7 @@ export function WeekView({
                                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                               {tipoTasks.map(task => (
                                                 <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} />
+                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} />
                                               ))}
                                             </motion.div>
                                           )}
@@ -606,20 +606,34 @@ export function WeekView({
 }
 
 // ─── WeekTaskCard ─────────────────────────────────────────────────────────────
-function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date }: {
+function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date, dayTasks = [] }: {
   task: Task; allTasksMap: Record<string, Task>;
   onEdit: () => void; onToggle: () => void; date: string;
+  dayTasks?: Task[];
 }) {
   const tagEmoji = task.tags?.[0] ? TAG_LABELS[task.tags[0]]?.icon : null;
   const isCompleted = task.status === 'completed';
   const taskMins = getTaskMins(task, allTasksMap, date);
 
-  // Contenedor: mostrar subtareas del día al expandir
+  // Contenedor: buscar subtareas del día en allTasksMap Y en dayTasks (instancias virtuales)
   const [expanded, setExpanded] = useState(false);
   const isContainer = !!(task.subtasks && task.subtasks.length > 0);
-  const subTasksForDay = isContainer
-    ? (task.subtasks || []).map(id => allTasksMap[id]).filter((s): s is Task => !!s && !s.isDeleted && s.dueDate === date)
-    : [];
+  const subTasksForDay = isContainer ? (() => {
+    // 1. Subtareas directas en allTasksMap con dueDate === date
+    const fromMap = (task.subtasks || [])
+      .map(id => allTasksMap[id])
+      .filter((s): s is Task => !!s && !s.isDeleted && s.dueDate === date);
+    // 2. Instancias virtuales del día que son hijas de este contenedor
+    const containerInstId = `inst-${task.templateId || task.id}-${date}`;
+    const fromVirtual = dayTasks.filter(t =>
+      t.parentTaskId === task.id || t.parentTaskId === containerInstId
+    ).filter((s): s is Task => !!s && !s.isDeleted);
+    // Merge sin duplicados
+    const seen = new Set(fromMap.map(s => s.id));
+    const merged = [...fromMap];
+    fromVirtual.forEach(s => { if (!seen.has(s.id)) { seen.add(s.id); merged.push(s); } });
+    return merged;
+  })() : [];
 
   return (
     <div className={isCompleted ? 'opacity-40' : ''}>

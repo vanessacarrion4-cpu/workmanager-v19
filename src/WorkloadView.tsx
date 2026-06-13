@@ -773,7 +773,7 @@ export function WorkloadView({
         <div>
           <h2 className="text-3xl font-black dark:text-white text-text-main-light">Carga de Trabajo</h2>
           <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-1">
-            8h/día · 40h/semana
+            {months.length > 0 ? `${months[0].label} – ${months[months.length - 1].label}` : '8h/día · 40h/semana'}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
