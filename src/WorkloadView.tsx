@@ -427,6 +427,16 @@ function buildTaskLoads(
       });
     }
 
+    // Tarea hoja sin recurrencia: solo aparece si su fecha cae en el rango visible
+    if (!isContainer && !task.recurrence && task.dueDate) {
+      const inRange = months.some(mo => {
+        const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
+        const lastDay = formatLocalISO(new Date(mo.year, mo.month + 1, 0));
+        return task.dueDate >= firstDay && task.dueDate <= lastDay;
+      });
+      if (!inRange) return;
+    }
+
     loads.push({
       taskId: task.id, title: task.title, blockId: task.blockId,
       taskType: task.taskType || 'core', isContainer, parentId,
