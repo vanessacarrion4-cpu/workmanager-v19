@@ -614,24 +614,71 @@ function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date }: {
   const isCompleted = task.status === 'completed';
   const taskMins = getTaskMins(task, allTasksMap, date);
 
+  // Contenedor: mostrar subtareas del día al expandir
+  const [expanded, setExpanded] = useState(false);
+  const isContainer = !!(task.subtasks && task.subtasks.length > 0);
+  const subTasksForDay = isContainer
+    ? (task.subtasks || []).map(id => allTasksMap[id]).filter((s): s is Task => !!s && !s.isDeleted && s.dueDate === date)
+    : [];
+
   return (
-    <div onClick={onEdit}
-      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all cursor-pointer hover:dark:bg-white/5 hover:bg-black/5 ${isCompleted ? 'opacity-40' : ''}`}>
-      <button onClick={e => { e.stopPropagation(); onToggle(); }}
-        className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border-2 transition-all ${
-          isCompleted ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light hover:border-turquesa'
-        }`}>
-        {isCompleted && <Check size={8} strokeWidth={3} />}
-      </button>
-      {tagEmoji && <span className="text-[11px] shrink-0">{tagEmoji}</span>}
-      <span className={`text-[11px] font-bold dark:text-white text-text-main-light truncate flex-1 ${isCompleted ? 'line-through' : ''}`}>
-        {task.title}
-      </span>
-      {task.templateId && <RefreshCw size={9} className="text-turquesa shrink-0 opacity-60" />}
-      {taskMins > 0 && (
-        <span className="text-[9px] dark:text-text-secondary/60 text-text-secondary-light/60 shrink-0 font-bold">
-          {formatMinutes(taskMins)}
+    <div className={isCompleted ? 'opacity-40' : ''}>
+      <div
+        onClick={isContainer ? () => setExpanded(v => !v) : onEdit}
+        className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all cursor-pointer hover:dark:bg-white/5 hover:bg-black/5"
+      >
+        <button onClick={e => { e.stopPropagation(); onToggle(); }}
+          className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border-2 transition-all ${
+            isCompleted ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light hover:border-turquesa'
+          }`}>
+          {isCompleted && <Check size={8} strokeWidth={3} />}
+        </button>
+        {tagEmoji && <span className="text-[11px] shrink-0">{tagEmoji}</span>}
+        <span className={`text-[11px] font-bold dark:text-white text-text-main-light truncate flex-1 ${isCompleted ? 'line-through' : ''}`}>
+          {task.title}
         </span>
+        {task.templateId && <RefreshCw size={9} className="text-turquesa shrink-0 opacity-60" />}
+        {isContainer && (
+          <span className="text-[9px] dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0">
+            {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </span>
+        )}
+        {taskMins > 0 && (
+          <span className="text-[9px] dark:text-text-secondary/60 text-text-secondary-light/60 shrink-0 font-bold">
+            {formatMinutes(taskMins)}
+          </span>
+        )}
+      </div>
+      {/* Subtareas del día — visibles al expandir contenedor */}
+      {isContainer && expanded && subTasksForDay.length > 0 && (
+        <div className="ml-4 border-l dark:border-border-main/30 border-border-main-light/30 pl-2 space-y-0.5">
+          {subTasksForDay.map(sub => (
+            <div
+              key={sub.id}
+              onClick={onEdit}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-pointer hover:dark:bg-white/5 hover:bg-black/5 transition-all ${sub.status === 'completed' ? 'opacity-40' : ''}`}
+            >
+              <div className={`w-3 h-3 rounded flex items-center justify-center shrink-0 border-2 transition-all ${
+                sub.status === 'completed' ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light'
+              }`}>
+                {sub.status === 'completed' && <Check size={7} strokeWidth={3} />}
+              </div>
+              <span className={`text-[10px] font-bold dark:text-white/80 text-text-main-light truncate flex-1 ${sub.status === 'completed' ? 'line-through' : ''}`}>
+                {sub.title}
+              </span>
+              {sub.estimatedMinutes > 0 && (
+                <span className="text-[9px] dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0">
+                  {formatMinutes(sub.estimatedMinutes)}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {isContainer && expanded && subTasksForDay.length === 0 && (
+        <div className="ml-4 pl-2 py-1">
+          <span className="text-[9px] dark:text-text-secondary/40 text-text-secondary-light/40 italic">Sin subtareas para este día</span>
+        </div>
       )}
     </div>
   );

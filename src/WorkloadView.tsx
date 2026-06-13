@@ -12,7 +12,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { ChevronDown, ChevronUp, Layers, Tag, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Layers, Tag, X } from 'lucide-react';
 import { Task, WorkBlock, TimeEntry } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { formatMinutes } from './utils';
@@ -666,6 +666,7 @@ export function WorkloadView({
   const generatedEndStr = formatLocalISO(generatedEnd);
 
   const [groupMode, setGroupMode] = useState<GroupMode>('block');
+  const [baseOffset, setBaseOffset] = useState(0); // meses desde hoy
   // Por defecto todo contraído
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
@@ -673,10 +674,10 @@ export function WorkloadView({
   const [filterBlocks, setFilterBlocks] = useState<string[]>([]);
   const [filterTypes, setFilterTypes] = useState<string[]>([]);
 
-  const months = useMemo(() =>
-    buildMonths(todayDate.getFullYear(), todayDate.getMonth(), 7, today, generatedEndStr),
-    [today, generatedEndStr]
-  );
+  const months = useMemo(() => {
+    const base = new Date(todayDate.getFullYear(), todayDate.getMonth() + baseOffset, 1);
+    return buildMonths(base.getFullYear(), base.getMonth(), 7, today, generatedEndStr);
+  }, [today, generatedEndStr, baseOffset]);
 
   const registeredByDay = useMemo(() => {
     const map: Record<string, number> = {};
@@ -775,7 +776,25 @@ export function WorkloadView({
             8h/día · 40h/semana
           </p>
         </div>
-        <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Navegación meses */}
+          <div className="flex items-center gap-1">
+            <button onClick={() => setBaseOffset(v => v - 6)}
+              className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
+              title="6 meses atrás">
+              <ChevronLeft size={14} />
+            </button>
+            <button onClick={() => setBaseOffset(0)}
+              className="px-3 h-8 text-[10px] font-black uppercase tracking-widest dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa">
+              Hoy
+            </button>
+            <button onClick={() => setBaseOffset(v => v + 6)}
+              className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl hover:border-turquesa/50 transition-all dark:text-text-secondary text-text-secondary-light hover:text-turquesa"
+              title="6 meses adelante">
+              <ChevronRight size={14} />
+            </button>
+          </div>
+          <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
           {([
             { v: 'block' as GroupMode, icon: <Layers size={12} />, label: 'Bloque' },
             { v: 'type' as GroupMode, icon: <Tag size={12} />, label: 'Tipo' },
@@ -784,6 +803,7 @@ export function WorkloadView({
               className={`flex items-center gap-1 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${groupMode === v ? 'bg-morado text-white' : 'dark:bg-bg-card bg-white dark:text-text-secondary text-text-secondary-light hover:dark:text-white hover:text-text-main-light'}`}
             >{icon}<span>{label}</span></button>
           ))}
+          </div>
         </div>
       </div>
 

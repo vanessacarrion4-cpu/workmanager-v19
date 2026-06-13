@@ -390,7 +390,7 @@ export function MonthDatePicker({ value, onChange }: { value: string | null, onC
           <ChevronLeft size={20}/>
         </button>
         {/* Mes y año actual */}
-        <span className="text-[12px] font-black uppercase tracking-[0.2em] text-white flex-1 text-center">
+        <span className="text-[12px] font-black uppercase tracking-[0.2em] dark:text-white text-text-main-light flex-1 text-center">
           {viewDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}
         </span>
         {/* Mes siguiente */}
@@ -413,7 +413,7 @@ export function MonthDatePicker({ value, onChange }: { value: string | null, onC
       
       <div className="grid grid-cols-7 gap-1">
         {weekHeaders.map(h => (
-          <div key={h} className="text-[9px] font-black text-text-secondary text-center py-2 uppercase tracking-widest">{h}</div>
+          <div key={h} className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light text-center py-2 uppercase tracking-widest">{h}</div>
         ))}
         {daysInMonth.map((d, i) => (
           <button
@@ -423,8 +423,8 @@ export function MonthDatePicker({ value, onChange }: { value: string | null, onC
               d.isSelected 
                 ? 'bg-turquesa border-turquesa text-white shadow-lg shadow-turquesa/20 z-10' 
                 : d.isCurrentMonth
-                  ? 'bg-bg-card border-border-main text-white hover:border-turquesa/50'
-                  : 'bg-transparent border-transparent text-text-secondary/30 hover:text-text-secondary'
+                  ? 'dark:bg-bg-card bg-gray-100 dark:border-border-main border-border-main-light dark:text-white text-text-main-light hover:border-turquesa/50'
+                  : 'bg-transparent border-transparent dark:text-text-secondary/30 text-text-secondary-light/30 hover:dark:text-text-secondary hover:text-text-secondary-light'
             }`}
           >
             {d.dayNum}

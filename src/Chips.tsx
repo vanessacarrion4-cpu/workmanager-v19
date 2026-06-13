@@ -801,7 +801,15 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
     if (onAddEntry && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - 20;
-      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
+      const spaceAbove = rect.top - 20;
+      const PANEL_HEIGHT = 300; // altura aproximada del panel
+      if (spaceBelow >= PANEL_HEIGHT || spaceBelow >= spaceAbove) {
+        // Abrir hacia abajo
+        setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow, openUp: false });
+      } else {
+        // Abrir hacia arriba
+        setModalPos({ top: rect.top - PANEL_HEIGHT - 8, left: rect.left, maxHeight: spaceAbove, openUp: true });
+      }
       setManualVal('');
       setMarkComplete(false);
       setShow(true);
@@ -834,9 +842,9 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
           <>
             <div className="fixed inset-0 z-[210]" onClick={() => setShow(false)} />
             <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.97 }}
+              initial={{ opacity: 0, y: modalPos.openUp ? 8 : -8, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.97 }}
+              exit={{ opacity: 0, y: modalPos.openUp ? 8 : -8, scale: 0.97 }}
               className="fixed dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl z-[220] overflow-hidden"
               style={{ top: `${modalPos.top}px`, left: `${modalPos.left}px`, maxHeight: `${modalPos.maxHeight}px` }}
               onClick={e => e.stopPropagation()}
