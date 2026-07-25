@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { occursOn, materializeDay } from './instanceEngine';
+import { occursOn, materializeDay, resolveTaskId } from './instanceEngine';
 import { Task } from './types';
 
 // Fechas ancla (verificadas): 2026-07-15 es MIÉRCOLES.
@@ -212,5 +212,80 @@ describe('materializeDay', () => {
     expect(JSON.stringify(allTasks)).toBe(snapshot); // sin mutación
     expect(Object.keys(allTasks).length).toBe(keysBefore); // sin filas nuevas
     expect(allTasks['inst-t-child-2026-07-15']).toBeUndefined();
+  });
+});
+
+// =========================================================================
+// resolveTaskId  (id de instancia virtual → id de la tarea REAL)
+// =========================================================================
+
+describe('resolveTaskId', () => {
+  it('id que no es instancia (manual/plantilla) → se devuelve tal cual', () => {
+    expect(resolveTaskId('t-123', {})).toBe('t-123');
+    expect(resolveTaskId('tpl-abc', {})).toBe('tpl-abc');
+  });
+
+  it('SIN excepción → devuelve la PLANTILLA', () => {
+    const allTasks = byId([
+      task({ id: 't-5', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+    ]);
+    expect(resolveTaskId('inst-t-5-2026-07-15', allTasks)).toBe('t-5');
+  });
+
+  it('templateId con letras y guiones → el regex lo extrae bien (no /^inst-(t-\\d+)/)', () => {
+    expect(resolveTaskId('inst-tpl-abc-9-2026-07-15', {})).toBe('tpl-abc-9');
+  });
+
+  it('CON excepción completada (en su sitio) → devuelve la EXCEPCIÓN', () => {
+    const allTasks = byId([
+      task({ id: 't-5', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({
+        id: 'inst-t-5-2026-07-15', templateId: 't-5', isException: true,
+        instanceDate: WED, dueDate: WED, status: 'completed', completedAt: '2026-07-15T10:00:00.000Z',
+      }),
+    ]);
+    // La excepción persistida gana sobre la plantilla.
+    expect(resolveTaskId('inst-t-5-2026-07-15', allTasks)).toBe('inst-t-5-2026-07-15');
+  });
+
+  it('CON excepción MOVIDA de día → al consultar el día destino, devuelve la EXCEPCIÓN', () => {
+    // Instancia del miércoles movida al jueves: el id conserva la fecha original,
+    // pero dueDate apunta al día nuevo.
+    const allTasks = byId([
+      task({ id: 't-5', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({
+        id: 'inst-t-5-2026-07-15', templateId: 't-5', isException: true,
+        instanceDate: WED, dueDate: THU,
+      }),
+    ]);
+    // En el día destino (jueves) aterriza la excepción → gana.
+    expect(resolveTaskId('inst-t-5-2026-07-16', allTasks)).toBe('inst-t-5-2026-07-15');
+    // En el día original (miércoles) ya no aterriza nada → vuelve a la plantilla.
+    expect(resolveTaskId('inst-t-5-2026-07-15', allTasks)).toBe('t-5');
+  });
+
+  it('excepción BORRADA de ese día → se ignora (vuelve a la plantilla)', () => {
+    const allTasks = byId([
+      task({ id: 't-5', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({
+        id: 'inst-t-5-2026-07-15', templateId: 't-5', isException: true, isDeleted: true,
+        instanceDate: WED, dueDate: WED,
+      }),
+    ]);
+    expect(resolveTaskId('inst-t-5-2026-07-15', allTasks)).toBe('t-5');
+  });
+
+  it('id con formato inesperado (sin fecha) → se devuelve tal cual', () => {
+    expect(resolveTaskId('inst-cosa-rara', {})).toBe('inst-cosa-rara');
+  });
+
+  it('no muta allTasks', () => {
+    const allTasks = byId([
+      task({ id: 't-5', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({ id: 'inst-t-5-2026-07-15', templateId: 't-5', isException: true, instanceDate: WED, dueDate: WED, status: 'completed' }),
+    ]);
+    const snapshot = JSON.stringify(allTasks);
+    resolveTaskId('inst-t-5-2026-07-15', allTasks);
+    expect(JSON.stringify(allTasks)).toBe(snapshot);
   });
 });

@@ -284,3 +284,40 @@ function buildContainerInstance(
     modifiedAt: timestamp,
   };
 }
+
+// -------------------------------------------------------------------------
+// resolveTaskId — de id de instancia virtual al id de la tarea REAL
+// -------------------------------------------------------------------------
+
+/**
+ * Resuelve el id sobre el que deben operar los handlers cuando reciben una
+ * instancia virtual (`inst-{templateId}-{YYYY-MM-DD}`).
+ *
+ * Precedencia (la misma que materializeDay — la EXCEPCIÓN PERSISTIDA gana):
+ *   1. Si no es un id `inst-…` → ya es real (tarea manual, plantilla…): se devuelve tal cual.
+ *   2. Si existe una excepción persistida que ATERRIZA en ese día (en su sitio o movida a
+ *      él: `isException && !isDeleted && templateId coincide && dueDate === fecha`) → se
+ *      devuelve el id de ESA excepción (completada, movida, etc.).
+ *   3. Si no hay excepción → se devuelve el id de la PLANTILLA (la serie).
+ *
+ * Función PURA: no muta nada, no escribe en Supabase. El id de plantilla se extrae con el
+ * regex correcto (los templateId llevan letras/guiones; `/^inst-(t-\d+)/` sería INCORRECTO).
+ */
+export function resolveTaskId(instanceId: string, allTasks: Record<string, Task>): string {
+  if (!instanceId || !instanceId.startsWith('inst-')) return instanceId;
+
+  const dateMatch = instanceId.match(/-(\d{4}-\d{2}-\d{2})$/);
+  if (!dateMatch) return instanceId; // formato inesperado: no tocar
+  const date = dateMatch[1];
+  const templateId = instanceId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
+
+  // Excepción persistida que aterriza en este día → gana.
+  for (const t of Object.values(allTasks)) {
+    if (t && t.isException && !t.isDeleted && t.templateId === templateId && t.dueDate === date) {
+      return t.id;
+    }
+  }
+
+  // Sin excepción → la plantilla (la serie).
+  return templateId;
+}
