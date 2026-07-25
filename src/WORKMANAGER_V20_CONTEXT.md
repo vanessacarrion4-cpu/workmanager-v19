@@ -510,13 +510,19 @@ prueba, y si está bien se sigue.
 - **Paso 2B ✅ (solo lectura)** — `WeekView` migrada a `materializeDay`: sin dependencia
   de instancias pre-generadas, unificada en `occursOn`, y **bug #19 cerrado** (la copia 3
   `occursOnDate` ya no existe → la recurrencia anual solo-con-`startDate` se calcula bien).
-  - ⏸️ **PENDIENTE tras el Dashboard**: reactivar la **interacción** en Semana
-    (completar / mover / editar **recurrentes** directamente desde esta vista). Se pausó a
-    propósito porque las instancias ahora son virtuales (no están en el estado `tasks`) y
-    `handleToggleStatus` / `handleEditTaskRequest` no las resuelven. Se activará junto al
-    Dashboard (pasos 5–6), haciendo esos handlers instance-aware **una sola vez**.
-    Mientras tanto, completar/mover recurrentes se hace desde **Mi Día**. Las tareas
-    **manuales** sí siguen siendo interactivas desde Semana.
+- **Paso 3 ✅ (solo lectura)** — `CalendarView` migrada a `materializeDay` inyectado en un
+  mapa del mes (`monthMap`), reutilizando `filterTasksForDay` / `groupTasksByTag` /
+  `getStatsForDay`. Sin dependencia de instancias pre-generadas; **no tenía copia del switch**
+  (nada que unificar). Números idénticos en meses cercanos; **meses lejanos ahora muestran
+  carga real** (antes salían vacíos).
+  - ⏸️ **PENDIENTE tras el Dashboard (Semana + Calendario, misma maquinaria)**: reactivar la
+    **interacción de recurrentes** — completar / editar / mover / **reordenar** — que ahora
+    queda en pausa porque las instancias son virtuales (no están en el estado `tasks`) y
+    `handleToggleStatus` / `handleEditTaskRequest` / `handleUpdateTasksOrder` no las resuelven.
+    En el Calendario esto afecta al **drawer del día** (TaskCard completo). Se activará junto
+    al Dashboard (pasos 5–6) haciendo esos handlers instance-aware **una sola vez** para las
+    tres vistas. Mientras tanto, recurrentes se gestionan desde **Mi Día**; las tareas
+    **manuales** siguen siendo interactivas en Semana y en el drawer del Calendario.
 - **Bugs nuevos detectados** (no arreglar aún): **#18** columna `tasks.subtasks` inexistente
   (escrituras en silencio en `useTaskOrdering.ts:62` y `useBulkActions.ts:255`) → arreglar
   en paso 6.
