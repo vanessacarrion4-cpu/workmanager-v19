@@ -85,6 +85,15 @@ export function useTaskCRUD({
     if (!task) {
       task = dashboardTasks.find(t => t.id === taskId);
     }
+    // Fallback V20: instancia virtual no presente → resolver, SOLO si es una excepción real.
+    // NUNCA a la plantilla: borrar la plantilla eliminaría toda la serie. Si la tarea ya se
+    // encontró arriba, effectiveId === taskId → comportamiento idéntico. No cambia cómo se borra.
+    let effectiveId = taskId;
+    if (!task) {
+      const resolvedId = resolveTaskId(taskId, tasks);
+      const resolved = resolvedId !== taskId ? tasks[resolvedId] : undefined;
+      if (resolved && resolved.isException) { task = resolved; effectiveId = resolvedId; }
+    }
     if (task?.parentTaskId && !tasks[task.parentTaskId]) {
       const parentTask = dashboardTasks.find(t => t.id === task!.parentTaskId);
       if (parentTask) {
@@ -92,13 +101,13 @@ export function useTaskCRUD({
       }
     }
     if (task?.templateId) {
-      setRecurrenceAction({ taskId, type: 'delete', ruleId: task.templateId });
+      setRecurrenceAction({ taskId: effectiveId, type: 'delete', ruleId: task.templateId });
     } else if (task?.isTemplate && (task?.recurrence || (task?.subtasks && task.subtasks.some((subId: string) => tasks[subId]?.recurrence)))) {
       if (confirm(`¿Borrar "${task.title}" y todas sus instancias futuras?`)) {
-        handleDeleteTask(taskId);
+        handleDeleteTask(effectiveId);
       }
     } else {
-      handleDeleteTask(taskId);
+      handleDeleteTask(effectiveId);
     }
   }, [tasks, dashboardTasks, setRecurrenceAction, setTasks]);
 
