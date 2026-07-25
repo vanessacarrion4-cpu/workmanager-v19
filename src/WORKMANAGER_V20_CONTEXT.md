@@ -540,16 +540,22 @@ prueba, y si está bien se sigue.
         así que borrar en bloque excepciones funciona con o sin `resolveTaskId`; las normales
         virtuales se saltan igual. Su flujo real (borrar recurrentes de días trabajados = 100%
         excepciones) queda cubierto.
-      - Pendientes: `bulkUpdateTasks` (mover, + bug #7 deps `activeDate`) y `bulkDuplicateTasks`
-        (+ bug #6 StrictMode doble-insert), cada uno con su validación.
-    - ⚠️ **PENDIENTE IMPORTANTE Fase 3 — materializar EXCEPCIÓN-BORRADA al borrar recurrentes
-      NORMALES (sin excepción) en bloque.** Hoy (y tras quitar `useGeneration`) borrar una
-      ocurrencia normal no persiste: solo persisten las excepciones (filas reales). Medido
-      (25/07): días pasados/trabajados = ~100% excepciones; hoy/futuro = mezcla (hoy 6 exc / 4
-      normales). **NO es un hueco menor**: la usuaria va a subir volúmenes y planificar sobre
-      días FUTUROS, donde las recurrentes normales (sin tocar) serán MAYORÍA → este caso crece.
-      Fix: al borrar una ocurrencia normal, crear la fila de excepción con `isDeleted:true`
-      (materialize-on-delete), en vez del `UPDATE .eq('id', inst-…)` que hoy es no-op.
+      - `bulkUpdateTasks` ✅ (SOLO bug #7 — `activeDate` en las deps; sin filtrar por día stale al
+        cambiar de día). **`resolveTaskId` NO conectado aquí a propósito**: es inerte Y choca con
+        el propósito del handler (que ya materializa por su cuenta, Camino 1). Su instancia-
+        awareness real = materializar normales virtuales → Fase 3 (ver abajo).
+      - Pendiente: `bulkDuplicateTasks` (+ bug #6 StrictMode doble-insert), con su validación.
+    - ⚠️ **PENDIENTE IMPORTANTE Fase 3 — materializar NORMALES VIRTUALES en las acciones en bloque
+      (misma familia, tras quitar `useGeneration`).** Solo persisten las excepciones (filas
+      reales); las ocurrencias recurrentes NORMALES (sin tocar) no tienen fila → hoy las bulk
+      actions hacen no-op sobre ellas. Dos caras del mismo problema:
+      - `bulkDeleteTasks`: crear fila de excepción con `isDeleted:true` (materialize-on-delete),
+        en vez del `UPDATE .eq('id', inst-…)` que es no-op.
+      - `bulkUpdateTasks`: obtener el objeto de la instancia virtual con `materializeInstanceById`
+        y meterlo por el **Camino 1** (upsert de excepción), en vez de saltarla.
+      **NO es hueco menor**: medido 25/07 — días trabajados/pasados = ~100% excepciones; hoy/
+      futuro = mezcla (hoy 6 exc / 4 normales). La usuaria subirá VOLÚMENES y planificará sobre
+      días FUTUROS, donde las normales (sin tocar) serán MAYORÍA → este caso crece mucho.
     - **LIMPIEZA pendiente (código muerto)**: retirar el residuo de nivel 3 en
       `handleDemoteTask` (`useTaskOrdering.ts`, `currentLevel >= 3`). Confirmado por SELECT
       directo a la BD (25/07): **0 tareas de nivel 3** (activas: 862 en nivel 1, 865 en nivel 2).

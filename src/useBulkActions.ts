@@ -145,7 +145,9 @@ export function useBulkActions({
 
     setSelectedTaskIds(new Set());
     setSelectionMode(false);
-  }, [tasks, setTasks, selectedTaskIds, setSelectedTaskIds, setSelectionMode]);
+    // #7: activeDate va en las deps — se usa para filtrar las subtareas del día activo al mover
+    // un contenedor. Sin ella, el callback quedaba con un activeDate stale al cambiar de día.
+  }, [tasks, setTasks, selectedTaskIds, setSelectedTaskIds, setSelectionMode, activeDate]);
 
   const bulkDeleteTasks = useCallback(() => {
     const timestamp = new Date().toISOString();
