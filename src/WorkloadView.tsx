@@ -16,6 +16,7 @@ import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Layers, Tag, X } fro
 import { Task, WorkBlock, TimeEntry } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { formatMinutes } from './utils';
+import { occursOn } from './instanceEngine';
 
 // ─── Capacidad ────────────────────────────────────────────────────────────────
 
@@ -237,29 +238,18 @@ function buildDays(week: WeekInfo, today: string): DayInfo[] {
 
 function countOccurrencesInRange(recurrence: any, startStr: string, endStr: string): number {
   if (!recurrence) return 0;
+  // Fuente única de verdad: se delega la regla de recurrencia en occursOn.
+  // Se conservan el corte por endDate y el salto anual como optimizaciones del bucle.
+  const recurringTask = { recurrence } as Task;
   let count = 0, current = startStr;
   while (current <= endStr) {
     if (current < (recurrence.startDate || '')) { current = addDays(current, 1); continue; }
     if (recurrence.endDate && current > recurrence.endDate) break;
-    const date = parseLocalISO(current);
-    const specDay = (date.getDay() + 6) % 7;
-    let matches = false;
-    switch (recurrence.frequency) {
-      case 'daily': matches = true; break;
-      case 'weekdays': matches = specDay <= 4; break;
-      case 'weekly': matches = (recurrence.weekDays || []).includes(specDay); break;
-      case 'monthly': matches = date.getDate() === (recurrence.monthDay || 1); break;
-      case 'yearly': {
-        const targetDay = recurrence.yearDay ?? (recurrence.startDate ? parseLocalISO(recurrence.startDate).getDate() : null);
-        const targetMonth = recurrence.yearMonth ?? (recurrence.startDate ? parseLocalISO(recurrence.startDate).getMonth() + 1 : null);
-        matches = targetDay !== null && targetMonth !== null &&
-                  date.getDate() === targetDay && (date.getMonth() + 1) === targetMonth;
-        break;
-      }
-    }
+    const matches = occursOn(recurringTask, current);
     if (matches) count++;
     // Optimización: para yearly saltar al año siguiente tras encontrar la fecha
     if (recurrence.frequency === 'yearly' && matches) {
+      const date = parseLocalISO(current);
       const next = new Date(date.getFullYear() + 1, date.getMonth(), date.getDate());
       current = formatLocalISO(next);
     } else {
