@@ -503,6 +503,24 @@ prueba, y si está bien se sigue.
 
 ⚠️ **Antes del paso 5: exportar la tabla `tasks` de Supabase.**
 
+### Estado de implementación (rama `refactor-v20`)
+
+- **Paso 1 ✅** — `instanceEngine.ts` (`occursOn` + `materializeDay`) con 16 tests.
+- **Paso 2A ✅** — `WorkloadView` usa `occursOn` (eliminada la copia 2 del switch).
+- **Paso 2B ✅ (solo lectura)** — `WeekView` migrada a `materializeDay`: sin dependencia
+  de instancias pre-generadas, unificada en `occursOn`, y **bug #19 cerrado** (la copia 3
+  `occursOnDate` ya no existe → la recurrencia anual solo-con-`startDate` se calcula bien).
+  - ⏸️ **PENDIENTE tras el Dashboard**: reactivar la **interacción** en Semana
+    (completar / mover / editar **recurrentes** directamente desde esta vista). Se pausó a
+    propósito porque las instancias ahora son virtuales (no están en el estado `tasks`) y
+    `handleToggleStatus` / `handleEditTaskRequest` no las resuelven. Se activará junto al
+    Dashboard (pasos 5–6), haciendo esos handlers instance-aware **una sola vez**.
+    Mientras tanto, completar/mover recurrentes se hace desde **Mi Día**. Las tareas
+    **manuales** sí siguen siendo interactivas desde Semana.
+- **Bugs nuevos detectados** (no arreglar aún): **#18** columna `tasks.subtasks` inexistente
+  (escrituras en silencio en `useTaskOrdering.ts:62` y `useBulkActions.ts:255`) → arreglar
+  en paso 6.
+
 ---
 
 ## 11. Aplazado
