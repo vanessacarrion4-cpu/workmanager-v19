@@ -14,6 +14,7 @@ import { INITIAL_BLOCKS, COLORS, MOCK_TASKS } from './constants';
 import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { filterTasksForDay } from './filters';
+import { materializeDay } from './instanceEngine';
 import { useSupabase } from './useSupabase';
 import { useGeneration } from './useGeneration';
 import { useTaskCRUD } from './useTaskCRUD';
@@ -158,14 +159,26 @@ export default function App() {
   const allActiveTasks = useMemo(() =>
     Object.values(tasks).filter((t: Task) => !t.isDeleted && !t.isTemplate), [tasks]);
 
+  // Motor V20 (mitad LECTURA): mapa del día activo = instancias materializadas + estado,
+  // con el ESTADO GANANDO. useGeneration sigue poblando el día activo en el estado con los
+  // mismos ids, así que se preserva isExpanded/orden/vinculación reales (reading idéntico).
+  // materializeDay solo RELLENA días que el estado no tiene (p.ej. un día lejano navegado a
+  // mano, que antes salía vacío).
+  const activeDayMap = useMemo(() => {
+    const map: any = {};
+    for (const inst of materializeDay(activeDate, tasks)) map[inst.id] = inst; // rellena huecos
+    Object.values(tasks).forEach((t: Task) => { if (!t.isDeleted) map[t.id] = t; }); // estado gana
+    return map;
+  }, [tasks, activeDate]);
+
   const dashboardTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter(b => b && b.isActive).map(b => b.id));
-    return filterTasksForDay(allActiveTasks, tasks, activeBlockIds, activeDate, { hideCompleted: false, hideDelegatedNoTag: true });
-  }, [allActiveTasks, blocks, activeDate, tasks]);
+    const candidates = Object.values(activeDayMap).filter((t: any) => t && !t.isDeleted && !t.isTemplate) as Task[];
+    return filterTasksForDay(candidates, activeDayMap, activeBlockIds, activeDate, { hideCompleted: false, hideDelegatedNoTag: true });
+  }, [activeDayMap, blocks, activeDate]);
 
   const dashboardTasksMap = useMemo(() => {
-    const map: any = {};
-    Object.values(tasks).forEach((t: Task) => { if (!t.isDeleted) map[t.id] = t; });
+    const map: any = { ...activeDayMap };
     dashboardTasks.forEach(t => {
       map[t.id] = t;
       if (t.subtasks?.length > 0) {
@@ -193,7 +206,7 @@ export default function App() {
       }
     });
     return map;
-  }, [tasks, dashboardTasks, activeDate]);
+  }, [activeDayMap, tasks, dashboardTasks, activeDate]);
 
   // --- Hooks ---
   const {

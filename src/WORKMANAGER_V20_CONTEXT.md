@@ -515,6 +515,19 @@ prueba, y si está bien se sigue.
   `getStatsForDay`. Sin dependencia de instancias pre-generadas; **no tenía copia del switch**
   (nada que unificar). Números idénticos en meses cercanos; **meses lejanos ahora muestran
   carga real** (antes salían vacíos).
+- **Paso 5A ✅ (Dashboard — mitad LECTURA)** — `App.tsx` deriva `dashboardTasks`/
+  `dashboardTasksMap` desde un `activeDayMap` = `{ ...materializeDay(activeDate), ...tasks }`
+  con **ESTADO GANANDO**. `useGeneration`, `DashboardView` y TODOS los handlers quedan
+  **intactos**. Reading idéntico en el día activo (cercano); un día lejano navegado a mano
+  (p.ej. "Ver en Dashboard" del Calendario) ahora muestra tareas (antes vacío).
+  - Fusión estado-gana deliberada: si `materializeDay` sobrescribiera el estado, resetearía
+    `isExpanded` desde la plantilla → regresión del desplegar. Con estado-gana, el bug del
+    desplegar (#3/#4/#5) queda **IGUAL** en el día activo (no es regresión), a corregir en 5B.
+  - ⏸️ **PENDIENTE — Paso 5B (Dashboard — mitad INTERACCIÓN)**: hacer los handlers
+    instance-aware (materializar/persistir excepción al tocar), **luego retirar `useGeneration`**,
+    y reactivar la interacción de recurrentes en Dashboard + Semana + Calendario (una vez).
+    Corrige de paso #3/#4/#5 (desplegar) y #1/#2 (persistencia promote/demote). ⚠️ **EXPORTAR
+    la tabla `tasks` de Supabase ANTES de 5B** (es donde se toca persistencia/escritura).
   - ⏸️ **PENDIENTE tras el Dashboard (Semana + Calendario, misma maquinaria)**: reactivar la
     **interacción de recurrentes** — completar / editar / mover / **reordenar** — que ahora
     queda en pausa porque las instancias son virtuales (no están en el estado `tasks`) y
