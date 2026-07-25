@@ -11,6 +11,7 @@ import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { formatLocalISO } from './dateUtils';
+import { resolveTaskId } from './instanceEngine';
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -90,7 +91,16 @@ export function useTaskCRUD({
   }, [tasks, dashboardTasks, setRecurrenceAction, setTasks]);
 
   const handleToggleStatus = useCallback((taskId: string) => {
-    const task = tasks[taskId] || Object.values(tasks).find(t => t.id === taskId);
+    let task = tasks[taskId] || Object.values(tasks).find(t => t.id === taskId);
+    // Fallback V20: si la instancia virtual no está en el estado (p.ej. una recurrente
+    // movida cuyo id de excepción difiere), resolvemos al id REAL. Solo se usa si resuelve
+    // a una EXCEPCIÓN persistida — nunca a la plantilla (tocar la plantilla marcaría toda
+    // la serie). NO cambia cómo se escribe: sigue el mismo upsert de excepción de siempre.
+    if (!task) {
+      const resolvedId = resolveTaskId(taskId, tasks);
+      const resolved = resolvedId !== taskId ? tasks[resolvedId] : undefined;
+      if (resolved && resolved.isException) task = resolved;
+    }
     if (!task) {
       console.error('[STATUS] Tarea no encontrada:', taskId);
       return;
