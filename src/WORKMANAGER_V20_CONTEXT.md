@@ -534,9 +534,22 @@ prueba, y si está bien se sigue.
       combina con expandir/colapsar-todo; solo UI). **3B ✅** el desplegar de contenedores ya
       NO escribe `is_expanded` (verificado con spy de `fetch`: contenedor = 0 peticiones a
       `tasks`, marcar = sí escribe). `handleToggleExpandTask` intacto para subtareas/otras vistas.
-    - **INCLUIR en el lote de "conectar resolveTaskId al resto"**: los handlers de
-      **`useBulkActions`** (mover / duplicar / borrar en bloque) — hoy tampoco resuelven
-      instancias virtuales. Van con el resto, un handler cada vez, sin cambiar escrituras.
+    - **`useBulkActions`** (conectar `resolveTaskId`, un handler cada vez, sin cambiar escrituras):
+      - `bulkDeleteTasks` ✅ (fallback excepción-only, patrón uniforme). Nota: para ESTE handler
+        el fallback es prácticamente inerte — las excepciones son filas de la BD (en el estado),
+        así que borrar en bloque excepciones funciona con o sin `resolveTaskId`; las normales
+        virtuales se saltan igual. Su flujo real (borrar recurrentes de días trabajados = 100%
+        excepciones) queda cubierto.
+      - Pendientes: `bulkUpdateTasks` (mover, + bug #7 deps `activeDate`) y `bulkDuplicateTasks`
+        (+ bug #6 StrictMode doble-insert), cada uno con su validación.
+    - ⚠️ **PENDIENTE IMPORTANTE Fase 3 — materializar EXCEPCIÓN-BORRADA al borrar recurrentes
+      NORMALES (sin excepción) en bloque.** Hoy (y tras quitar `useGeneration`) borrar una
+      ocurrencia normal no persiste: solo persisten las excepciones (filas reales). Medido
+      (25/07): días pasados/trabajados = ~100% excepciones; hoy/futuro = mezcla (hoy 6 exc / 4
+      normales). **NO es un hueco menor**: la usuaria va a subir volúmenes y planificar sobre
+      días FUTUROS, donde las recurrentes normales (sin tocar) serán MAYORÍA → este caso crece.
+      Fix: al borrar una ocurrencia normal, crear la fila de excepción con `isDeleted:true`
+      (materialize-on-delete), en vez del `UPDATE .eq('id', inst-…)` que hoy es no-op.
     - **LIMPIEZA pendiente (código muerto)**: retirar el residuo de nivel 3 en
       `handleDemoteTask` (`useTaskOrdering.ts`, `currentLevel >= 3`). Confirmado por SELECT
       directo a la BD (25/07): **0 tareas de nivel 3** (activas: 862 en nivel 1, 865 en nivel 2).

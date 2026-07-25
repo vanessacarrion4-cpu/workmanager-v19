@@ -8,6 +8,7 @@
 import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
+import { resolveTaskId } from './instanceEngine';
 
 interface UseBulkActionsOptions {
   tasks: Record<string, Task>;
@@ -151,9 +152,18 @@ export function useBulkActions({
 
     const effectiveIds = new Set<string>();
     selectedTaskIds.forEach(id => {
-      const task = tasks[id];
+      let task = tasks[id];
+      let effId = id;
+      // Fallback V20: si la instancia virtual no está en el estado, resolver al id REAL.
+      // SOLO si es una excepción persistida — nunca la plantilla (borrar la plantilla borraría
+      // la serie entera). No cambia cómo se borra: mismo UPDATE is_deleted sobre el id resuelto.
+      if (!task) {
+        const resolvedId = resolveTaskId(id, tasks);
+        const resolved = resolvedId !== id ? tasks[resolvedId] : undefined;
+        if (resolved && resolved.isException) { task = resolved; effId = resolvedId; }
+      }
       if (!task) return;
-      effectiveIds.add(id);
+      effectiveIds.add(effId);
       if (task.subtasks && task.subtasks.length > 0) {
         task.subtasks.forEach((subId: string) => {
           const sub = tasks[subId];
