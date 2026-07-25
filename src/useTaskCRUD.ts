@@ -61,10 +61,22 @@ export function useTaskCRUD({
         setTasks(prev => ({ ...prev, [taskId]: task! }));
       }
     }
+    // Fallback V20: instancia virtual no presente (p.ej. día lejano) → resolver al id REAL
+    // (excepción persistida si existe, si no la plantilla/serie) y editar ESE. Si la tarea
+    // ya se encontró arriba, effectiveId === taskId → comportamiento idéntico. Solo abre
+    // modales: NO cambia cómo se escribe.
+    let effectiveId = taskId;
+    if (!task) {
+      const resolvedId = resolveTaskId(taskId, tasks);
+      if (resolvedId !== taskId && tasks[resolvedId]) {
+        task = tasks[resolvedId];
+        effectiveId = resolvedId;
+      }
+    }
     if (task?.templateId) {
-      setRecurrenceAction({ taskId, type: 'edit', ruleId: task.templateId });
+      setRecurrenceAction({ taskId: effectiveId, type: 'edit', ruleId: task.templateId });
     } else {
-      setEditingTaskId(taskId);
+      setEditingTaskId(effectiveId);
     }
   }, [tasks, dashboardTasks, setEditingTaskId, setInlineEditingTaskId, setRecurrenceAction, setTasks]);
 

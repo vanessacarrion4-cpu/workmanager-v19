@@ -528,6 +528,11 @@ prueba, y si está bien se sigue.
     y reactivar la interacción de recurrentes en Dashboard + Semana + Calendario (una vez).
     Corrige de paso #3/#4/#5 (desplegar) y #1/#2 (persistencia promote/demote). ⚠️ **EXPORTAR
     la tabla `tasks` de Supabase ANTES de 5B** (es donde se toca persistencia/escritura).
+    - Progreso 5B: paso 1 ✅ `resolveTaskId` (8 tests, excepción-gana). paso 2 ✅
+      `handleToggleStatus` conectado (fallback guardado, sin cambiar escrituras).
+    - **INCLUIR en el lote de "conectar resolveTaskId al resto"**: los handlers de
+      **`useBulkActions`** (mover / duplicar / borrar en bloque) — hoy tampoco resuelven
+      instancias virtuales. Van con el resto, un handler cada vez, sin cambiar escrituras.
   - ⏸️ **PENDIENTE tras el Dashboard (Semana + Calendario, misma maquinaria)**: reactivar la
     **interacción de recurrentes** — completar / editar / mover / **reordenar** — que ahora
     queda en pausa porque las instancias son virtuales (no están en el estado `tasks`) y
