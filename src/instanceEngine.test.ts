@@ -1,0 +1,216 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { describe, it, expect } from 'vitest';
+import { occursOn, materializeDay } from './instanceEngine';
+import { Task } from './types';
+
+// Fechas ancla (verificadas): 2026-07-15 es MIÉRCOLES.
+// 07-13 Lun · 07-14 Mar · 07-15 Mié · 07-16 Jue · 07-17 Vie · 07-18 Sáb · 07-19 Dom
+const MON = '2026-07-13';
+const WED = '2026-07-15';
+const THU = '2026-07-16';
+const SAT = '2026-07-18';
+
+/** Factoría mínima de Task para reducir ruido en los tests. */
+function task(partial: Partial<Task> & { id: string }): Task {
+  return {
+    blockId: 'b1',
+    title: partial.id,
+    priority: 'media',
+    status: 'pending',
+    dueDate: null,
+    estimatedMinutes: 30,
+    tags: [],
+    order: 0,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    modifiedAt: '2026-01-01T00:00:00.000Z',
+    ...partial,
+  } as Task;
+}
+
+function byId(tasks: Task[]): Record<string, Task> {
+  return Object.fromEntries(tasks.map(t => [t.id, t]));
+}
+
+// =========================================================================
+// occursOn
+// =========================================================================
+
+describe('occursOn', () => {
+  it('daily: ocurre cualquier día dentro del rango', () => {
+    const t = task({ id: 'c', recurrence: { frequency: 'daily', startDate: '2026-01-01' } });
+    expect(occursOn(t, WED)).toBe(true);
+    expect(occursOn(t, SAT)).toBe(true);
+  });
+
+  it('weekdays: lunes a viernes sí, fin de semana no', () => {
+    const t = task({ id: 'c', recurrence: { frequency: 'weekdays', startDate: '2026-01-01' } });
+    expect(occursOn(t, WED)).toBe(true);
+    expect(occursOn(t, SAT)).toBe(false);
+  });
+
+  it('weekly: solo los weekDays indicados (0=lunes ... 2=miércoles)', () => {
+    const t = task({ id: 'c', recurrence: { frequency: 'weekly', weekDays: [2], startDate: '2026-01-01' } });
+    expect(occursOn(t, WED)).toBe(true);   // miércoles
+    expect(occursOn(t, THU)).toBe(false);  // jueves
+    expect(occursOn(t, MON)).toBe(false);  // lunes
+  });
+
+  it('monthly: solo el día del mes configurado', () => {
+    const t = task({ id: 'c', recurrence: { frequency: 'monthly', monthDay: 15, startDate: '2026-01-01' } });
+    expect(occursOn(t, WED)).toBe(true);   // día 15
+    expect(occursOn(t, THU)).toBe(false);  // día 16
+  });
+
+  it('yearly: día y mes exactos (yearDay/yearMonth)', () => {
+    const t = task({ id: 'c', recurrence: { frequency: 'yearly', yearDay: 15, yearMonth: 7, startDate: '2020-01-01' } });
+    expect(occursOn(t, WED)).toBe(true);         // 15 de julio
+    expect(occursOn(t, THU)).toBe(false);        // 16 de julio
+    expect(occursOn(t, '2026-08-15')).toBe(false); // 15 de agosto
+    expect(occursOn(t, '2027-07-15')).toBe(true);  // otro año, mismo día
+  });
+
+  it('yearly: usa startDate como fallback si faltan yearDay/yearMonth', () => {
+    const t = task({ id: 'c', recurrence: { frequency: 'yearly', startDate: '2020-07-15' } });
+    expect(occursOn(t, WED)).toBe(true);
+    expect(occursOn(t, THU)).toBe(false);
+  });
+
+  it('respeta startDate y endDate', () => {
+    const t = task({ id: 'c', recurrence: { frequency: 'daily', startDate: '2026-07-16', endDate: '2026-07-20' } });
+    expect(occursOn(t, WED)).toBe(false); // antes de startDate
+    expect(occursOn(t, THU)).toBe(true);  // dentro
+    expect(occursOn(t, '2026-07-21')).toBe(false); // después de endDate
+  });
+
+  it('sin recurrencia: ocurre solo el día de su dueDate', () => {
+    const t = task({ id: 'm', dueDate: WED });
+    expect(occursOn(t, WED)).toBe(true);
+    expect(occursOn(t, THU)).toBe(false);
+  });
+
+  it('sin recurrencia ni dueDate: nunca; y null/undefined tolerados', () => {
+    expect(occursOn(task({ id: 'x' }), WED)).toBe(false);
+    expect(occursOn(null, WED)).toBe(false);
+    expect(occursOn(undefined, WED)).toBe(false);
+  });
+});
+
+// =========================================================================
+// materializeDay
+// =========================================================================
+
+describe('materializeDay', () => {
+  it('contenedor con hijo recurrente diario → genera contenedor + hijo pending', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+    ]);
+
+    const day = materializeDay(WED, allTasks);
+    const container = day.find(t => t.templateId === 't-cont');
+    const child = day.find(t => t.templateId === 't-child');
+
+    expect(container).toBeDefined();
+    expect(child).toBeDefined();
+    expect(container!.id).toBe('inst-t-cont-2026-07-15');
+    expect(child!.id).toBe('inst-t-child-2026-07-15');
+    expect(child!.parentTaskId).toBe(container!.id);
+    expect(container!.subtasks).toEqual(['inst-t-child-2026-07-15']);
+    expect(child!.status).toBe('pending');
+    expect(child!.instanceDate).toBe(WED);
+  });
+
+  it('hijo recurrente que NO toca hoy → contenedor no aparece', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'weekly', weekDays: [0], startDate: '2026-01-01' } }), // solo lunes
+    ]);
+    expect(materializeDay(WED, allTasks)).toEqual([]);
+  });
+
+  it('hijo manual: aparece el día de su fecha, no otros días', () => {
+    const build = (dateStr: string) => byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['manual-1'] }),
+      task({ id: 'manual-1', isTemplate: false, dueDate: WED }),
+    ]);
+    const onDay = materializeDay(WED, build(WED));
+    expect(onDay.find(t => t.id === 'manual-1')).toBeDefined();
+    expect(materializeDay(THU, build(THU))).toEqual([]);
+  });
+
+  it('excepción movida (instanceDate=WED, dueDate=THU) → no en WED, sí en THU', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      // Instancia del miércoles movida al jueves:
+      task({
+        id: 'inst-t-child-moved', templateId: 't-child', isException: true,
+        instanceDate: WED, dueDate: THU,
+      }),
+    ]);
+
+    const wed = materializeDay(WED, allTasks);
+    // En miércoles NO debe regenerarse la instancia normal (fue movida).
+    expect(wed.find(t => t.templateId === 't-child')).toBeUndefined();
+
+    const thu = materializeDay(THU, allTasks);
+    const movedChild = thu.find(t => t.id === 'inst-t-child-moved');
+    expect(movedChild).toBeDefined();
+    expect(movedChild!.dueDate).toBe(THU);
+  });
+
+  it('excepción borrada → suprime la ocurrencia de ese día', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({
+        id: 'inst-t-child-del', templateId: 't-child', isException: true, isDeleted: true,
+        instanceDate: WED, dueDate: WED,
+      }),
+    ]);
+    // El hijo estaba borrado ese día → contenedor sin hijos → no aparece.
+    expect(materializeDay(WED, allTasks)).toEqual([]);
+  });
+
+  it('REGLA CLAVE: excepción completada persiste y gana sobre la regeneración', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      // El miércoles ya se completó y se guardó como excepción:
+      task({
+        id: 'inst-t-child-2026-07-15', templateId: 't-child', isException: true,
+        instanceDate: WED, dueDate: WED, status: 'completed', completedAt: '2026-07-15T10:00:00.000Z',
+      }),
+    ]);
+
+    const day = materializeDay(WED, allTasks);
+    const child = day.find(t => t.templateId === 't-child');
+
+    expect(child).toBeDefined();
+    // Debe devolver la versión COMPLETADA persistida, no una nueva 'pending'.
+    expect(child!.id).toBe('inst-t-child-2026-07-15');
+    expect(child!.status).toBe('completed');
+    expect(child!.completedAt).toBe('2026-07-15T10:00:00.000Z');
+    // Y solo una versión del hijo (no duplicada).
+    expect(day.filter(t => t.templateId === 't-child')).toHaveLength(1);
+  });
+
+  it('no muta allTasks ni inyecta las instancias generadas en él', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+    ]);
+    const snapshot = JSON.stringify(allTasks);
+    const keysBefore = Object.keys(allTasks).length;
+
+    materializeDay(WED, allTasks);
+
+    expect(JSON.stringify(allTasks)).toBe(snapshot); // sin mutación
+    expect(Object.keys(allTasks).length).toBe(keysBefore); // sin filas nuevas
+    expect(allTasks['inst-t-child-2026-07-15']).toBeUndefined();
+  });
+});
