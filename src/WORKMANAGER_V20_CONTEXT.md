@@ -528,11 +528,19 @@ prueba, y si está bien se sigue.
     y reactivar la interacción de recurrentes en Dashboard + Semana + Calendario (una vez).
     Corrige de paso #3/#4/#5 (desplegar) y #1/#2 (persistencia promote/demote). ⚠️ **EXPORTAR
     la tabla `tasks` de Supabase ANTES de 5B** (es donde se toca persistencia/escritura).
-    - Progreso 5B: paso 1 ✅ `resolveTaskId` (8 tests, excepción-gana). paso 2 ✅
-      `handleToggleStatus` conectado (fallback guardado, sin cambiar escrituras).
+    - Progreso 5B: paso 1 ✅ `resolveTaskId` (8 tests). paso 2 ✅ `handleToggleStatus`.
+      paso 3 ✅ `handleEditTaskRequest`. paso 4 ✅ `handleDeleteTaskRequest` (los tres, fallback
+      guardado, sin cambiar escrituras). **3A ✅** desplegar por-render (mata "se abre otra",
+      combina con expandir/colapsar-todo; solo UI). **3B ✅** el desplegar de contenedores ya
+      NO escribe `is_expanded` (verificado con spy de `fetch`: contenedor = 0 peticiones a
+      `tasks`, marcar = sí escribe). `handleToggleExpandTask` intacto para subtareas/otras vistas.
     - **INCLUIR en el lote de "conectar resolveTaskId al resto"**: los handlers de
       **`useBulkActions`** (mover / duplicar / borrar en bloque) — hoy tampoco resuelven
       instancias virtuales. Van con el resto, un handler cada vez, sin cambiar escrituras.
+    - **LIMPIEZA pendiente (código muerto)**: retirar el residuo de nivel 3 en
+      `handleDemoteTask` (`useTaskOrdering.ts`, `currentLevel >= 3`). Confirmado por SELECT
+      directo a la BD (25/07): **0 tareas de nivel 3** (activas: 862 en nivel 1, 865 en nivel 2).
+      Trabajamos en 2 niveles de hecho; el 3er nivel de promote/demote es dead code a quitar.
   - ⏸️ **PENDIENTE tras el Dashboard (Semana + Calendario, misma maquinaria)**: reactivar la
     **interacción de recurrentes** — completar / editar / mover / **reordenar** — que ahora
     queda en pausa porque las instancias son virtuales (no están en el estado `tasks`) y

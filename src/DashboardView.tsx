@@ -462,7 +462,6 @@ export function DashboardView({
                                   onToggleExpand={(taskId: string) => {
                                     // 3A: contenedor de nivel 1 → override individual local SOBRE el
                                     // estado global (expandir/colapsar todo). Solo se mueve el que tocas.
-                                    // Subtareas → comportamiento normal.
                                     if (taskId === task.id) {
                                       const key = `${tag}__${task.id}`;
                                       setContainerExpand(prev => {
@@ -472,9 +471,13 @@ export function DashboardView({
                                           : (containerExpandInitRef.current[key] ?? (task.isExpanded ?? true));
                                         return { ...prev, [key]: !base };
                                       });
+                                      // 3B: el desplegado del contenedor es 100% estado local → ya NO se
+                                      // persiste is_expanded (antes handleToggleExpandTask escribía a una
+                                      // fila inexistente para instancias y pisaba modified_at en balde).
+                                    } else {
+                                      // Subtareas: comportamiento normal (mantienen su persistencia).
+                                      onToggleExpand(taskId);
                                     }
-                                    // Escritura de #4 intacta (cero cambio; se limpia en 3B).
-                                    onToggleExpand(taskId);
                                   }}
                                   onRecurrenceDateChange={onRecurrenceDateChange}
                                   hideCompleted={hideCompleted}
