@@ -544,14 +544,14 @@ prueba, y si está bien se sigue.
         cambiar de día). **`resolveTaskId` NO conectado aquí a propósito**: es inerte Y choca con
         el propósito del handler (que ya materializa por su cuenta, Camino 1). Su instancia-
         awareness real = materializar normales virtuales → Fase 3 (ver abajo).
-      - `bulkDuplicateTasks` (bug #6 + #18) — **fix APLICADO, sin commitear** (falta validación en
-        vivo). Cálculo de duplicados sacado FUERA del updater de `setTasks` (updater = merge puro
-        de `newById` + `parentSubtaskPatches`) → StrictMode ya no puede duplicar los inserts.
-        Quitada la línea muerta `update({ subtasks })` (#18; la jerarquía se persiste por
-        `parent_task_id`). `resolveTaskId` NO conectado (inerte aquí, como en `bulkUpdate`).
-        **24 tests ✅, build ✅.** BD revisada: **0 huérfanos "(copia)"** de doble-insert.
-        **Pendiente próxima sesión**: validar en vivo (spy `fetch` → duplicar 1 tarea de prueba =
-        **1 insert**, no 2 → borrar la copia → cambio neto cero) y **entonces** commitear.
+      - `bulkDuplicateTasks` (bug #6 + #18) ✅ **HECHO y commiteado** (`be9eed1`). Cálculo de
+        duplicados FUERA del updater de `setTasks` (lee de `tasks`, no de `prev`); updater = merge
+        puro de `newById` + `parentSubtaskPatches` → StrictMode ya no duplica los inserts (el bucle
+        de insert itera `duplicates`, poblado una sola vez). Quitada la línea muerta
+        `update({ subtasks })` (#18; la jerarquía se persiste por `parent_task_id`). `resolveTaskId`
+        NO conectado (inerte aquí, como en `bulkUpdate`). **24 tests ✅, build ✅.**
+        **Validado EN VIVO** (spy `fetch`, 26/07): duplicar 1 hoja manual = **1 POST insert (no 2)**,
+        0 residuales "(copia)", copia de prueba borrada por id → **cambio neto cero**.
     - ⚠️ **PENDIENTE IMPORTANTE Fase 3 — materializar NORMALES VIRTUALES en las acciones en bloque
       (misma familia, tras quitar `useGeneration`).** Solo persisten las excepciones (filas
       reales); las ocurrencias recurrentes NORMALES (sin tocar) no tienen fila → hoy las bulk
