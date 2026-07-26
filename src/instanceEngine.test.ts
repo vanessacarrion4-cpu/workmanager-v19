@@ -367,6 +367,35 @@ describe('materializeInstanceById', () => {
     expect(materializeInstanceById('inst-cosa-rara', {})).toBeNull();
   });
 
+  it('templateId realista con guiones (UUID) → devuelve la instancia, NO null (evita fallo silencioso)', () => {
+    // Si el parseo reconstruyera el templateId con un split ingenuo, un UUID con guiones
+    // daría null → el handler caería en console.error y "parecería que no pasa nada".
+    const uuid = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: [uuid] }),
+      task({ id: uuid, isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+    ]);
+    const instId = `inst-${uuid}-2026-07-15`;
+    const child = materializeInstanceById(instId, allTasks);
+    expect(child).not.toBeNull();
+    expect(child!.id).toBe(instId);
+    expect(child!.templateId).toBe(uuid);
+    expect(child!.status).toBe('pending');
+  });
+
+  it('instancia con excepción isDeleted:true ese día → null (no-materializable; no resucita al togglear)', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({
+        id: 'inst-t-child-2026-07-15', templateId: 't-child', isException: true, isDeleted: true,
+        instanceDate: WED, dueDate: WED,
+      }),
+    ]);
+    // materializeDay suprime el día borrado → el helper lo devuelve como no-materializable.
+    expect(materializeInstanceById('inst-t-child-2026-07-15', allTasks)).toBeNull();
+  });
+
   it('no muta allTasks ni inyecta la instancia generada', () => {
     const allTasks = contWithDailyChild();
     const snapshot = JSON.stringify(allTasks);

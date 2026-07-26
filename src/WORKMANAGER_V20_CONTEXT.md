@@ -804,6 +804,7 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
 | D0 (ensayo) | Ninguno (no cambia código) | Tabla §13.6 en día >+400d en verde ANTES de tocar el flip |
 | D1 (desactivar) | **MÁXIMO**: todo lo cercano pasa a virtual de golpe | Consola: **0** logs `[GENERATION]`. Regresión total §13.6. Recarga persiste. Volver atrás = flip del flag |
 | Reorder virgen | Escribe `order` en la PLANTILLA (#15) — **ESPERADO, NO regresión** (ver §13.9) | Arrastrar-reordenar una recurrente virgen escribe en `template_id`, no en el día; se arregla en el sub-paso siguiente |
+| Reorder virgen — fantasma | Objeto parcial `{order,modifiedAt}` bajo `tasks['inst-…']`, TRANSITORIO (§13.9) | Tras reordenar una virgen: valor sin `.id`/`templateId`; NO lo resuelve `resolveTaskId` ni lo renderiza `materializeDay`; **desaparece al recargar** |
 | D2 (borrado) | Bajo (ya validado en E) | Build ✅; grep sin consumidores de `useGeneration`/`useTemplateKey` |
 | Reading | Bajo (ya migrado) | Comparar el día de hoy antes/después del flip: mismas tareas, mismo orden |
 
@@ -871,6 +872,27 @@ una instancia recurrente **virgen** (id `inst-…`, sin fila en BD) después del
   completar/editar/borrar/mover funcionan; solo el *arrastre-reordenar* de una recurrente virgen escribe
   en la plantilla.
 - **Sub-paso siguiente (#15)**: materializar excepción con `order` por-día. Si se quiere blindar la
-  ventana entre D1 y ese fix, un guard mínimo de 1 línea que haga *no-op* el write cuando `t.id` es
-  virtual (saltar el `supabase.update` si `t.id.startsWith('inst-')`), evitando corromper el `order` de
-  la plantilla durante la validación. (Opcional; decidir al empezar #15.)
+  ventana entre D1 y ese fix, un guard mínimo que haga *no-op* el write cuando `t.id` es virtual. **Ojo**:
+  para tapar TAMBIÉN el fantasma (abajo), el guard debe saltar tanto el `supabase.update` como la
+  escritura en memoria `updated[t.id] = …` cuando `t.id.startsWith('inst-')`. (Opcional; decidir en #15.)
+
+**Riesgo SEPARADO del #15 — objeto parcial "fantasma" en estado (TRANSITORIO, NO persiste).**
+Además del write a la plantilla, `handleUpdateTasksOrder` hace `updated[t.id] = { ...updated[t.id],
+order, modifiedAt }`. Para una virgen, `updated[t.id]` es `undefined` → crea el valor parcial
+`{ order, modifiedAt }` bajo la clave `tasks['inst-…']`. Caracterización (verificada por lectura):
+- **¿Indexado como `tasks['inst-…']`?** Sí, pero el VALOR **no tiene `.id`, ni `templateId`, ni
+  `isException`, ni `dueDate`** (solo `order` + `modifiedAt`).
+- **¿`resolveTaskId` puede resolver a él?** NO: filtra por `isException && templateId && dueDate`, que
+  el fantasma no tiene → lo salta; sigue devolviendo la plantilla.
+- **¿`materializeDay` lo trata como excepción / lo renderiza?** NO: `indexExceptionsByTemplate` exige
+  `templateId && isException`; no es contenedor (`isTemplate !== true`) ni está referenciado en los
+  `subtasks` de ningún contenedor. En `activeDayMap` el "estado gana" indexa por `t.id`, que aquí es
+  `undefined` → cae en `map[undefined]` (basura inerte) y **NO pisa** la instancia bien materializada.
+- **¿Desaparece al recargar o contamina?** DESAPARECE: es solo memoria; nunca se escribe a Supabase (el
+  write va al id de la PLANTILLA, no al `inst-…`). Al recargar, `tasks` se reconstruye de la BD sin esa
+  clave. Efecto máximo realista en sesión: una entrada basura `map[undefined]`; sin persistencia, sin
+  corrupción.
+- **Clasificación**: distinto del #15. El #15 es un write ERRÓNEO y PERSISTENTE a la plantilla (corrompe
+  el orden de la serie). El fantasma es basura TRANSITORIA en memoria (bajo riesgo, se limpia al
+  recargar). Ambos se eliminan con el mismo guard (saltar virtuales en memoria + BD) o, definitivo,
+  materializando la excepción por-día en #15.
