@@ -1186,11 +1186,19 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
      `dashboardTasks`, `instanceDate`/`dueDate`, `parent_task_id=null`). Validar: mover hoja/subtarea Y contenedor
      desde **Semana, día ≠ activo** → día viejo vacío, destino la muestra, recarga; y **subtarea movida aparece
      bajo su padre en el destino** (que el `null` no reintroduzca el huérfano del FIX sesión 10).
-  3. **LIMPIEZA de datos** → **FASE PROPIA entre D1 y E** (NO ahora): primer write masivo e irreversible; no
-     urgente (filas de hace meses); post-flip el síntoma (contenedores duplicados) es VISIBLE y se puede verificar
-     que la limpieza lo arregla (ahora sería a ciegas); y aísla "¿fue el flip o la limpieza?". Contenido de la fase:
+  3. **LIMPIEZA de datos** → **FASE PROPIA, DESPUÉS DE FUSIONAR B4 A MASTER** (NO antes, NO en la rama): primer
+     write masivo e irreversible. **Por qué después del merge, no entre D1 y E**: B4 arregla la RAMA, no
+     producción; mientras master tenga el bug, cada edición/mover de una serie contaminada **re-ensucia** → si
+     limpio antes del merge, limpio algo que se vuelve a ensuciar. Post-merge el síntoma (contenedores duplicados)
+     es VISIBLE y se verifica que la limpieza lo arregla; y aísla "¿fue el flip o la limpieza?". Contenido:
      backup fresco → `UPDATE tasks SET parent_task_id=null WHERE is_exception AND parent_task_id→is_template` →
      recargar y verificar que las series contaminadas dejan de mostrar hijas `inst-`/duplicadas.
+- **⚠️ PRODUCCIÓN (mientras B4 no esté en master)**: el bucle es user-driven y las series contaminadas son TRABAJO
+  REAL mensual — **"Pago nóminas", "Pagos mensuales", "Cierre Propias", "Cierre Central Rec"** (y las otras 14). La
+  fila anidada más reciente es de 2026-07-22 (la generó la usuaria usando la app normal). **Acción**: EVITAR
+  mover/editar esas series en producción hasta que el arreglo (B4) llegue a master; cada mover/editar añade filas
+  anidadas nuevas que luego habrá que limpiar. NO es un incendio (64 filas en 2 meses), pero sí una restricción de
+  uso hasta el merge. (Corrige el "no es emergencia": para validaciones sí, para el uso real de la usuaria no del todo.)
 - **BUCLE `inst-inst-…` VIVO (medido sesión 12)**: **52 excepciones persistidas** doble-anidadas + **12 triple**
   (`is_exception:true`, `existsInSupabase:true`), creadas jun–jul, `modifiedAt` hasta 2026-07-22. Patrón
   `inst-inst-t-X-FECHA-FECHA` (misma fecha 2×) = instancia de 1er nivel metida en `template.subtasks` y
