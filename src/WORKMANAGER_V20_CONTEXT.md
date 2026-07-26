@@ -669,6 +669,10 @@ prueba, y si está bien se sigue.
 - **(b) Navegación de fechas del Calendario más operativa**: **salto directo a mes/año** (selector / "ir a
   fecha") en vez de mes a mes. El `window.__goToDate` dev-only es el parche temporal; la versión de USUARIO
   va aquí. Relacionado con la lentitud del mes (§13.11): menos navegación = menos materializaciones.
+- **(c) Añadir recurrencia desde la fila NO existe** (verificado sesión 11): el `RecurrencePickerChip` de la fila
+  solo se renderiza si `task.recurrence` YA existe ([TaskCard.tsx:485,526](TaskCard.tsx)); una tarea sin
+  recurrencia no muestra chip → hay que entrar al modal. **Falta el camino, no está roto** (cambiarla en una que
+  ya la tiene sí funciona desde la fila). Encaja con la fila V20 §7.3 (chips vacíos clicables) = paso 4.
 
 ---
 
@@ -806,6 +810,10 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
   - **B2** `handleDeleteTaskRequest`: virgen → materializar y crear **excepción `isDeleted:true`**
     (materialize-on-delete), en vez del `UPDATE .eq('id', inst-…)` no-op.
   - **B3** *Edit routing*: enrutar Semana/Search/Delegadas por `handleEditTaskRequest` (no `setEditingTaskId` crudo).
+    - **Verificado (sesión 11) — abrir el modal NO escribe**: el `adhoc→core` al abrir es solo el DEFAULT del
+      formulario ([TaskModal.tsx:281](TaskModal.tsx): `hasActiveRecurrence && !localTask.taskType` resalta 'core'),
+      estado local `localTask`; `handleEditTaskRequest` solo hace `setTasks` en memoria, sin Supabase. → Abrir la
+      edición de una instancia virtual **NO crea fila** silenciosa. (No es camino de escritura; era la duda de B3.)
   - **B4** Mover (`onRecurrenceDateChange` → `pendingDateChange`): confirmar/ajustar que una virgen
     se materialice como excepción con el nuevo `dueDate` (el flujo "FIX sesión 10" ya toca
     `parent_task_id` en excepciones; verificar que cubre la virgen).
@@ -995,16 +1003,19 @@ de `useGeneration` ([useGeneration.ts:24-26](useGeneration.ts)):
   constante**; (c) re-medir el techo por sesión (varía con los datos). **Caveat del fixture**: la plantilla de
   test debe NO tener `endDate` (o uno > día de test) para que la recurrencia ocurra ese día.
 
-### 13.11 Fixture de validación B0/B1 (dedicado, NO tocar tareas reales de la usuaria)
-Contenedor recurrente de prueba + 3 hijas diarias, ids fijos (sin colisión, verificado en vivo). El id de
-contenedor es `tmpl-…` A PROPÓSITO (ejercita el regex de B0: `inst-tmpl-…` rompe el `/^inst-(t-\d+)/` viejo).
-- **Ids**: contenedor `tmpl-testb1`; hijas `tmpl-testb1-c1/-c2/-c3` con `"order"` 0/1/2. Bloque
-  `b-1777907181352` = **«Clientes»** (confirmado `isActive:true` en vivo, sesión 11). Hijas:
-  `recurrence = {frequency:'daily', startDate:'2028-01-01'}`, **sin `endDate`**, `is_template:true`,
-  `parent_task_id: tmpl-testb1`. Contenedor: `is_template:true`, sin `recurrence`, sin fecha.
-  - **`startDate: 2028-01-01` (NO 2026)**: con diaria desde 2026 el fixture saldría en Mi Día TODOS los días del
-    refactor y añadiría ~1.000 instancias al motor viejo. Desde 2028-01-01 ocurre igual en los días de prueba
-    (2028-01-15+) e INVISIBLE en los cercanos. `startDate ≤ día de test`, así que sigue ocurriendo.
+### 13.11 Fixture de validación B1 (creado desde la app, forma real; NO tocar tareas reales de la usuaria)
+Contenedor "Test Recurrent B1" + 3 hijas diarias, **creado desde la propia app** (no SQL) → forma real.
+Verificado en vivo (sesión 11) con `window.__tasks` + `materializeDay`. (Se descartó el INSERT SQL artesanal.)
+- **Ids REALES**: contenedor **`t-1785089440019`** ("Test Recurrent B1"); hijas **`t-1785089472309`** ("Test hija1"),
+  **`t-1785089481020`** ("Test Hija2"), **`t-1785089493867`** ("Test Hija 3"). Forma confirmada: contenedor
+  `recurrence:null`, `dueDate:null`; hijas `daily` (`startDate 2026-07-26`), sin `dueDate`, `taskType:null`.
+  `materializeDay('2028-01-15')` produce contenedor + 3 hijas ANIDADAS (parent = id de instancia del contenedor).
+  - **Ojo B0**: el id del contenedor es **`t-…`, NO `tmpl-…`** (la app lo creó por `doAddTask`, no por el flujo de
+    regla). Por eso este fixture **NO ejercita el bug del regex de B0** (`/^inst-(t-\d+)/` SÍ acierta
+    `inst-t-1785089440019-…`). **B0 se valida con su TEST UNITARIO** (`tmpl-` con letras), no con este contenedor.
+  - **Creado HOY (startDate 2026-07-26)** → SALE en Mi Día a diario y genera instancias en la ventana del motor
+    viejo (hasta ~2026-12-31). Asumido; **borrar al terminar B1**. 2028-01-15 sigue VIRGEN (fuera de ventana):
+    `window.__tasks['inst-t-1785089440019-2028-01-15'] === undefined` ✓ (confirmado).
 - **Días** (la virginidad se CONSUME al completar → una excepción por día): **2028-01-15** = B1 básico
   (contenedor virgen). **2028-01-16** = caso mixto Q2 (excepción de `c1` generada con la app, §Q2). **2028-01-17/18**
   = repuesto para re-ejecutar. Verificar virginidad con `window.__tasks` antes de cada prueba.
@@ -1020,8 +1031,8 @@ contenedor es `tmpl-…` A PROPÓSITO (ejercita el regex de B0: `inst-tmpl-…` 
   id de la instancia del padre, no el de la plantilla). Con `c1` así y `c2`/`c3` vírgenes, completar el contenedor:
   `c1` = update in-place (misma fila), `c2`/`c3` = inserts nuevos → 3 completas, 1 fila/hija, sin duplicar `c1`.
   (DESCARTADO el INSERT artesanal de excepción: probaría una forma que la app quizá nunca produce.)
-- **Limpieza antes de D0** (borra SOLO las excepciones de prueba; deja las plantillas por si re-validas):
-  `delete from tasks where template_id in ('tmpl-testb1','tmpl-testb1-c1','tmpl-testb1-c2','tmpl-testb1-c3');`
-- **Teardown final** (quita el fixture entero): `delete from tasks where id like 'tmpl-testb1%' or template_id like 'tmpl-testb1%';`
-- **Tipos**: `recurrence` es jsonb; `tags` puede ser jsonb (`'[]'::jsonb`) o `text[]` (`'{}'`) — ajustar si el
-  editor SQL se queja. `order` es palabra reservada → `"order"`. Ejecutar el INSERT del fixture **tras el backup**.
+- **Limpieza antes de D0 — IDS REALES** (borra SOLO las excepciones de prueba; deja las plantillas por si re-validas):
+  `delete from tasks where template_id in ('t-1785089440019','t-1785089472309','t-1785089481020','t-1785089493867');`
+- **Teardown final** (quita el fixture ENTERO — plantillas + excepciones):
+  `delete from tasks where id in ('t-1785089440019','t-1785089472309','t-1785089481020','t-1785089493867') or template_id in ('t-1785089440019','t-1785089472309','t-1785089481020','t-1785089493867');`
+  (O más simple desde la app: borrar el contenedor "Test Recurrent B1" con su árbol.)
