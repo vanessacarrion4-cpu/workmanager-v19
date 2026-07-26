@@ -11,7 +11,7 @@ import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { formatLocalISO } from './dateUtils';
-import { resolveTaskId, templateIdFromInstanceId } from './instanceEngine';
+import { resolveTaskId, templateIdFromInstanceId, materializeDay } from './instanceEngine';
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -113,19 +113,32 @@ export function useTaskCRUD({
 
   const handleToggleStatus = useCallback((taskId: string) => {
     let task = tasks[taskId] || Object.values(tasks).find(t => t.id === taskId);
-    // Fallback V20: si la instancia virtual no está en el estado (p.ej. una recurrente
-    // movida cuyo id de excepción difiere), resolvemos al id REAL. Solo se usa si resuelve
-    // a una EXCEPCIÓN persistida — nunca a la plantilla (tocar la plantilla marcaría toda
-    // la serie). NO cambia cómo se escribe: sigue el mismo upsert de excepción de siempre.
+    // Fallback V20 (a): instancia virtual movida cuyo id de excepción difiere → resolvemos al id
+    // REAL solo si es EXCEPCIÓN persistida — nunca la plantilla (tocarla marcaría toda la serie).
     if (!task) {
       const resolvedId = resolveTaskId(taskId, tasks);
       const resolved = resolvedId !== taskId ? tasks[resolvedId] : undefined;
       if (resolved && resolved.isException) task = resolved;
     }
+    // Fallback V20 (b) — B1: instancia recurrente VIRGEN (sin fila ni excepción) → materializamos
+    // el DÍA una vez y sacamos de ahí el objetivo Y sus hijas (dayMap). Sin esto, un CONTENEDOR
+    // virgen upsertaría SOLO el padre (las hijas se buscan con `tasks[sid]`, undefined) y la recarga
+    // NO lo delataría. `materializeDay` suprime instancias borradas → `dayMap[taskId]` undefined →
+    // no resucita. dayMap se construye FUERA del updater de setTasks (patrón anti-#6).
+    let dayMap: Record<string, Task> | null = null;
+    if (!task && taskId.startsWith('inst-')) {
+      const m = taskId.match(/-(\d{4}-\d{2}-\d{2})$/);
+      if (m) {
+        dayMap = {};
+        for (const inst of materializeDay(m[1], tasks)) dayMap[inst.id] = inst;
+        task = dayMap[taskId];
+      }
+    }
     if (!task) {
       console.error('[STATUS] Tarea no encontrada:', taskId);
       return;
     }
+    if (task.isDeleted) return; // guard: no togglear (ni resucitar) una instancia borrada
 
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
     const timestamp = new Date().toISOString();
@@ -161,7 +174,10 @@ export function useTaskCRUD({
       }
 
       (targetTask.subtasks || []).forEach(sid => {
-        const sub = tasks[sid];
+        // B1: las hijas de un contenedor virgen no están en `tasks` → caen a dayMap (materializado).
+        // `tasks[sid]` primero da prioridad a la fila real: una hija con excepción persistida gana
+        // sobre el materializado (caso mixto Q2).
+        const sub = tasks[sid] || (dayMap ? dayMap[sid] : undefined);
         if (sub) toggleRecursive(sub, status);
       });
     };
