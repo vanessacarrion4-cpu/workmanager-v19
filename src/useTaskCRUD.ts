@@ -11,7 +11,7 @@ import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { formatLocalISO } from './dateUtils';
-import { resolveTaskId, templateIdFromInstanceId, materializeDay } from './instanceEngine';
+import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById } from './instanceEngine';
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -93,6 +93,14 @@ export function useTaskCRUD({
       const resolvedId = resolveTaskId(taskId, tasks);
       const resolved = resolvedId !== taskId ? tasks[resolvedId] : undefined;
       if (resolved && resolved.isException) { task = resolved; effectiveId = resolvedId; }
+    }
+    // B2: instancia recurrente VIRGEN sin fila ni excepción → materializar para abrir el modal y borrar la
+    // ocurrencia. Necesario para las HIJAS: NO están en el array flat `dashboardTasks` (solo top-level), así
+    // que el `dashboardTasks.find` de arriba solo resuelve el contenedor; sin esto, borrar una hija virgen es
+    // no-op (caía en handleDeleteTask → return). `effectiveId` sigue = taskId (borrar ESA ocurrencia).
+    if (!task && taskId.startsWith('inst-')) {
+      const materialized = materializeInstanceById(taskId, tasks);
+      if (materialized) task = materialized;
     }
     if (task?.parentTaskId && !tasks[task.parentTaskId]) {
       const parentTask = dashboardTasks.find(t => t.id === task!.parentTaskId);

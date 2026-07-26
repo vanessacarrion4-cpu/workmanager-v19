@@ -14,7 +14,7 @@ import { INITIAL_BLOCKS, COLORS, MOCK_TASKS } from './constants';
 import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { filterTasksForDay } from './filters';
-import { materializeDay } from './instanceEngine';
+import { materializeDay, materializeInstanceById } from './instanceEngine';
 import { useSupabase } from './useSupabase';
 import { useGeneration } from './useGeneration';
 import { useTaskCRUD } from './useTaskCRUD';
@@ -971,7 +971,10 @@ export default function App() {
                 setTasks(prev => ({ ...prev, [taskId]: { ...prev[taskId], isException: true } }));
                 setEditingTaskId(taskId);
               } else {
-                const taskToDelete = tasks[taskId] || dashboardTasks.find(t => t.id === taskId);
+                // B2: incluir materializeInstanceById → resuelve la HIJA virgen (no está en el array
+                // flat dashboardTasks) para poder crear su excepción isDeleted. El contenedor ya se
+                // resolvía por dashboardTasks; esto cubre las hijas.
+                const taskToDelete = tasks[taskId] || dashboardTasks.find(t => t.id === taskId) || materializeInstanceById(taskId, tasks);
                 if (!taskToDelete) return;
                 setTasks(prev => ({
                   ...prev,
