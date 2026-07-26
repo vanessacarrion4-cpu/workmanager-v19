@@ -1150,3 +1150,33 @@ siempre ejercita el camino que funciona** (dashboardTasks lo encuentra). Es el M
   descartado para toggle. (Delete no es probable desde WeekView: no cablea `onDelete`; y las subtareas en WeekView
   solo EDITAN al clic, no togglean sueltas — el toggle del contenedor cascadea.) **Aplicar este test (día ≠ activo)
   a cada fase B/C y al ensayo D0.**
+
+### 13.14 B4 (mover) — decisiones del modelo antes de implementar (sesión 12)
+**Q1 = `null` (decidido)**: en V20 la jerarquía la deriva `materializeDay` desde `template.subtasks` (ids de
+plantilla) + `findLanded/findVacated` por `templateId`+día; NO lee el `parent_task_id` de la excepción. Meter
+id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar TODOS los escritores de excepción a
+`parent_task_id=null` y **retirar la contaminación de `template.subtasks`** (bloque reconexión-a-plantilla
+[useTaskCRUD.ts:473-504](useTaskCRUD.ts)).
+- **Condición #1 — CONTAMINACIÓN PERSISTIDA (medido sesión 12)**: la tabla no tiene columna `subtasks` (se
+  reconstruye de `parent_task_id`), así que `template.subtasks` con ids `inst-` viene de excepciones con
+  `parent_task_id = id de plantilla` (firma del FIX sesión 10; `useGeneration` solo añade a padres-instancia, no
+  a plantillas → **sobrevive al flip**). Medido en memoria: **18 de 123 plantillas** contaminadas (hasta 46 hijas
+  `inst-`; ids auto-amplificados `inst-inst-…`). Post-flip `materializeDay` las enumeraría como hijas-plantilla →
+  **doble/triple render real**. → **B4 necesita LIMPIEZA además del código**. Confirmar conteo persistido con SQL
+  (`is_exception AND parent_task_id → is_template`); si >0, `UPDATE ... parent_task_id=null` con backup. Atribución:
+  el síntoma es en memoria; el mecanismo implica datos persistidos, pero el conteo exacto va por SQL (no se pudo
+  leer el `parent_task_id` crudo desde el navegador).
+- **Condición #2 — qué arreglaba el FIX sesión 10**: el HUÉRFANO al mover/editar subtarea recurrente (antes
+  `parent_task_id=inst-…` colgante → `reconstructHierarchy` no re-enganchaba). En V20 `materializeDay` re-anida la
+  subtarea movida en su día nuevo (`template.subtasks` + `findLanded`) sin `parent_task_id` → `null` lo cubre SIN
+  reintroducir el huérfano, **siempre que B4 valide** "subtarea movida aparece bajo su padre en el día destino".
+- **Q3 = (B) (decidido con datos)**: hay **3 contenedores movidos** en producción (`dueDate≠instanceDate`,
+  templateId=contenedor: "Cierre Propias"/"Pagos del mes FINCA"/"Cierre Central Rec", 2026-07-22→23). El bug del
+  `findVacated` (rama CON-hijas de `materializeDay` [instanceEngine.ts:239+](instanceEngine.ts) NO comprueba
+  `findVacated` → el contenedor movido aparece en el día viejo Y el nuevo) **ya es visible hoy** → arreglarlo en
+  B4: añadir `findVacated` a la rama con-hijas, con test.
+- **Alcance revisado de B4**: (a) unificar excepción→`null` + retirar contaminación de `template.subtasks`;
+  (b) LIMPIEZA de la contaminación persistida (SQL, con backup) — **pendiente decisión/confirmación de la usuaria**;
+  (c) `materializeDay` findVacated para contenedores-con-hijas (Q3-B) + test; (d) handler de mover: materializar
+  la virgen (gap `dashboardTasks`) + `instanceDate`/`dueDate` + `parent_task_id=null`. Validación: mover
+  hoja/subtarea Y contenedor desde **Semana, día ≠ activo** → día viejo vacío, destino la muestra, recarga.
