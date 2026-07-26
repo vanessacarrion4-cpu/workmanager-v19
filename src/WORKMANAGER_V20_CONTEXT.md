@@ -1,10 +1,13 @@
 # WorkManager v20 — Documento de Contexto Completo
 
 > Usar este documento al inicio de cada sesión de desarrollo para dar contexto completo al asistente.
-> Última actualización: 17/07/2026 (sesión 10 — auditoría completa + especificación V20)
+> Última actualización: 26/07/2026 (sesión 11 — #1 promote/demote cerrado; plan del PASO FINAL fijado)
 >
-> **ESTADO**: V19 en producción. V20 es la especificación acordada, pendiente de implementar.
+> **ESTADO**: V19 en producción. V20 en curso en la rama `refactor-v20`.
 > Las secciones marcadas 🔴 describen el estado actual (a corregir); las marcadas 🟢 el objetivo.
+>
+> 👉 **¿RETOMANDO? EMPIEZA POR LA §13** — ahí está el estado exacto, el plan del paso final
+> (retirar `useGeneration` + reactivar interacción + bug #20) y cómo arrancar.
 
 ---
 
@@ -505,6 +508,9 @@ prueba, y si está bien se sigue.
 
 ### Estado de implementación (rama `refactor-v20`)
 
+> ⏭️ **PRÓXIMO Y ÚLTIMO PASO DEL REFACTOR DE DATOS → detalle completo en §13.**
+> Lo de abajo es el registro histórico de lo hecho; §13 es el plan operativo de retoma.
+
 - **Paso 1 ✅** — `instanceEngine.ts` (`occursOn` + `materializeDay`) con 16 tests.
 - **Paso 2A ✅** — `WorkloadView` usa `occursOn` (eliminada la copia 2 del switch).
 - **Paso 2B ✅ (solo lectura)** — `WeekView` migrada a `materializeDay`: sin dependencia
@@ -682,3 +688,140 @@ que genera datos que no necesita.
 - `filters.ts` como fuente única de verdad es la mejor decisión del proyecto
 - La separación en hooks está bien pensada
 - El diseño visual es coherente y cuidado
+
+---
+
+## 13. PASO FINAL — Retirar `useGeneration` + reactivar interacción de recurrentes + bug #20
+
+> **ESTE ES EL PUNTO DE RETOMA (sesión 11, 26/07/2026).** El #1 está cerrado; este es el
+> siguiente y ÚLTIMO paso del refactor de datos. Plan acordado y detallado abajo.
+> **PENDIENTE: OK de alcance (A/B, ver §13.7) antes de tocar código.** NO empezado en código.
+
+### 13.0 Estado exacto al retomar
+- Rama `refactor-v20`, árbol limpio. Últimos commits: `83a7301` (#1 código),
+  `d4cfb9b` (#1 doc). Arranque: `npm run dev` → Vite en `http://localhost:5173/`.
+- **Verde**: `npm run build` (Vite) ✅ ~6s; `npm test` ✅ 24/24.
+- ⚠️ `npx tsc --noEmit` escupe MUCHOS errores **pre-existentes y conocidos** (`existsInSupabase`
+  fuera del tipo, `import.meta.env`, imports de iconos…). **NO están en el pipeline** (build =
+  `vite build`, sin `tsc`). No confundir con rotura; no es regresión.
+- **Hecho**: Pasos 1, 2A, 2B, 3, 5A (lectura), 5B parcial (`resolveTaskId` + toggle/edit/delete
+  con fallback + desplegar 3A/3B + bulkDelete/Update/Duplicate) y **#1 promote/demote
+  persistencia + limpieza dead code nivel 3** (`83a7301`, validado en vivo con recarga).
+
+### 13.1 Diagnóstico (de dónde sale cada decisión) — verificado por lectura de código
+- **El *reading* ya está migrado**: [`activeDayMap` (App.tsx:167)](App.tsx) = `materializeDay(activeDate, tasks)`
+  + estado (estado gana). Semana/Calendario/Carga materializan internamente sobre `allTasksMap={tasks}`
+  ([WeekView.tsx:186](WeekView.tsx)). `materializeDay` solo necesita plantillas + excepciones (filas
+  reales) → **no depende de `useGeneration`**. Quitar el hook NO rompe la lectura.
+- **Lo que se rompe = handlers que leen `tasks[id]` crudo.** Hoy funcionan porque `useGeneration`
+  mete las instancias virtuales en el estado (ventana ≈ −30 a +400 días). Al quitarlo,
+  `tasks[inst-…]` = `undefined` para toda recurrente NO tocada (virgen).
+- **`resolveTaskId` solo resuelve a excepción YA existente**, no materializa vírgenes. Prueba:
+  `handleToggleStatus` cae en `console.error('Tarea no encontrada')` para virgen ([useTaskCRUD.ts:125-128](useTaskCRUD.ts)).
+  → **Falta `materializeInstanceById` (no existe aún)** para obtener el objeto de la instancia virgen.
+- **Todas las vistas comparten los mismos handlers** ([App.tsx:499-529, 651-659, 728](App.tsx)) →
+  hacerlos instance-aware **una vez** reactiva Dashboard + Semana + Calendario a la vez.
+- **Inconsistencia de *edit*:** Dashboard/Calendario/Bloques usan `handleEditTaskRequest` (resuelve);
+  **Semana/Search/Delegadas usan `setEditingTaskId(id)` crudo** ([App.tsx:727,745,692](App.tsx))
+  → editar una virtual desde Semana se rompe post-flip.
+- **Bug #20**: `toggleTaskSelection` ([App.tsx:131](App.tsx)) y `rootIds` de `bulkDuplicateTasks`
+  ([useBulkActions.ts:224](useBulkActions.ts)) leen `tasks[id]` crudo; `duplicateTaskRecursive`
+  ([useBulkActions.ts:202](useBulkActions.ts)) copia `{...original}` sin limpiar
+  `templateId/instanceDate/isException/recurrence` (bug latente: copia atada a la serie, ver
+  `recurrence` propagado en el insert [useBulkActions.ts:307](useBulkActions.ts)).
+
+### 13.2 Commit-red (red de seguridad — revertir en un comando)
+- **Datos**: re-exportar la tabla `tasks` de Supabase ANTES de la primera fase que escribe (Fase B).
+  (El backup del #1 es previo; hacer uno fresco.)
+- **Código**: la retirada de `useGeneration` va en **un commit atómico aislado** (Fase D),
+  precedido de un tag:
+  - `git tag v20-pre-flip`
+  - Revertir solo el flip (quirúrgico): `git revert <hash-del-flip>`
+  - Vuelta total: `git reset --hard v20-pre-flip`
+
+### 13.3 Orden exacto (Fases 0–F)
+**Principio rector**: `useGeneration` ENMASCARA la rotura. Se construyen TODOS los caminos
+instance-aware **con `useGeneration` aún vivo** (app sigue funcionando; el camino nuevo se prueba
+navegando a un día **más allá de +400** de hoy — ahí la instancia ya es virtual). El flip es lo ÚLTIMO.
+- **Fase 0** — Backup DB + árbol limpio + `git tag`.
+- **Fase A** — Helper puro `materializeInstanceById(instanceId, allTasks)` en `instanceEngine.ts`
+  + tests. Extrae `templateId`+fecha, corre la lógica de `materializeDay` de ese día, devuelve el
+  objeto de esa instancia o `null`. Cero cambio de comportamiento (nadie lo llama aún).
+- **Fase B** — Handlers de una tarea instance-aware (cada uno su commit, validado en día lejano):
+  - **B1** `handleToggleStatus`: si `!task` y `resolveTaskId` no da excepción → `materializeInstanceById`
+    → el flujo existente crea la excepción (`isException:true` + upsert). = completar/reabrir virgen.
+  - **B2** `handleDeleteTaskRequest`: virgen → materializar y crear **excepción `isDeleted:true`**
+    (materialize-on-delete), en vez del `UPDATE .eq('id', inst-…)` no-op.
+  - **B3** *Edit routing*: enrutar Semana/Search/Delegadas por `handleEditTaskRequest` (no `setEditingTaskId` crudo).
+  - **B4** Mover (`onRecurrenceDateChange` → `pendingDateChange`): confirmar/ajustar que una virgen
+    se materialice como excepción con el nuevo `dueDate` (el flujo "FIX sesión 10" ya toca
+    `parent_task_id` en excepciones; verificar que cubre la virgen).
+  - **B5** Promote/Demote virgen: extender el #1 (hoy no-op en virgen) con `materializeInstanceById`
+    → upsert excepción ANTES del `UPDATE parent_task_id`.
+- **Fase C** — Bug #20:
+  - **C1** `toggleTaskSelection`: leer del **objeto renderizado** (las `subtasks` que `TaskCard` ya
+    tiene), no de `tasks[id]`. **SOLO UI, sin escritura.**
+  - **C2** `bulkDuplicateTasks`: `rootIds`/originales desde el mapa materializado; **limpiar
+    metadatos** en `duplicateTaskRecursive` (`templateId`, `instanceDate`, `isException`,
+    `recurrence`) → duplicado = one-off limpio. Mantener patrón anti-#6 (cálculo fuera del updater).
+  - **C3** `bulkDeleteTasks`/`bulkUpdateTasks`: materializar normales vírgenes (misma familia que B1/B2 = Fase 3).
+- **Fase R** — Reordenar (bug #15) → **DECISIÓN DE ALCANCE §13.7**.
+- **Fase D** — **EL FLIP** (commit atómico, tras `git tag v20-pre-flip`): quitar la llamada
+  [`useGeneration(...)` (App.tsx:156)](App.tsx), borrar `useGeneration.ts` y `generation.worker.ts`.
+  `useTemplateKey` cae con el archivo (confirmar 0 consumidores externos con grep).
+- **Fase E** — Validación vista por vista (§13.6).
+- **Fase F** — Limpieza diferida (NO crítica, orthogonal): `existsInSupabase` (§4), bug #13
+  `repairRecurringContainers` (escribe en cada carga), `MAX_GENERATION_CYCLES`.
+
+### 13.4 Qué se rompe temporalmente y cómo se detecta
+| Fase | Riesgo temporal | Detección |
+|---|---|---|
+| A | Ninguno (nadie llama al helper) | Tests helper verde; build |
+| B1–B5 | Día **cercano** no cambia (instancia sigue en estado); el camino nuevo solo corre en día **>+400d** | Spy `fetch`: acción en día lejano = **1 upsert excepción** con `is_exception:true` + id/`due_date` correctos. Cercano = mismo nº de escrituras |
+| B3 | Editar desde Semana podría abrir el modal equivocado | El modal abre la tarea correcta (título coincide) |
+| C1 | Solo selección (marca de más/menos). **Sin escritura** | Seleccionar contenedor → marca sus hijas (incl. virtuales) |
+| C2 | **Escritura**: copia malformada o insert duplicado (regresión #6) | Spy `fetch`: duplicar 1 contenedor = N inserts, **0** con `recurrence`/`template_id`; StrictMode no duplica |
+| D (flip) | **MÁXIMO**: todo lo cercano pasa a virtual de golpe | Consola: **0** logs `[GENERATION]`. Regresión total §13.6. Recarga persiste |
+| Reading | Bajo (ya migrado) | Comparar el día de hoy antes/después del flip: mismas tareas, mismo orden |
+
+### 13.5 Bug #20 — dos arreglos de naturaleza distinta
+- **(a) Auto-selección de hijas** = SOLO UI (Fase C1). `toggleTaskSelection` usa las `subtasks` del
+  objeto renderizado que `TaskCard` ya conoce (pasar el objeto/subtasks al handler), no relee
+  `tasks[id]`. Cubre virtuales y el post-flip. Cierra "seleccionar padre no marca hijas".
+- **(b) Duplicar contenedor virtual** = TOCA ESCRITURA (Fase C2). `rootIds`/originales desde el mapa
+  materializado; `duplicateTaskRecursive` limpia `templateId/instanceDate/isException/recurrence`
+  (y no los propaga al insert). Cierra "solo-padre no duplica", "padre+hijas duplica solo hijas" y el
+  bug latente de copia atada a la serie.
+
+### 13.6 Validación final vista por vista (con `useGeneration` fuera, spy `fetch`, y RECARGA como prueba real)
+- **Dashboard (Mi Día)**: completar/reabrir recurrente virgen → 1 upsert excepción → recarga persiste.
+  Editar → modal correcto. Borrar → excepción `isDeleted` → recarga no reaparece. Mover a otro día →
+  aparece en el nuevo, no en el viejo. Seleccionar contenedor → marca hijas (#20a). Duplicar
+  contenedor → copia limpia sin `recurrence` (#20b). Promote/Demote → persiste (#1 + virgen).
+- **Semana**: completar y **editar** recurrente desde la rejilla (edit ruteado por `handleEditTaskRequest`).
+  Añadir subtarea a un día. Recarga conserva.
+- **Calendario**: meses cercanos y lejanos con carga real; abrir el **drawer del día** y
+  completar/editar/borrar dentro (TaskCard completo, mismos handlers). Recarga conserva.
+- **Regresión (no deben cambiar)**: Bloques (tareas reales, promote/demote del #1), Delegadas, Search,
+  Carga. Consola sin `[GENERATION]`, sin bucles de escritura.
+
+### 13.7 ⚠️ DECISIÓN DE ALCANCE PENDIENTE (pedir a la usuaria antes de codificar)
+Reordenar recurrentes virtuales es lo más espinoso: hoy `handleUpdateTasksOrder` escribe `order` en
+la **plantilla** ([useTaskOrdering.ts:33-34](useTaskOrdering.ts)) → reordenar un día cambia TODOS los
+días (**bug #15**). Hacerlo bien exige materializar excepción con `order` por-día.
+- **(A) Recomendada** — Flip ahora + reactivar completar/editar/borrar/mover/duplicar/seleccionar;
+  dejar el *reorder* de virtuales (con #15) como sub-paso inmediato siguiente. Menos superficie por
+  commit. Reordenar sigue OK para tareas reales (Bloques).
+- **(B)** — Incluir la materialización-al-reordenar (#15) en este mismo paso. Más completo, commit
+  más grande y arriesgado.
+- **Recomendación registrada: (A)**. Falta el OK explícito de la usuaria.
+
+### 13.8 Cómo retomar en un chat nuevo
+1. Leer este documento entero (sobre todo §13, §5/§5B en §10, §5 arquitectura, §6 bugs).
+2. Confirmar sin tocar: `git branch --show-current` = `refactor-v20`, árbol limpio; `npm run build` ✅
+   y `npm test` ✅ (24). Arrancar `npm run dev`.
+3. **Antes de la Fase B: exportar backup de `tasks`** (Supabase) — es el primer write nuevo.
+4. Resolver la decisión §13.7 (A/B).
+5. Ejecutar Fases 0→F en orden, un commit por sub-fase, validando en día lejano (>+400d) antes del
+   flip y con recarga en cada caso. `git tag v20-pre-flip` justo antes de la Fase D.
+6. Al terminar, actualizar §13 (marcar hecho) y la tabla de bugs de §6 (#20, #15 si entra, #3/#4/#5).
