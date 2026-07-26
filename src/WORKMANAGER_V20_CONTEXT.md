@@ -982,16 +982,22 @@ de `useGeneration` ([useGeneration.ts:24-26](useGeneration.ts)):
 ### 13.11 Fixture de validación B0/B1 (dedicado, NO tocar tareas reales de la usuaria)
 Contenedor recurrente de prueba + 3 hijas diarias, ids fijos (sin colisión, verificado en vivo). El id de
 contenedor es `tmpl-…` A PROPÓSITO (ejercita el regex de B0: `inst-tmpl-…` rompe el `/^inst-(t-\d+)/` viejo).
-- **Ids**: contenedor `tmpl-testb1`; hijas `tmpl-testb1-c1/-c2/-c3`. Bloque `b-1777907181352` (el más usado;
-  confirmar activo o cambiar). Hijas: `recurrence = {frequency:'daily', startDate:'2026-01-01'}`, **sin `endDate`**,
-  `is_template:true`, `parent_task_id: tmpl-testb1`. Contenedor: `is_template:true`, sin `recurrence`, sin fecha.
+- **Ids**: contenedor `tmpl-testb1`; hijas `tmpl-testb1-c1/-c2/-c3` con `"order"` 0/1/2. Bloque
+  `b-1777907181352` = **«Clientes»** (confirmado `isActive:true` en vivo, sesión 11). Hijas:
+  `recurrence = {frequency:'daily', startDate:'2028-01-01'}`, **sin `endDate`**, `is_template:true`,
+  `parent_task_id: tmpl-testb1`. Contenedor: `is_template:true`, sin `recurrence`, sin fecha.
+  - **`startDate: 2028-01-01` (NO 2026)**: con diaria desde 2026 el fixture saldría en Mi Día TODOS los días del
+    refactor y añadiría ~1.000 instancias al motor viejo. Desde 2028-01-01 ocurre igual en los días de prueba
+    (2028-01-15+) e INVISIBLE en los cercanos. `startDate ≤ día de test`, así que sigue ocurriendo.
 - **Días** (la virginidad se CONSUME al completar → una excepción por día): **2028-01-15** = B1 básico
   (contenedor virgen). **2028-01-16** = caso mixto Q2 (lleva pre-sembrada la excepción de `c1`). **2028-01-17/18**
   = repuesto para re-ejecutar. Verificar virginidad con `window.__tasks` antes de cada prueba.
-- **Q2 (mixto)**: pre-sembrar en 2028-01-16 UNA excepción real de `c1` en `pending` con id
-  `inst-tmpl-testb1-c1-2028-01-16` (`is_exception:true`, `template_id:tmpl-testb1-c1`, `due_date=instance_date=2028-01-16`).
-  Al completar el contenedor ese día: `c1` = update in-place (misma fila), `c2`/`c3` = inserts nuevos → 3 completas,
-  1 fila/hija, sin duplicar `c1`.
+- **Q2 (mixto) — SIN SQL a mano, la excepción se genera CON LA APP (forma real)**: tras validar B1 en 2028-01-15,
+  ir a **2028-01-16** y con la app **completar solo `c1`** y luego **reabrirla** → queda una excepción `pending`
+  con la forma EXACTA que produce la app (evita inventar `parent_task_id`; el "FIX sesión 10" puede escribir ahí el
+  id de la instancia del padre, no el de la plantilla). Con `c1` así y `c2`/`c3` vírgenes, completar el contenedor:
+  `c1` = update in-place (misma fila), `c2`/`c3` = inserts nuevos → 3 completas, 1 fila/hija, sin duplicar `c1`.
+  (DESCARTADO el INSERT artesanal de excepción: probaría una forma que la app quizá nunca produce.)
 - **Limpieza antes de D0** (borra SOLO las excepciones de prueba; deja las plantillas por si re-validas):
   `delete from tasks where template_id in ('tmpl-testb1','tmpl-testb1-c1','tmpl-testb1-c2','tmpl-testb1-c3');`
 - **Teardown final** (quita el fixture entero): `delete from tasks where id like 'tmpl-testb1%' or template_id like 'tmpl-testb1%';`
