@@ -126,6 +126,16 @@ export function useTaskOrdering({
   }, [tasks, setTasks]);
 
   const handlePromoteTask = useCallback((taskId: string) => {
+    // #1: calcular el nuevo padre (el abuelo) FUERA del updater para poder persistirlo.
+    // Va fuera y no dentro de setTasks a propósito: bajo StrictMode el updater corre 2×,
+    // así que la escritura a Supabase no puede vivir ahí (patrón anti-#6).
+    const outerTask = tasks[taskId];
+    if (!outerTask || !outerTask.parentTaskId) return;
+    const outerParent = tasks[outerTask.parentTaskId];
+    if (!outerParent) return;
+    const grandParentId = outerParent.parentTaskId || null;
+    const timestamp = new Date().toISOString();
+
     setTasks(prev => {
       const task = prev[taskId];
       if (!task || !task.parentTaskId) return prev;
@@ -139,7 +149,7 @@ export function useTaskOrdering({
       newTasks[parentTask.id] = {
         ...parentTask,
         subtasks: parentTask.subtasks.filter(sid => sid !== taskId),
-        modifiedAt: new Date().toISOString()
+        modifiedAt: timestamp
       };
 
       if (grandParentId && newTasks[grandParentId]) {
@@ -150,29 +160,55 @@ export function useTaskOrdering({
         newTasks[grandParentId] = {
           ...grandParent,
           subtasks: newSubtasks,
-          modifiedAt: new Date().toISOString()
+          modifiedAt: timestamp
         };
       }
 
       newTasks[taskId] = {
         ...task,
         parentTaskId: grandParentId,
-        modifiedAt: new Date().toISOString()
+        modifiedAt: timestamp
       };
 
       return newTasks;
     });
-  }, [setTasks]);
+
+    // #1: persistir SOLO el nuevo padre de la fila movida. NO se escribe `subtasks`
+    // (columna inexistente = #18; la jerarquía se reconstruye desde parent_task_id al cargar).
+    // .eq('id', taskId) sin resolver a templateId: si es una instancia virgen (inst-…) esto
+    // es no-op a propósito (materializar excepción = Fase 3).
+    supabase.from('tasks')
+      .update({ parent_task_id: grandParentId, modified_at: timestamp })
+      .eq('id', taskId)
+      .then(({ error }) => {
+        if (error) console.error('[PROMOTE] Error persistiendo parent_task_id:', error);
+      });
+  }, [tasks, setTasks]);
 
   const handleDemoteTask = useCallback((taskId: string) => {
+    // #1: calcular el hermano de arriba (el nuevo padre) FUERA del updater para persistirlo.
+    // Mismo motivo que en promote: la escritura no puede vivir dentro de setTasks (StrictMode 2×).
+    const outerTask = tasks[taskId];
+    if (!outerTask) return;
+
+    let outerSiblingIds: string[] = [];
+    if (outerTask.parentTaskId && tasks[outerTask.parentTaskId]) {
+      outerSiblingIds = tasks[outerTask.parentTaskId].subtasks || [];
+    } else {
+      outerSiblingIds = (Object.values(tasks) as Task[])
+        .filter(t => !t.parentTaskId && t.blockId === outerTask.blockId && !t.isTemplate && !t.isDeleted)
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .map(t => t.id);
+    }
+    const outerIdx = outerSiblingIds.indexOf(taskId);
+    if (outerIdx <= 0) return;
+    const aboveTaskId = outerSiblingIds[outerIdx - 1];
+    if (!tasks[aboveTaskId]) return;
+    const timestamp = new Date().toISOString();
+
     setTasks(prev => {
       const task = prev[taskId];
       if (!task) return prev;
-
-      const currentLevel = task.parentTaskId
-        ? (prev[task.parentTaskId]?.parentTaskId ? 3 : 2)
-        : 1;
-      if (currentLevel >= 3) return prev;
 
       let siblingIds: string[] = [];
       if (task.parentTaskId && prev[task.parentTaskId]) {
@@ -198,7 +234,7 @@ export function useTaskOrdering({
         newTasks[task.parentTaskId] = {
           ...parent,
           subtasks: (parent.subtasks || []).filter(sid => sid !== taskId),
-          modifiedAt: new Date().toISOString()
+          modifiedAt: timestamp
         };
       }
 
@@ -206,18 +242,27 @@ export function useTaskOrdering({
         ...aboveTask,
         subtasks: [...(aboveTask.subtasks || []), taskId],
         isExpanded: true,
-        modifiedAt: new Date().toISOString()
+        modifiedAt: timestamp
       };
 
       newTasks[taskId] = {
         ...task,
         parentTaskId: aboveTaskId,
-        modifiedAt: new Date().toISOString()
+        modifiedAt: timestamp
       };
 
       return newTasks;
     });
-  }, [setTasks]);
+
+    // #1: persistir SOLO el nuevo padre de la fila movida. NO se escribe `subtasks` (#18).
+    // .eq('id', taskId) sin resolver: instancia virgen (inst-…) → no-op a propósito (Fase 3).
+    supabase.from('tasks')
+      .update({ parent_task_id: aboveTaskId, modified_at: timestamp })
+      .eq('id', taskId)
+      .then(({ error }) => {
+        if (error) console.error('[DEMOTE] Error persistiendo parent_task_id:', error);
+      });
+  }, [tasks, setTasks]);
 
   return {
     handleUpdateTasksOrder,
