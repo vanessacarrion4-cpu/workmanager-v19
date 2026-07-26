@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { occursOn, materializeDay, resolveTaskId, materializeInstanceById } from './instanceEngine';
+import { occursOn, materializeDay, resolveTaskId, materializeInstanceById, templateIdFromInstanceId } from './instanceEngine';
 import { Task } from './types';
 
 // Fechas ancla (verificadas): 2026-07-15 es MIÉRCOLES.
@@ -404,5 +404,35 @@ describe('materializeInstanceById', () => {
     expect(JSON.stringify(allTasks)).toBe(snapshot);
     expect(Object.keys(allTasks).length).toBe(keysBefore);
     expect(allTasks['inst-t-child-2026-07-15']).toBeUndefined();
+  });
+});
+
+// =========================================================================
+// templateIdFromInstanceId  (B0 — strip robusto a tmpl-/letras)
+// =========================================================================
+
+describe('templateIdFromInstanceId', () => {
+  it('id que NO es inst- → se devuelve tal cual', () => {
+    expect(templateIdFromInstanceId('t-123')).toBe('t-123');
+    expect(templateIdFromInstanceId('tmpl-1785089440019')).toBe('tmpl-1785089440019');
+  });
+
+  it('templateId t-<dígitos> (el caso que el regex viejo SÍ acertaba)', () => {
+    expect(templateIdFromInstanceId('inst-t-1785089440019-2028-01-15')).toBe('t-1785089440019');
+  });
+
+  it('templateId tmpl-<dígitos> → el caso que ROMPÍA /^inst-(t-\\d+)/ (B0)', () => {
+    // Con el regex viejo daría null/parcial (tras inst- viene "tmpl", no "t-"); el strip lo resuelve.
+    expect(templateIdFromInstanceId('inst-tmpl-1785089440019-2028-01-15')).toBe('tmpl-1785089440019');
+  });
+
+  it('templateId con letras/guiones intermedios (duplicado t-…-base36, UUID)', () => {
+    expect(templateIdFromInstanceId('inst-t-1721984000000-a1b2c3d4e-2028-01-15')).toBe('t-1721984000000-a1b2c3d4e');
+    expect(templateIdFromInstanceId('inst-a1b2c3d4-e5f6-7890-abcd-ef1234567890-2028-01-15'))
+      .toBe('a1b2c3d4-e5f6-7890-abcd-ef1234567890');
+  });
+
+  it('inst- sin fecha final → se devuelve tal cual (formato inesperado)', () => {
+    expect(templateIdFromInstanceId('inst-cosa-rara')).toBe('inst-cosa-rara');
   });
 });

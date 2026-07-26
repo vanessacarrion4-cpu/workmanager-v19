@@ -11,7 +11,7 @@ import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { formatLocalISO } from './dateUtils';
-import { resolveTaskId } from './instanceEngine';
+import { resolveTaskId, templateIdFromInstanceId } from './instanceEngine';
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -226,8 +226,9 @@ export function useTaskCRUD({
       // Si es instancia recurrente, resolver al template para verificar propiedades
       let parent = tasks[parentTaskId];
       if (!parent && parentTaskId.startsWith('inst-')) {
-        const match = parentTaskId.match(/^inst-(t-\d+)/);
-        if (match && tasks[match[1]]) parent = tasks[match[1]];
+        // B0: strip robusto (tmpl-/letras), NO el regex /^inst-(t-\d+)/ que fallaba con tmpl-.
+        const templateId = templateIdFromInstanceId(parentTaskId);
+        if (tasks[templateId]) parent = tasks[templateId];
       }
       if (parent) {
         const hasDate = !!parent.dueDate;
@@ -255,8 +256,9 @@ export function useTaskCRUD({
     // Formato: inst-{templateId}-{date} o inst-{templateId}-{subId}-{date}
     let effectiveParentId = parentTaskId;
     if (parentTaskId && parentTaskId.startsWith('inst-') && !tasks[parentTaskId]) {
-      const match = parentTaskId.match(/^inst-(t-\d+)/);
-      if (match && tasks[match[1]]) effectiveParentId = match[1];
+      // B0: strip robusto (tmpl-/letras), NO el regex /^inst-(t-\d+)/ que fallaba con tmpl-.
+      const templateId = templateIdFromInstanceId(parentTaskId);
+      if (tasks[templateId]) effectiveParentId = templateId;
     }
 
     if (effectiveParentId && tasks[effectiveParentId]) {

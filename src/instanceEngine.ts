@@ -286,6 +286,23 @@ function buildContainerInstance(
 }
 
 // -------------------------------------------------------------------------
+// templateIdFromInstanceId — extrae el templateId de un id de instancia
+// -------------------------------------------------------------------------
+
+/**
+ * De `inst-{templateId}-{YYYY-MM-DD}` devuelve `{templateId}`.
+ *
+ * Robusto a templateId con LETRAS/guiones (`tmpl-…`, UUID): hace strip del prefijo
+ * `inst-` y de la fecha final, NO asume `t-\d+` (el regex `/^inst-(t-\d+)/` es INCORRECTO —
+ * ver §5). Si `id` no es `inst-…` o no acaba en `-YYYY-MM-DD`, se devuelve tal cual.
+ */
+export function templateIdFromInstanceId(id: string): string {
+  if (!id || !id.startsWith('inst-')) return id;
+  if (!/-\d{4}-\d{2}-\d{2}$/.test(id)) return id;
+  return id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
+}
+
+// -------------------------------------------------------------------------
 // resolveTaskId — de id de instancia virtual al id de la tarea REAL
 // -------------------------------------------------------------------------
 
