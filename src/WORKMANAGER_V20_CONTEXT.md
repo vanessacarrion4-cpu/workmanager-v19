@@ -1175,8 +1175,27 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
   `findVacated` (rama CON-hijas de `materializeDay` [instanceEngine.ts:239+](instanceEngine.ts) NO comprueba
   `findVacated` → el contenedor movido aparece en el día viejo Y el nuevo) **ya es visible hoy** → arreglarlo en
   B4: añadir `findVacated` a la rama con-hijas, con test.
-- **Alcance revisado de B4**: (a) unificar excepción→`null` + retirar contaminación de `template.subtasks`;
-  (b) LIMPIEZA de la contaminación persistida (SQL, con backup) — **pendiente decisión/confirmación de la usuaria**;
-  (c) `materializeDay` findVacated para contenedores-con-hijas (Q3-B) + test; (d) handler de mover: materializar
-  la virgen (gap `dashboardTasks`) + `instanceDate`/`dueDate` + `parent_task_id=null`. Validación: mover
-  hoja/subtarea Y contenedor desde **Semana, día ≠ activo** → día viejo vacío, destino la muestra, recarga.
+- **DESCOMPOSICIÓN (decidida sesión 12) — 3 cosas distintas, NO mezclar**:
+  1. **findVacated (bug de LECTURA del motor nuevo)** → **commit propio + test, ANTES de B4** (independiente de
+     escritura). Fix: en `materializeDay`, mover el check `findVacated` para que aplique también a la rama
+     CON-hijas: tras `containerLanded`, `if (!containerLanded && findVacated(containerExceptions, dateStr)) continue;`
+     (y quitar el redundante de la rama sin-hijas). Test: contenedor-con-hijas movido → día viejo vacío, destino
+     lo muestra. Q3=(B) por los 3 contenedores movidos reales.
+  2. **B4 (arreglo de ESCRITURA)** = (a) unificar excepción→`null` + retirar reconexión-a-plantilla
+     ([useTaskCRUD.ts:473-504](useTaskCRUD.ts)) + (d) handler de mover instance-aware (materializar virgen, gap
+     `dashboardTasks`, `instanceDate`/`dueDate`, `parent_task_id=null`). Validar: mover hoja/subtarea Y contenedor
+     desde **Semana, día ≠ activo** → día viejo vacío, destino la muestra, recarga; y **subtarea movida aparece
+     bajo su padre en el destino** (que el `null` no reintroduzca el huérfano del FIX sesión 10).
+  3. **LIMPIEZA de datos** → **FASE PROPIA entre D1 y E** (NO ahora): primer write masivo e irreversible; no
+     urgente (filas de hace meses); post-flip el síntoma (contenedores duplicados) es VISIBLE y se puede verificar
+     que la limpieza lo arregla (ahora sería a ciegas); y aísla "¿fue el flip o la limpieza?". Contenido de la fase:
+     backup fresco → `UPDATE tasks SET parent_task_id=null WHERE is_exception AND parent_task_id→is_template` →
+     recargar y verificar que las series contaminadas dejan de mostrar hijas `inst-`/duplicadas.
+- **BUCLE `inst-inst-…` VIVO (medido sesión 12)**: **52 excepciones persistidas** doble-anidadas + **12 triple**
+  (`is_exception:true`, `existsInSupabase:true`), creadas jun–jul, `modifiedAt` hasta 2026-07-22. Patrón
+  `inst-inst-t-X-FECHA-FECHA` (misma fecha 2×) = instancia de 1er nivel metida en `template.subtasks` y
+  re-instanciada. **Camino**: FIX sesión 10 escribe `parent_task_id=plantilla` al editar/mover subtarea recurrente
+  → `reconstructHierarchy` la mete en `template.subtasks` → se genera `inst-{inst-…}` → si se toca, se persiste y
+  FIX sesión 10 re-enlaza → triple. **El que lo mantiene vivo = el código que B4 retira** → "cerrarlo" ES
+  B4-parte-1 (no hay paso separado). Tras B4, los writes van a `null` → no re-contamina → no amplifica. Crecimiento
+  es **user-driven** (solo al editar/mover series contaminadas); no crece mientras se validan fixtures.
