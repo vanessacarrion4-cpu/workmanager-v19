@@ -1220,3 +1220,47 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
   FIX sesión 10 re-enlaza → triple. **El que lo mantiene vivo = el código que B4 retira** → "cerrarlo" ES
   B4-parte-1 (no hay paso separado). Tras B4, los writes van a `null` → no re-contamina → no amplifica. Crecimiento
   es **user-driven** (solo al editar/mover series contaminadas); no crece mientras se validan fixtures.
+
+### 13.15 ⏸️ PUNTO DE RETOMA (fin sesión 12) — retomar por B4-cambio-1
+
+**Estado de fases (rama `refactor-v20`, árbol limpio):**
+| Fase | Estado | Commits (código) |
+|---|---|---|
+| #1 promote/demote persistencia | ✅ hecho + validado en vivo | `83a7301` |
+| Fase A (`materializeInstanceById` + tests) | ✅ hecho | `84d53e5`, `e61b415` |
+| B0 (regex add-subtask → strip) | ✅ hecho + test | `eefa2f6` |
+| B1 (toggle materializa la rama, `dayMap`) | ✅ hecho + validado (básico/idempotencia/Q2) | `df0a2f2` |
+| B2 (borrar virgen: hija con `materializeInstanceById`) | ✅ hecho + validado (contenedor+hija) | `052510a` |
+| B3 (editar virgen → modal, editor con datos reales) | ✅ hecho + validado (Semana, día≠activo) | `8d4f782` |
+| `findVacated` (contenedor movido no duplica) | ✅ hecho + validado (43 tests + A/B en vivo) | `3fa2be0` |
+| **B4 (mover + null + retirar contaminación)** | ⏸️ **SIGUIENTE** | — |
+
+**B4 — dos commits (plan detallado en §13.14):**
+- **B4-cambio-1 (contaminación + null)**: en `handleUpdateTask` ([useTaskCRUD.ts:473-504](useTaskCRUD.ts)) quitar el
+  `push` de la instancia a `template.subtasks` (482-487) y cambiar el `supabase.update` a `parent_task_id: null`
+  (494-501); en el move-to-date ([:457](useTaskCRUD.ts)) `parentTaskId: null` en vez del inst- virtual. Scope: SOLO
+  excepciones recurrentes (`is_exception && templateId`) — §13.14 condición 1. ⚠️ **RIESGO — bloque ENTRELAZADO**:
+  esas líneas de contaminación conviven con la **propagación de `isTemplate` al padre (506-516)**, que NO es
+  contaminación y **debe seguir funcionando**. Disecar solo las 3 líneas de contaminación; NO tocar la propagación.
+  **Validación B4-cambio-1**: (a) spy — editar una subtarea recurrente ya NO escribe `parent_task_id→plantilla`;
+  (b) la subtarea sigue bajo su padre; (c) **EXPLÍCITO: el contenedor sigue siendo `isTemplate` tras el edit**
+  (la propagación 506-516 no se rompió), no solo "desapareció la contaminación".
+- **B4-cambio-2 (mover instance-aware)**: materializar la virgen antes de mover (gap `dashboardTasks`, patrón
+  B1/B2) + conservar `instanceDate`/`dueDate`. **Validación**: mover **hoja Y contenedor** desde **Semana, día ≠
+  activo** → día viejo vacío, destino la muestra, recarga; y **subtarea movida bajo su padre en el destino**
+  (que `null` no reintroduzca el huérfano del FIX sesión 10).
+
+**Entorno vivo (recordatorio para retomar):**
+- **Fixture de prueba** `t-1785089440019` "Test Recurrent B1" + 3 hijas (`t-1785089472309/481020/493867`), creado en
+  la app; días ya consumidos: 2028-01-15/16/17, 02-01, 02-08, 03-06/13. **Convención**: una fecha nueva por fase
+  (§13.11). **Cleanup del fixture** cuando ya no haga falta:
+  `delete from tasks where id in ('t-1785089440019','t-1785089472309','t-1785089481020','t-1785089493867') or template_id in (los mismos 4);`
+- **Código DEV-ONLY a RETIRAR en D2**: `window.__tasks` + `window.__goToDate` ([App.tsx](App.tsx)) y el spy de
+  escrituras (`devFetch`/`window.__spy` en [supabaseClient.ts](supabaseClient.ts), commit `2609be0`). Uso: leer
+  `window.__spy` en llamada APARTE (se puebla tras un tick).
+- **⚠️ PRODUCCIÓN hasta el merge de B4 a master**: NO mover/editar las 4 series contaminadas ("Pago nóminas",
+  "Pagos mensuales", "Cierre Propias", "Cierre Central Rec") — cada edición añade filas anidadas (bucle vivo).
+- **Limpieza de contaminación** = fase propia **DESPUÉS de fusionar B4 a master** (§13.14). El **conteo del SQL**
+  (`is_exception && parent_task_id→is_template`) que la usuaria está corriendo **alimenta esa fase**, no B4.
+- **Requisito de validación fijo** (§13.13): cada fase B/C y el ensayo D0 se prueban también desde un **día ≠ activo**
+  (vía Semana), no solo con `__goToDate` (que hace activo el día probado → enmascara).
