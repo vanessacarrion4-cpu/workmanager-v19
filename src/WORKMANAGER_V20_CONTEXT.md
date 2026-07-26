@@ -820,8 +820,18 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
       vírgenes. El orden `tasks[sid]` primero da prioridad a la fila real (la excepción manda sobre el
       materializado). Esperado: las **3** acaban completas, **1 fila por hija**, la preexistente se actualiza
       in-place (upsert `onConflict:'id'`, **sin duplicar**). Spy: 3 upserts, ninguno con id de plantilla.
-  - **B2** `handleDeleteTaskRequest`: virgen → materializar y crear **excepción `isDeleted:true`**
-    (materialize-on-delete), en vez del `UPDATE .eq('id', inst-…)` no-op.
+  - **B2** ✅ **HECHO y VALIDADO EN VIVO (commit `052510a`)**. Matiz real (distinto de lo previsto): el borrado
+    de recurrentes NO usa `handleDeleteTask` (ese es el camino directo, que sí lee `tasks[sid]` crudo y hace
+    no-op en virgen). Va por el **modal de recurrencia** → handler `onConfirm('instance')` ([App.tsx:974](App.tsx)),
+    que crea **UNA** excepción `isDeleted` **sin recorrer hijas** (container-only, model-correct). `materializeDay`
+    suprime el bloque entero del contenedor (`findDeletedForDay(containerExceptions) → continue`), así que basta
+    la del contenedor y las hijas NO pueden orfanar (nunca son nivel-1). **Gap encontrado**: el contenedor se
+    resolvía por `dashboardTasks.find` (top-level) y funcionaba, pero **borrar una HIJA suelta virgen era no-op**
+    (las hijas NO están en el array flat `dashboardTasks`). **Fix**: fallback `materializeInstanceById` en los dos
+    sitios que resuelven el objetivo (`handleDeleteTaskRequest` + el handler de App.tsx). Validación: contenedor
+    virgen (2028-02-01) → 1 upsert `isDeleted`, recarga = fixture AUSENTE (ni padre ni hijas). Hija suelta
+    (2028-02-08) → 1 upsert, recarga = `c2` desaparece, contenedor+`c1`+`c3` siguen. Respuestas Q1 (basta la del
+    contenedor) y Q2 (no orfanan) confirmadas.
   - **B3** *Edit routing*: enrutar Semana/Search/Delegadas por `handleEditTaskRequest` (no `setEditingTaskId` crudo).
     - **Verificado (sesión 11) — abrir el modal NO escribe**: el `adhoc→core` al abrir es solo el DEFAULT del
       formulario ([TaskModal.tsx:281](TaskModal.tsx): `hasActiveRecurrence && !localTask.taskType` resalta 'core'),
@@ -1047,9 +1057,12 @@ Verificado en vivo (sesión 11) con `window.__tasks` + `materializeDay`. (Se des
 - **Días** (la virginidad se CONSUME al completar → una excepción por día): **2028-01-15** = B1 básico
   (contenedor virgen). **2028-01-16** = caso mixto Q2 (excepción de `c1` generada con la app, §Q2). **2028-01-17/18**
   = repuesto para re-ejecutar. Verificar virginidad con `window.__tasks` antes de cada prueba.
-- **Estado de los días tras la validación (sesión 11)**: **15** consumido (B1 + idempotencia, completo). **16**
-  = TODO completado por error (un clic sobre el contenedor en vez de `c1` → cascada; ya no sirve para mixto).
-  **17** consumido (mixto Q2, completo). **18** = ÚNICO VIRGEN restante. Al re-validar, usar 18 o un día nuevo.
+- **Los días de prueba NO son recurso escaso**: TODO 2028 (y más allá) es virgen — cualquier fecha por encima
+  del techo del motor viejo (~2026-12-31) sirve. La idea de "días de repuesto" venía del fixture-por-SQL; ya no
+  aplica. **Convención de UNA fecha por fase** (para no pisar estados entre validaciones):
+  B1 → 2028-01-15 (hecho) · Q2 → 2028-01-17 (hecho) · **B2 → 2028-02-01** · B4 → 2028-02-02 · B5 → 2028-02-03 ·
+  C1 → 2028-02-04 · C2 → 2028-02-05 · C3 → 2028-02-06 (siguientes: 2028-02-07…). Verificar virginidad con
+  `window.__tasks` antes de cada una. (Nota: 2028-01-16 quedó todo-completado por un clic erróneo; inerte.)
 - **Clic en DOM (gotcha para C1/C2/C3)**: (a) leer/clicar SIEMPRE en una llamada aparte del `__goToDate` (React
   re-renderiza async; si no, se lee el DOM viejo). (b) Las HIJAS no están en `<li>` propios → `closest('li')`
   de una hija devuelve el `<li>` del CONTENEDOR (su 1er checkbox = el del contenedor → **cascada**). Para clicar
