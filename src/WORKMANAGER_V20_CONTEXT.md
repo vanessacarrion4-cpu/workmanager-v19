@@ -837,6 +837,30 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
       formulario ([TaskModal.tsx:281](TaskModal.tsx): `hasActiveRecurrence && !localTask.taskType` resalta 'core'),
       estado local `localTask`; `handleEditTaskRequest` solo hace `setTasks` en memoria, sin Supabase. → Abrir la
       edición de una instancia virtual **NO crea fila** silenciosa. (No es camino de escritura; era la duda de B3.)
+    - **B3 son 3 partes (barrido §13.12)**: (1) routing Semana/Search/Delegadas → `handleEditTaskRequest`;
+      (2) `handleEditTaskRequest` ([useTaskCRUD.ts:59](useTaskCRUD.ts)) resuelve por `dashboardTasks.find` (día
+      activo, top-level) → para virgen no-activa/hija cae a `resolveTaskId`→PLANTILLA y **edita la SERIE sin
+      preguntar** → fix: fallback `materializeInstanceById` para que abra el modal de recurrencia; (3) el path
+      `onConfirm('instance','edit')` ([App.tsx:971](App.tsx)) hace `{...prev[taskId], isException:true}` sobre
+      `undefined` → **fantasma parcial + editor VACÍO** → fix: materializar ahí también.
+    - ⚠️ **CAMBIO DE COMPORTAMIENTO VISIBLE (no es regresión en Fase E)**: hoy editar una recurrente desde Semana
+      va DIRECTA a la serie; tras B3 saldrá el modal "¿este día o toda la serie?". No es cosmético: el actual es
+      **silenciosamente destructivo** (editas lo que parece un día y cambias toda la serie sin aviso). El modal es
+      el arreglo. Desde Semana = un clic más para quien edita series.
+    - **Fantasma de edición (parte 3) — PUEDE escribir, verificado sesión 11**: `TaskModal.handleSave`
+      ([TaskModal.tsx:120](TaskModal.tsx)) **no tiene guard de título vacío** → guardar el modal vacío llama
+      `onSave`→`handleUpdateTask` (escribe). Diagnóstico de la BD (10729 filas / 1548 excepciones cargadas):
+      **3 excepciones con título `""`** — `templateId:null`, `blockId:b1`, `dueDate` 2026-04-29/30, **`isDeleted:true`**
+      (ya borradas, inertes). Ids `t-1777493420378 / t-1777492627525 / t-1777490985341`. Encajan con la firma del
+      fantasma. **NO borradas — decisión de la usuaria.** B3 (parte 3) cierra el origen (materializar → editor con
+      datos reales, no vacío).
+    - ✅ **B3 HECHO y VALIDADO (commit `8d4f782`)**. Validado en vivo **desde Semana, día ≠ activo** (requisito
+      §13.13): `activeDate`=2028-06-01, semana marzo 2028, editar la **HIJA** "Test hija1" en 2028-03-13 → abre el
+      **modal de elección** (no salta a serie) → "Solo esta tarea" → editor con **datos reales** ("Test hija1", no
+      vacío) → cambiar título → **1 upsert excepción** → recarga: persiste **solo** ese día
+      (`editedExceptionsCount:1`), plantilla y demás días intactos. Cubre parte 2 (modal), parte 3 (editor real),
+      caso HIJA y día no-activo. Routing (parte 1): las 3 vistas ahora comparten `handleEditTaskRequest` (Semana
+      validada end-to-end; Search/Delegadas = mismo handler, mismas real-rows → mismo camino).
   - **B4** Mover (`onRecurrenceDateChange` → `pendingDateChange`): confirmar/ajustar que una virgen
     se materialice como excepción con el nuevo `dueDate` (el flujo "FIX sesión 10" ya toca
     `parent_task_id` en excepciones; verificar que cubre la virgen).
