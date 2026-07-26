@@ -1086,3 +1086,36 @@ Verificado en vivo (sesión 11) con `window.__tasks` + `materializeDay`. (Se des
 - **Teardown final** (quita el fixture ENTERO — plantillas + excepciones):
   `delete from tasks where id in ('t-1785089440019','t-1785089472309','t-1785089481020','t-1785089493867') or template_id in ('t-1785089440019','t-1785089472309','t-1785089481020','t-1785089493867');`
   (O más simple desde la app: borrar el contenedor "Test Recurrent B1" con su árbol.)
+
+### 13.12 Barrido de `dashboardTasks.find` — SEGUNDA familia de bug (≠ `tasks[sid]` crudo)
+`dashboardTasks` es un array PLANO, del **DÍA ACTIVO** y SOLO de **nivel superior** (las hijas van anidadas, no
+como entradas). Resolver el objetivo por `dashboardTasks.find(t=>t.id===id)` falla en DOS ejes: (a) **HIJAS**
+(no están en el array) y (b) instancias de un día **≠ activo**. Sitios (sesión 11):
+- [useTaskCRUD.ts:59](useTaskCRUD.ts) `handleEditTaskRequest` → **B3** (sin fallback aún; añadir `materializeInstanceById`).
+- [useTaskCRUD.ts:86](useTaskCRUD.ts) `handleDeleteTaskRequest` → **B2 ✅ arreglado**.
+- [useTaskCRUD.ts:106](useTaskCRUD.ts) `handleDeleteTaskRequest` (inyección del PADRE en memoria) → mismo agujero
+  para el padre; hoy inocuo (solo estado, no escritura), revisar al tocar B3/B4.
+- [App.tsx:977](App.tsx) handler delete-occurrence → **B2 ✅ arreglado**.
+- (`handleToggleStatus` NO usa `dashboardTasks.find`: resuelve por `Object.values(tasks).find` + dayMap
+  date-from-id → ya es cross-day por construcción.)
+**Patrón de arreglo (uniforme)**: fallback `materializeInstanceById(id, tasks)` — usa la fecha **DEL ID**, no
+`activeDate` → cubre hijas y días no-activos. Aplica en B3/B4/B5 y Fase C dondequiera que se resuelva el objetivo
+por `dashboardTasks`/estado del día activo.
+
+### 13.13 ⚠️ PUNTO CIEGO DE VALIDACIÓN — "probar desde un día ≠ activo" (requisito FIJO)
+`dashboardTasks` = día activo, y `window.__goToDate(D)` convierte D en el día activo → **validar con `__goToDate`
+siempre ejercita el camino que funciona** (dashboardTasks lo encuentra). Es el MISMO enmascaramiento que hacía
+`useGeneration`, ahora vía `__goToDate`. Un bug que dependa de `dashboardTasks` (§13.12) NO saldrá así.
+- **Requisito fijo para CADA fase (B/C) y para el ensayo D0**: validar al menos una acción **desde un día que NO
+  sea el activo**. Vía práctica: **Semana** (`WeekView` muestra 7 días; su `weekStart` es independiente de
+  `activeDate` — [WeekView.tsx:158,408](WeekView.tsx) tiene input de salto de fecha). Poner `activeDate` en un día
+  lejano (p.ej. `__goToDate('2028-06-01')`), ir a Semana, saltar a una semana de 2028 y tocar una recurrente en un
+  día del grid (todos no-activos). Si el fallback `materializeInstanceById` (date-from-id) se alcanza → funciona;
+  si algún camino aún depende de `dashboardTasks` → sale ahí.
+- **Resultado del test (sesión 11) ✅**: `activeDate`=2028-06-01; en Semana, salto a la semana de marzo 2028 y
+  completo el contenedor del fixture en **LUN 6 Mar** (día ≠ activo). Spy: **4 upserts, TODOS para `2028-03-06`**
+  (no para 2028-06-01). → el fallback date-from-id (B1 dayMap / B2 `materializeInstanceById`) **se alcanza y
+  funciona en día no-activo**; toggle NO depende de `activeDate`/`dashboardTasks`. Enmascaramiento de `__goToDate`
+  descartado para toggle. (Delete no es probable desde WeekView: no cablea `onDelete`; y las subtareas en WeekView
+  solo EDITAN al clic, no togglean sueltas — el toggle del contenedor cascadea.) **Aplicar este test (día ≠ activo)
+  a cada fase B/C y al ensayo D0.**
