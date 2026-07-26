@@ -990,8 +990,14 @@ contenedor es `tmpl-…` A PROPÓSITO (ejercita el regex de B0: `inst-tmpl-…` 
     refactor y añadiría ~1.000 instancias al motor viejo. Desde 2028-01-01 ocurre igual en los días de prueba
     (2028-01-15+) e INVISIBLE en los cercanos. `startDate ≤ día de test`, así que sigue ocurriendo.
 - **Días** (la virginidad se CONSUME al completar → una excepción por día): **2028-01-15** = B1 básico
-  (contenedor virgen). **2028-01-16** = caso mixto Q2 (lleva pre-sembrada la excepción de `c1`). **2028-01-17/18**
+  (contenedor virgen). **2028-01-16** = caso mixto Q2 (excepción de `c1` generada con la app, §Q2). **2028-01-17/18**
   = repuesto para re-ejecutar. Verificar virginidad con `window.__tasks` antes de cada prueba.
+- **Llegar al día de test**: usar `window.__goToDate('2028-01-15')` (dev, commit `6daae1d`), NO el Calendario.
+  El Calendario va lento navegando a 2028 porque su `monthMap` materializa CADA día del mes visible
+  (`materializeDay` ×~30 por cambio de mes) — motor **NUEVO**, no `useGeneration` (verificado en consola:
+  **0 ciclos `[GENERATION]` al cambiar de mes**). Coste PRE-EXISTENTE del mes (Calendar ya migrado en paso 3); el
+  flip NI lo introduce NI lo empeora. Optimización futura (fuera de este paso): indexar excepciones una vez por
+  mes, no por día, dentro de `materializeDay`.
 - **Q2 (mixto) — SIN SQL a mano, la excepción se genera CON LA APP (forma real)**: tras validar B1 en 2028-01-15,
   ir a **2028-01-16** y con la app **completar solo `c1`** y luego **reabrirla** → queda una excepción `pending`
   con la forma EXACTA que produce la app (evita inventar `parent_task_id`; el "FIX sesión 10" puede escribir ahí el
