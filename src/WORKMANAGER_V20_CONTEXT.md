@@ -744,7 +744,7 @@ que genera datos que no necesita.
     Pero este regex es **ACTIVO** y hay que arreglarlo en la reactivación: sustituir `/^inst-(t-\d+)/` por el
     strip de `resolveTaskId` (`.replace(/^inst-/,'').replace(/-\d{4}-\d{2}-\d{2}$/,'')`) o llamar a
     `resolveTaskId`/`materializeInstanceById`. Solo 2 sitios: [useTaskCRUD.ts:229,258](useTaskCRUD.ts).
-    Afecta a "añadir subtarea a un día" (Semana, §13.6) y a B4. **Añadir un B-step (o incluir en B4).**
+    Afecta a "añadir subtarea a un día" (Semana, §13.6) y a B4. **→ Es la Fase B0 (antes de B1, §13.3).**
 
 ### 13.2 Commit-red (red de seguridad — revertir en un comando)
 - **Backup DB #1**: re-exportar la tabla `tasks` de Supabase ANTES de la primera fase que escribe
@@ -769,6 +769,13 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
   + tests. Extrae `templateId`+fecha, corre la lógica de `materializeDay` de ese día, devuelve el
   objeto de esa instancia o `null`. Cero cambio de comportamiento (nadie lo llama aún).
 - **Fase B** — Handlers de una tarea instance-aware (cada uno su commit, validado en día lejano):
+  - **B0 (PRIMERO, antes de B1) — arreglar el regex de add-subtask**: en `handleAddTask` y `doAddTask`
+    ([useTaskCRUD.ts:229,258](useTaskCRUD.ts)) sustituir `parentTaskId.match(/^inst-(t-\d+)/)` por el strip de
+    `resolveTaskId` (`inst-<templateId>` → `templateId` vía `.replace(/^inst-/,'').replace(/-\d{4}-\d{2}-\d{2}$/,'')`),
+    o llamar directamente a `resolveTaskId(parentTaskId, tasks)`. Sin dependencia de B1 (solo corrige la
+    resolución del padre; no toca el materializado de B1). **Test propio**: instancia de contenedor `tmpl-…`
+    (con letras) → resuelve al `tmpl-…` correcto, no a `null`/parcial. Se sube a B0 porque "añadir subtarea a
+    un contenedor recurrente" es acción de USO DIARIO y su fallo NO debe confundirse con B1 durante la validación.
   - **B1** `handleToggleStatus` — **materializar la RAMA, no solo el nodo**: si `!task` y `resolveTaskId`
     no da excepción, materializar el DÍA UNA vez (`materializeDay(fecha, tasks)` → `dayMap`) y sacar de ahí
     el objetivo (`dayMap[taskId]`) **y sus hijas**. Cambiar el lookup de hijas de `toggleRecursive`
@@ -891,7 +898,7 @@ días (**bug #15**). Hacerlo bien exige materializar excepción con `order` por-
    y `npm test` ✅ (24). Arrancar `npm run dev`.
 3. **Antes de la Fase B: exportar backup de `tasks`** (Supabase, backup #1) — primer write nuevo.
 4. Alcance YA decidido: **(A)** (§13.7). No re-preguntar.
-5. Ejecutar en orden: 0 → A → B → C → R(diferida) → **D0 (ensayo)** → **D1 (desactivar, flag)** →
+5. Ejecutar en orden: 0 → A → **B0 (regex add-subtask)** → B1…B5 → C → R(diferida) → **D0 (ensayo)** → **D1 (desactivar, flag)** →
    **E (con backup #2 antes)** → **D2 (borrar archivos)** → F. Un commit por sub-fase; validar en día
    lejano (>+400d) antes del flip y con recarga en cada caso. `git tag v20-pre-flip` justo antes de D1.
 6. Al terminar, actualizar §13 (marcar hecho) y la tabla de bugs de §6 (#20, #15 en el sub-paso
@@ -962,3 +969,12 @@ de `useGeneration` ([useGeneration.ts:24-26](useGeneration.ts)):
   - **Virginidad de la instancia concreta**: `window.__tasks['inst-<templateId>-2028-01-15'] === undefined`
     → `true` = virgen. (O barrer: `Object.keys(window.__tasks).filter(k=>k.includes('2028-01-15'))` → `[]`.)
   - Alternativa sin código: React DevTools → App → hook `tasks` → buscar el id.
+- **MEDIDO EN VIVO (sesión 11, con `window.__tasks`)**: log de la ventana = `30 pasado + 400 futuro (yearly
+  detectado)` → techo TEÓRICO ≈ 2027-08-30. Pero el techo **EMPÍRICO real = 2026-12-31** (0 instancias después,
+  reproducible tras recargar; 1494 instancias en estado, de las cuales 1093 son excepciones/supabase
+  preservadas). Solo 4/119 plantillas tienen `endDate` (mediados 2026) → no es la causa. **Es el síntoma "el
+  futuro lejano sale vacío" del worker viejo** (el mismo que arregla `materializeDay` — cf. migración de
+  Calendar). Consecuencias: (a) la zona virgen empieza ~**2027-01-01**, no en 2027-08-31 → **2028-01-15 es
+  virgen con margen de sobra** (confirmado: 0 claves `2028-01-15`); (b) **fiarse del techo EMPÍRICO, no de la
+  constante**; (c) re-medir el techo por sesión (varía con los datos). **Caveat del fixture**: la plantilla de
+  test debe NO tener `endDate` (o uno > día de test) para que la recurrencia ocurra ese día.
