@@ -125,6 +125,12 @@ export default function App() {
   // D0. NO es lógica de B; retirar en la Fase D2 (borrado de useGeneration).
   useEffect(() => { (window as any).__tasks = tasks; }, [tasks]);
 
+  // DEV TEMPORAL (sesión 11, §13.11): salto directo a una fecha en Mi Día para validar en día
+  // lejano SIN navegar el Calendario (lento). Uso: window.__goToDate('2028-01-15'). Retirar en D2.
+  useEffect(() => {
+    (window as any).__goToDate = (d: string) => { setActiveDate(d); setCurrentView('dashboard'); };
+  }, []);
+
   // Selection helpers
   const toggleSelectionMode = () => {
     setSelectionMode(prev => {
