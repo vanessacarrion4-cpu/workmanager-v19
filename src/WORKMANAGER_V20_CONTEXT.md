@@ -695,7 +695,7 @@ que genera datos que no necesita.
 
 > **ESTE ES EL PUNTO DE RETOMA (sesión 11, 26/07/2026).** El #1 está cerrado; este es el
 > siguiente y ÚLTIMO paso del refactor de datos. Plan acordado y detallado abajo.
-> **PENDIENTE: OK de alcance (A/B, ver §13.7) antes de tocar código.** NO empezado en código.
+> **Alcance DECIDIDO: (A)** (ver §13.7). Se empieza por la Fase A. NO empezado en código aún.
 
 ### 13.0 Estado exacto al retomar
 - Rama `refactor-v20`, árbol limpio. Últimos commits: `83a7301` (#1 código),
@@ -731,13 +731,18 @@ que genera datos que no necesita.
   `recurrence` propagado en el insert [useBulkActions.ts:307](useBulkActions.ts)).
 
 ### 13.2 Commit-red (red de seguridad — revertir en un comando)
-- **Datos**: re-exportar la tabla `tasks` de Supabase ANTES de la primera fase que escribe (Fase B).
-  (El backup del #1 es previo; hacer uno fresco.)
-- **Código**: la retirada de `useGeneration` va en **un commit atómico aislado** (Fase D),
-  precedido de un tag:
-  - `git tag v20-pre-flip`
-  - Revertir solo el flip (quirúrgico): `git revert <hash-del-flip>`
-  - Vuelta total: `git reset --hard v20-pre-flip`
+- **Backup DB #1**: re-exportar la tabla `tasks` de Supabase ANTES de la primera fase que escribe
+  (Fase B). (El backup del #1 es previo; hacer uno fresco.)
+- **Backup DB #2**: re-exportar `tasks` OTRA VEZ justo ANTES de la Fase E — la validación post-flip
+  ESCRIBE (crea excepciones al completar/borrar/mover), así que se quiere un punto de restauración
+  limpio inmediatamente anterior.
+- **Código**: el flip NO borra archivos de golpe. Se parte en **D1** (desactivar `useGeneration` con
+  flag/ventana 0, sin borrar) y **D2** (borrar `useGeneration.ts`, `generation.worker.ts` y
+  `useTemplateKey`, SOLO tras validar la Fase E). Ambos en commits atómicos, precedidos de tag:
+  - `git tag v20-pre-flip` (antes de D1).
+  - Volver atrás en SEGUNDOS durante la validación: reactivar el flag / restaurar la ventana (sin git).
+  - Revertir por git (quirúrgico): `git revert <hash-de-D1>` (y `<hash-de-D2>` si ya se dio).
+  - Vuelta total: `git reset --hard v20-pre-flip`.
 
 ### 13.3 Orden exacto (Fases 0–F)
 **Principio rector**: `useGeneration` ENMASCARA la rotura. Se construyen TODOS los caminos
@@ -765,11 +770,26 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
     metadatos** en `duplicateTaskRecursive` (`templateId`, `instanceDate`, `isException`,
     `recurrence`) → duplicado = one-off limpio. Mantener patrón anti-#6 (cálculo fuera del updater).
   - **C3** `bulkDeleteTasks`/`bulkUpdateTasks`: materializar normales vírgenes (misma familia que B1/B2 = Fase 3).
-- **Fase R** — Reordenar (bug #15) → **DECISIÓN DE ALCANCE §13.7**.
-- **Fase D** — **EL FLIP** (commit atómico, tras `git tag v20-pre-flip`): quitar la llamada
-  [`useGeneration(...)` (App.tsx:156)](App.tsx), borrar `useGeneration.ts` y `generation.worker.ts`.
-  `useTemplateKey` cae con el archivo (confirmar 0 consumidores externos con grep).
-- **Fase E** — Validación vista por vista (§13.6).
+- **Fase R** — Reordenar (bug #15): **DIFERIDO por decisión (A)** → sub-paso inmediato SIGUIENTE al
+  paso final. Reordenar sigue OK para filas reales (Bloques). Comportamiento con recurrente virgen
+  tras el flip documentado en §13.9 (esperado, NO regresión).
+- **Fase D0 — Ensayo general (pre-flip, SIN cambiar código)**: con `useGeneration` AÚN vivo, correr la
+  tabla ENTERA de §13.6 en un día **>+400 días** (ahí las instancias ya son virtuales). Da confianza de
+  que toda la maquinaria instance-aware (B+C) funciona sobre virtuales ANTES de tocar el flip.
+  **Lo que este ensayo NO cubre** (y por tanto exige validación propia en Fase E, ya post-flip):
+    - **Mi Día (día real/cercano)**: hoy sigue en estado hasta el flip; el ensayo usa un día lejano →
+      la transición "hoy pasa a virtual" no se prueba aquí.
+    - **Bloques**: opera sobre filas reales (plantillas/manuales), no sobre virtuales → intacto en el ensayo.
+    - **Delegadas**: su propia vista/filtrado no se ejercita desde un Dashboard de día lejano.
+- **Fase D1 — Desactivar `useGeneration` SIN borrar** (commit atómico, tras `git tag v20-pre-flip`):
+  neutralizar el hook con un flag (p.ej. `GENERATION_ENABLED = false` + early-return) o la ventana a 0
+  días. Archivos y `useTemplateKey` intactos → volver atrás = flip del flag, en segundos, sin git.
+  Ahora TODO (incluido hoy) es virtual.
+- **Fase E** — **Backup DB #2** + Validación vista por vista (§13.6). **Aquí se cazan las regresiones
+  del flip** (incl. lo que el ensayo D0 no cubría: Mi Día, Bloques, Delegadas).
+- **Fase D2 — Borrado definitivo** (commit atómico, SOLO tras Fase E en verde): quitar la llamada
+  [`useGeneration(...)` (App.tsx:156)](App.tsx) y el flag, borrar `useGeneration.ts` y
+  `generation.worker.ts`; `useTemplateKey` cae con el archivo (confirmar 0 consumidores con grep).
 - **Fase F** — Limpieza diferida (NO crítica, orthogonal): `existsInSupabase` (§4), bug #13
   `repairRecurringContainers` (escribe en cada carga), `MAX_GENERATION_CYCLES`.
 
@@ -781,7 +801,10 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
 | B3 | Editar desde Semana podría abrir el modal equivocado | El modal abre la tarea correcta (título coincide) |
 | C1 | Solo selección (marca de más/menos). **Sin escritura** | Seleccionar contenedor → marca sus hijas (incl. virtuales) |
 | C2 | **Escritura**: copia malformada o insert duplicado (regresión #6) | Spy `fetch`: duplicar 1 contenedor = N inserts, **0** con `recurrence`/`template_id`; StrictMode no duplica |
-| D (flip) | **MÁXIMO**: todo lo cercano pasa a virtual de golpe | Consola: **0** logs `[GENERATION]`. Regresión total §13.6. Recarga persiste |
+| D0 (ensayo) | Ninguno (no cambia código) | Tabla §13.6 en día >+400d en verde ANTES de tocar el flip |
+| D1 (desactivar) | **MÁXIMO**: todo lo cercano pasa a virtual de golpe | Consola: **0** logs `[GENERATION]`. Regresión total §13.6. Recarga persiste. Volver atrás = flip del flag |
+| Reorder virgen | Escribe `order` en la PLANTILLA (#15) — **ESPERADO, NO regresión** (ver §13.9) | Arrastrar-reordenar una recurrente virgen escribe en `template_id`, no en el día; se arregla en el sub-paso siguiente |
+| D2 (borrado) | Bajo (ya validado en E) | Build ✅; grep sin consumidores de `useGeneration`/`useTemplateKey` |
 | Reading | Bajo (ya migrado) | Comparar el día de hoy antes/después del flip: mismas tareas, mismo orden |
 
 ### 13.5 Bug #20 — dos arreglos de naturaleza distinta
@@ -802,26 +825,52 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
   Añadir subtarea a un día. Recarga conserva.
 - **Calendario**: meses cercanos y lejanos con carga real; abrir el **drawer del día** y
   completar/editar/borrar dentro (TaskCard completo, mismos handlers). Recarga conserva.
+- **Reordenar (arrastre) recurrente virgen = comportamiento ESPERADO, NO validar como fallo**: escribe
+  `order` en la plantilla (#15). Detalle en §13.9. Se corrige en el sub-paso siguiente (decisión A).
 - **Regresión (no deben cambiar)**: Bloques (tareas reales, promote/demote del #1), Delegadas, Search,
   Carga. Consola sin `[GENERATION]`, sin bucles de escritura.
 
-### 13.7 ⚠️ DECISIÓN DE ALCANCE PENDIENTE (pedir a la usuaria antes de codificar)
+### 13.7 ✅ DECISIÓN DE ALCANCE — DECIDIDA: (A) (26/07, sesión 11)
 Reordenar recurrentes virtuales es lo más espinoso: hoy `handleUpdateTasksOrder` escribe `order` en
 la **plantilla** ([useTaskOrdering.ts:33-34](useTaskOrdering.ts)) → reordenar un día cambia TODOS los
 días (**bug #15**). Hacerlo bien exige materializar excepción con `order` por-día.
-- **(A) Recomendada** — Flip ahora + reactivar completar/editar/borrar/mover/duplicar/seleccionar;
+- **(A) ELEGIDA** — Flip ahora + reactivar completar/editar/borrar/mover/duplicar/seleccionar;
   dejar el *reorder* de virtuales (con #15) como sub-paso inmediato siguiente. Menos superficie por
   commit. Reordenar sigue OK para tareas reales (Bloques).
-- **(B)** — Incluir la materialización-al-reordenar (#15) en este mismo paso. Más completo, commit
-  más grande y arriesgado.
-- **Recomendación registrada: (A)**. Falta el OK explícito de la usuaria.
+- **(B) descartada** — Incluir la materialización-al-reordenar (#15) en este mismo paso. Más completo,
+  commit más grande y arriesgado.
+- **Razón de (A)**: minimizar el diff del **commit de flip (D1)**, que es el **ÚNICO punto NO validable
+  incrementalmente** (todo lo cercano pasa a virtual de golpe). Cuanto más pequeño y aislado sea ese
+  commit, más limpio se caza cualquier regresión. El **reorder de virtuales (#15) va como sub-paso
+  inmediato siguiente** al paso final. Comportamiento del reorder virgen mientras tanto: §13.9.
 
 ### 13.8 Cómo retomar en un chat nuevo
 1. Leer este documento entero (sobre todo §13, §5/§5B en §10, §5 arquitectura, §6 bugs).
 2. Confirmar sin tocar: `git branch --show-current` = `refactor-v20`, árbol limpio; `npm run build` ✅
    y `npm test` ✅ (24). Arrancar `npm run dev`.
-3. **Antes de la Fase B: exportar backup de `tasks`** (Supabase) — es el primer write nuevo.
-4. Resolver la decisión §13.7 (A/B).
-5. Ejecutar Fases 0→F en orden, un commit por sub-fase, validando en día lejano (>+400d) antes del
-   flip y con recarga en cada caso. `git tag v20-pre-flip` justo antes de la Fase D.
-6. Al terminar, actualizar §13 (marcar hecho) y la tabla de bugs de §6 (#20, #15 si entra, #3/#4/#5).
+3. **Antes de la Fase B: exportar backup de `tasks`** (Supabase, backup #1) — primer write nuevo.
+4. Alcance YA decidido: **(A)** (§13.7). No re-preguntar.
+5. Ejecutar en orden: 0 → A → B → C → R(diferida) → **D0 (ensayo)** → **D1 (desactivar, flag)** →
+   **E (con backup #2 antes)** → **D2 (borrar archivos)** → F. Un commit por sub-fase; validar en día
+   lejano (>+400d) antes del flip y con recarga en cada caso. `git tag v20-pre-flip` justo antes de D1.
+6. Al terminar, actualizar §13 (marcar hecho) y la tabla de bugs de §6 (#20, #15 en el sub-paso
+   siguiente, #3/#4/#5).
+
+### 13.9 Comportamiento esperado de `handleUpdateTasksOrder` con recurrente virgen tras el flip (NO es regresión)
+Verificado por lectura de [`useTaskOrdering.ts:26-38`](useTaskOrdering.ts). Al **arrastrar-reordenar**
+una instancia recurrente **virgen** (id `inst-…`, sin fila en BD) después del flip, `handleUpdateTasksOrder`:
+- **NO es no-op y NO lanza error.** Hace dos cosas:
+  1. **BD**: `dbId = t.id.startsWith('inst-') ? (t.templateId || t.id) : t.id` → como la instancia virgen
+     trae `templateId`, `dbId` = **la PLANTILLA** → `update({ order }).eq('id', templateId)`.
+     **Escribe el `order` en la plantilla → cambia el orden en TODOS los días de la serie (bug #15).**
+  2. **Estado (memoria)**: `updated[t.id] = { ...updated[t.id], order, modifiedAt }`; como `updated[t.id]`
+     es `undefined`, crea un **objeto parcial fantasma** (solo `order`+`modifiedAt`) bajo el id `inst-…`,
+     transitorio hasta recargar.
+- **Es EXACTAMENTE el bug #15 preexistente, ahora alcanzable también en día cercano.** Es el motivo de
+  diferir el reorder de virtuales (decisión A). En la Fase E **NO marcar esto como regresión del flip**:
+  completar/editar/borrar/mover funcionan; solo el *arrastre-reordenar* de una recurrente virgen escribe
+  en la plantilla.
+- **Sub-paso siguiente (#15)**: materializar excepción con `order` por-día. Si se quiere blindar la
+  ventana entre D1 y ese fix, un guard mínimo de 1 línea que haga *no-op* el write cuando `t.id` es
+  virtual (saltar el `supabase.update` si `t.id.startsWith('inst-')`), evitando corromper el `order` de
+  la plantilla durante la validación. (Opcional; decidir al empezar #15.)
