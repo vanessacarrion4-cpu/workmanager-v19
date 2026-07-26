@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { occursOn, materializeDay, resolveTaskId } from './instanceEngine';
+import { occursOn, materializeDay, resolveTaskId, materializeInstanceById } from './instanceEngine';
 import { Task } from './types';
 
 // Fechas ancla (verificadas): 2026-07-15 es MIÉRCOLES.
@@ -287,5 +287,93 @@ describe('resolveTaskId', () => {
     const snapshot = JSON.stringify(allTasks);
     resolveTaskId('inst-t-5-2026-07-15', allTasks);
     expect(JSON.stringify(allTasks)).toBe(snapshot);
+  });
+});
+
+// =========================================================================
+// materializeInstanceById  (id de instancia virtual → objeto Task materializado)
+// =========================================================================
+
+describe('materializeInstanceById', () => {
+  const contWithDailyChild = () => byId([
+    task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+    task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+  ]);
+
+  it('id que NO es instancia y existe → devuelve la fila real tal cual', () => {
+    const allTasks = byId([task({ id: 'm-1', isTemplate: false, dueDate: WED })]);
+    expect(materializeInstanceById('m-1', allTasks)).toBe(allTasks['m-1']);
+  });
+
+  it('id que NO es instancia y no existe → null', () => {
+    expect(materializeInstanceById('no-existe', {})).toBeNull();
+  });
+
+  it('instancia recurrente VIRGEN que toca hoy → objeto materializado (pending, no excepción)', () => {
+    const child = materializeInstanceById('inst-t-child-2026-07-15', contWithDailyChild());
+    expect(child).not.toBeNull();
+    expect(child!.id).toBe('inst-t-child-2026-07-15');
+    expect(child!.templateId).toBe('t-child');
+    expect(child!.status).toBe('pending');
+    expect(child!.isException).toBe(false);
+    expect(child!.dueDate).toBe(WED);
+    expect(child!.instanceDate).toBe(WED);
+    expect(child!.parentTaskId).toBe('inst-t-cont-2026-07-15');
+  });
+
+  it('contenedor VIRGEN que toca hoy → instancia de contenedor con sus hijas', () => {
+    const cont = materializeInstanceById('inst-t-cont-2026-07-15', contWithDailyChild());
+    expect(cont).not.toBeNull();
+    expect(cont!.templateId).toBe('t-cont');
+    expect(cont!.subtasks).toEqual(['inst-t-child-2026-07-15']);
+  });
+
+  it('día en el que la recurrencia NO toca → null', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'weekly', weekDays: [0], startDate: '2026-01-01' } }), // solo lunes
+    ]);
+    expect(materializeInstanceById('inst-t-child-2026-07-15', allTasks)).toBeNull(); // miércoles
+  });
+
+  it('excepción persistida que aterriza CON ese mismo id → la devuelve (completada gana)', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({
+        id: 'inst-t-child-2026-07-15', templateId: 't-child', isException: true,
+        instanceDate: WED, dueDate: WED, status: 'completed', completedAt: '2026-07-15T10:00:00.000Z',
+      }),
+    ]);
+    const child = materializeInstanceById('inst-t-child-2026-07-15', allTasks);
+    expect(child).not.toBeNull();
+    expect(child!.status).toBe('completed');
+  });
+
+  it('excepción MOVIDA: id virtual del día destino → null (lo cubre resolveTaskId); el del origen → null (vacated)', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({
+        id: 'inst-t-child-2026-07-15', templateId: 't-child', isException: true,
+        instanceDate: WED, dueDate: THU, // movida miércoles → jueves
+      }),
+    ]);
+    expect(materializeInstanceById('inst-t-child-2026-07-16', allTasks)).toBeNull(); // destino
+    expect(materializeInstanceById('inst-t-child-2026-07-15', allTasks)).toBeNull(); // origen (vacated)
+  });
+
+  it('id inst- con formato inesperado (sin fecha) → allTasks[id] o null', () => {
+    expect(materializeInstanceById('inst-cosa-rara', {})).toBeNull();
+  });
+
+  it('no muta allTasks ni inyecta la instancia generada', () => {
+    const allTasks = contWithDailyChild();
+    const snapshot = JSON.stringify(allTasks);
+    const keysBefore = Object.keys(allTasks).length;
+    materializeInstanceById('inst-t-child-2026-07-15', allTasks);
+    expect(JSON.stringify(allTasks)).toBe(snapshot);
+    expect(Object.keys(allTasks).length).toBe(keysBefore);
+    expect(allTasks['inst-t-child-2026-07-15']).toBeUndefined();
   });
 });

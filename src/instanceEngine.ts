@@ -321,3 +321,38 @@ export function resolveTaskId(instanceId: string, allTasks: Record<string, Task>
   // Sin excepción → la plantilla (la serie).
   return templateId;
 }
+
+// -------------------------------------------------------------------------
+// materializeInstanceById — objeto de UNA instancia virtual (para handlers)
+// -------------------------------------------------------------------------
+
+/**
+ * Devuelve el objeto Task que `materializeDay` renderiza para `instanceId` en su día,
+ * SIN escribir ni mutar nada. Uso: los handlers que reciben el id de una instancia
+ * recurrente VIRGEN (sin fila en el estado) y necesitan el objeto para materializar la
+ * excepción al tocarla (completar/borrar/promover…), una vez retirado `useGeneration`.
+ *
+ * Contrato:
+ *   - id que NO es `inst-…` (tarea real): se devuelve `allTasks[id]` o `null`.
+ *   - id `inst-…` con formato inesperado (sin fecha): `allTasks[id]` o `null`.
+ *   - id `inst-…` válido: se corre `materializeDay` de ese día y se busca por id exacto.
+ *       · La recurrencia toca ese día → la instancia generada ('pending', isException:false).
+ *       · Una excepción persistida aterriza ese día CON ese mismo id → se devuelve la
+ *         excepción (p.ej. completada); es coherente con `materializeDay`.
+ *       · No toca, fue movida (vacated) o borrada ese día → `null`. En el día DESTINO de
+ *         una excepción movida, `materializeDay` la devuelve bajo su id ORIGINAL, no bajo
+ *         el `inst-…` del destino → aquí sería `null` (ese caso lo cubre `resolveTaskId`).
+ *
+ * Función PURA (delega en `materializeDay`, que no muta ni escribe).
+ */
+export function materializeInstanceById(instanceId: string, allTasks: Record<string, Task>): Task | null {
+  if (!instanceId || !allTasks) return null;
+  if (!instanceId.startsWith('inst-')) return allTasks[instanceId] ?? null;
+
+  const dateMatch = instanceId.match(/-(\d{4}-\d{2}-\d{2})$/);
+  if (!dateMatch) return allTasks[instanceId] ?? null; // formato inesperado
+
+  const date = dateMatch[1];
+  const dayInstances = materializeDay(date, allTasks);
+  return dayInstances.find(t => t.id === instanceId) ?? null;
+}
