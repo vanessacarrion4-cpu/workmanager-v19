@@ -183,7 +183,7 @@ De 387M a ~40K operaciones. Mejora ~10.000×.
 
 | # | Archivo | Problema |
 |---|---|---|
-| 1 | `useTaskOrdering.ts` | `handlePromoteTask`/`handleDemoteTask` **NO persisten** en Supabase. Al recargar se pierde el cambio. |
+| 1 | `useTaskOrdering.ts` | `handlePromoteTask`/`handleDemoteTask` **NO persisten** en Supabase (solo `setTasks`). Al recargar se pierde el cambio. **Plan cerrado** → ver §5B "PLAN CERRADO #1". |
 | 2 | `useBlockHandlers.ts` | `handleDeleteBlock` **NO persiste**. El bloque reaparece al recargar. |
 | 3 | `useTaskOrdering.ts` | `handleExpandAllInBlock` **muta el estado** (`t.isExpanded = expand` sobre objetos compartidos) → React no re-renderiza. |
 | 4 | `useTaskOrdering.ts` | `handleToggleExpandTask` escribe con `.eq('id', taskId)` donde taskId puede ser `inst-...` (fila inexistente). **Causa del bug "despliega la de arriba"**. |
@@ -544,7 +544,14 @@ prueba, y si está bien se sigue.
         cambiar de día). **`resolveTaskId` NO conectado aquí a propósito**: es inerte Y choca con
         el propósito del handler (que ya materializa por su cuenta, Camino 1). Su instancia-
         awareness real = materializar normales virtuales → Fase 3 (ver abajo).
-      - Pendiente: `bulkDuplicateTasks` (+ bug #6 StrictMode doble-insert), con su validación.
+      - `bulkDuplicateTasks` (bug #6 + #18) — **fix APLICADO, sin commitear** (falta validación en
+        vivo). Cálculo de duplicados sacado FUERA del updater de `setTasks` (updater = merge puro
+        de `newById` + `parentSubtaskPatches`) → StrictMode ya no puede duplicar los inserts.
+        Quitada la línea muerta `update({ subtasks })` (#18; la jerarquía se persiste por
+        `parent_task_id`). `resolveTaskId` NO conectado (inerte aquí, como en `bulkUpdate`).
+        **24 tests ✅, build ✅.** BD revisada: **0 huérfanos "(copia)"** de doble-insert.
+        **Pendiente próxima sesión**: validar en vivo (spy `fetch` → duplicar 1 tarea de prueba =
+        **1 insert**, no 2 → borrar la copia → cambio neto cero) y **entonces** commitear.
     - ⚠️ **PENDIENTE IMPORTANTE Fase 3 — materializar NORMALES VIRTUALES en las acciones en bloque
       (misma familia, tras quitar `useGeneration`).** Solo persisten las excepciones (filas
       reales); las ocurrencias recurrentes NORMALES (sin tocar) no tienen fila → hoy las bulk
@@ -556,6 +563,36 @@ prueba, y si está bien se sigue.
       **NO es hueco menor**: medido 25/07 — días trabajados/pasados = ~100% excepciones; hoy/
       futuro = mezcla (hoy 6 exc / 4 normales). La usuaria subirá VOLÚMENES y planificará sobre
       días FUTUROS, donde las normales (sin tocar) serán MAYORÍA → este caso crece mucho.
+    - ✅ **PLAN CERRADO #1 — persistir promote/demote (planeado, NO implementado aún)**:
+      - **Hoy**: `handlePromoteTask` ([useTaskOrdering.ts:128](useTaskOrdering.ts)) y
+        `handleDemoteTask` ([useTaskOrdering.ts:167](useTaskOrdering.ts)) **solo hacen `setTasks`**
+        (memoria). Ninguno llama a `supabase` → al recargar, `reconstructHierarchy` rehace los
+        `subtasks` desde `parent_task_id` de la BD (sin cambiar) → **revierte**.
+      - **Fix mínimo**: tras el `setTasks`, escribir el nuevo padre de la fila movida:
+        `supabase.from('tasks').update({ parent_task_id: nuevoPadre, modified_at }).eq('id', taskId)`
+        (promover → `grandParentId`/`null`; degradar → `aboveTaskId`). **NO escribir `subtasks`**
+        (columna inexistente = #18; se reconstruye). Posible refinamiento posterior: renumerar
+        `order` de los hermanos para fijar la posición exacta (el mínimo persiste el **padre**, no
+        necesariamente la posición).
+      - **Por qué es seguro y suficiente (verificado con datos reales 25/07, 2327 filas, 865 hijos
+        activos con `parent_task_id`)**: la relación padre-hijo vive **mayoritariamente a nivel de
+        día**, y **todas son filas reales** → el `UPDATE parent_task_id` las persiste:
+        - EXCEPCIÓN→PLANTILLA 421 · MANUAL→MANUAL 295 · PLANTILLA→PLANTILLA 93 · MANUAL→PLANTILLA 55
+          · EXCEPCIÓN→EXCEPCIÓN 1 · padre ausente 0.
+        - Solo **11% (93)** es estructura recurrente pura (plantilla→plantilla, reorganizar en
+          Bloques) — también fila real, también persiste. El **89% (772)** tiene el hijo anclado a
+          un día (excepción/manual) — filas reales → persisten con el mismo `UPDATE`.
+      - **Único caso fuera** = instancia recurrente **normal virgen** (sin fila): NO aparece en el
+        recuento (es memoria) → `UPDATE` sería no-op. Es **el mismo pendiente de Fase 3** que las
+        bulk actions (materializar excepción), con la **misma nota de volumen** (crece en días
+        futuros). NO bloquea el uso actual.
+      - **Es un CAMBIO DE ESCRITURA** (hoy no escribe nada) → primer write real de este handler →
+        **exportar `tasks` antes** (backup). Validación: promover/degradar → **recargar** →
+        confirma que persiste el padre correcto (con spy `fetch` = 1 `UPDATE parent_task_id`, sin
+        escrituras raras a `subtasks`) → **restaurar** (degradar/promover de vuelta) = cambio neto 0.
+      - **Decisión de alcance para implementar**: empezar por el **`UPDATE parent_task_id` mínimo**
+        (cubre el ~89% real + el 11% plantilla). `order` exacto y las instancias vírgenes → después
+        (Fase 3). NO conectar promote/demote a lógica de materialización todavía.
     - **LIMPIEZA pendiente (código muerto)**: retirar el residuo de nivel 3 en
       `handleDemoteTask` (`useTaskOrdering.ts`, `currentLevel >= 3`). Confirmado por SELECT
       directo a la BD (25/07): **0 tareas de nivel 3** (activas: 862 en nivel 1, 865 en nivel 2).

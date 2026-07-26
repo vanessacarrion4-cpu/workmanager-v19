@@ -199,8 +199,6 @@ export function useBulkActions({
 
   const bulkDuplicateTasks = useCallback(() => {
     const timestamp = new Date().toISOString();
-    const duplicates: Task[] = [];
-
     const duplicateTaskRecursive = (original: Task, newParentId: string | null = null, isRoot: boolean = true): Task | null => {
       if (!original || original.isDeleted) return null;
       const newId = `t-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -217,58 +215,66 @@ export function useBulkActions({
       };
     };
 
+    // #6: cálculo PURO fuera del updater (leyendo de `tasks`, no de `prev`), para que el
+    // updater de setTasks sea puro y StrictMode pueda re-invocarlo SIN duplicar los inserts.
+    const duplicates: Task[] = [];                              // filas a insertar (una sola vez)
+    const newById: Record<string, Task> = {};                  // duplicados por id (merge al estado)
+    const parentSubtaskPatches: Record<string, string[]> = {}; // padre → nuevo array subtasks (solo estado)
+
+    const rootIds = Array.from(selectedTaskIds).filter(id => {
+      const task = tasks[id];
+      if (!task) return false;
+      if (!task.parentTaskId) return true;
+      return !selectedTaskIds.has(task.parentTaskId);
+    });
+
+    rootIds.forEach(id => {
+      const original = tasks[id];
+      if (!original || original.isDeleted) return;
+
+      const effectiveParentId = original.parentTaskId || null;
+      const rootDuplicate = duplicateTaskRecursive(original, effectiveParentId);
+      if (!rootDuplicate) return;
+
+      newById[rootDuplicate.id] = rootDuplicate;
+      duplicates.push(rootDuplicate);
+
+      if (original.subtasks && original.subtasks.length > 0) {
+        const newSubtaskIds: string[] = [];
+        original.subtasks.forEach(subId => {
+          const subOriginal = tasks[subId];
+          if (!subOriginal) return;
+          const subDuplicate = duplicateTaskRecursive(subOriginal, rootDuplicate.id, false);
+          if (!subDuplicate) return;
+          newSubtaskIds.push(subDuplicate.id);
+          newById[subDuplicate.id] = subDuplicate;
+          duplicates.push(subDuplicate);
+        });
+        rootDuplicate.subtasks = newSubtaskIds;
+      }
+
+      if (effectiveParentId) {
+        // Inserta el duplicado justo tras el original en el array subtasks del padre. Se acumula
+        // por si varias raíces comparten padre. SOLO estado: la jerarquía se persiste por el
+        // parent_task_id del duplicado (por eso quitamos el update({subtasks}) muerto = #18).
+        const base = parentSubtaskPatches[effectiveParentId] || tasks[effectiveParentId]?.subtasks || [];
+        const originalIndex = base.indexOf(original.id);
+        const newSubtasks = [...base];
+        if (originalIndex >= 0) {
+          newSubtasks.splice(originalIndex + 1, 0, rootDuplicate.id);
+        } else {
+          newSubtasks.push(rootDuplicate.id);
+        }
+        parentSubtaskPatches[effectiveParentId] = newSubtasks;
+      }
+    });
+
+    // Updater PURO: solo mezcla los duplicados y los patches de padre en el estado.
     setTasks(prev => {
-      const next = { ...prev };
-
-      const rootIds = Array.from(selectedTaskIds).filter(id => {
-        const task = prev[id];
-        if (!task) return false;
-        if (!task.parentTaskId) return true;
-        return !selectedTaskIds.has(task.parentTaskId);
+      const next = { ...prev, ...newById };
+      Object.entries(parentSubtaskPatches).forEach(([pid, subs]) => {
+        if (next[pid]) next[pid] = { ...next[pid], subtasks: subs };
       });
-
-      rootIds.forEach(id => {
-        const original = prev[id];
-        if (!original || original.isDeleted) return;
-
-        const effectiveParentId = original.parentTaskId || null;
-        const rootDuplicate = duplicateTaskRecursive(original, effectiveParentId);
-        if (!rootDuplicate) return;
-
-        next[rootDuplicate.id] = rootDuplicate;
-        duplicates.push(rootDuplicate);
-
-        if (original.subtasks && original.subtasks.length > 0) {
-          const newSubtaskIds: string[] = [];
-          original.subtasks.forEach(subId => {
-            const subOriginal = prev[subId];
-            if (!subOriginal) return;
-            const subDuplicate = duplicateTaskRecursive(subOriginal, rootDuplicate.id, false);
-            if (!subDuplicate) return;
-            newSubtaskIds.push(subDuplicate.id);
-            next[subDuplicate.id] = subDuplicate;
-            duplicates.push(subDuplicate);
-          });
-          rootDuplicate.subtasks = newSubtaskIds;
-          next[rootDuplicate.id] = rootDuplicate;
-        }
-
-        if (effectiveParentId && next[effectiveParentId]) {
-          const parentTask = next[effectiveParentId];
-          const currentSubtasks = parentTask.subtasks || [];
-          const originalIndex = currentSubtasks.indexOf(original.id);
-          const newSubtasks = [...currentSubtasks];
-          if (originalIndex >= 0) {
-            newSubtasks.splice(originalIndex + 1, 0, rootDuplicate.id);
-          } else {
-            newSubtasks.push(rootDuplicate.id);
-          }
-          next[effectiveParentId] = { ...parentTask, subtasks: newSubtasks };
-          supabase.from('tasks').update({ subtasks: newSubtasks })
-            .eq('id', effectiveParentId).then(() => {});
-        }
-      });
-
       return next;
     });
 
