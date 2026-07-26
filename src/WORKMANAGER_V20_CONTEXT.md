@@ -978,3 +978,22 @@ de `useGeneration` ([useGeneration.ts:24-26](useGeneration.ts)):
   virgen con margen de sobra** (confirmado: 0 claves `2028-01-15`); (b) **fiarse del techo EMPÍRICO, no de la
   constante**; (c) re-medir el techo por sesión (varía con los datos). **Caveat del fixture**: la plantilla de
   test debe NO tener `endDate` (o uno > día de test) para que la recurrencia ocurra ese día.
+
+### 13.11 Fixture de validación B0/B1 (dedicado, NO tocar tareas reales de la usuaria)
+Contenedor recurrente de prueba + 3 hijas diarias, ids fijos (sin colisión, verificado en vivo). El id de
+contenedor es `tmpl-…` A PROPÓSITO (ejercita el regex de B0: `inst-tmpl-…` rompe el `/^inst-(t-\d+)/` viejo).
+- **Ids**: contenedor `tmpl-testb1`; hijas `tmpl-testb1-c1/-c2/-c3`. Bloque `b-1777907181352` (el más usado;
+  confirmar activo o cambiar). Hijas: `recurrence = {frequency:'daily', startDate:'2026-01-01'}`, **sin `endDate`**,
+  `is_template:true`, `parent_task_id: tmpl-testb1`. Contenedor: `is_template:true`, sin `recurrence`, sin fecha.
+- **Días** (la virginidad se CONSUME al completar → una excepción por día): **2028-01-15** = B1 básico
+  (contenedor virgen). **2028-01-16** = caso mixto Q2 (lleva pre-sembrada la excepción de `c1`). **2028-01-17/18**
+  = repuesto para re-ejecutar. Verificar virginidad con `window.__tasks` antes de cada prueba.
+- **Q2 (mixto)**: pre-sembrar en 2028-01-16 UNA excepción real de `c1` en `pending` con id
+  `inst-tmpl-testb1-c1-2028-01-16` (`is_exception:true`, `template_id:tmpl-testb1-c1`, `due_date=instance_date=2028-01-16`).
+  Al completar el contenedor ese día: `c1` = update in-place (misma fila), `c2`/`c3` = inserts nuevos → 3 completas,
+  1 fila/hija, sin duplicar `c1`.
+- **Limpieza antes de D0** (borra SOLO las excepciones de prueba; deja las plantillas por si re-validas):
+  `delete from tasks where template_id in ('tmpl-testb1','tmpl-testb1-c1','tmpl-testb1-c2','tmpl-testb1-c3');`
+- **Teardown final** (quita el fixture entero): `delete from tasks where id like 'tmpl-testb1%' or template_id like 'tmpl-testb1%';`
+- **Tipos**: `recurrence` es jsonb; `tags` puede ser jsonb (`'[]'::jsonb`) o `text[]` (`'{}'`) — ajustar si el
+  editor SQL se queja. `order` es palabra reservada → `"order"`. Ejecutar el INSERT del fixture **tras el backup**.
