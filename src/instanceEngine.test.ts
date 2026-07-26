@@ -163,6 +163,40 @@ describe('materializeDay', () => {
     expect(movedChild!.dueDate).toBe(THU);
   });
 
+  it('CONTENEDOR movido (instanceDate=WED, dueDate=THU) con hija que SÍ ocurre WED → día viejo VACÍO, THU lo muestra', () => {
+    // findVacated en la rama CON-hijas (bug de los 3 contenedores movidos): antes el contenedor aparecía en WED
+    // (la hija sigue occursOn) Y en THU = doble render. Con el fix, el día viejo se vacía.
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      // El CONTENEDOR (no la hija) se movió de WED a THU:
+      task({ id: 'inst-t-cont-moved', templateId: 't-cont', isException: true, instanceDate: WED, dueDate: THU }),
+    ]);
+    const wed = materializeDay(WED, allTasks);
+    expect(wed.find(t => t.templateId === 't-cont')).toBeUndefined();   // contenedor NO en el día viejo
+    expect(wed.find(t => t.templateId === 't-child')).toBeUndefined();  // ni sus hijas
+    const thu = materializeDay(THU, allTasks);
+    expect(thu.find(t => t.id === 'inst-t-cont-moved')).toBeDefined();  // aterriza en el destino
+  });
+
+  it('NO-REGRESIÓN: contenedor con excepción que ATERRIZA el mismo día (landed) sigue apareciendo (guard !containerLanded)', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({ id: 'inst-t-cont-landed', templateId: 't-cont', isException: true, instanceDate: WED, dueDate: WED, status: 'completed' }),
+    ]);
+    expect(materializeDay(WED, allTasks).find(t => t.id === 'inst-t-cont-landed')).toBeDefined();
+  });
+
+  it('NO-REGRESIÓN: contenedor con excepción BORRADA el día → oculto', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({ id: 'inst-t-cont-del', templateId: 't-cont', isException: true, isDeleted: true, instanceDate: WED, dueDate: WED }),
+    ]);
+    expect(materializeDay(WED, allTasks)).toEqual([]);
+  });
+
   it('excepción borrada → suprime la ocurrencia de ese día', () => {
     const allTasks = byId([
       task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),

@@ -216,6 +216,13 @@ export function materializeDay(dateStr: string, allTasks: Record<string, Task>):
 
     // ¿El contenedor viene de una excepción persistida que aterriza hoy?
     const containerLanded = findLanded(containerExceptions, dateStr);
+
+    // Contenedor MOVIDO a otro día (vacated) sin excepción que aterrice hoy → no aparece hoy (ni sus hijas).
+    // CLAVE: aplica a AMBAS ramas. Antes el check solo estaba en la rama SIN-hijas; un contenedor CON-hijas
+    // movido seguía apareciendo en el día viejo (las hijas siguen occursOn ese día) → doble render (el bug de
+    // los 3 contenedores movidos reales). Guard `!containerLanded`: no ocultar una excepción que aterriza aquí.
+    if (!containerLanded && findVacated(containerExceptions, dateStr)) continue;
+
     const parentInstanceId = containerLanded ? containerLanded.id : `inst-${container.id}-${dateStr}`;
 
     const childTemplates = (container.subtasks || [])
@@ -223,8 +230,8 @@ export function materializeDay(dateStr: string, allTasks: Record<string, Task>):
       .filter(Boolean) as Task[];
 
     // --- Caso contenedor SIN hijos: plantilla recurrente autónoma ---
+    // (el check de vacated ya se hizo arriba, unificado para ambas ramas)
     if (childTemplates.length === 0) {
-      if (findVacated(containerExceptions, dateStr)) continue;
       if (containerLanded) {
         result.push({ ...containerLanded, subtasks: [] });
         continue;
