@@ -805,6 +805,11 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
       los mismos 4 ids → recarga = **4 filas, no 8**. Matiz del conteo RESUELTO: el spy antiguo (wrap de
       `window.fetch`) no veía a supabase-js; ahora se instrumenta el `fetch` del cliente (`global.fetch`,
       commit `2609be0`) y se lee `window.__spy` (poblado tras un tick — leer en llamada aparte, no síncrona).
+    - ✅ **CASO MIXTO Q2 VALIDADO EN VIVO (2028-01-17)**: estado de partida = `c1` con excepción real *pending*
+      (completada + reabierta con la app) + `c2`/`c3` vírgenes. Completar el contenedor → **4 upserts**, `c1`
+      **1 sola vez (update in-place, mismo id)**, `c2`/`c3` inserts nuevos, todos `completed`. Recarga →
+      **4 filas** en 2028-01-17, `c1RowCount:1` (NO duplicada), todas `isException/completed`. El orden
+      `tasks[sid]` (fila real) antes de `dayMap[sid]` funciona como se predijo.
     - **Q1 CONFIRMADO — por qué `tasks[sid] || dayMap[sid]` es seguro (leído en `materializeDay`)**: el array
       `subtasks` del contenedor materializado guarda `resolved.id` ([instanceEngine.ts:245](instanceEngine.ts)),
       y `resolved.id` es: hija virgen (caso 5) `inst-<hija>-<fecha>`; hija con excepción (caso 2) el id **REAL**
@@ -1042,6 +1047,15 @@ Verificado en vivo (sesión 11) con `window.__tasks` + `materializeDay`. (Se des
 - **Días** (la virginidad se CONSUME al completar → una excepción por día): **2028-01-15** = B1 básico
   (contenedor virgen). **2028-01-16** = caso mixto Q2 (excepción de `c1` generada con la app, §Q2). **2028-01-17/18**
   = repuesto para re-ejecutar. Verificar virginidad con `window.__tasks` antes de cada prueba.
+- **Estado de los días tras la validación (sesión 11)**: **15** consumido (B1 + idempotencia, completo). **16**
+  = TODO completado por error (un clic sobre el contenedor en vez de `c1` → cascada; ya no sirve para mixto).
+  **17** consumido (mixto Q2, completo). **18** = ÚNICO VIRGEN restante. Al re-validar, usar 18 o un día nuevo.
+- **Clic en DOM (gotcha para C1/C2/C3)**: (a) leer/clicar SIEMPRE en una llamada aparte del `__goToDate` (React
+  re-renderiza async; si no, se lee el DOM viejo). (b) Las HIJAS no están en `<li>` propios → `closest('li')`
+  de una hija devuelve el `<li>` del CONTENEDOR (su 1er checkbox = el del contenedor → **cascada**). Para clicar
+  una hija concreta: subir desde su `<input>` de título al MENOR ancestro que tenga checkbox y contenga SOLO su
+  título. Para el CONTENEDOR: `closest('li')` + primer checkbox (ese sí es el suyo). (c) `window.__spy` se lee en
+  llamada aparte (poblado tras un tick).
 - **Llegar al día de test**: usar `window.__goToDate('2028-01-15')` (dev, commit `6daae1d`), NO el Calendario.
   El Calendario va lento navegando a 2028 porque su `monthMap` materializa CADA día del mes visible
   (`materializeDay` ×~30 por cambio de mes) — motor **NUEVO**, no `useGeneration` (verificado en consola:
