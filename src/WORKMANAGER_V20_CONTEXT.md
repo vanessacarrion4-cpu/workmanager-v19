@@ -662,6 +662,14 @@ prueba, y si está bien se sigue.
 | Atajos de teclado (`N` nueva, `Espacio` completar, `←/→` día, `⌘K` buscar) | Más adelante |
 | Pantalla de análisis previsto vs real | Más adelante |
 
+### 11.1 Backlog UX/diseño (detectado sesión 11 — para la fase de diseño, NO ahora)
+- **(a) Dashboard no muestra el mes al desplazarse**: al hacer scroll en Mi Día no se ve el mes.
+  **Diagnóstico primero**: averiguar si NO se pinta o si se pinta en **BLANCO** (posible color heredado del
+  modo oscuro sobre fondo claro). Según cuál sea, el fix es distinto. Barato, pero no ahora.
+- **(b) Navegación de fechas del Calendario más operativa**: **salto directo a mes/año** (selector / "ir a
+  fecha") en vez de mes a mes. El `window.__goToDate` dev-only es el parche temporal; la versión de USUARIO
+  va aquí. Relacionado con la lentitud del mes (§13.11): menos navegación = menos materializaciones.
+
 ---
 
 ## 12. Diagnóstico de fondo
@@ -816,12 +824,15 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
 - **Fase R** — Reordenar (bug #15): **DIFERIDO por decisión (A)** → sub-paso inmediato SIGUIENTE al
   paso final. Reordenar sigue OK para filas reales (Bloques). Comportamiento con recurrente virgen
   tras el flip documentado en §13.9 (esperado, NO regresión).
-- **Fase D0 — Ensayo general (pre-flip, SIN cambiar código)**: con `useGeneration` AÚN vivo, correr la
-  tabla ENTERA de §13.6 en un día **>+400 días** (ahí las instancias ya son virtuales). Da confianza de
-  que toda la maquinaria instance-aware (B+C) funciona sobre virtuales ANTES de tocar el flip.
-  **Lo que este ensayo NO cubre** (y por tanto exige validación propia en Fase E, ya post-flip):
-    - **Mi Día (día real/cercano)**: hoy sigue en estado hasta el flip; el ensayo usa un día lejano →
-      la transición "hoy pasa a virtual" no se prueba aquí.
+- **Fase D0 — Ensayo general (pre-flip, sin tocar el flip; solo overrides dev-only)**: con `useGeneration`
+  AÚN vivo, correr la tabla ENTERA de §13.6 en un día **>+400 días** (ahí las instancias ya son virtuales).
+  Da confianza de que toda la maquinaria instance-aware (B+C) funciona sobre virtuales ANTES de tocar el flip.
+  **SÍ cubre — Mi Día (Dashboard)**: ensayable en día lejano vía `window.__goToDate('2028-01-15')` (verificado:
+  salta y `materializeDay` renderiza). Ejercita los MISMOS handlers/materialización que post-flip. Salvedad: es
+  vía override dev-only, NO el camino real de "hoy".
+  **Lo que NO cubre** (exige validación propia en Fase E, post-flip):
+    - **Transición "hoy pasa a virtual"**: hasta D1, hoy sigue en estado; que un día CERCANO se vuelva virtual
+      solo ocurre en el flip → validar en Fase E (no lo simula el override).
     - **Bloques**: opera sobre filas reales (plantillas/manuales), no sobre virtuales → intacto en el ensayo.
     - **Delegadas**: su propia vista/filtrado no se ejercita desde un Dashboard de día lejano.
 - **Fase D1 — Desactivar `useGeneration` SIN borrar** (commit atómico, tras `git tag v20-pre-flip`):
@@ -877,6 +888,11 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
   `order` en la plantilla (#15). Detalle en §13.9. Se corrige en el sub-paso siguiente (decisión A).
 - **Regresión (no deben cambiar)**: Bloques (tareas reales, promote/demote del #1), Delegadas, Search,
   Carga. Consola sin `[GENERATION]`, sin bucles de escritura.
+- **Señal OBJETIVA del flip (perf)**: materializar un mes (31 días) sobre el mapa `tasks` con
+  `window.__materializeDay` (exposición dev temporal, 3 muestras tras warm-up). **Baseline sesión 11 @ 2324
+  claves = ~63 ms** (60/63/66). Post-flip el mapa baja a **~830 claves** (desaparecen ~1494 instancias
+  generadas) → repetir la MISMA medición en Fase E; si baja notablemente, es prueba objetiva de que el flip
+  aligeró el motor (menos claves → `indexExceptionsByTemplate` más corto). Snippet en §13.11.
 
 ### 13.7 ✅ DECISIÓN DE ALCANCE — DECIDIDA: (A) (26/07, sesión 11)
 Reordenar recurrentes virtuales es lo más espinoso: hoy `handleUpdateTasksOrder` escribe `order` en
