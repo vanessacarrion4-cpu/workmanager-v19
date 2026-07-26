@@ -797,6 +797,14 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
     `if (task?.isDeleted) return;`. Validación: contenedor virgen a día lejano → **N upserts (padre+hijas)**
     → recarga: TODAS completas; hoja virgen → 1 upsert; `isDeleted` → no reaparece; idempotencia
     (completar/reabrir/completar = 1 fila, upsert `onConflict:'id'`).
+    - ✅ **HECHO (commits `eefa2f6` B0, `df0a2f2` B1) y VALIDADO EN VIVO (sesión 11, 2028-01-15, fixture
+      `t-1785089440019`)**: completar el contenedor virgen → **4 upserts** (contenedor + 3 hijas), 4 ids
+      `inst-…-2028-01-15` únicos, `is_exception:true`, **ningún id de plantilla pelado**; recarga → las 4
+      persisten `completed` y las 4 plantillas siguen `pending`/intactas (antes de B1 habría persistido solo
+      el padre). **Idempotencia**: reabrir = 4 upserts (pending) / completar = 4 upserts (completed), SIEMPRE
+      los mismos 4 ids → recarga = **4 filas, no 8**. Matiz del conteo RESUELTO: el spy antiguo (wrap de
+      `window.fetch`) no veía a supabase-js; ahora se instrumenta el `fetch` del cliente (`global.fetch`,
+      commit `2609be0`) y se lee `window.__spy` (poblado tras un tick — leer en llamada aparte, no síncrona).
     - **Q1 CONFIRMADO — por qué `tasks[sid] || dayMap[sid]` es seguro (leído en `materializeDay`)**: el array
       `subtasks` del contenedor materializado guarda `resolved.id` ([instanceEngine.ts:245](instanceEngine.ts)),
       y `resolved.id` es: hija virgen (caso 5) `inst-<hija>-<fecha>`; hija con excepción (caso 2) el id **REAL**
@@ -898,9 +906,16 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
   Carga. Consola sin `[GENERATION]`, sin bucles de escritura.
 - **Señal OBJETIVA del flip (perf)**: materializar un mes (31 días) sobre el mapa `tasks` con
   `window.__materializeDay` (exposición dev temporal, 3 muestras tras warm-up). **Baseline sesión 11 @ 2324
-  claves = ~63 ms** (60/63/66). Post-flip el mapa baja a **~830 claves** (desaparecen ~1494 instancias
+  claves = ~63 ms** (60/63/66). Post-flip el mapa baja a **~830 claves** (desaparecen las instancias
   generadas) → repetir la MISMA medición en Fase E; si baja notablemente, es prueba objetiva de que el flip
   aligeró el motor (menos claves → `indexExceptionsByTemplate` más corto). Snippet en §13.11.
+  - ⚠️ **La medida es RUIDOSA (no fiarse de comparaciones finas)**: el tamaño del mapa `tasks` fluctúa entre
+    recargas según lo que el WORKER de `useGeneration` haya generado en ese momento (asíncrono/incompleto) —
+    medido en vivo el mismo día: 2324, 2332 claves con muestras de 48–66 ms, sin correlación limpia. Además el
+    **fixture de prueba** (`startDate` HOY) añade un nº VARIABLE de instancias cercanas. **Para Fase E, medición
+    limpia**: (1) **BORRAR el fixture antes de medir** (es artefacto de test, no existe en producción); (2) el
+    número FIABLE es el **post-flip** (~830 claves, SIN worker → estable y reproducible); (3) comparar contra un
+    baseline pre-flip **fixture-free** tomado tras dejar asentar la generación, no contra el ~63 ms suelto.
 
 ### 13.7 ✅ DECISIÓN DE ALCANCE — DECIDIDA: (A) (26/07, sesión 11)
 Reordenar recurrentes virtuales es lo más espinoso: hoy `handleUpdateTasksOrder` escribe `order` en
