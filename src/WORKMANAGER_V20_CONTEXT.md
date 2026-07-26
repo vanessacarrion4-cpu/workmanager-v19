@@ -956,6 +956,12 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
   completar/editar/borrar dentro (TaskCard completo, mismos handlers). Recarga conserva.
 - **Reordenar (arrastre) recurrente virgen = comportamiento ESPERADO, NO validar como fallo**: escribe
   `order` en la plantilla (#15). Detalle en §13.9. Se corrige en el sub-paso siguiente (decisión A).
+- **DAÑO CONOCIDO (condición 2) — series contaminadas se DUPLICAN post-flip, NO es regresión del flip**: las 4
+  series reales ("Pago nóminas", "Pagos mensuales", "Cierre Propias", "Cierre Central Rec") y las otras
+  contaminadas aparecerán 2-3 veces en Mi Día/Semana, porque sus plantillas tienen ids `inst-` en `subtasks`
+  (64 filas anidadas persistidas, §13.14). **B4 detiene el CRECIMIENTO** (no escribe más `parent_task_id→plantilla`)
+  pero NO limpia lo ya escrito → el síntoma persiste hasta la **fase de limpieza post-merge**. En Fase E: NO leerlo
+  como regresión del flip (igual que el reorder #15). Se resuelve con el `UPDATE parent_task_id=null` de la limpieza.
 - **Regresión (no deben cambiar)**: Bloques (tareas reales, promote/demote del #1), Delegadas, Search,
   Carga. Consola sin `[GENERATION]`, sin bucles de escritura.
 - **Señal OBJETIVA del flip (perf)**: materializar un mes (31 días) sobre el mapa `tasks` con
@@ -1186,6 +1192,13 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
      `dashboardTasks`, `instanceDate`/`dueDate`, `parent_task_id=null`). Validar: mover hoja/subtarea Y contenedor
      desde **Semana, día ≠ activo** → día viejo vacío, destino la muestra, recarga; y **subtarea movida aparece
      bajo su padre en el destino** (que el `null` no reintroduzca el huérfano del FIX sesión 10).
+     - **SCOPE del `null` (condición 1, verificado sesión 12) — NO indiscriminado**: solo `is_exception:true &&
+       templateId` (excepción de instancia RECURRENTE). **FUERA (conservan `parent_task_id` real)**: (i) tareas
+       manuales no-recurrentes y sus subtareas (sin `templateId`) — `materializeDay` NO las re-anida;
+       `reconstructHierarchy` necesita su `parent_task_id` real; ponerlo a `null` las huérfanaría (el bug del FIX
+       sesión 10 extendido a toda la app); (ii) plantillas hijas (`is_template:true`, `parent_task_id`=plantilla
+       padre = jerarquía correcta). La contaminación a retirar/limpiar es específicamente
+       **`is_exception && parent_task_id→plantilla`**; el `null` sustituye SOLO eso.
   3. **LIMPIEZA de datos** → **FASE PROPIA, DESPUÉS DE FUSIONAR B4 A MASTER** (NO antes, NO en la rama): primer
      write masivo e irreversible. **Por qué después del merge, no entre D1 y E**: B4 arregla la RAMA, no
      producción; mientras master tenga el bug, cada edición/mover de una serie contaminada **re-ensucia** → si
