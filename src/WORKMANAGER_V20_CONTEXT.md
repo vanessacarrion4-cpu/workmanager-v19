@@ -183,7 +183,7 @@ De 387M a ~40K operaciones. Mejora ~10.000×.
 
 | # | Archivo | Problema |
 |---|---|---|
-| 1 | `useTaskOrdering.ts` | `handlePromoteTask`/`handleDemoteTask` **NO persisten** en Supabase (solo `setTasks`). Al recargar se pierde el cambio. **Plan cerrado** → ver §5B "PLAN CERRADO #1". |
+| 1 | `useTaskOrdering.ts` | ✅ **RESUELTO** (commit `83a7301`, validado en vivo). `handlePromoteTask`/`handleDemoteTask` ahora persisten `parent_task_id` en Supabase tras el `setTasks`. Ver §5B "PLAN CERRADO #1". |
 | 2 | `useBlockHandlers.ts` | `handleDeleteBlock` **NO persiste**. El bloque reaparece al recargar. |
 | 3 | `useTaskOrdering.ts` | `handleExpandAllInBlock` **muta el estado** (`t.isExpanded = expand` sobre objetos compartidos) → React no re-renderiza. |
 | 4 | `useTaskOrdering.ts` | `handleToggleExpandTask` escribe con `.eq('id', taskId)` donde taskId puede ser `inst-...` (fila inexistente). **Causa del bug "despliega la de arriba"**. |
@@ -563,8 +563,15 @@ prueba, y si está bien se sigue.
       **NO es hueco menor**: medido 25/07 — días trabajados/pasados = ~100% excepciones; hoy/
       futuro = mezcla (hoy 6 exc / 4 normales). La usuaria subirá VOLÚMENES y planificará sobre
       días FUTUROS, donde las normales (sin tocar) serán MAYORÍA → este caso crece mucho.
-    - ✅ **PLAN CERRADO #1 — persistir promote/demote (planeado, NO implementado aún)**:
-      - **Hoy**: `handlePromoteTask` ([useTaskOrdering.ts:128](useTaskOrdering.ts)) y
+    - ✅ **PLAN CERRADO #1 — persistir promote/demote — IMPLEMENTADO (commit `83a7301`, validado en vivo 26/07)**:
+      - **HECHO**: ambos handlers calculan el nuevo padre FUERA del updater (patrón anti-#6) y,
+        tras el `setTasks`, escriben `update({ parent_task_id, modified_at }).eq('id', taskId)`
+        (promover → `grandParentId`/`null`; degradar → `aboveTaskId`). NO se escribe `subtasks`
+        (#18). `.eq('id', taskId)` sin resolver → instancia virgen (`inst-…`) = no-op a propósito
+        (Fase 3). Validación en vivo: degradar tarea + **recargar** → persiste en el nuevo nivel.
+        Dead code `currentLevel >= 3` eliminado en el mismo commit. Lo de abajo queda como registro
+        del razonamiento y de los datos que respaldaron el alcance.
+      - **Hoy** (estado previo, ya corregido): `handlePromoteTask` ([useTaskOrdering.ts:128](useTaskOrdering.ts)) y
         `handleDemoteTask` ([useTaskOrdering.ts:167](useTaskOrdering.ts)) **solo hacen `setTasks`**
         (memoria). Ninguno llama a `supabase` → al recargar, `reconstructHierarchy` rehace los
         `subtasks` desde `parent_task_id` de la BD (sin cambiar) → **revierte**.
@@ -593,10 +600,11 @@ prueba, y si está bien se sigue.
       - **Decisión de alcance para implementar**: empezar por el **`UPDATE parent_task_id` mínimo**
         (cubre el ~89% real + el 11% plantilla). `order` exacto y las instancias vírgenes → después
         (Fase 3). NO conectar promote/demote a lógica de materialización todavía.
-    - **LIMPIEZA pendiente (código muerto)**: retirar el residuo de nivel 3 en
+    - ✅ **LIMPIEZA (código muerto) — HECHA (commit `83a7301`)**: retirado el residuo de nivel 3 en
       `handleDemoteTask` (`useTaskOrdering.ts`, `currentLevel >= 3`). Confirmado por SELECT
       directo a la BD (25/07): **0 tareas de nivel 3** (activas: 862 en nivel 1, 865 en nivel 2).
-      Trabajamos en 2 niveles de hecho; el 3er nivel de promote/demote es dead code a quitar.
+      Trabajamos en 2 niveles de hecho; el 3er nivel de promote/demote era dead code. Cambio de
+      comportamiento cero (el guard solo disparaba en tareas nivel 3, de las que hay 0).
   - ⏸️ **PENDIENTE tras el Dashboard (Semana + Calendario, misma maquinaria)**: reactivar la
     **interacción de recurrentes** — completar / editar / mover / **reordenar** — que ahora
     queda en pausa porque las instancias son virtuales (no están en el estado `tasks`) y
