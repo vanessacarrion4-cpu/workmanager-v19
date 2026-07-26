@@ -669,6 +669,9 @@ prueba, y si está bien se sigue.
 - **(b) Navegación de fechas del Calendario más operativa**: **salto directo a mes/año** (selector / "ir a
   fecha") en vez de mes a mes. El `window.__goToDate` dev-only es el parche temporal; la versión de USUARIO
   va aquí. Relacionado con la lentitud del mes (§13.11): menos navegación = menos materializaciones.
+- **(d) `TaskModal.handleSave` sin guard de título vacío** ([TaskModal.tsx:120](TaskModal.tsx)): se puede guardar
+  una tarea con título en blanco → crea una fila sin título. NO arreglar ahora; añadir un guard (no guardar / avisar
+  si `!title.trim()`) en la fase de diseño.
 - **(c) Añadir recurrencia desde la fila NO existe** (verificado sesión 11): el `RecurrencePickerChip` de la fila
   solo se renderiza si `task.recurrence` YA existe ([TaskCard.tsx:485,526](TaskCard.tsx)); una tarea sin
   recurrencia no muestra chip → hay que entrar al modal. **Falta el camino, no está roto** (cambiarla en una que
@@ -851,9 +854,13 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
       ([TaskModal.tsx:120](TaskModal.tsx)) **no tiene guard de título vacío** → guardar el modal vacío llama
       `onSave`→`handleUpdateTask` (escribe). Diagnóstico de la BD (10729 filas / 1548 excepciones cargadas):
       **3 excepciones con título `""`** — `templateId:null`, `blockId:b1`, `dueDate` 2026-04-29/30, **`isDeleted:true`**
-      (ya borradas, inertes). Ids `t-1777493420378 / t-1777492627525 / t-1777490985341`. Encajan con la firma del
-      fantasma. **NO borradas — decisión de la usuaria.** B3 (parte 3) cierra el origen (materializar → editor con
-      datos reales, no vacío).
+      (ya borradas, inertes). Ids `t-1777493420378 / t-1777492627525 / t-1777490985341`.
+      **CORRECCIÓN DE ATRIBUCIÓN (NO son del fantasma)**: tienen `templateId:null` → NO son excepciones de ninguna
+      serie; y el fantasma ni tiene `id` → no produciría ids normales `t-<dígitos>`. Explicación aburrida y mejor:
+      3 tareas creadas sin título y borradas hace meses. **Se DEJAN** (inertes, del pasado; no se borran filas
+      reales en mitad del paso de riesgo). El fantasma de B3 es un riesgo REAL (el path puede escribir) pero estas
+      3 filas **no son su evidencia** — no atribuir mal para no contaminar diagnósticos siguientes. B3 (parte 3)
+      cierra igualmente ese origen (materializar → editor con datos reales, no vacío).
     - ✅ **B3 HECHO y VALIDADO (commit `8d4f782`)**. Validado en vivo **desde Semana, día ≠ activo** (requisito
       §13.13): `activeDate`=2028-06-01, semana marzo 2028, editar la **HIJA** "Test hija1" en 2028-03-13 → abre el
       **modal de elección** (no salta a serie) → "Solo esta tarea" → editor con **datos reales** ("Test hija1", no
