@@ -61,17 +61,22 @@ export function useTaskCRUD({
         setTasks(prev => ({ ...prev, [taskId]: task! }));
       }
     }
-    // Fallback V20: instancia virtual no presente (p.ej. día lejano) → resolver al id REAL
-    // (excepción persistida si existe, si no la plantilla/serie) y editar ESE. Si la tarea
-    // ya se encontró arriba, effectiveId === taskId → comportamiento idéntico. Solo abre
-    // modales: NO cambia cómo se escribe.
+    // Fallback V20 (a): instancia movida cuyo id de excepción difiere → resolver a la EXCEPCIÓN persistida.
+    // NUNCA a la plantilla: editar la plantilla cambiaría toda la serie SIN preguntar (silenciosamente
+    // destructivo). Por eso se restringe a `resolved.isException` (antes usaba cualquier `tasks[resolvedId]`).
     let effectiveId = taskId;
     if (!task) {
       const resolvedId = resolveTaskId(taskId, tasks);
-      if (resolvedId !== taskId && tasks[resolvedId]) {
-        task = tasks[resolvedId];
-        effectiveId = resolvedId;
-      }
+      const resolved = resolvedId !== taskId ? tasks[resolvedId] : undefined;
+      if (resolved && resolved.isException) { task = resolved; effectiveId = resolvedId; }
+    }
+    // Fallback V20 (b) — B3: instancia recurrente VIRGEN (hija o día NO-activo → no está en `dashboardTasks`,
+    // que es plano y solo del día activo) → materializar para que `task.templateId` esté presente y se abra el
+    // modal "¿este día o toda la serie?". Sin esto caía en la plantilla y editaba la SERIE sin avisar.
+    // `effectiveId` sigue = taskId (editar ESA ocurrencia).
+    if (!task && taskId.startsWith('inst-')) {
+      const materialized = materializeInstanceById(taskId, tasks);
+      if (materialized) task = materialized;
     }
     if (task?.templateId) {
       setRecurrenceAction({ taskId: effectiveId, type: 'edit', ruleId: task.templateId });

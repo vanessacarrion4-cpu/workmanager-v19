@@ -700,7 +700,7 @@ export default function App() {
                   }
                 }}
                 onAddTask={handleAddTask}
-                onEditTask={(id: string) => setEditingTaskId(id)}
+                onEditTask={handleEditTaskRequest}
                 onDeleteTask={handleDeleteTaskRequest}
                 onRenamePerson={handleRenamePerson}
                 onDeletePerson={handleDeletePerson}
@@ -735,7 +735,7 @@ export default function App() {
                 allTasksMap={tasks}
                 blocks={blocks}
                 timeEntries={timeEntries}
-                onEditTask={(id: string) => setEditingTaskId(id)}
+                onEditTask={handleEditTaskRequest}
                 onToggle={handleToggleStatus}
                 onAddTask={(parentId, blockId, date) => {
                   if (date) setActiveDate(date);
@@ -753,7 +753,7 @@ export default function App() {
                 people={people}
                 timeEntries={timeEntries}
                 activeTimer={activeTimer}
-                onEditTask={(id: string) => setEditingTaskId(id)}
+                onEditTask={handleEditTaskRequest}
                 onToggle={handleToggleStatus}
                 onDelete={handleDeleteTaskRequest}
                 onUpdateTask={handleUpdateTask}
@@ -968,7 +968,13 @@ export default function App() {
 
             if (choice === 'instance') {
               if (type === 'edit') {
-                setTasks(prev => ({ ...prev, [taskId]: { ...prev[taskId], isException: true } }));
+                // B3: materializar si la instancia es virgen (no está en estado) → el editor abre con datos
+                // REALES, no un fantasma `{isException:true}` vacío. materializeInstanceById es puro.
+                setTasks(prev => {
+                  const base = prev[taskId] || materializeInstanceById(taskId, prev);
+                  if (!base) return prev;
+                  return { ...prev, [taskId]: { ...base, isException: true } };
+                });
                 setEditingTaskId(taskId);
               } else {
                 // B2: incluir materializeInstanceById → resuelve la HIJA virgen (no está en el array
