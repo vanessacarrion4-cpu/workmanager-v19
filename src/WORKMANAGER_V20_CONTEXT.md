@@ -606,8 +606,37 @@ prueba, y si está bien se sigue.
     tres vistas. Mientras tanto, recurrentes se gestionan desde **Mi Día**; las tareas
     **manuales** siguen siendo interactivas en Semana y en el drawer del Calendario.
 - **Bugs nuevos detectados** (no arreglar aún): **#18** columna `tasks.subtasks` inexistente
-  (escrituras en silencio en `useTaskOrdering.ts:62` y `useBulkActions.ts:255`) → arreglar
-  en paso 6.
+  (escritura en silencio en `useTaskOrdering.ts:62`; la de `useBulkActions` ya eliminada en
+  `be9eed1`) → resto arreglar en paso 6.
+- **#20 — Selección/duplicación de CONTENEDORES fuera del estado (instancias virtuales)**
+  (detectado por la usuaria 26/07). Reportado: (1) seleccionar un contenedor no selecciona sus
+  hijas; (2) seleccionar solo el padre no duplica; (3) padre+hijas → solo duplica las hijas.
+  - **Dónde**: la selección se cablea en `TaskCard.tsx` (onClick de card :298-305 y de checkbox
+    :334-343) → `onToggleTaskSelection(task.id, isContainer)` con `isContainer =
+    task.subtasks.length>0`. El handler `toggleTaskSelection` (`App.tsx:131`) **relee
+    `tasks[taskId]` del ESTADO CRUDO** y añade `task.subtasks` que existan en `tasks`.
+    `bulkDuplicateTasks` (`useBulkActions.ts`) también calcula `rootIds` y lee originales desde
+    `tasks` (estado crudo).
+  - **Causa raíz**: los handlers leen el **estado crudo `tasks`**, no el mapa **materializado/
+    renderizado** (`activeDayMap`/`dashboardTasksMap`). Mientras `useGeneration` puebla el estado
+    (hoy: rango 2026-04-29 → **2027-08-29**, 8386 instancias), los contenedores/hijas de días
+    cercanos SÍ están en `tasks` → **la auto-selección FUNCIONA** (reproducido en vivo 27/07:
+    clicar "Rutinas mañana" seleccionó sus 4 hijas). **Falla** para contenedores/hijas **fuera
+    de esa ventana** (solo-`materializeDay`, sin fila en estado) → `tasks[id]` undefined →
+    (1) sin hijas, (2) `rootIds` vacío = no duplica, (3) desajuste plantilla/instancia = hijas
+    sueltas. **Y fallará para TODAS las recurrentes al quitar `useGeneration`** (serán virtuales).
+  - **Bug latente extra**: `duplicateTaskRecursive` (`useBulkActions.ts:202`) copia `{...original}`
+    y solo limpia id/title/status/fechas/subtasks — **NO limpia `templateId`, `instanceDate`,
+    `isException`, `recurrence`** → la copia de una instancia hereda recurrencia/vínculo de
+    plantilla (copia malformada, no un one-off limpio).
+  - **Tipo de fix**:
+    - **Auto-selección hija (seleccionar padre → seleccionar hijas)** = **SOLO UI/estado de
+      selección, sin escritura**. Fix robusto: que el handler use las `subtasks` del objeto
+      RENDERIZADO (que `TaskCard` ya tiene) en vez de releer `tasks[taskId]`. Cubre también los
+      virtuales y el futuro post-`useGeneration`.
+    - **Duplicar el conjunto de un contenedor virtual + limpiar metadatos** = **TOCA ESCRITURA**
+      (crea filas; necesita origen materializado y limpiar `templateId`/`recurrence`/…) → **solo
+      analizado**, hacer con backup, ligado a Fase 3 / retirada de `useGeneration`.
 
 ---
 
