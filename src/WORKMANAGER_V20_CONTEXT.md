@@ -825,6 +825,14 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
   - **B4** Mover (`onRecurrenceDateChange` → `pendingDateChange`): confirmar/ajustar que una virgen
     se materialice como excepción con el nuevo `dueDate` (el flujo "FIX sesión 10" ya toca
     `parent_task_id` en excepciones; verificar que cubre la virgen).
+    - ⚠️ **PUNTO A RESOLVER EN B4 — dos escritores con criterios DISTINTOS sobre `parent_task_id` de las
+      excepciones** (visto en la validación de B1, sesión 11): `handleToggleStatus` escribe
+      `parent_task_id: null` en el upsert de instancias ([useTaskCRUD.ts:~182](useTaskCRUD.ts)) y la jerarquía
+      se **reconstruye desde las plantillas** al cargar (verificado: tras recarga las hijas quedan bien
+      anidadas bajo el contenedor). PERO el "FIX sesión 10" **sí escribe un `parent_task_id` real** en las
+      excepciones. Dos convenciones sobre la MISMA columna. B4 (mover) y B5 (promote/demote) escriben justo
+      ahí → **unificar el criterio al llegar a B4** (¿null + reconstruir, o parent real siempre?) para que
+      completar/mover/promover no se pisen ni dejen la columna incoherente.
   - **B5** Promote/Demote virgen: extender el #1 (hoy no-op en virgen) con `materializeInstanceById`
     → upsert excepción ANTES del `UPDATE parent_task_id`.
 - **Fase C** — Bug #20:
