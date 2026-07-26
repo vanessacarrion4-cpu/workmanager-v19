@@ -729,6 +729,11 @@ que genera datos que no necesita.
   ([useBulkActions.ts:202](useBulkActions.ts)) copia `{...original}` sin limpiar
   `templateId/instanceDate/isException/recurrence` (bug latente: copia atada a la serie, ver
   `recurrence` propagado en el insert [useBulkActions.ts:307](useBulkActions.ts)).
+- **Hallazgo (sesión 11) — regex INCORRECTO en add-subtask**: `handleAddTask`/`doAddTask`
+  ([useTaskCRUD.ts:229,258](useTaskCRUD.ts)) resuelven el padre virgen con `/^inst-(t-\d+)/`, el regex MALO
+  advertido en §5 (asume solo dígitos). Con templateId con letras/UUID **falla** → añadir subtarea a un
+  contenedor recurrente virgen no encuentra el padre. Afecta a "añadir subtarea a un día" (Semana, §13.6) y a
+  B4. Arreglar al tocar B4 usando el strip de `resolveTaskId` (no ese regex).
 
 ### 13.2 Commit-red (red de seguridad — revertir en un comando)
 - **Backup DB #1**: re-exportar la tabla `tasks` de Supabase ANTES de la primera fase que escribe
@@ -753,8 +758,15 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
   + tests. Extrae `templateId`+fecha, corre la lógica de `materializeDay` de ese día, devuelve el
   objeto de esa instancia o `null`. Cero cambio de comportamiento (nadie lo llama aún).
 - **Fase B** — Handlers de una tarea instance-aware (cada uno su commit, validado en día lejano):
-  - **B1** `handleToggleStatus`: si `!task` y `resolveTaskId` no da excepción → `materializeInstanceById`
-    → el flujo existente crea la excepción (`isException:true` + upsert). = completar/reabrir virgen.
+  - **B1** `handleToggleStatus` — **materializar la RAMA, no solo el nodo**: si `!task` y `resolveTaskId`
+    no da excepción, materializar el DÍA UNA vez (`materializeDay(fecha, tasks)` → `dayMap`) y sacar de ahí
+    el objetivo (`dayMap[taskId]`) **y sus hijas**. Cambiar el lookup de hijas de `toggleRecursive`
+    ([useTaskCRUD.ts:163-166](useTaskCRUD.ts)) de `tasks[sid]` a `tasks[sid] || dayMap[sid]` — si no, un
+    CONTENEDOR virgen upserta SOLO el padre y las hijas se quedan sin tocar, y **la recarga NO lo delata**
+    (el padre persiste bien). Mantener anti-#6 (upserts fuera del updater, ya es así). Guard
+    `if (task?.isDeleted) return;`. Validación: contenedor virgen a día lejano → **N upserts (padre+hijas)**
+    → recarga: TODAS completas; hoja virgen → 1 upsert; `isDeleted` → no reaparece; idempotencia
+    (completar/reabrir/completar = 1 fila, upsert `onConflict:'id'`).
   - **B2** `handleDeleteTaskRequest`: virgen → materializar y crear **excepción `isDeleted:true`**
     (materialize-on-delete), en vez del `UPDATE .eq('id', inst-…)` no-op.
   - **B3** *Edit routing*: enrutar Semana/Search/Delegadas por `handleEditTaskRequest` (no `setEditingTaskId` crudo).
@@ -770,6 +782,9 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
     metadatos** en `duplicateTaskRecursive` (`templateId`, `instanceDate`, `isException`,
     `recurrence`) → duplicado = one-off limpio. Mantener patrón anti-#6 (cálculo fuera del updater).
   - **C3** `bulkDeleteTasks`/`bulkUpdateTasks`: materializar normales vírgenes (misma familia que B1/B2 = Fase 3).
+    **Perf**: `materializeInstanceById` materializa el día ENTERO por id; sobre una selección de N tareas en
+    varios días serían N materializaciones completas. **Agrupar la selección por fecha y materializar cada día
+    UNA vez** (reusar el `dayMap`, como en B1). Anotado ahora para no redescubrirlo en la Fase C.
 - **Fase R** — Reordenar (bug #15): **DIFERIDO por decisión (A)** → sub-paso inmediato SIGUIENTE al
   paso final. Reordenar sigue OK para filas reales (Bloques). Comportamiento con recurrente virgen
   tras el flip documentado en §13.9 (esperado, NO regresión).
@@ -896,3 +911,27 @@ order, modifiedAt }`. Para una virgen, `updated[t.id]` es `undefined` → crea e
   el orden de la serie). El fantasma es basura TRANSITORIA en memoria (bajo riesgo, se limpia al
   recargar). Ambos se eliminan con el mismo guard (saltar virtuales en memoria + BD) o, definitivo,
   materializando la excepción por-día en #15.
+- **¿Puede colarse en una barrida que ESCRIBE (repairRecurringContainers / autosave)? Investigado
+  (sesión 11) → riesgo NIL.** `repairRecurringContainers` ([useSupabase.ts:172](useSupabase.ts)) corre en el
+  LOAD sobre `mappedTasks` (recién construido de la BD), NO sobre el estado en memoria → el fantasma (memoria,
+  desaparece al recargar) nunca está presente cuando corre; además salta todo objeto sin `subtasks` (línea
+  174). **No existe autosave que barra `Object.values(tasks)` y escriba en sesión**: los únicos bucles de
+  escritura son las bulk actions (operan sobre la SELECCIÓN, y el fantasma no se renderiza → no se puede
+  seleccionar) y el repair (en load). La única barrida en-sesión que toca el fantasma es `activeDayMap`
+  ([App.tsx:170](App.tsx)), de LECTURA, que lo manda a `map[undefined]` (inerte). → No puede acabar como fila
+  malformada ni romper un insert. Aun así, el guard de #15 lo elimina de raíz (barato, recomendado en #15).
+
+### 13.10 Prueba de que el día de test es VIRGEN (fundamento de la validación de B/C y del ensayo D0)
+La validación en "día lejano" solo vale si la instancia NO está en el estado. Constantes reales de la ventana
+de `useGeneration` ([useGeneration.ts:24-26](useGeneration.ts)):
+- `DAYS_PAST = 30`, `DAYS_FUTURE_DEFAULT = 60`, `DAYS_FUTURE_YEARLY = 400`.
+- Ventana futura = hoy + (¿hay algún template anual? **400** : 60). **NO hay extensión dinámica** más allá de
+  eso: `daysFuture` es una de esas dos constantes; el effect solo recalcula a los MISMOS límites.
+- Elegir un día **cómodamente > hoy+400** (no en el borde). Con hoy = 2026-07-26 → hoy+400 ≈ 2027-08-30 →
+  usar p.ej. **2028-01-15** (~hoy+538).
+- **Prueba definitiva por instancia** (belt-and-suspenders sobre la constante): confirmar en consola que la
+  instancia NO está en el estado ANTES de tocarla. `tasks` no está expuesto en `window` (verificado) → añadir
+  una línea dev TEMPORAL en `App.tsx` (NO es lógica de B; quitar antes de D2):
+  `useEffect(() => { (window as any).__tasks = tasks; }, [tasks]);`
+  y en consola: `window.__tasks['inst-<templateId>-2028-01-15'] === undefined` → `true` = virgen.
+  Alternativa sin código: React DevTools → componente App → hook de estado `tasks` → buscar el id.
