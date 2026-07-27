@@ -243,7 +243,11 @@ export function useTaskOrdering({
         for (const t of Object.values(tasks)) { if (!t.isDeleted) dayMap[t.id] = t; } // estado gana
         const sibs = (Object.values(dayMap) as Task[])
           .filter(t => !t.parentTaskId && t.blockId === subject.blockId && !t.isTemplate && !t.isDeleted
-            && (t.dueDate === day || (t.subtasks && t.subtasks.length > 0)))
+            // SOLO items de ESTE día: una fila/instancia con fecha cuenta si es de hoy; un contenedor
+            // manual sin fecha, solo si tiene ≥1 hija de hoy. (Un `subtasks.length>0` a secas arrastraba
+            // instancias de OTROS días —tienen dueDate≠day pero subtasks>0—, contaminando el "hermano de arriba".)
+            && (t.dueDate === day
+                || (!t.dueDate && (t.subtasks || []).some(sid => dayMap[sid] && !dayMap[sid].isDeleted && dayMap[sid].dueDate === day))))
           .sort((a, b) => (a.order || 0) - (b.order || 0))
           .map(t => t.id);
         const i = sibs.indexOf(taskId);
