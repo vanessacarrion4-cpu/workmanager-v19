@@ -1315,3 +1315,48 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
   `form_input` a nivel DOM. **C1 (selección) y C2 (duplicar) son casi todo clics → OK**. Pero si una validación
   necesita **CREAR algo** (una tarea/subtarea de prueba nueva), **lo crea la usuaria**, no intentarlo desde aquí.
   Y NUNCA editar tareas reales de trabajo para validar — usar fixtures/throwaways.
+
+### 13.17 B5 (promote/demote de virgen) — decisiones + FK + evidencia de producción (sesión 13)
+**Vistas que disparan promote/demote hoy**: Mi Día, Bloques, Calendario (botones en [TaskCard.tsx:664-679](src/TaskCard.tsx:664)).
+**NO Semana** (`WeekTaskCard` no recibe `onPromote`/`onDemote`). Promover = solo filas con `parentTaskId`; degradar = siempre.
+Ambos reciben el id materializado → para virgen (`inst-…`) hoy es **no-op silencioso** ([useTaskOrdering.ts:132,192](src/useTaskOrdering.ts:132)).
+
+**Decisiones de modelo (tomadas por la usuaria):**
+1. **Promover = TODA LA SERIE, con modal de confirmación** (opción 2). Editar el `parentTaskId` de la PLANTILLA hija
+   (abuelo/`null`), afecta todos los días. Modal con el mismo tono que mover/borrar ("afecta a todos los días, no solo
+   al que ves"). La opción 3 (**promover solo un día**) = sub-proyecto de motor **DESPUÉS del flip** (ver §11.1), NO aquí.
+2. **Degradar = MATERIALIZAR PRIMERO** (patrón B1/B2/B4): crear la instancia del contenedor de ese día como **fila real
+   (excepción)** y usar ese id real como `parent_task_id` → FK válida, anida solo ese día. Rechazados: `inst-` virtual
+   (colgante) y plantilla (contaminación). Degradar una hija recurrente bajo otra = reestructura de serie → criterio de
+   promover (serie + modal).
+
+**⚠️ FK CONFIRMADA EN VIVO (contradice la suposición de "no hay FK")**: existe `tasks_parent_task_id_fkey` sobre
+`tasks.parent_task_id → tasks.id`. Sondeo reversible (sesión 13, cliente expuesto temporalmente + revert): `UPDATE`
+con parent inexistente → **error `23503`** ("violates foreign key constraint"), revert limpio. **Consecuencia**: hoy,
+degradar bajo un contenedor virtual escribe `parent_task_id = inst-K-D` (fila inexistente) → **23503 → peta en silencio**
+(el `.then(({error})=>console.error)` lo traga; la UI optimista queda, pero NO persiste → se pierde al recargar). Por eso
+**materializar-primero es OBLIGATORIO, no una preferencia**. Es también la razón de toda la arquitectura "instancias con
+`parent_task_id=null` + reconstruir por `templateId`" ([reconstructInstanceHierarchy](src/useSupabase.ts:60)) — es el workaround de la FK.
+
+**Plan de dos commits (split acordado: degradar primero, promover-serie después):**
+- **B5a — DEMOTE materializar-primero** (sin modal): en `handleDemoteTask`, cuando el nuevo padre es una instancia
+  contenedor virtual, crear su fila-excepción del día (`inst-K-D` real: `is_exception`, `templateId=K`, `instance_date=due_date=D`,
+  `parent_task_id=null`) y luego persistir `parent_task_id = inst-K-D`. Si el sujeto degradado es virgen, materializarlo también.
+- **B5b — PROMOTE serie + DEMOTE-serie + MODAL**: `handlePromoteTask` (y demote-serie) resuelven a plantilla y editan
+  `parentTaskId` de la plantilla, tras confirmación en un modal nuevo (reusar patrón de `pendingDateChange`/`recurrenceAction`).
+
+**Qué se toca / qué queda intacto:**
+- TOCA: `useTaskOrdering.ts` (ambos handlers); en B5b, App.tsx (modal nuevo) + su wiring.
+- INTACTO: promover/degradar **no-recurrente** (path actual, persistencia #1 `83a7301`) — **única regresión posible, validar explícito**;
+  `instanceEngine.ts` y `filters.ts` (la opción per-día queda para el sub-proyecto; degradar reusa el manejo existente de
+  excepción-de-contenedor); patrón anti-#6/StrictMode (cálculo fuera del updater) intacto en ambos.
+
+**Evidencia de producción del bug que quita el flip (sesión 13)**: la usuaria abrió la app y las recurrentes
+**desaparecieron**, volviendo **al recargar** → `useGeneration` no terminó de generar antes del primer render (carrera
+async del motor viejo). Es exactamente el fallo que elimina el flip: `materializeDay` es **puro y síncrono**, sin generación
+diferida ni carrera. **Valoración del fixture como agravante**: el fixture (§13.11) tiene `startDate 2026-07-26` (NO 2028)
+→ sus 3 hijas diarias **SÍ generan en-ventana** (2026-07-26 → techo ~2026-12-31 ≈ 158 días × 3 + contenedor ≈ **475–630
+instancias**, ~20-25% del estado). Contribuye de forma plausible a la carrera. **Recomendación**: borrarlo (query en §13.15)
+y **recrearlo con `startDate 2028-01-01`** (la intención original) → el generador no lo toca (fuera de ventana) → **carga
+cero**, y sigue válido para validar B5 (materializeDay funciona en cualquier fecha; virginidad garantizada). Recrear cuando
+toque validar B5a (la usuaria lo crea; yo no tecleo inputs de forma fiable).
