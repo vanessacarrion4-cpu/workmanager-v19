@@ -123,7 +123,7 @@ export default function App() {
   // DEV TEMPORAL (sesión 11, §13.10): expone el estado `tasks` en consola para verificar que un
   // día de test es VIRGEN (window.__tasks['inst-…'] === undefined) antes de validar B/C y el ensayo
   // D0. NO es lógica de B; retirar en la Fase D2 (borrado de useGeneration).
-  useEffect(() => { (window as any).__tasks = tasks; }, [tasks]);
+  useEffect(() => { (window as any).__tasks = tasks; (window as any).__materializeDay = materializeDay; }, [tasks]);
 
   // DEV TEMPORAL (sesión 11, §13.11): salto directo a una fecha en Mi Día para validar en día
   // lejano SIN navegar el Calendario (lento). Uso: window.__goToDate('2028-01-15'). Retirar en D2.
