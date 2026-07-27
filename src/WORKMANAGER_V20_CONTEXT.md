@@ -1360,3 +1360,36 @@ instancias**, ~20-25% del estado). Contribuye de forma plausible a la carrera. *
 y **recrearlo con `startDate 2028-01-01`** (la intención original) → el generador no lo toca (fuera de ventana) → **carga
 cero**, y sigue válido para validar B5 (materializeDay funciona en cualquier fecha; virginidad garantizada). Recrear cuando
 toque validar B5a (la usuaria lo crea; yo no tecleo inputs de forma fiable).
+
+**B5a NO es solo preparación — arregla un BUG REAL de producción**: con la FK confirmada, degradar hoy una tarea dentro de
+un contenedor recurrente escribe `parent_task_id=inst-K-D` (fila inexistente) → **23503 → falla en silencio** (la usuaria
+degrada, la UI lo muestra un instante, y al recargar vuelve a estar fuera). B5a lo convierte en persistente. Es fix, no andamiaje.
+
+**El startDate de recurrencia NO es elegible desde la UI viva**: el `RecurrencePickerChip` ([Chips.tsx:300-570](src/Chips.tsx:300))
+tiene frecuencia, días, día-del-mes y "Termina" (endDate), pero **ningún input de inicio** — se fija a `formatLocalISO(new Date())`
+(hoy) al activar recurrencia (líneas 366/412/564). Los inputs de startDate solo están en ficheros NO vivos (`App-from-github.tsx`,
+`App - copia.tsx`, `workmanager-v19/`). → **Alternativa acordada**: recrear el fixture justo antes de validar B5a y borrarlo justo
+después (ids nuevos, se actualizan aquí). Opción persistente si se prefiere: recrearlo (arranca hoy) y yo le subo el
+`recurrence.startDate` a 2028-01-01 con un `update` puntual (técnica del sondeo FK) → carga cero del generador.
+
+**Inventario de escrituras a `parent_task_id` (barrido preventivo del FK, para Fase C — file:line):**
+- **BUG ACTIVO (lo arregla B5a)**: [useTaskOrdering.ts:260](src/useTaskOrdering.ts) `handleDemoteTask` → `aboveTaskId` puede ser
+  `inst-…` virtual → 23503 silencioso. Interceptado en B5a (materializar-primero) para el caso one-off-en-contenedor.
+- **⚠️ LANDMINE FASE C (NO tocar aún, arreglar en C)**: [useBulkActions.ts:285](src/useBulkActions.ts) `bulkDuplicateTasks` — el
+  `insert` escribe `parent_task_id: task.parentTaskId` CRUDO. Un hijo-excepción real tiene su `parentTaskId` en memoria = `inst-…`
+  (se lo pone [reconstructInstanceHierarchy](src/useSupabase.ts:78) al cargar) → duplicarlo inserta una FK colgante → **23503 silencioso**.
+  Es justo el bug #20 (duplicar contenedores) de Fase C. Anotado para no descubrirlo en vivo allí.
+- **B5b lo aborda**: [useTaskOrdering.ts:181](src/useTaskOrdering.ts) `handlePromoteTask` → `grandParentId`; hoy no-op para virgen,
+  pasará a serie/plantilla (id real) en B5b.
+- **SEGUROS (null o resueltos a templateId/null antes de escribir)**: [useTaskCRUD.ts:204/487/559/633/749](src/useTaskCRUD.ts) (null);
+  [useTaskCRUD.ts:368](src/useTaskCRUD.ts) y [:647-650](src/useTaskCRUD.ts) (`supabaseParentId` resuelve `inst-`→templateId/null);
+  [useBulkActions.ts:96](src/useBulkActions.ts) y [App.tsx:990](src/App.tsx) (null).
+- **FUERA DEL PATH VIVO (no importados desde `src/`; anotar por si se reviven)**: [useSupabaseData.ts:162](src/useSupabaseData.ts)
+  `saveTask` (código muerto — App usa `useSupabase`); [api/sync.ts:47](api/sync.ts), [api/tasks/[id].ts:12](api/tasks/[id].ts),
+  [api/tasks/index.ts:36](api/tasks/index.ts) (endpoints serverless, escriben `parentTaskId` crudo — 23503 si se usan con parent virtual).
+
+**Estado B5a (sesión 13)**: **código ESCRITO** (intercept en `handleDemoteTask`, cuerpo original intacto = cero regresión;
+`buildExceptionRow` reusa el shape validado de cambio-2). build ✅ + 43/43 + sin errores tsc en el fichero. **PENDIENTE:
+validación en vivo** (requiere fixture recreado en 2028). Escenario: crear un one-off en el día del fixture, colocarlo bajo el
+contenedor, degradarlo → spy: 1 upsert del contenedor (`is_exception`, `parent_task_id=null`) + 1 update del one-off
+(`parent_task_id=inst-K-D`), sin 23503; el one-off anida bajo el contenedor ese día; persiste al recargar.
