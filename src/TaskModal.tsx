@@ -101,7 +101,7 @@ export function TaskModal({
 
   const subtasks = useMemo(() => {
     return (localTask.subtasks || [])
-      .map(id => allTasksMap[id] || { id, title: subtaskTitles[id] || '', status: 'pending' as const, blockId: localTask.blockId, parentTaskId: localTask.id, subtasks: [], tags: [], estimatedMinutes: 0, order: -1, priority: 'media' as const })
+      .map(id => allTasksMap[id] || { id, title: subtaskTitles[id] || '', status: 'pending' as const, blockId: localTask.blockId, parentTaskId: localTask.id, subtasks: [], tags: [], estimatedMinutes: 0, order: -1 })
       .sort((a, b) => (a?.order || 0) - (b?.order || 0));
   }, [localTask.subtasks, localTask.id, localTask.blockId, allTasksMap, subtaskTitles]);
 

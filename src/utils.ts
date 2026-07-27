@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Task, SubtaskTemplate, TagType, Attachment, Priority } from './types';
+import { Task, SubtaskTemplate, TagType, Attachment } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 
 export function getTaskLevel(task: Task, tasks: Record<string, Task>, visited = new Set<string>()): number {

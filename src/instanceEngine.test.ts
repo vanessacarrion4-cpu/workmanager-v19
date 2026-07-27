@@ -19,7 +19,6 @@ function task(partial: Partial<Task> & { id: string }): Task {
   return {
     blockId: 'b1',
     title: partial.id,
-    priority: 'media',
     status: 'pending',
     dueDate: null,
     estimatedMinutes: 30,

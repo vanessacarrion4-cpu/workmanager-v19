@@ -850,7 +850,7 @@ export default function App() {
                   const newTask = {
                     id,
                     blockId: blockId || parentTask?.blockId || (blocks.length > 0 ? blocks[0].id : 'b1'),
-                    title: '', notes: '', priority: 'media' as const, status: 'pending' as const,
+                    title: '', notes: '', status: 'pending' as const,
                     dueDate: overrideDate || activeDate, dueTime: '',
                     parentTaskId, subtasks: [], estimatedMinutes: 0, tags: [], order: 0,
                     createdAt: timestamp, modifiedAt: timestamp, attachments: [],
@@ -972,7 +972,7 @@ export default function App() {
                   id: taskToDelete.id, block_id: taskToDelete.blockId, parent_task_id: null,
                   template_id: taskToDelete.templateId, instance_date: taskToDelete.instanceDate || null,
                   title: taskToDelete.title, notes: taskToDelete.notes || '',
-                  priority: taskToDelete.priority || 'medium', status: taskToDelete.status,
+                  priority: 'media', status: taskToDelete.status,
                   due_date: taskToDelete.dueDate || null, due_time: taskToDelete.dueTime || null,
                   completed_at: taskToDelete.completedAt || null, estimated_minutes: taskToDelete.estimatedMinutes || 0,
                   actual_minutes: taskToDelete.actualMinutes || 0, tags: taskToDelete.tags || [],

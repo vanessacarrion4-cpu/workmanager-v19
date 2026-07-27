@@ -4,7 +4,6 @@
  */
 
 export type TagType = 'con_hora' | 'focus' | 'dirección' | 'espera' | 'resto';
-export type Priority = 'alta' | 'media' | 'baja';
 
 export interface WorkBlock {
   id: string;
@@ -29,8 +28,7 @@ export interface SubtaskTemplate {
   notes?: string;
   tags?: TagType[];
   estimatedMinutes?: number;
-  priority?: Priority;
-  
+
   // Recurrence for subtasks
   recurrence?: {
     frequency: 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'yearly';
@@ -60,7 +58,6 @@ export interface Task {
   
   title: string;
   notes?: string;
-  priority: Priority;
   parentTaskId?: string | null;
   subtasks?: string[]; // IDs of direct children
   

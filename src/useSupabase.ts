@@ -326,7 +326,6 @@ export function useSupabase({
               blockId: t.block_id,
               title: t.title,
               notes: t.notes,
-              priority: t.priority,
               status: t.status,
               dueDate: t.due_date,
               dueTime: t.due_time,
