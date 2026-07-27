@@ -457,6 +457,20 @@ El usuario nunca se entera. Cola de escrituras + indicador real de sync.
 
 Estado vacío que celebre, no una lista vacía.
 
+### 8.10 Promover/degradar-serie de recurrentes 🔵 (sub-proyecto POST-FLIP)
+
+**Funcionalidad nueva, no arreglo — hoy tampoco funciona y no bloquea el flip** (decisión sesión 13). Dos piezas:
+- **Promover una instancia recurrente**: decidido **toda la serie con confirmación** (edita el `parentTaskId` de la
+  plantilla hija; afecta todos los días). Modal con el tono de mover/borrar ("afecta a todos los días, no solo al que
+  ves"). La variante **per-día** (que ese día quede suelta y la serie siga produciéndola en el contenedor el resto) es
+  otro sub-proyecto de motor aún más adelante: `materializeDay`/`filters` no soportan un desanclaje por-día (el anidado de
+  recurrentes lo manda la PLANTILLA, CASO 1; ver §13.17).
+- **Degradar una hija recurrente bajo una hermana** = misma reestructura de serie (serie + modal). (B5a ya cubre el caso
+  per-día de una tarea **one-off** dentro de un contenedor recurrente, `ffdad59`.)
+
+Anotado como daño conocido en la tabla §13.4 (no leer como regresión del flip). Reusará el patrón de modal de
+`pendingDateChange`/`recurrenceAction` + resolución a plantilla.
+
 ---
 
 ## 9. Rutina de trabajo real de la usuaria
@@ -933,6 +947,7 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
 | D1 (desactivar) | **MÁXIMO**: todo lo cercano pasa a virtual de golpe | Consola: **0** logs `[GENERATION]`. Regresión total §13.6. Recarga persiste. Volver atrás = flip del flag |
 | Reorder virgen | Escribe `order` en la PLANTILLA (#15) — **ESPERADO, NO regresión** (ver §13.9) | Arrastrar-reordenar una recurrente virgen escribe en `template_id`, no en el día; se arregla en el sub-paso siguiente |
 | Reorder virgen — fantasma | Objeto parcial `{order,modifiedAt}` bajo `tasks['inst-…']`, TRANSITORIO (§13.9) | Tras reordenar una virgen: valor sin `.id`/`templateId`; NO lo resuelve `resolveTaskId` ni lo renderiza `materializeDay`; **desaparece al recargar** |
+| Promover/degradar-serie de recurrente (B5b) | **NO funciona todavía — ESPERADO, NO regresión** (como el reorder #15). Promover una instancia recurrente, o degradar una hija recurrente bajo una hermana (= reestructura de serie), hoy es no-op y queda para **B5b** (serie + modal). B5a **SÍ** cubre degradar un **one-off** dentro de un contenedor recurrente (validado `ffdad59`). | Al validar el flip: promover/degradar sobre una **instancia recurrente** no persiste → NO leerlo como regresión del flip (nunca funcionó). Backlog en §8.10 |
 | D2 (borrado) | Bajo (ya validado en E) | Build ✅; grep sin consumidores de `useGeneration`/`useTemplateKey` |
 | Reading | Bajo (ya migrado) | Comparar el día de hoy antes/después del flip: mismas tareas, mismo orden |
 
@@ -1368,9 +1383,12 @@ degrada, la UI lo muestra un instante, y al recargar vuelve a estar fuera). B5a 
 **El startDate de recurrencia NO es elegible desde la UI viva**: el `RecurrencePickerChip` ([Chips.tsx:300-570](src/Chips.tsx:300))
 tiene frecuencia, días, día-del-mes y "Termina" (endDate), pero **ningún input de inicio** — se fija a `formatLocalISO(new Date())`
 (hoy) al activar recurrencia (líneas 366/412/564). Los inputs de startDate solo están en ficheros NO vivos (`App-from-github.tsx`,
-`App - copia.tsx`, `workmanager-v19/`). → **Alternativa acordada**: recrear el fixture justo antes de validar B5a y borrarlo justo
-después (ids nuevos, se actualizan aquí). Opción persistente si se prefiere: recrearlo (arranca hoy) y yo le subo el
-`recurrence.startDate` a 2028-01-01 con un `update` puntual (técnica del sondeo FK) → carga cero del generador.
+`App - copia.tsx`, `workmanager-v19/`). → **HECHO (sesión 13)**: en vez de recrear, se subió el `recurrence.startDate` de las 3
+hijas del fixture a **2028-01-01** con un `update` puntual (técnica del sondeo FK). Resultado verificado: días 2026/2027 vacíos,
+**0 instancias del fixture en estado** (carga del generador eliminada), `startDate 2028-01-01`, ids sin cambiar. **Excepciones 2028
+ya creadas siguen 100% válidas**: para toda fecha ≥ 2028-01-01, `occursOn` es idéntico con inicio 2026 o 2028 → la salida de
+`materializeDay` para todos los días 2028 es byte-idéntica antes/después (01-15/03-13/04-03/05-10 intactas; 02-01 vacío = excepción
+de contenedor borrado pre-existente de B2, no del bump).
 
 **Inventario de escrituras a `parent_task_id` (barrido preventivo del FK, para Fase C — file:line):**
 - **BUG ACTIVO (lo arregla B5a)**: [useTaskOrdering.ts:260](src/useTaskOrdering.ts) `handleDemoteTask` → `aboveTaskId` puede ser
@@ -1388,8 +1406,16 @@ después (ids nuevos, se actualizan aquí). Opción persistente si se prefiere: 
   `saveTask` (código muerto — App usa `useSupabase`); [api/sync.ts:47](api/sync.ts), [api/tasks/[id].ts:12](api/tasks/[id].ts),
   [api/tasks/index.ts:36](api/tasks/index.ts) (endpoints serverless, escriben `parentTaskId` crudo — 23503 si se usan con parent virtual).
 
-**Estado B5a (sesión 13)**: **código ESCRITO** (intercept en `handleDemoteTask`, cuerpo original intacto = cero regresión;
-`buildExceptionRow` reusa el shape validado de cambio-2). build ✅ + 43/43 + sin errores tsc en el fichero. **PENDIENTE:
-validación en vivo** (requiere fixture recreado en 2028). Escenario: crear un one-off en el día del fixture, colocarlo bajo el
-contenedor, degradarlo → spy: 1 upsert del contenedor (`is_exception`, `parent_task_id=null`) + 1 update del one-off
-(`parent_task_id=inst-K-D`), sin 23503; el one-off anida bajo el contenedor ese día; persiste al recargar.
+**Estado B5a (sesión 13) — ✅ HECHO Y VALIDADO EN VIVO** (`d24e120` intercept + `ffdad59` fix del filtro "solo del día",
+encontrado al validar). Intercept en `handleDemoteTask`, cuerpo original **intacto** (cero regresión); `buildExceptionRow` reusa
+el shape de cambio-2. **Validación en vivo** (día 2028-06-14, one-off throwaway bajo el contenedor fixture, con pre-check de
+seguridad para NO tocar el contenedor real «Rutinas mañana»):
+- Spy: **1 upsert del contenedor** (`inst-t-1785089440019-2028-06-14`, `is_exception=true`, **`parent_task_id=null`**,
+  `template_id`, `instance_date=due_date=06-14`) **+ 1 PATCH del one-off** (`parent_task_id=inst-t-1785089440019-2028-06-14`),
+  en orden padre→hijo, **sin 23503** (consola limpia).
+- Tras recargar: el `parent_task_id` del one-off **PERSISTE** (el FK lo aceptó → fin del fallo silencioso); one-off **anida bajo el
+  contenedor** en el DOM (getVisibleSubtasksForDay CASO 2); **plantilla sin contaminar** (`subtasks`=3 ids de plantilla, cero `inst-`).
+- **NO-REGRESIÓN** (la que pidió la usuaria): degradar una tarea **normal bajo otra normal** → **1 solo PATCH** (parent real),
+  **sin upsert de contenedor** → el intercept NO se activa, el path original corre igual. B bajo A persiste.
+- Andamiaje (one-off + 2 planas + order del contenedor + excepción 06-14) **limpiado**; fixture **virgen** de nuevo (06-14 libre).
+- **Cliente `__supabase` dev-expuesto durante el turno para las ops de fixture/validación → RETIRADO** (revertido en `supabaseClient.ts`).
