@@ -20,6 +20,14 @@ interface UseGenerationOptions {
   setTasks: (updater: (prev: Record<string, Task>) => Record<string, Task>) => void;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// D1 (FLIP, sesión 13): interruptor del motor VIEJO. Con V20 (materializeDay) el
+// reading no depende de useGeneration; se apaga aquí sin borrar archivos para poder
+// revertir en segundos. REVERTIR = poner esta constante a `true` (una línea).
+// Se borra el hook entero en D2 (tras validar).
+const GENERATION_ENABLED: boolean = false;
+// ─────────────────────────────────────────────────────────────────────────────
+
 const MAX_GENERATION_CYCLES = 20;
 const DAYS_PAST = 30;           // 1 mes atrás (siempre)
 const DAYS_FUTURE_DEFAULT = 60; // 2 meses adelante (tareas no anuales)
@@ -69,6 +77,7 @@ export function useGeneration({ tasks, isDataLoaded, setTasks }: UseGenerationOp
   const templateKey = useTemplateKey(tasks);
 
   useEffect(() => {
+    if (!GENERATION_ENABLED) return; // D1: motor viejo apagado (flip). Revertir = GENERATION_ENABLED=true.
     if (!isDataLoaded) return;
     if (templateKey === prevTemplateKeyRef.current && prevTemplateKeyRef.current !== '') return;
 
