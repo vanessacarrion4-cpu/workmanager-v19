@@ -124,6 +124,8 @@ export default function App() {
   // día de test es VIRGEN (window.__tasks['inst-…'] === undefined) antes de validar B/C y el ensayo
   // D0. NO es lógica de B; retirar en la Fase D2 (borrado de useGeneration).
   useEffect(() => { (window as any).__tasks = tasks; (window as any).__materializeDay = materializeDay; }, [tasks]);
+  // DEV TEMPORAL (sesión 13, Fase C): estado de selección para validar C1/C3. RETIRAR al terminar Fase C.
+  useEffect(() => { (window as any).__selectedTaskIds = [...selectedTaskIds]; (window as any).__setSelectionMode = setSelectionMode; }, [selectedTaskIds]);
 
   // DEV TEMPORAL (sesión 11, §13.11): salto directo a una fecha en Mi Día para validar en día
   // lejano SIN navegar el Calendario (lento). Uso: window.__goToDate('2028-01-15'). Retirar en D2.
@@ -139,24 +141,21 @@ export default function App() {
     });
   };
 
-  const toggleTaskSelection = useCallback((taskId: string, autoSelectSubtasks = false) => {
+  // C1 (bug #20): la auto-selección de hijas usa las `subtasks` del OBJETO RENDERIZADO (materializado)
+  // que `TaskCard` ya tiene, NO `tasks[taskId]` (crudo). Un contenedor recurrente VIRGEN no está en
+  // `tasks` (fuera de ventana de `useGeneration` / post-flip) → `tasks[taskId]` undefined → antes no
+  // marcaba NINGUNA hija. Las `renderedSubtaskIds` (materializadas) ya vienen filtradas (visibles del
+  // día, sin borradas). SOLO estado de selección (UI), sin escritura.
+  const toggleTaskSelection = useCallback((taskId: string, renderedSubtaskIds: string[] = []) => {
     setSelectedTaskIds(prev => {
       const next = new Set(prev);
+      const subs = renderedSubtaskIds.length ? renderedSubtaskIds : (tasks[taskId]?.subtasks || []);
       if (next.has(taskId)) {
         next.delete(taskId);
-        const task = tasks[taskId];
-        if (task?.subtasks) task.subtasks.forEach(subId => next.delete(subId));
+        subs.forEach(subId => next.delete(subId));
       } else {
         next.add(taskId);
-        if (autoSelectSubtasks) {
-          const task = tasks[taskId];
-          if (task?.subtasks?.length > 0) {
-            task.subtasks.forEach(subId => {
-              const sub = tasks[subId];
-              if (sub && !sub.isDeleted) next.add(subId);
-            });
-          }
-        }
+        subs.forEach(subId => next.add(subId));
       }
       return next;
     });
