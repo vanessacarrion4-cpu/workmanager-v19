@@ -477,14 +477,12 @@ export function useTaskCRUD({
           const realParentTemplateId = parent.templateId;
           const realParent = updated[realParentTemplateId];
 
-          updated[updatedTask.id] = { ...updated[updatedTask.id], parentTaskId: realParentTemplateId };
-
-          if (!realParent.subtasks.includes(updatedTask.id)) {
-            updated[realParentTemplateId] = {
-              ...realParent,
-              subtasks: [...realParent.subtasks, updatedTask.id]
-            };
-          }
+          // B4-cambio-1: la excepción recurrente NO se reconecta a la PLANTILLA (era la contaminación que
+          // alimentaba el bucle inst-inst-). Su parent_task_id queda `null`; materializeDay re-anida por
+          // plantilla + templateId/día. Y NO se mete la instancia en `template.subtasks` (corrompía la fuente
+          // de verdad de la jerarquía). Scope: solo aquí, dentro del `if (updatedTask.recurrence ...)` →
+          // exclusivamente excepciones de instancias recurrentes; las manuales no-recurrentes no entran.
+          updated[updatedTask.id] = { ...updated[updatedTask.id], parentTaskId: null };
 
           updated[parent.id] = {
             ...parent,
@@ -493,10 +491,10 @@ export function useTaskCRUD({
 
           setTimeout(() => {
             supabase.from('tasks')
-              .update({ parent_task_id: realParentTemplateId })
+              .update({ parent_task_id: null })
               .eq('id', updatedTask.id)
               .then(({ error }) => {
-                if (error) console.error('[SUPABASE] Error reconectando subtarea al template:', error);
+                if (error) console.error('[SUPABASE] Error escribiendo parent_task_id=null (excepción recurrente):', error);
               });
           }, 0);
 
