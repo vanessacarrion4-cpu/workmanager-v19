@@ -677,6 +677,10 @@ prueba, y si está bien se sigue.
 | Pantalla de análisis previsto vs real | Más adelante |
 
 ### 11.1 Backlog UX/diseño (detectado sesión 11 — para la fase de diseño, NO ahora)
+- **(f) Desde BLOQUES no se completan las tareas recurrentes** (las normales sí; PRE-EXISTENTE, NO del flip — sesión 13).
+  Investigar cuando toque si `BlocksView` cablea otro handler de completar (o filtra las recurrentes) distinto al de Mi Día.
+- **(g) En el CALENDARIO, al abrir un día, no está el icono de completar** (nunca ha estado; PRE-EXISTENTE, sesión 13).
+  El drawer del día del Calendario no expone el toggle de estado. Añadir el control de completar dentro del día.
 - **(e) Desde Semana NO se puede mover una tarea a otro día** (detectado sesión 13): `WeekView` recibe
   `onRecurrenceDateChange` pero **nunca lo llama**, y `WeekTaskCard` no tiene selector de fecha. Es justo la vista
   donde arrastrar de un día a otro sería lo más natural. Cablear el arrastre/selector de fecha en Semana →
@@ -1478,5 +1482,47 @@ Los tres handlers instance-aware para selección + bulk. Días de validación �
    - **Duplicar contenedor** (copia limpia, sin recurrencia).
    - **Calendario** en un mes lejano: abrir el día y **completar dentro**.
 
-- **Si todo verde → D2**: borrar `useGeneration.ts` + `generation.worker.ts` (+ `useTemplateKey`), y retirar los dev-hooks
-  (`__tasks`/`__goToDate`/`__materializeDay` en App.tsx, `devFetch`/`__spy` en supabaseClient.ts). Build + grep sin consumidores.
+- **Validación post-flip: ✅ VERDE, SIN REGRESIONES** (la usuaria, en producción comparada en paralelo). Mi Día de hoy = mismo
+  contador (20) y orden; consola sin `[GENERATION]` ni errores; recarga OK. Las 7 vistas cargan. Acciones: completar con hijas ·
+  borrar (no vuelve) · editar desde Semana (modal) · mover · seleccionar contenedor marca hijas (**bug #20 muerto**) · duplicar
+  contenedor limpio · Bloques. **De los 3 fallos encontrados al desarrollar, ninguno lo causó el flip** (los 3 ya estaban).
+- **Dos fallos PRE-EXISTENTES detectados (NO del flip, al backlog §11.1)**: (1) desde **Bloques** no se completan las recurrentes
+  (las normales sí) — investigar si `BlocksView` usa otro handler; (2) en **Calendario**, al abrir un día, no está el icono de completar.
+- **✅ D2 HECHO (`d159870`)**: borrados `useGeneration.ts` (+`useTemplateKey`) y `generation.worker.ts`; retirados el import/llamada
+  en App.tsx y TODO el código dev-only (`__tasks`/`__goToDate`/`__materializeDay`, `devFetch`/`__spy`, y los `__*` de Fase C).
+  Grep = 0 consumidores de código (solo comentarios históricos). build ✅ + 43/43. −629 líneas.
+- **PERF post-flip** (medido antes de borrar los dev-hooks): materializar un **MES (30 días) = 42.86 ms @ 2410 claves** (media 10
+  pasadas, en caliente; ~1.43 ms/día). Baseline sucio ~63 ms @ 2324 → **~1.5× más rápido y con más tareas**. Señal objetiva de que el flip aligeró la app.
+
+### 13.20 Merge a master — PLAN (producción = app de trabajo de la usuaria; ir con calma)
+**Contexto**: `master` (desplegado en Vercel) usa el motor VIEJO; `refactor-v20`, el nuevo. **Ambos leen la MISMA Supabase.**
+Las excepciones creadas por el motor nuevo son filas `is_exception` que el motor viejo TAMBIÉN respeta (excepción persistida gana +
+`resolveTaskId`) → **los datos son compatibles en ambos sentidos**, así que ir y volver es seguro (el rollback es solo de CÓDIGO).
+
+**A. ANTES de fusionar (comprobar):**
+1. `refactor-v20`: árbol limpio + `vite build` ✅ + `vitest` ✅ (confirmado tras D2). Grep sin dev-only (hecho).
+2. **Backup fresco de `tasks`** justo antes (aunque `tasks_rows_27072026` vale; exportar uno nuevo por seguridad).
+3. **Dimensionar la contaminación**: correr el conteo SQL (`is_exception` && `parent_task_id` → una fila `is_template`) para saber
+   cuántas filas de las 4 series están contaminadas. **No bloquea el merge**, pero tener lista la limpieza (ver §13.14 / punto D).
+4. (Opcional) `git tag v20-merge` en el commit de merge para referencia.
+
+**B. CÓMO fusionar:**
+1. `git checkout master && git pull` (master al día).
+2. `git merge --no-ff refactor-v20` → **un solo commit de merge** (revertible de un tiro).
+3. `git push origin master` → **Vercel auto-despliega**. Esperar el deploy verde.
+4. **Verificación inmediata en producción** (lista corta de §13.19): Mi Día de hoy = contador/orden correcto; consola sin errores;
+   completar una tarea + recarga. Si algo chirría → rollback (C).
+
+**C. CÓMO REVERTIR si algo va mal en producción:**
+- **Más rápido (segundos, sin git)**: en **Vercel → Deployments → el deployment ANTERIOR (pre-merge) → Promote to Production**
+  (rollback instantáneo al motor viejo). Como la DB es la misma y los datos son compatibles, no se pierde nada.
+- **Por git**: `git revert -m 1 <commit-de-merge>` en master + `git push` → Vercel redepliega el motor viejo.
+- El `git tag v20-pre-flip` (en `refactor-v20`) marca el último estado con motor viejo aún vivo, por si hace falta comparar.
+
+**D. Riesgos / qué vigilar (esperado, no bloqueante):**
+- **Las 4 series contaminadas se verán duplicadas/triplicadas** hasta correr la **limpieza de contaminación** (fase propia
+  post-merge, §13.14): `UPDATE tasks SET parent_task_id = NULL WHERE is_exception AND parent_task_id IN (<ids de plantillas>)`
+  — validar el `WHERE` con el conteo del punto A.3 antes de ejecutar; hacer backup antes. Con eso, `reconstructHierarchy` deja de
+  empujar el `inst-` a la plantilla y el doble-render desaparece.
+- Reorder de recurrente cambia todos los días (#15, Fase R) y promover recurrente no hace nada (B5b) — daño conocido, no del merge.
+- Nada más: reading validado idéntico (mismo contador 20) y perf mejor.
