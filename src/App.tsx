@@ -773,6 +773,8 @@ export default function App() {
           onDeleteTimeEntry={timerHandlers.handleDeleteTimeEntry}
           onUpdateTimeEntry={timerHandlers.handleUpdateTimeEntry}
           onGoToTemplate={handleGoToTemplate}
+          onPromote={handlePromoteTask}
+          onDemote={handleDemoteTask}
           initialShowTime={openModalWithTime}
           initialInstanceDate={modalInstanceDate}
         />
@@ -803,6 +805,8 @@ export default function App() {
           onDeleteTimeEntry={timerHandlers.handleDeleteTimeEntry}
           onUpdateTimeEntry={timerHandlers.handleUpdateTimeEntry}
           onGoToTemplate={handleGoToTemplate}
+          onPromote={handlePromoteTask}
+          onDemote={handleDemoteTask}
         />
       )}
 
