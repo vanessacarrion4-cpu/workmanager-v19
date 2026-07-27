@@ -300,8 +300,8 @@ export function TaskCard({
             // No interceptar clicks en botones, inputs — solo zona libre de la card
             if (target.closest('button') || target.closest('input') || target.closest('select') || target.closest('textarea') || target.closest('a')) return;
             e.stopPropagation();
-            const isContainer = !!(task.subtasks && task.subtasks.length > 0);
-            onToggleTaskSelection(task.id, isContainer);
+            // C1: pasar las subtasks del objeto RENDERIZADO (materializado) — cubre contenedor virgen.
+            onToggleTaskSelection(task.id, task.subtasks || []);
           } : undefined}
         >
           {/* Main Row */}
@@ -335,8 +335,8 @@ export function TaskCard({
               onClick={(e) => {
                 e.stopPropagation();
                 if (selectionMode && onToggleTaskSelection) {
-                  const isContainer = !!(task.subtasks && task.subtasks.length > 0);
-                  onToggleTaskSelection(task.id, isContainer);
+                  // C1: subtasks del objeto RENDERIZADO (materializado) — cubre contenedor virgen.
+                  onToggleTaskSelection(task.id, task.subtasks || []);
                 } else {
                   onToggleStatus(task.id);
                 }

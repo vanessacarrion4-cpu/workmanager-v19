@@ -8,6 +8,7 @@
 import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
+import { resolveTaskId, materializeDay } from './instanceEngine';
 
 interface UseBulkActionsOptions {
   tasks: Record<string, Task>;
@@ -16,6 +17,28 @@ interface UseBulkActionsOptions {
   setSelectedTaskIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   setSelectionMode: React.Dispatch<React.SetStateAction<boolean>>;
   activeDate: string;
+}
+
+/**
+ * C3: resuelve un id de la selección al OBJETO renderizado, incluyendo instancias recurrentes VÍRGENES
+ * (que no están en `tasks`). Materializa cada día implicado UNA sola vez (agrupado por fecha), no una
+ * materialización completa por id (§13 Fase C). Devuelve `undefined` si no aparece ese día.
+ */
+function createDayResolver(tasks: Record<string, Task>, activeDate: string) {
+  const dayCache: Record<string, Record<string, Task>> = {};
+  const dayMapFor = (day: string): Record<string, Task> => {
+    if (!dayCache[day]) {
+      const dm: Record<string, Task> = {};
+      for (const inst of materializeDay(day, tasks)) dm[inst.id] = inst;
+      dayCache[day] = dm;
+    }
+    return dayCache[day];
+  };
+  return (id: string): Task | undefined => {
+    if (tasks[id]) return tasks[id];
+    const m = id.match(/-(\d{4}-\d{2}-\d{2})$/);
+    return dayMapFor(m ? m[1] : activeDate)[id];
+  };
 }
 
 export function useBulkActions({
@@ -30,10 +53,15 @@ export function useBulkActions({
   const bulkUpdateTasks = useCallback((updates: Partial<Task>) => {
     const timestamp = new Date().toISOString();
     const isContainerSafeUpdate = updates.status !== undefined;
+    // C3: resolver instancias recurrentes VÍRGENES (no están en `tasks`) para que entren en el flujo;
+    // el path de upsert (más abajo, `templateId && !existsInSupabase`) las materializa como excepción.
+    const resolve = createDayResolver(tasks, activeDate);
+    const resolvedById: Record<string, Task> = {};
 
     const effectiveIds = new Set<string>();
     selectedTaskIds.forEach(id => {
-      const task = tasks[id];
+      let task = tasks[id];
+      if (!task) { const o = resolve(id); if (o) { task = o; resolvedById[o.id] = o; } }
       if (!task) return;
       const isContainer = task.subtasks && task.subtasks.length > 0;
       if (isContainer && !isContainerSafeUpdate) {
@@ -75,20 +103,23 @@ export function useBulkActions({
     setTasks(prev => {
       const next = { ...prev };
       effectiveIds.forEach(id => {
-        if (next[id]) {
-          next[id] = { ...next[id], ...updates, modifiedAt: timestamp };
-        }
+        const base = next[id] || resolvedById[id]; // C3: materializar el virgen en memoria también
+        if (base) next[id] = { ...base, ...updates, modifiedAt: timestamp };
       });
       return next;
     });
 
     setTimeout(() => {
       effectiveIds.forEach(id => {
-        const task = tasks[id];
+        const task = tasks[id] || resolvedById[id]; // C3: virgen resuelto → llega al upsert de excepción
         if (!task) return;
         const updatedTask = { ...task, ...updates, modifiedAt: timestamp };
 
-        if (task.templateId && !task.existsInSupabase) {
+        // C3: un virgen resuelto (resolvedById) SIEMPRE se materializa (upsert), aunque su objeto
+        // herede `existsInSupabase:true` de la plantilla vía materializeDay — ese flag no distingue
+        // "instancia virgen" de "excepción persistida"; el que manda es "¿lo resolví como virgen?".
+        const isVirgin = !!resolvedById[id];
+        if (task.templateId && (isVirgin || !task.existsInSupabase)) {
           supabase.from('tasks').upsert({
             id: task.id,
             block_id: task.blockId,
@@ -144,51 +175,87 @@ export function useBulkActions({
 
     setSelectedTaskIds(new Set());
     setSelectionMode(false);
-  }, [tasks, setTasks, selectedTaskIds, setSelectedTaskIds, setSelectionMode]);
+    // #7: activeDate va en las deps — se usa para filtrar las subtareas del día activo al mover
+    // un contenedor. Sin ella, el callback quedaba con un activeDate stale al cambiar de día.
+  }, [tasks, setTasks, selectedTaskIds, setSelectedTaskIds, setSelectionMode, activeDate]);
 
   const bulkDeleteTasks = useCallback(() => {
     const timestamp = new Date().toISOString();
+    const resolve = createDayResolver(tasks, activeDate);
 
-    const effectiveIds = new Set<string>();
+    const realIds = new Set<string>();             // filas reales → UPDATE is_deleted
+    const virginObjs: Record<string, Task> = {};   // instancias VÍRGENES → materializar excepción borrada
+
+    const addTarget = (id: string) => {
+      if (tasks[id]) { realIds.add(id); return; }
+      // No está en estado: ¿excepción persistida? (resolveTaskId; NUNCA la plantilla = borraría la serie).
+      const resolvedId = resolveTaskId(id, tasks);
+      if (resolvedId !== id && tasks[resolvedId]?.isException) { realIds.add(resolvedId); return; }
+      // C3: instancia recurrente VIRGEN → materializar fila-excepción con is_deleted:true (Fase 3).
+      // Antes: `UPDATE is_deleted .eq(id)` sobre `inst-…` inexistente = no-op → el borrado no persistía.
+      const obj = resolve(id);
+      if (obj && obj.templateId) virginObjs[obj.id] = obj;
+    };
+
     selectedTaskIds.forEach(id => {
-      const task = tasks[id];
-      if (!task) return;
-      effectiveIds.add(id);
-      if (task.subtasks && task.subtasks.length > 0) {
-        task.subtasks.forEach((subId: string) => {
-          const sub = tasks[subId];
-          if (sub && !sub.isDeleted) effectiveIds.add(subId);
-        });
-      }
+      addTarget(id);
+      const obj = tasks[id] || resolve(id);
+      if (obj?.subtasks?.length) obj.subtasks.forEach((subId: string) => addTarget(subId));
     });
 
     setTasks(prev => {
       const next = { ...prev };
-      effectiveIds.forEach(id => {
-        if (next[id]) {
-          next[id] = { ...next[id], isDeleted: true, modifiedAt: timestamp };
-        }
+      realIds.forEach(id => { if (next[id]) next[id] = { ...next[id], isDeleted: true, modifiedAt: timestamp }; });
+      Object.values(virginObjs).forEach(o => {
+        next[o.id] = { ...o, isDeleted: true, isException: true, existsInSupabase: true, modifiedAt: timestamp } as Task;
       });
       return next;
     });
 
-    effectiveIds.forEach(id => {
-      supabase.from('tasks').update({
+    realIds.forEach(id => {
+      supabase.from('tasks').update({ is_deleted: true, modified_at: timestamp }).eq('id', id)
+        .then(({ error }) => { if (error) console.error('[SUPABASE] Error bulk delete:', error); });
+    });
+    Object.values(virginObjs).forEach(o => {
+      const day = o.instanceDate || o.dueDate || activeDate;
+      supabase.from('tasks').upsert({
+        id: o.id,
+        block_id: o.blockId,
+        parent_task_id: null,          // no cuelga de plantilla (evita contaminación); materializeDay ya no la renderiza (findDeletedForDay)
+        template_id: o.templateId,
+        instance_date: day,
+        title: o.title,
+        notes: o.notes || '',
+        priority: o.priority || 'media',
+        status: o.status || 'pending',
+        due_date: day,
+        due_time: o.dueTime || null,
+        completed_at: o.completedAt || null,
+        estimated_minutes: o.estimatedMinutes || 0,
+        actual_minutes: o.actualMinutes || 0,
+        tags: o.tags || [],
+        order: o.order || 0,
+        is_template: false,
+        is_active: true,
+        is_exception: true,
         is_deleted: true,
-        modified_at: timestamp
-      }).eq('id', id).then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error bulk delete:', error);
+        is_expanded: o.isExpanded || false,
+        task_type: o.taskType || 'core',
+        recurrence: null,
+        delegation: o.delegation || null,
+        created_at: o.createdAt || timestamp,
+        modified_at: timestamp,
+      }, { onConflict: 'id' }).then(({ error }) => {
+        if (error) console.error('[SUPABASE] Error bulk delete (materializar excepción borrada):', o.id, error);
       });
     });
 
     setSelectedTaskIds(new Set());
     setSelectionMode(false);
-  }, [tasks, setTasks, selectedTaskIds, setSelectedTaskIds, setSelectionMode]);
+  }, [tasks, setTasks, selectedTaskIds, setSelectedTaskIds, setSelectionMode, activeDate]);
 
   const bulkDuplicateTasks = useCallback(() => {
     const timestamp = new Date().toISOString();
-    const duplicates: Task[] = [];
-
     const duplicateTaskRecursive = (original: Task, newParentId: string | null = null, isRoot: boolean = true): Task | null => {
       if (!original || original.isDeleted) return null;
       const newId = `t-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -197,6 +264,12 @@ export function useBulkActions({
         id: newId,
         title: isRoot ? `${original.title} (copia)` : original.title,
         parentTaskId: newParentId,
+        // C2: el duplicado nace como tarea SUELTA limpia — corta el vínculo a serie/plantilla,
+        // instancia y recurrencia, para que no herede comportamiento recurrente ni se ancle a un día.
+        templateId: null,
+        instanceDate: null,
+        isException: false,
+        recurrence: null,
         status: 'pending',
         createdAt: timestamp,
         modifiedAt: timestamp,
@@ -205,96 +278,135 @@ export function useBulkActions({
       };
     };
 
+    // #6: cálculo PURO fuera del updater (leyendo de `tasks`, no de `prev`), para que el
+    // updater de setTasks sea puro y StrictMode pueda re-invocarlo SIN duplicar los inserts.
+    const duplicates: Task[] = [];                              // filas a insertar (una sola vez)
+    const newById: Record<string, Task> = {};                  // duplicados por id (merge al estado)
+    const parentSubtaskPatches: Record<string, string[]> = {}; // padre → nuevo array subtasks (solo estado)
+
+    // C2: resolver ids de la selección desde el DÍA MATERIALIZADO (no `tasks` crudo), para poder
+    // duplicar contenedores/hijas VÍRGENES (post-flip / fuera de ventana). Perf: materializar cada
+    // día implicado UNA sola vez (agrupado por fecha), no una materialización completa por id (§13).
+    const dayCache: Record<string, Record<string, Task>> = {};
+    const dayMapFor = (day: string): Record<string, Task> => {
+      if (!dayCache[day]) {
+        const dm: Record<string, Task> = {};
+        for (const inst of materializeDay(day, tasks)) dm[inst.id] = inst;
+        dayCache[day] = dm;
+      }
+      return dayCache[day];
+    };
+    const resolve = (id: string): Task | undefined => {
+      if (tasks[id]) return tasks[id];
+      const m = id.match(/-(\d{4}-\d{2}-\d{2})$/);
+      return dayMapFor(m ? m[1] : activeDate)[id];
+    };
+    // FK-safe: un padre es destino válido de `parent_task_id` solo si será una FILA real (persistida):
+    // tarea real (no `inst-`), o excepción persistida (`inst-` con is_exception). Una instancia
+    // GENERADA por useGeneration está en `tasks` pero NO en BD → escribirla = 23503. En ese caso, null.
+    const parentIsRealRow = (pid: string | null | undefined): boolean =>
+      !!pid && !!tasks[pid] && (!pid.startsWith('inst-') || tasks[pid].isException === true);
+
+    const rootIds = Array.from(selectedTaskIds).filter(id => {
+      const task = resolve(id);
+      if (!task) return false;
+      if (!task.parentTaskId) return true;
+      return !selectedTaskIds.has(task.parentTaskId);
+    });
+
+    rootIds.forEach(id => {
+      const original = resolve(id);
+      if (!original || original.isDeleted) return;
+
+      // Raíz suelta y FK-safe: si el padre original no es fila real (virgen/generado), el duplicado
+      // sube a top-level (parent null) en vez de colgar de un id inexistente (evita el 23503).
+      const effectiveParentId = parentIsRealRow(original.parentTaskId) ? original.parentTaskId! : null;
+      const rootDuplicate = duplicateTaskRecursive(original, effectiveParentId);
+      if (!rootDuplicate) return;
+
+      newById[rootDuplicate.id] = rootDuplicate;
+      duplicates.push(rootDuplicate);
+
+      if (original.subtasks && original.subtasks.length > 0) {
+        const newSubtaskIds: string[] = [];
+        original.subtasks.forEach(subId => {
+          const subOriginal = resolve(subId);
+          if (!subOriginal) return;
+          const subDuplicate = duplicateTaskRecursive(subOriginal, rootDuplicate.id, false);
+          if (!subDuplicate) return;
+          newSubtaskIds.push(subDuplicate.id);
+          newById[subDuplicate.id] = subDuplicate;
+          duplicates.push(subDuplicate);
+        });
+        rootDuplicate.subtasks = newSubtaskIds;
+      }
+
+      if (effectiveParentId) {
+        // Inserta el duplicado justo tras el original en el array subtasks del padre. Se acumula
+        // por si varias raíces comparten padre. SOLO estado: la jerarquía se persiste por el
+        // parent_task_id del duplicado (por eso quitamos el update({subtasks}) muerto = #18).
+        const base = parentSubtaskPatches[effectiveParentId] || tasks[effectiveParentId]?.subtasks || [];
+        const originalIndex = base.indexOf(original.id);
+        const newSubtasks = [...base];
+        if (originalIndex >= 0) {
+          newSubtasks.splice(originalIndex + 1, 0, rootDuplicate.id);
+        } else {
+          newSubtasks.push(rootDuplicate.id);
+        }
+        parentSubtaskPatches[effectiveParentId] = newSubtasks;
+      }
+    });
+
+    // Updater PURO: solo mezcla los duplicados y los patches de padre en el estado.
     setTasks(prev => {
-      const next = { ...prev };
-
-      const rootIds = Array.from(selectedTaskIds).filter(id => {
-        const task = prev[id];
-        if (!task) return false;
-        if (!task.parentTaskId) return true;
-        return !selectedTaskIds.has(task.parentTaskId);
+      const next = { ...prev, ...newById };
+      Object.entries(parentSubtaskPatches).forEach(([pid, subs]) => {
+        if (next[pid]) next[pid] = { ...next[pid], subtasks: subs };
       });
-
-      rootIds.forEach(id => {
-        const original = prev[id];
-        if (!original || original.isDeleted) return;
-
-        const effectiveParentId = original.parentTaskId || null;
-        const rootDuplicate = duplicateTaskRecursive(original, effectiveParentId);
-        if (!rootDuplicate) return;
-
-        next[rootDuplicate.id] = rootDuplicate;
-        duplicates.push(rootDuplicate);
-
-        if (original.subtasks && original.subtasks.length > 0) {
-          const newSubtaskIds: string[] = [];
-          original.subtasks.forEach(subId => {
-            const subOriginal = prev[subId];
-            if (!subOriginal) return;
-            const subDuplicate = duplicateTaskRecursive(subOriginal, rootDuplicate.id, false);
-            if (!subDuplicate) return;
-            newSubtaskIds.push(subDuplicate.id);
-            next[subDuplicate.id] = subDuplicate;
-            duplicates.push(subDuplicate);
-          });
-          rootDuplicate.subtasks = newSubtaskIds;
-          next[rootDuplicate.id] = rootDuplicate;
-        }
-
-        if (effectiveParentId && next[effectiveParentId]) {
-          const parentTask = next[effectiveParentId];
-          const currentSubtasks = parentTask.subtasks || [];
-          const originalIndex = currentSubtasks.indexOf(original.id);
-          const newSubtasks = [...currentSubtasks];
-          if (originalIndex >= 0) {
-            newSubtasks.splice(originalIndex + 1, 0, rootDuplicate.id);
-          } else {
-            newSubtasks.push(rootDuplicate.id);
-          }
-          next[effectiveParentId] = { ...parentTask, subtasks: newSubtasks };
-          supabase.from('tasks').update({ subtasks: newSubtasks })
-            .eq('id', effectiveParentId).then(() => {});
-        }
-      });
-
       return next;
     });
 
-    duplicates.forEach(task => {
-      supabase.from('tasks').insert({
-        id: task.id,
-        block_id: task.blockId,
-        parent_task_id: task.parentTaskId || null,
-        template_id: task.templateId || null,
-        instance_date: task.instanceDate || null,
-        title: task.title,
-        notes: task.notes || '',
-        priority: task.priority,
-        status: task.status,
-        due_date: task.dueDate || null,
-        due_time: task.dueTime || null,
-        completed_at: null,
-        estimated_minutes: task.estimatedMinutes || 0,
-        actual_minutes: task.actualMinutes || 0,
-        total_estimated_combo: task.totalEstimatedCombo || 0,
-        total_registered_combo: task.totalRegisteredCombo || 0,
-        tags: task.tags || [],
-        order: task.order || 0,
-        is_template: task.isTemplate || false,
-        is_active: task.isActive !== false,
-        is_exception: task.isException || false,
-        is_deleted: false,
-        is_expanded: task.isExpanded || false,
-        task_type: task.taskType || 'core',
-        recurrence: task.recurrence || null,
-        delegation: task.delegation || null,
-        created_at: timestamp,
-        modified_at: timestamp,
-        deleted_at: null
-      }).then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error duplicando tarea:', error);
-      });
+    // C2: insertar SECUENCIAL y en orden PADRE→HIJO (así viene `duplicates`: raíz antes que sus hijas).
+    // Con la FK `tasks_parent_task_id_fkey`, insertar una hija (parent = id del nuevo contenedor) antes
+    // que su contenedor → 23503. El `forEach` anterior lanzaba todos los inserts en PARALELO (carrera).
+    // Fuera del updater = patrón anti-#6 intacto (StrictMode no re-inserta: el cálculo es puro arriba).
+    const rowOf = (task: Task) => ({
+      id: task.id,
+      block_id: task.blockId,
+      parent_task_id: task.parentTaskId || null,
+      template_id: task.templateId || null,
+      instance_date: task.instanceDate || null,
+      title: task.title,
+      notes: task.notes || '',
+      priority: task.priority,
+      status: task.status,
+      due_date: task.dueDate || null,
+      due_time: task.dueTime || null,
+      completed_at: null,
+      estimated_minutes: task.estimatedMinutes || 0,
+      actual_minutes: task.actualMinutes || 0,
+      total_estimated_combo: task.totalEstimatedCombo || 0,
+      total_registered_combo: task.totalRegisteredCombo || 0,
+      tags: task.tags || [],
+      order: task.order || 0,
+      is_template: task.isTemplate || false,
+      is_active: task.isActive !== false,
+      is_exception: task.isException || false,
+      is_deleted: false,
+      is_expanded: task.isExpanded || false,
+      task_type: task.taskType || 'core',
+      recurrence: task.recurrence || null,
+      delegation: task.delegation || null,
+      created_at: timestamp,
+      modified_at: timestamp,
+      deleted_at: null,
     });
+    (async () => {
+      for (const task of duplicates) {
+        const { error } = await supabase.from('tasks').insert(rowOf(task));
+        if (error) { console.error('[SUPABASE] Error duplicando tarea:', error); break; }
+      }
+    })();
 
     setSelectedTaskIds(new Set());
     setSelectionMode(false);

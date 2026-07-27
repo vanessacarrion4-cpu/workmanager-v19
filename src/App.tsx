@@ -14,8 +14,8 @@ import { INITIAL_BLOCKS, COLORS, MOCK_TASKS } from './constants';
 import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { filterTasksForDay } from './filters';
+import { materializeDay, materializeInstanceById } from './instanceEngine';
 import { useSupabase } from './useSupabase';
-import { useGeneration } from './useGeneration';
 import { useTaskCRUD } from './useTaskCRUD';
 import { useTaskOrdering } from './useTaskOrdering';
 import { useBlockHandlers } from './useBlockHandlers';
@@ -127,24 +127,21 @@ export default function App() {
     });
   };
 
-  const toggleTaskSelection = useCallback((taskId: string, autoSelectSubtasks = false) => {
+  // C1 (bug #20): la auto-selección de hijas usa las `subtasks` del OBJETO RENDERIZADO (materializado)
+  // que `TaskCard` ya tiene, NO `tasks[taskId]` (crudo). Un contenedor recurrente VIRGEN no está en
+  // `tasks` (fuera de ventana de `useGeneration` / post-flip) → `tasks[taskId]` undefined → antes no
+  // marcaba NINGUNA hija. Las `renderedSubtaskIds` (materializadas) ya vienen filtradas (visibles del
+  // día, sin borradas). SOLO estado de selección (UI), sin escritura.
+  const toggleTaskSelection = useCallback((taskId: string, renderedSubtaskIds: string[] = []) => {
     setSelectedTaskIds(prev => {
       const next = new Set(prev);
+      const subs = renderedSubtaskIds.length ? renderedSubtaskIds : (tasks[taskId]?.subtasks || []);
       if (next.has(taskId)) {
         next.delete(taskId);
-        const task = tasks[taskId];
-        if (task?.subtasks) task.subtasks.forEach(subId => next.delete(subId));
+        subs.forEach(subId => next.delete(subId));
       } else {
         next.add(taskId);
-        if (autoSelectSubtasks) {
-          const task = tasks[taskId];
-          if (task?.subtasks?.length > 0) {
-            task.subtasks.forEach(subId => {
-              const sub = tasks[subId];
-              if (sub && !sub.isDeleted) next.add(subId);
-            });
-          }
-        }
+        subs.forEach(subId => next.add(subId));
       }
       return next;
     });
@@ -152,20 +149,29 @@ export default function App() {
 
   // --- Data Loading ---
   useSupabase({ setBlocks, setTasks, setPeople, setMeetings, setTimeEntries, setIsDataLoaded });
-  useGeneration({ tasks, isDataLoaded, setTasks });
 
   // --- Computed dashboard tasks (needed by useTaskCRUD) ---
   const allActiveTasks = useMemo(() =>
     Object.values(tasks).filter((t: Task) => !t.isDeleted && !t.isTemplate), [tasks]);
 
+  // Motor V20 (LECTURA): mapa del día activo = instancias materializadas al vuelo + estado, con el
+  // ESTADO GANANDO (excepciones persistidas: completadas/movidas/borradas). `materializeDay` genera
+  // las ocurrencias recurrentes del día (ya no hay `useGeneration` que las pre-fabrique en el estado).
+  const activeDayMap = useMemo(() => {
+    const map: any = {};
+    for (const inst of materializeDay(activeDate, tasks)) map[inst.id] = inst; // rellena huecos
+    Object.values(tasks).forEach((t: Task) => { if (!t.isDeleted) map[t.id] = t; }); // estado gana
+    return map;
+  }, [tasks, activeDate]);
+
   const dashboardTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter(b => b && b.isActive).map(b => b.id));
-    return filterTasksForDay(allActiveTasks, tasks, activeBlockIds, activeDate, { hideCompleted: false, hideDelegatedNoTag: true });
-  }, [allActiveTasks, blocks, activeDate, tasks]);
+    const candidates = Object.values(activeDayMap).filter((t: any) => t && !t.isDeleted && !t.isTemplate) as Task[];
+    return filterTasksForDay(candidates, activeDayMap, activeBlockIds, activeDate, { hideCompleted: false, hideDelegatedNoTag: true });
+  }, [activeDayMap, blocks, activeDate]);
 
   const dashboardTasksMap = useMemo(() => {
-    const map: any = {};
-    Object.values(tasks).forEach((t: Task) => { if (!t.isDeleted) map[t.id] = t; });
+    const map: any = { ...activeDayMap };
     dashboardTasks.forEach(t => {
       map[t.id] = t;
       if (t.subtasks?.length > 0) {
@@ -193,7 +199,7 @@ export default function App() {
       }
     });
     return map;
-  }, [tasks, dashboardTasks, activeDate]);
+  }, [activeDayMap, tasks, dashboardTasks, activeDate]);
 
   // --- Hooks ---
   const {
@@ -676,7 +682,7 @@ export default function App() {
                   }
                 }}
                 onAddTask={handleAddTask}
-                onEditTask={(id: string) => setEditingTaskId(id)}
+                onEditTask={handleEditTaskRequest}
                 onDeleteTask={handleDeleteTaskRequest}
                 onRenamePerson={handleRenamePerson}
                 onDeletePerson={handleDeletePerson}
@@ -711,7 +717,7 @@ export default function App() {
                 allTasksMap={tasks}
                 blocks={blocks}
                 timeEntries={timeEntries}
-                onEditTask={(id: string) => setEditingTaskId(id)}
+                onEditTask={handleEditTaskRequest}
                 onToggle={handleToggleStatus}
                 onAddTask={(parentId, blockId, date) => {
                   if (date) setActiveDate(date);
@@ -729,7 +735,7 @@ export default function App() {
                 people={people}
                 timeEntries={timeEntries}
                 activeTimer={activeTimer}
-                onEditTask={(id: string) => setEditingTaskId(id)}
+                onEditTask={handleEditTaskRequest}
                 onToggle={handleToggleStatus}
                 onDelete={handleDeleteTaskRequest}
                 onUpdateTask={handleUpdateTask}
@@ -944,10 +950,19 @@ export default function App() {
 
             if (choice === 'instance') {
               if (type === 'edit') {
-                setTasks(prev => ({ ...prev, [taskId]: { ...prev[taskId], isException: true } }));
+                // B3: materializar si la instancia es virgen (no está en estado) → el editor abre con datos
+                // REALES, no un fantasma `{isException:true}` vacío. materializeInstanceById es puro.
+                setTasks(prev => {
+                  const base = prev[taskId] || materializeInstanceById(taskId, prev);
+                  if (!base) return prev;
+                  return { ...prev, [taskId]: { ...base, isException: true } };
+                });
                 setEditingTaskId(taskId);
               } else {
-                const taskToDelete = tasks[taskId] || dashboardTasks.find(t => t.id === taskId);
+                // B2: incluir materializeInstanceById → resuelve la HIJA virgen (no está en el array
+                // flat dashboardTasks) para poder crear su excepción isDeleted. El contenedor ya se
+                // resolvía por dashboardTasks; esto cubre las hijas.
+                const taskToDelete = tasks[taskId] || dashboardTasks.find(t => t.id === taskId) || materializeInstanceById(taskId, tasks);
                 if (!taskToDelete) return;
                 setTasks(prev => ({
                   ...prev,

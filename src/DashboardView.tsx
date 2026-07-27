@@ -113,6 +113,24 @@ export function DashboardView({
   const frozenOrderRef = React.useRef<string[]>([]);
   const [dragOrders, setDragOrders] = useState<Record<string, string[]>>({});
   const [showTimeHistory, setShowTimeHistory] = useState(false);
+  // 3A: desplegado de contenedores POR-RENDER (memoria local, clave `tag__id`). Evita que
+  // un contenedor que aparece en varios grupos comparta isExpanded ("despliego una y se abre
+  // otra"). No cambia ninguna escritura: la persistencia de #4 sigue intacta (se limpia en 3B).
+  const [containerExpand, setContainerExpand] = useState<Record<string, boolean>>({});
+  // Default POR CONTENEDOR, capturado UNA vez (no un true global ni el task.isExpanded
+  // compartido/mutable que #4 voltea). Así cada tarjeta es independiente y se respeta el
+  // estado inicial (incluido el persistido tras recargar).
+  const containerExpandInitRef = React.useRef<Record<string, boolean>>({});
+  const getContainerExpanded = (tagKey: string, t: Task): boolean => {
+    const key = `${tagKey}__${t.id}`;
+    if (!(key in containerExpandInitRef.current)) containerExpandInitRef.current[key] = t.isExpanded ?? true;
+    if (key in containerExpand) return containerExpand[key];           // override individual (gana)
+    if (expandAll === true || expandAll === false) return expandAll;   // estado global (expandir/colapsar todo)
+    return containerExpandInitRef.current[key];                        // default individual capturado
+  };
+  // Al pulsar "expandir/colapsar todo" (cambia expandAll), se limpian los overrides individuales
+  // para que el global vuelva a aplicar a todos; luego se pueden volver a togglear individualmente.
+  React.useEffect(() => { setContainerExpand({}); }, [expandAll]);
 
   const dayTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
@@ -415,7 +433,7 @@ export function DashboardView({
                                 whileDrag={{ scale: 1.02, zIndex: 50, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
                               >
                                 <TaskCard
-                                  task={task}
+                                  task={{ ...task, isExpanded: getContainerExpanded(tag, task) }}
                                   variant="DASHBOARD"
                                   allTasksMap={allTasksMap}
                                   people={people}
@@ -442,13 +460,29 @@ export function DashboardView({
                                   onReorderSubtasks={onReorderSubtasks}
                                   onGoToTemplate={onGoToTemplate}
                                   onToggleExpand={(taskId: string) => {
-                                    setExpandAll(null);
-                                    onToggleExpand(taskId);
+                                    // 3A: contenedor de nivel 1 → override individual local SOBRE el
+                                    // estado global (expandir/colapsar todo). Solo se mueve el que tocas.
+                                    if (taskId === task.id) {
+                                      const key = `${tag}__${task.id}`;
+                                      setContainerExpand(prev => {
+                                        if (key in prev) return { ...prev, [key]: !prev[key] };
+                                        const base = (expandAll === true || expandAll === false)
+                                          ? expandAll
+                                          : (containerExpandInitRef.current[key] ?? (task.isExpanded ?? true));
+                                        return { ...prev, [key]: !base };
+                                      });
+                                      // 3B: el desplegado del contenedor es 100% estado local → ya NO se
+                                      // persiste is_expanded (antes handleToggleExpandTask escribía a una
+                                      // fila inexistente para instancias y pisaba modified_at en balde).
+                                    } else {
+                                      // Subtareas: comportamiento normal (mantienen su persistencia).
+                                      onToggleExpand(taskId);
+                                    }
                                   }}
                                   onRecurrenceDateChange={onRecurrenceDateChange}
                                   hideCompleted={hideCompleted}
                                   subtasksForGroup={subtasksForGroup}
-                                  forceExpanded={expandAll}
+                                  forceExpanded={null}
                                   taskIndex={idx}
                                   taskCount={orderedEntries.length}
                                   onMoveUp={() => {

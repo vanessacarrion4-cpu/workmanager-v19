@@ -14,6 +14,7 @@ import { TAG_LABELS, COLORS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { isTaskCompleted, formatMinutes } from './utils';
 import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
+import { materializeDay } from './instanceEngine';
 import {
   TaskCard, RecurrenceChoiceModal, BlockModal, DashboardHarmonicCalendar,
   DatePickerChip, TagPickerChip, RecurrencePickerChip, DelegationChip,
@@ -48,28 +49,38 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
  
   const activeBlockIds = useMemo(() => new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id)), [blocks]);
 
-  // Precalcular carga de todos los días del mes en un solo useMemo
-  // Evita calcular filterTasksForDay para cada día en el render (muy costoso)
-  // Incluir instancias generadas (recurrentes) además de tareas manuales y excepciones
-  // Las instancias tienen templateId pero necesitamos sus dueDate para el calendario
-  const realTasksForCalendar = useMemo(() => 
-    Object.values(allTasksMap).filter((t: any) => {
+  // Motor V20: cada día del mes se materializa al vuelo (sin depender de instancias
+  // pre-generadas) y se inyecta en un mapa superset de allTasksMap. Como los ids de
+  // instancia son deterministas (inst-tid-fecha), lo materializado coincide/sobrescribe
+  // lo pre-generado en-ventana → cero duplicados. Los filtros se reutilizan tal cual.
+  const monthMap = useMemo(() => {
+    const map: Record<string, Task> = { ...allTasksMap };
+    daysInMonth.forEach(day => {
+      if (!day) return;
+      for (const inst of materializeDay(day, allTasksMap)) map[inst.id] = inst;
+    });
+    return map;
+  }, [daysInMonth, allTasksMap]);
+
+  // Incluir instancias materializadas (recurrentes) además de manuales y excepciones
+  const realTasksForCalendar = useMemo(() =>
+    Object.values(monthMap).filter((t: any) => {
       if (t.isDeleted) return false;
       if (t.isTemplate) return false; // No templates, solo instancias y manuales
-      return true; // Incluir manuales, instancias generadas Y excepciones
+      return true; // Incluir manuales, instancias materializadas Y excepciones
     }) as Task[],
-    [allTasksMap]
+    [monthMap]
   );
 
   const monthLoadMap = useMemo(() => {
     const map: Record<string, number> = {};
     daysInMonth.forEach(day => {
       if (!day) return;
-      const dayT = filterTasksForDay(realTasksForCalendar, allTasksMap, activeBlockIds, day, { hideCompleted: false, hideDelegatedNoTag: true });
-      map[day] = getStatsForDay(dayT, allTasksMap, [], day).estimatedPending;
+      const dayT = filterTasksForDay(realTasksForCalendar, monthMap, activeBlockIds, day, { hideCompleted: false, hideDelegatedNoTag: true });
+      map[day] = getStatsForDay(dayT, monthMap, [], day).estimatedPending;
     });
     return map;
-  }, [daysInMonth, realTasksForCalendar, activeBlockIds]);
+  }, [daysInMonth, realTasksForCalendar, monthMap, activeBlockIds]);
  
   const getLoadColor = (minutes: number) => {
     if (minutes === 0) return 'bg-bg-secondary opacity-20';
@@ -91,24 +102,24 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
     if (!selectedDay) return [];
     const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
     return filterTasksForDay(
-      tasks,
-      allTasksMap,
+      realTasksForCalendar,
+      monthMap,
       activeBlockIds,
       selectedDay,
       { hideCompleted: true, hideDelegatedNoTag: true }
     );
-  }, [tasks, selectedDay, blocks, allTasksMap]);
-  
+  }, [realTasksForCalendar, selectedDay, blocks, monthMap]);
+
   // Agrupar tareas por tags (igual que Dashboard)
   const groupedTasks = useMemo(() => {
     if (!selectedDay) return { con_hora: [], focus: [], dirección: [], espera: [], resto: [] };
     return groupTasksByTag(
       dayTasks,
-      allTasksMap,
+      monthMap,
       selectedDay,
       { hideCompleted: true, hideDelegatedNoTag: true }
     );
-  }, [dayTasks, selectedDay, allTasksMap]);
+  }, [dayTasks, selectedDay, monthMap]);
  
   const totalGroups = useMemo(() => {
     if (!selectedDay) return 0;
@@ -347,7 +358,7 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                         </h3>
                         <div className="flex items-center gap-3 mt-1">
                           {selectedDay >= formatLocalISO(new Date()) && (
-                            <p className="text-[9px] font-black text-turquesa uppercase tracking-[0.2em]">Carga: {getStatsForDay(dayTasks, allTasksMap, [], selectedDay).estimatedPending}m</p>
+                            <p className="text-[9px] font-black text-turquesa uppercase tracking-[0.2em]">Carga: {getStatsForDay(dayTasks, monthMap, [], selectedDay).estimatedPending}m</p>
                           )}
                           {selectedDay >= formatLocalISO(new Date()) && <span className="dark:text-text-secondary text-text-secondary-light opacity-30 text-[9px]">•</span>}
                           <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">{totalGroups} tareas</p>
@@ -395,7 +406,7 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                               if (isContainerGroup) {
                                 // Renderizar grupo de contenedor con subtareas
                                 const subtaskObjects = subtasksForGroup
-                                  .map((id: string) => allTasksMap[id])
+                                  .map((id: string) => monthMap[id])
                                   .filter(Boolean);
                                 return (
                                   <div key={task.id} className="space-y-1">
@@ -415,7 +426,7 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                                           key={sub.id}
                                           task={sub} 
                                           variant="COMPACT"
-                                          allTasksMap={allTasksMap}
+                                          allTasksMap={monthMap}
                                           people={people}
                                           onAddPerson={onAddPerson}
                                           blocks={blocks}
@@ -448,7 +459,7 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                                     key={task.id}
                                     task={task} 
                                     variant="COMPACT"
-                                    allTasksMap={allTasksMap}
+                                    allTasksMap={monthMap}
                                     people={people}
                                     onAddPerson={onAddPerson}
                                     blocks={blocks}

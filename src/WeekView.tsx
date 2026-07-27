@@ -14,7 +14,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task, WorkBlock, TimeEntry } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { filterTasksForDay } from './filters';
+import { materializeDay } from './instanceEngine';
 import { formatMinutes, getTaskEstimatedCombo } from './utils';
 import { TAG_LABELS } from './constants';
 
@@ -54,65 +54,19 @@ function formatDayLabel(dateStr: string) {
   return { day: days[d.getDay()], num: d.getDate(), month: months[d.getMonth()] };
 }
 
-// ─── Recurrencia fuera de ventana ─────────────────────────────────────────────
-function occursOnDate(recurrence: any, dateStr: string): boolean {
-  if (!recurrence) return false;
-  if (dateStr < recurrence.startDate) return false;
-  if (recurrence.endDate && dateStr > recurrence.endDate) return false;
-  const d = parseLocalISO(dateStr);
-  const dow = (d.getDay() + 6) % 7;
-  switch (recurrence.frequency) {
-    case 'daily': return true;
-    case 'weekdays': return dow <= 4;
-    case 'weekly': return (recurrence.weekDays || []).includes(dow);
-    case 'monthly': return d.getDate() === (recurrence.monthDay || 1);
-    case 'yearly':
-      return d.getDate() === (recurrence.yearDay || 1) &&
-             (d.getMonth() + 1) === (recurrence.yearMonth || 1);
-    default: return false;
-  }
-}
-function generateVirtualInstances(allTasksMap: Record<string, Task>, date: string): Task[] {
-  const result: Task[] = [];
-  const templates = Object.values(allTasksMap).filter(t => t.isTemplate && !t.templateId && !t.isDeleted);
-  templates.forEach(container => {
-    const subtasks = (container.subtasks || []).map(id => allTasksMap[id]).filter(Boolean);
-    subtasks.forEach(sub => {
-      if (!sub.recurrence || !occursOnDate(sub.recurrence, date)) return;
-      const contInstId = `inst-${container.id}-${date}`;
-      if (!result.find(r => r.id === contInstId)) {
-        result.push({ ...container, id: contInstId, templateId: container.id, instanceDate: date, dueDate: date, isTemplate: false, isException: false });
-      }
-      result.push({ ...sub, id: `inst-${sub.id}-${date}`, templateId: sub.id, instanceDate: date, dueDate: date, parentTaskId: contInstId, isTemplate: false, isException: false });
-    });
-  });
-  return result;
-}
-
 // ─── Minutos de una tarea para un día ────────────────────────────────────────
-// Si el contenedor tiene estimatedMinutes propio lo usa (como WorkloadView).
-// Si es 0 o null, suma sus subtareas directas (Guillem Tell case).
-function getTaskMins(task: Task, allTasksMap: Record<string, Task>, date?: string): number {
+// Trabaja sobre el mapa YA materializado del día (materializeDay): las subtareas
+// presentes son exactamente las que ocurren ese día, así que basta con sumarlas.
+function getTaskMins(task: Task, dayMap: Record<string, Task>): number {
   // Tarea hoja (sin subtareas): su propio estimatedMinutes
   if (!task.subtasks || task.subtasks.length === 0) {
     return task.estimatedMinutes || 0;
   }
-  // Contenedor: sumar SOLO subtareas del día (si se pasa date)
-  if (date) {
-    return task.subtasks.reduce((acc, subId) => {
-      const sub = allTasksMap[subId];
-      if (!sub || sub.isDeleted) return acc;
-      // Subtarea con fecha fija ese día
-      if (sub.dueDate === date) return acc + (sub.estimatedMinutes || 0);
-      // Subtarea recurrente que ocurre ese día
-      if (sub.recurrence && occursOnDate(sub.recurrence, date)) return acc + (sub.estimatedMinutes || 0);
-      return acc;
-    }, 0);
-  }
-  // Sin date: sumar todas las subtareas directas
+  // Contenedor: sumar las subtareas materializadas de este día
   return task.subtasks.reduce((acc, subId) => {
-    const sub = allTasksMap[subId];
-    return acc + (sub ? (sub.estimatedMinutes || 0) : 0);
+    const sub = dayMap[subId];
+    if (!sub || sub.isDeleted) return acc;
+    return acc + (sub.estimatedMinutes || 0);
   }, 0);
 }
 
@@ -200,8 +154,6 @@ export function WeekView({
   onNavigateToDashboard: (date: string) => void;
 }) {
   const today = formatLocalISO(new Date());
-  const generatedEnd = addDays(today, 60);
-  const generatedStart = addDays(today, -30);
 
   const [weekStart, setWeekStart] = useState(() => formatLocalISO(getMondayOfWeek(new Date())));
   const [showWeekend, setShowWeekend] = useState(false);
@@ -225,27 +177,39 @@ export function WeekView({
   const activeBlockIds = useMemo(() => new Set(blocks.filter(b => b.isActive).map(b => b.id)), [blocks]);
   const activeBlocks = useMemo(() => blocks.filter(b => b.isActive), [blocks]);
 
+  // Motor V20: cada día se materializa al vuelo (sin depender de instancias
+  // pre-generadas). dayData guarda, por fecha, las raíces a mostrar y el mapa
+  // {id: task} de ese día para que getTaskMins y WeekTaskCard lean de ahí.
+  const dayData = useMemo(() => {
+    const result: Record<string, { roots: Task[]; map: Record<string, Task> }> = {};
+    days.forEach(date => {
+      const instances = materializeDay(date, allTasksMap);
+      // Tareas manuales de nivel superior (puntuales de ese día, no plantillas)
+      const manual = Object.values(allTasksMap).filter(t =>
+        t && !t.isTemplate && !t.templateId && !t.parentTaskId && t.dueDate === date && !t.isDeleted
+      );
+      const all = [...instances, ...manual];
+      const map: Record<string, Task> = {};
+      all.forEach(t => { map[t.id] = t; });
+      const roots = all.filter(t => !t.parentTaskId && activeBlockIds.has(t.blockId));
+      result[date] = { roots, map };
+    });
+    return result;
+  }, [days, allTasksMap, activeBlockIds]);
+
   const tasksByDay = useMemo(() => {
     const map: Record<string, Task[]> = {};
-    days.forEach(date => {
-      if (date >= generatedStart && date <= generatedEnd) {
-        const all = filterTasksForDay(Object.values(allTasksMap), allTasksMap, activeBlockIds, date, { hideCompleted: false, hideDelegatedNoTag: false });
-        map[date] = all.filter(t => !t.parentTaskId);
-      } else {
-        const virtual = generateVirtualInstances(allTasksMap, date);
-        const manual = Object.values(allTasksMap).filter(t => !t.isTemplate && !t.templateId && t.dueDate === date && !t.isDeleted && !t.parentTaskId);
-        map[date] = [...manual, ...virtual.filter(t => !t.parentTaskId)];
-      }
-    });
+    days.forEach(date => { map[date] = dayData[date]?.roots ?? []; });
     return map;
-  }, [days, allTasksMap, activeBlockIds, generatedStart, generatedEnd]);
+  }, [days, dayData]);
 
   // Stats por día: estimado (futuro) y registrado (pasado)
   const statsByDay = useMemo(() => {
     const map: Record<string, { estimatedMins: number; registeredMins: number; pct: number }> = {};
     days.forEach(date => {
       const tasks = tasksByDay[date] || [];
-      const estimatedMins = tasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap, date), 0);
+      const dayMap = dayData[date]?.map ?? {};
+      const estimatedMins = tasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
       const registeredMins = timeEntries
         .filter(e => e.date === date)
         .reduce((acc, e) => acc + (e.duration || 0), 0);
@@ -253,14 +217,12 @@ export function WeekView({
       map[date] = { estimatedMins, registeredMins, pct };
     });
     return map;
-  }, [days, tasksByDay, timeEntries, allTasksMap]);
+  }, [days, tasksByDay, timeEntries, dayData]);
 
   const toggleBlock = (date: string, blockId: string) => {
     const key = `${date}__${blockId}`;
     setExpandedBlocks(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   };
-
-  const isOutsideWindow = days.some(d => d < generatedStart || d > generatedEnd);
 
   // ─── Helpers de renderizado ───────────────────────────────────────────────────
 
@@ -290,12 +252,13 @@ export function WeekView({
   const renderBlockGroup = (date: string, block: WorkBlock, dayTasks: Task[]) => {
     const blockTasks = dayTasks.filter(t => t.blockId === block.id && !t.isDeleted);
     if (blockTasks.length === 0) return null;
+    const dayMap = dayData[date]?.map ?? {};
     const key = `${date}__${block.id}`;
     const isExpanded = expandedBlocks.has(key);
     const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
-    const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap, date), 0);
-    const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap, date), 0);
-    const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap, date), 0);
+    const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
+    const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
+    const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
     return (
       <div key={block.id} className="rounded-xl overflow-hidden">
         <button onClick={() => toggleBlock(date, block.id)}
@@ -312,8 +275,8 @@ export function WeekView({
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
               <div className="space-y-0.5 pb-1 px-1">
                 {blockTasks.map(task => (
-                  <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} onEditTask={onEditTask} />
+                  <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
+                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} onEditTask={onEditTask} />
                 ))}
               </div>
             </motion.div>
@@ -324,6 +287,7 @@ export function WeekView({
   };
 
   const renderTipoGroups = (date: string, dayTasks: Task[], subMode: 'con-bloques' | null) => {
+    const dayMap = dayData[date]?.map ?? {};
     const tipos: { id: 'core' | 'adhoc' | 'sin', label: string, color: string }[] = [
       { id: 'core',  label: '⬡ Core',     color: TURQUESA },
       { id: 'adhoc', label: '◇ Adhoc',    color: ROSA },
@@ -334,7 +298,7 @@ export function WeekView({
       if (tipoTasks.length === 0) return null;
       const key = `${date}__tipo__${tipo.id}`;
       const isExpanded = expandedBlocks.has(key);
-      const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap, date), 0);
+      const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
       const pendingCount = tipoTasks.filter(t => t.status !== 'completed').length;
       return (
         <div key={tipo.id} className="rounded-xl overflow-hidden">
@@ -354,7 +318,7 @@ export function WeekView({
                     ? activeBlocks.map(block => {
                         const bTasks = tipoTasks.filter(t => t.blockId === block.id);
                         if (bTasks.length === 0) return null;
-                        const bMins = bTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap, date), 0);
+                        const bMins = bTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
                         const bPending = bTasks.filter(t => t.status !== 'completed').length;
                         const bKey = `${date}__tipo__${tipo.id}__bloque__${block.id}`;
                         const isBExpanded = expandedBlocks.has(bKey);
@@ -372,8 +336,8 @@ export function WeekView({
                               {isBExpanded && (
                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                   {bTasks.map(task => (
-                                    <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} onEditTask={onEditTask} />
+                                    <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
+                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} onEditTask={onEditTask} />
                                   ))}
                                 </motion.div>
                               )}
@@ -382,8 +346,8 @@ export function WeekView({
                         );
                       })
                     : tipoTasks.map(task => (
-                        <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} onEditTask={onEditTask} />
+                        <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
+                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} onEditTask={onEditTask} />
                       ))
                   }
                 </div>
@@ -446,15 +410,6 @@ export function WeekView({
           />
         </div>
       </div>
-
-      {isOutsideWindow && (
-        <div className="flex items-center gap-2 px-4 py-2.5 dark:bg-azul/10 bg-azul/5 border dark:border-azul/20 border-azul/20 rounded-2xl">
-          <RefreshCw size={13} className="text-azul shrink-0" />
-          <p className="text-[11px] dark:text-text-secondary text-text-secondary-light">
-            Semana fuera de la ventana generada — recurrentes calculadas desde plantillas.
-          </p>
-        </div>
-      )}
 
       {/* ── GRID ── */}
       <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
@@ -520,12 +475,13 @@ export function WeekView({
                     return activeBlocks.map(block => {
                       const blockTasks = dayTasks.filter(t => t.blockId === block.id && !t.isDeleted);
                       if (blockTasks.length === 0) return null;
+                      const dayMap = dayData[date]?.map ?? {};
                       const key = `${date}__${block.id}`;
                       const isExpanded = expandedBlocks.has(key);
-                      const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap, date), 0);
+                      const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
                       const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
-                      const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t, allTasksMap, date), 0);
-                      const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, allTasksMap, date), 0);
+                      const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
+                      const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
                       return (
                         <div key={block.id} className="rounded-xl overflow-hidden">
                           <button onClick={() => toggleBlock(date, block.id)}
@@ -544,7 +500,7 @@ export function WeekView({
                                   {(['core', 'adhoc', 'sin'] as const).map(tipoId => {
                                     const tipoTasks = blockTasks.filter(t => getEffectiveType(t) === tipoId);
                                     if (tipoTasks.length === 0) return null;
-                                    const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, allTasksMap, date), 0);
+                                    const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
                                     const tipoPending = tipoTasks.filter(t => t.status !== 'completed').length;
                                     const tipoColor = tipoId === 'core' ? TURQUESA : tipoId === 'adhoc' ? ROSA : '#6B7280';
                                     const tipoLabel = tipoId === 'core' ? '⬡ Core' : tipoId === 'adhoc' ? '◇ Adhoc' : '— Sin tipo';
@@ -564,8 +520,8 @@ export function WeekView({
                                           {isTipoExpanded && (
                                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                               {tipoTasks.map(task => (
-                                                <WeekTaskCard key={task.id} task={task} allTasksMap={allTasksMap}
-                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} dayTasks={dayTasks} onEditTask={onEditTask} />
+                                                <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
+                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} onEditTask={onEditTask} />
                                               ))}
                                             </motion.div>
                                           )}
@@ -607,35 +563,24 @@ export function WeekView({
 }
 
 // ─── WeekTaskCard ─────────────────────────────────────────────────────────────
-function WeekTaskCard({ task, allTasksMap, onEdit, onToggle, date, dayTasks = [], onEditTask }: {
-  task: Task; allTasksMap: Record<string, Task>;
+function WeekTaskCard({ task, dayMap, onEdit, onToggle, date, onEditTask }: {
+  task: Task; dayMap: Record<string, Task>;
   onEdit: () => void; onToggle: () => void; date: string;
-  dayTasks?: Task[];
   onEditTask?: (id: string) => void;
 }) {
   const tagEmoji = task.tags?.[0] ? TAG_LABELS[task.tags[0]]?.icon : null;
   const isCompleted = task.status === 'completed';
-  const taskMins = getTaskMins(task, allTasksMap, date);
+  const taskMins = getTaskMins(task, dayMap);
 
-  // Contenedor: mostrar subtareas del día al expandir
+  // Contenedor: mostrar subtareas del día al expandir. Las subtareas del mapa
+  // materializado son exactamente las que ocurren este día.
   const [expanded, setExpanded] = useState(false);
   const isContainer = !!(task.subtasks && task.subtasks.length > 0);
-  const subTasksForDay = isContainer ? (() => {
-    const fromMap = (task.subtasks || [])
-      .map(id => allTasksMap[id])
-      .filter((s): s is Task => !!s && !s.isDeleted && (
-        s.dueDate === date || (!!s.recurrence && occursOnDate(s.recurrence, date))
-      ));
-    // También instancias virtuales del día que son hijas de este contenedor
-    const containerInstId = `inst-${task.templateId || task.id}-${date}`;
-    const fromVirtual = dayTasks.filter(t =>
-      t.parentTaskId === task.id || t.parentTaskId === containerInstId
-    ).filter((s): s is Task => !!s && !s.isDeleted);
-    const seen = new Set(fromMap.map(s => s.id));
-    const merged = [...fromMap];
-    fromVirtual.forEach(s => { if (!seen.has(s.id)) { seen.add(s.id); merged.push(s); } });
-    return merged;
-  })() : [];
+  const subTasksForDay = isContainer
+    ? (task.subtasks || [])
+        .map(id => dayMap[id])
+        .filter((s): s is Task => !!s && !s.isDeleted)
+    : [];
 
   return (
     <div className={isCompleted ? 'opacity-40' : ''}>

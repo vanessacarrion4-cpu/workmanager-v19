@@ -11,6 +11,7 @@ import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { formatLocalISO } from './dateUtils';
+import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById } from './instanceEngine';
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -24,13 +25,6 @@ interface UseTaskCRUDOptions {
   setRecurrenceAction: (action: { taskId: string; type: 'edit' | 'delete'; ruleId: string } | null) => void;
   setAddSubtaskWarning: (val: { parentTaskId: string; blockId?: string; overrideDate?: string } | null) => void;
   dashboardTasks: Task[];
-}
-
-/** Resuelve un parentTaskId (puede ser inst-xxx-fecha) al templateId real para Supabase */
-function resolveParentIdForSupabase(parentTaskId: string | null | undefined): string | null {
-  if (!parentTaskId) return null;
-  if (!parentTaskId.startsWith('inst-')) return parentTaskId;
-  return parentTaskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
 }
 
 export function useTaskCRUD({
@@ -60,10 +54,27 @@ export function useTaskCRUD({
         setTasks(prev => ({ ...prev, [taskId]: task! }));
       }
     }
+    // Fallback V20 (a): instancia movida cuyo id de excepción difiere → resolver a la EXCEPCIÓN persistida.
+    // NUNCA a la plantilla: editar la plantilla cambiaría toda la serie SIN preguntar (silenciosamente
+    // destructivo). Por eso se restringe a `resolved.isException` (antes usaba cualquier `tasks[resolvedId]`).
+    let effectiveId = taskId;
+    if (!task) {
+      const resolvedId = resolveTaskId(taskId, tasks);
+      const resolved = resolvedId !== taskId ? tasks[resolvedId] : undefined;
+      if (resolved && resolved.isException) { task = resolved; effectiveId = resolvedId; }
+    }
+    // Fallback V20 (b) — B3: instancia recurrente VIRGEN (hija o día NO-activo → no está en `dashboardTasks`,
+    // que es plano y solo del día activo) → materializar para que `task.templateId` esté presente y se abra el
+    // modal "¿este día o toda la serie?". Sin esto caía en la plantilla y editaba la SERIE sin avisar.
+    // `effectiveId` sigue = taskId (editar ESA ocurrencia).
+    if (!task && taskId.startsWith('inst-')) {
+      const materialized = materializeInstanceById(taskId, tasks);
+      if (materialized) task = materialized;
+    }
     if (task?.templateId) {
-      setRecurrenceAction({ taskId, type: 'edit', ruleId: task.templateId });
+      setRecurrenceAction({ taskId: effectiveId, type: 'edit', ruleId: task.templateId });
     } else {
-      setEditingTaskId(taskId);
+      setEditingTaskId(effectiveId);
     }
   }, [tasks, dashboardTasks, setEditingTaskId, setInlineEditingTaskId, setRecurrenceAction, setTasks]);
 
@@ -72,6 +83,23 @@ export function useTaskCRUD({
     if (!task) {
       task = dashboardTasks.find(t => t.id === taskId);
     }
+    // Fallback V20: instancia virtual no presente → resolver, SOLO si es una excepción real.
+    // NUNCA a la plantilla: borrar la plantilla eliminaría toda la serie. Si la tarea ya se
+    // encontró arriba, effectiveId === taskId → comportamiento idéntico. No cambia cómo se borra.
+    let effectiveId = taskId;
+    if (!task) {
+      const resolvedId = resolveTaskId(taskId, tasks);
+      const resolved = resolvedId !== taskId ? tasks[resolvedId] : undefined;
+      if (resolved && resolved.isException) { task = resolved; effectiveId = resolvedId; }
+    }
+    // B2: instancia recurrente VIRGEN sin fila ni excepción → materializar para abrir el modal y borrar la
+    // ocurrencia. Necesario para las HIJAS: NO están en el array flat `dashboardTasks` (solo top-level), así
+    // que el `dashboardTasks.find` de arriba solo resuelve el contenedor; sin esto, borrar una hija virgen es
+    // no-op (caía en handleDeleteTask → return). `effectiveId` sigue = taskId (borrar ESA ocurrencia).
+    if (!task && taskId.startsWith('inst-')) {
+      const materialized = materializeInstanceById(taskId, tasks);
+      if (materialized) task = materialized;
+    }
     if (task?.parentTaskId && !tasks[task.parentTaskId]) {
       const parentTask = dashboardTasks.find(t => t.id === task!.parentTaskId);
       if (parentTask) {
@@ -79,22 +107,44 @@ export function useTaskCRUD({
       }
     }
     if (task?.templateId) {
-      setRecurrenceAction({ taskId, type: 'delete', ruleId: task.templateId });
+      setRecurrenceAction({ taskId: effectiveId, type: 'delete', ruleId: task.templateId });
     } else if (task?.isTemplate && (task?.recurrence || (task?.subtasks && task.subtasks.some((subId: string) => tasks[subId]?.recurrence)))) {
       if (confirm(`¿Borrar "${task.title}" y todas sus instancias futuras?`)) {
-        handleDeleteTask(taskId);
+        handleDeleteTask(effectiveId);
       }
     } else {
-      handleDeleteTask(taskId);
+      handleDeleteTask(effectiveId);
     }
   }, [tasks, dashboardTasks, setRecurrenceAction, setTasks]);
 
   const handleToggleStatus = useCallback((taskId: string) => {
-    const task = tasks[taskId] || Object.values(tasks).find(t => t.id === taskId);
+    let task = tasks[taskId] || Object.values(tasks).find(t => t.id === taskId);
+    // Fallback V20 (a): instancia virtual movida cuyo id de excepción difiere → resolvemos al id
+    // REAL solo si es EXCEPCIÓN persistida — nunca la plantilla (tocarla marcaría toda la serie).
+    if (!task) {
+      const resolvedId = resolveTaskId(taskId, tasks);
+      const resolved = resolvedId !== taskId ? tasks[resolvedId] : undefined;
+      if (resolved && resolved.isException) task = resolved;
+    }
+    // Fallback V20 (b) — B1: instancia recurrente VIRGEN (sin fila ni excepción) → materializamos
+    // el DÍA una vez y sacamos de ahí el objetivo Y sus hijas (dayMap). Sin esto, un CONTENEDOR
+    // virgen upsertaría SOLO el padre (las hijas se buscan con `tasks[sid]`, undefined) y la recarga
+    // NO lo delataría. `materializeDay` suprime instancias borradas → `dayMap[taskId]` undefined →
+    // no resucita. dayMap se construye FUERA del updater de setTasks (patrón anti-#6).
+    let dayMap: Record<string, Task> | null = null;
+    if (!task && taskId.startsWith('inst-')) {
+      const m = taskId.match(/-(\d{4}-\d{2}-\d{2})$/);
+      if (m) {
+        dayMap = {};
+        for (const inst of materializeDay(m[1], tasks)) dayMap[inst.id] = inst;
+        task = dayMap[taskId];
+      }
+    }
     if (!task) {
       console.error('[STATUS] Tarea no encontrada:', taskId);
       return;
     }
+    if (task.isDeleted) return; // guard: no togglear (ni resucitar) una instancia borrada
 
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
     const timestamp = new Date().toISOString();
@@ -130,7 +180,10 @@ export function useTaskCRUD({
       }
 
       (targetTask.subtasks || []).forEach(sid => {
-        const sub = tasks[sid];
+        // B1: las hijas de un contenedor virgen no están en `tasks` → caen a dayMap (materializado).
+        // `tasks[sid]` primero da prioridad a la fila real: una hija con excepción persistida gana
+        // sobre el materializado (caso mixto Q2).
+        const sub = tasks[sid] || (dayMap ? dayMap[sid] : undefined);
         if (sub) toggleRecursive(sub, status);
       });
     };
@@ -195,8 +248,9 @@ export function useTaskCRUD({
       // Si es instancia recurrente, resolver al template para verificar propiedades
       let parent = tasks[parentTaskId];
       if (!parent && parentTaskId.startsWith('inst-')) {
-        const match = parentTaskId.match(/^inst-(t-\d+)/);
-        if (match && tasks[match[1]]) parent = tasks[match[1]];
+        // B0: strip robusto (tmpl-/letras), NO el regex /^inst-(t-\d+)/ que fallaba con tmpl-.
+        const templateId = templateIdFromInstanceId(parentTaskId);
+        if (tasks[templateId]) parent = tasks[templateId];
       }
       if (parent) {
         const hasDate = !!parent.dueDate;
@@ -224,8 +278,9 @@ export function useTaskCRUD({
     // Formato: inst-{templateId}-{date} o inst-{templateId}-{subId}-{date}
     let effectiveParentId = parentTaskId;
     if (parentTaskId && parentTaskId.startsWith('inst-') && !tasks[parentTaskId]) {
-      const match = parentTaskId.match(/^inst-(t-\d+)/);
-      if (match && tasks[match[1]]) effectiveParentId = match[1];
+      // B0: strip robusto (tmpl-/letras), NO el regex /^inst-(t-\d+)/ que fallaba con tmpl-.
+      const templateId = templateIdFromInstanceId(parentTaskId);
+      if (tasks[templateId]) effectiveParentId = templateId;
     }
 
     if (effectiveParentId && tasks[effectiveParentId]) {
@@ -415,14 +470,12 @@ export function useTaskCRUD({
           const realParentTemplateId = parent.templateId;
           const realParent = updated[realParentTemplateId];
 
-          updated[updatedTask.id] = { ...updated[updatedTask.id], parentTaskId: realParentTemplateId };
-
-          if (!realParent.subtasks.includes(updatedTask.id)) {
-            updated[realParentTemplateId] = {
-              ...realParent,
-              subtasks: [...realParent.subtasks, updatedTask.id]
-            };
-          }
+          // B4-cambio-1: la excepción recurrente NO se reconecta a la PLANTILLA (era la contaminación que
+          // alimentaba el bucle inst-inst-). Su parent_task_id queda `null`; materializeDay re-anida por
+          // plantilla + templateId/día. Y NO se mete la instancia en `template.subtasks` (corrompía la fuente
+          // de verdad de la jerarquía). Scope: solo aquí, dentro del `if (updatedTask.recurrence ...)` →
+          // exclusivamente excepciones de instancias recurrentes; las manuales no-recurrentes no entran.
+          updated[updatedTask.id] = { ...updated[updatedTask.id], parentTaskId: null };
 
           updated[parent.id] = {
             ...parent,
@@ -431,10 +484,10 @@ export function useTaskCRUD({
 
           setTimeout(() => {
             supabase.from('tasks')
-              .update({ parent_task_id: realParentTemplateId })
+              .update({ parent_task_id: null })
               .eq('id', updatedTask.id)
               .then(({ error }) => {
-                if (error) console.error('[SUPABASE] Error reconectando subtarea al template:', error);
+                if (error) console.error('[SUPABASE] Error escribiendo parent_task_id=null (excepción recurrente):', error);
               });
           }, 0);
 
@@ -548,9 +601,10 @@ export function useTaskCRUD({
           const _oldDate = updatedTask.instanceDate;
           const _newSubtaskId = `inst-${updatedTask.templateId}-${_newDate}`;
 
-          // FIX Bug4: resolver parent_task_id correcto (nunca inst-xxx, siempre templateId)
-          const _parentIdForSupabase = resolveParentIdForSupabase(updatedTask.parentTaskId);
-
+          // B4-cambio-2: la excepción recurrente MOVIDA NO se enlaza a la plantilla (era el 2º escritor de
+          // contaminación parent→plantilla, además del de cambio-1). parent_task_id queda `null`; materializeDay
+          // re-anida en el día destino por templateId+dueDate (findLanded). Revierte el "FIX Bug4" (que ponía la
+          // plantilla): en V20 el huérfano lo evita materializeDay, no el parent_task_id.
           await supabase.from('tasks')
             .update({ is_deleted: true, deleted_at: new Date().toISOString() })
             .eq('id', updatedTask.id);
@@ -576,7 +630,7 @@ export function useTaskCRUD({
             is_deleted: false,
             is_expanded: updatedTask.isExpanded || false,
             task_type: updatedTask.taskType || null,
-            parent_task_id: _parentIdForSupabase,  // ← FIX: antes era null siempre
+            parent_task_id: null,  // B4-cambio-2: null (no plantilla); materializeDay re-anida por templateId
             template_id: updatedTask.templateId,
             instance_date: _oldDate,
             recurrence: null,
