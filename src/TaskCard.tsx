@@ -304,11 +304,12 @@ export function TaskCard({
             onToggleTaskSelection(task.id, task.subtasks || []);
           } : undefined}
         >
-          {/* Main Row — una sola línea, 29px */}
-          <div className={`flex items-center gap-1.5 px-3 min-h-[29px] ${task.onHold ? 'opacity-60' : ''}`}>
+          {/* Main Row — una sola línea, 29px. group/row: el hover se activa SOLO en esta fila
+              (no en el bloque/sección entera). */}
+          <div className={`group/row flex items-center gap-1.5 px-3 min-h-[29px] ${task.onHold ? 'opacity-60' : ''}`}>
 
             {/* Flechitas reordenar - hover, compactas para no forzar la altura de la fila */}
-            <div className="flex flex-col gap-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <div className="flex flex-col gap-0 opacity-0 group-hover/row:opacity-100 transition-opacity shrink-0">
               <button
                 onClick={() => onMoveUp && onMoveUp()}
                 disabled={taskIndex === 0}
@@ -371,11 +372,13 @@ export function TaskCard({
               />
             </div>
 
-            {/* Título + badges (grupo flexible que trunca) */}
-            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            {/* Título + badges. En hijas el grupo es flex-1 (empuja el resto de chips a la
+                derecha, alineados en columna). En padre/sueltas ancho natural (máx. mitad):
+                los chips arrancan justo tras el texto, no en el extremo. */}
+            <div className={`flex items-center gap-1.5 min-w-0 ${task.parentTaskId ? 'flex-1' : 'max-w-[55%]'}`}>
               <input
                 autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
-                className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none min-w-0 flex-1 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
+                className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none min-w-0 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
                 value={task.title}
                 onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
                 onBlur={() => {
@@ -424,6 +427,15 @@ export function TaskCard({
                   </button>
                 );
               })()}
+              {/* Hora junto al título en HIJAS: es el dato que ordena el grupo "CON HORA". */}
+              {task.parentTaskId && task.dueTime && !hasSubtasks && !inMeeting && (
+                <div className="shrink-0">
+                  <TimePickerChip
+                    value={task.dueTime}
+                    onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Chips en línea (o resumen estimado→real si completada) */}
@@ -446,7 +458,8 @@ export function TaskCard({
                       }}
                     />
                   )}
-                  {!hasSubtasks && !inMeeting && (
+                  {/* Hora en el grupo derecho, salvo que ya se muestre junto al título (hija con hora) */}
+                  {!hasSubtasks && !inMeeting && !(task.parentTaskId && task.dueTime) && (
                     <TimePickerChip
                       value={task.dueTime || ''}
                       onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })}
@@ -593,7 +606,7 @@ export function TaskCard({
                   {onGoToTemplate && variant !== 'FULL' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId || task.id); }}
-                      className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                      className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors shrink-0 opacity-0 group-hover/row:opacity-100"
                       title="Ir a Bloques"
                     >
                       <ArrowUpRight size={10} className="text-turquesa" />
@@ -632,7 +645,7 @@ export function TaskCard({
             })()}
 
             {/* Botones acción — TODO en hover (§7.2). El play del timer va aparte, siempre visible. */}
-            <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1 shrink-0 ml-auto opacity-0 group-hover/row:opacity-100 transition-opacity">
               {/* En suspenso — marca visual (no reagrupa, el tiempo sigue contando) */}
               <button
                 onClick={(e) => { e.stopPropagation(); onUpdateTask({ ...task, onHold: !task.onHold }); }}
@@ -665,7 +678,7 @@ export function TaskCard({
                 </button>
               )}
               {/* Promover / degradar - hover */}
-              <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
                 {task.parentTaskId && (
                   <button
                     onClick={() => onPromote(task.id)}
