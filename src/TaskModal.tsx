@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Calendar as CalendarIcon, Clock, Trash2, X, RefreshCw,
-  Plus, Edit, Check, ArrowUpLeft, ArrowDownRight, Paperclip, Eye, ChevronDown, Save, LayoutGrid
+  Plus, Edit, Check, ArrowUpLeft, Paperclip, Eye, ChevronDown, Save, LayoutGrid
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task, TagType } from './types';
@@ -73,8 +73,6 @@ export function TaskModal({
   onDeleteTimeEntry = null,
   onUpdateTimeEntry = null,
   onGoToTemplate = null,
-  onPromote = null,
-  onDemote = null,
   initialShowTime = false,
   initialInstanceDate = null,
 }: TaskModalProps) {
@@ -220,25 +218,6 @@ export function TaskModal({
 
           {/* Acciones header */}
           <div className="flex items-center gap-1 shrink-0">
-            {/* Nivel: subir / bajar (movido desde la fila; §7.2 opción 1) */}
-            {localTask.parentTaskId && onPromote && (
-              <button
-                onClick={() => { onPromote(localTask.id); onClose(); }}
-                title="Subir un nivel"
-                className="w-8 h-8 flex items-center justify-center rounded-xl border dark:bg-bg-secondary bg-bg-secondary-light dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:border-turquesa transition-all"
-              >
-                <ArrowUpLeft size={14} />
-              </button>
-            )}
-            {onDemote && (
-              <button
-                onClick={() => { onDemote(localTask.id); onClose(); }}
-                title="Bajar un nivel"
-                className="w-8 h-8 flex items-center justify-center rounded-xl border dark:bg-bg-secondary bg-bg-secondary-light dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:text-azul hover:border-azul transition-all"
-              >
-                <ArrowDownRight size={14} />
-              </button>
-            )}
             {onToggleStatus && (
               <button
                 onClick={() => { onToggleStatus(localTask.id); onClose(); }}

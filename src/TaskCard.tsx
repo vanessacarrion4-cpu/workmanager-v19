@@ -654,7 +654,25 @@ export function TaskCard({
                   <Plus size={14} />
                 </button>
               )}
-              {/* Promover / degradar (↖↘) movido al modal (§7.2 opción 1). */}
+              {/* Promover / degradar - hover */}
+              <span className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                {task.parentTaskId && (
+                  <button
+                    onClick={() => onPromote(task.id)}
+                    title="Subir un nivel"
+                    className="w-6 h-6 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-turquesa dark:bg-bg-main bg-white rounded-lg border dark:border-border-main border-border-main-light transition-all"
+                  >
+                    <ArrowUpLeft size={12} />
+                  </button>
+                )}
+                <button
+                  onClick={() => onDemote(task.id)}
+                  title="Bajar un nivel"
+                  className="w-6 h-6 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-azul dark:bg-bg-main bg-white rounded-lg border dark:border-border-main border-border-main-light transition-all"
+                >
+                  <ArrowDownRight size={12} />
+                </button>
+              </span>
             </div>
 
           </div>
