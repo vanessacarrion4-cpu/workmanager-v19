@@ -941,8 +941,9 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
 | A | Ninguno (nadie llama al helper) | Tests helper verde; build |
 | B1–B5 | Día **cercano** no cambia (instancia sigue en estado); el camino nuevo solo corre en día **>+400d** | Spy `fetch`: acción en día lejano = **1 upsert excepción** con `is_exception:true` + id/`due_date` correctos. Cercano = mismo nº de escrituras |
 | B3 | Editar desde Semana podría abrir el modal equivocado | El modal abre la tarea correcta (título coincide) |
-| C1 | Solo selección (marca de más/menos). **Sin escritura** | Seleccionar contenedor → marca sus hijas (incl. virtuales) |
-| C2 | **Escritura**: copia malformada o insert duplicado (regresión #6) | Spy `fetch`: duplicar 1 contenedor = N inserts, **0** con `recurrence`/`template_id`; StrictMode no duplica |
+| C1 ✅ hecho+validado (`fc1e734`, §13.18) | Solo selección (marca de más/menos). **Sin escritura** | Seleccionar contenedor → marca sus hijas (incl. virtuales) |
+| C2 ✅ hecho+validado (`4e748e5`, §13.18) | **Escritura**: copia malformada o insert duplicado (regresión #6) | Spy `fetch`: duplicar 1 contenedor = N inserts, **0** con `recurrence`/`template_id`; StrictMode no duplica; **insert secuencial padre→hijo** (FK) |
+| C3 ✅ hecho+validado (`4e748e5`, §13.18) | **Escritura**: bulk delete/update de virgen = no-op silencioso (PATCH sobre `inst-` inexistente) | Spy: delete virgen = upsert `is_deleted:true`; update = upsert excepción con cambios. Ojo `existsInSupabase` heredado (§13.18) |
 | D0 (ensayo) | Ninguno (no cambia código) | Tabla §13.6 en día >+400d en verde ANTES de tocar el flip |
 | D1 (desactivar) | **MÁXIMO**: todo lo cercano pasa a virtual de golpe | Consola: **0** logs `[GENERATION]`. Regresión total §13.6. Recarga persiste. Volver atrás = flip del flag |
 | Reorder virgen | Escribe `order` en la PLANTILLA (#15) — **ESPERADO, NO regresión** (ver §13.9) | Arrastrar-reordenar una recurrente virgen escribe en `template_id`, no en el día; se arregla en el sub-paso siguiente |
@@ -1278,7 +1279,8 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
 
 **Entorno vivo (recordatorio para retomar):**
 - **Fixture de prueba** `t-1785089440019` "Test Recurrent B1" + 3 hijas (`t-1785089472309/481020/493867`), creado en
-  la app; días ya consumidos: 2028-01-15/16/17, 02-01, 02-08, 03-06/13, 04-03, 05-10, 05-12. **Convención**: una fecha nueva por fase
+  la app; días ya consumidos: 2028-01-15/16/17, 02-01, 02-08, 03-06/13, 04-03, 05-10, 05-12; **Fase C**: 02-06 (C3 delete),
+  02-09 (C3 update). 02-04/02-05/06-14 solo lectura/limpiados (C1/C2/B5a). **Convención**: una fecha nueva por fase
   (§13.11). **Cleanup del fixture** cuando ya no haga falta:
   `delete from tasks where id in ('t-1785089440019','t-1785089472309','t-1785089481020','t-1785089493867') or template_id in (los mismos 4);`
 - **Código DEV-ONLY a RETIRAR en D2**: `window.__tasks` + `window.__goToDate` + `window.__materializeDay`
@@ -1419,3 +1421,29 @@ seguridad para NO tocar el contenedor real «Rutinas mañana»):
   **sin upsert de contenedor** → el intercept NO se activa, el path original corre igual. B bajo A persiste.
 - Andamiaje (one-off + 2 planas + order del contenedor + excepción 06-14) **limpiado**; fixture **virgen** de nuevo (06-14 libre).
 - **Cliente `__supabase` dev-expuesto durante el turno para las ops de fixture/validación → RETIRADO** (revertido en `supabaseClient.ts`).
+
+### 13.18 Fase C (bug #20) — ✅ HECHA Y VALIDADA EN VIVO (sesión 13, método autónomo)
+Los tres handlers instance-aware para selección + bulk. Días de validación ≠ activo vía `__goToDate`.
+- **C1** (`fc1e734`) `toggleTaskSelection`: usa las `subtasks` del OBJETO RENDERIZADO (materializado) que `TaskCard`
+  pasa, no `tasks[id]` crudo. **Validado** (2028-02-04): seleccionar contenedor **virgen** marca contenedor + 3 hijas;
+  deseleccionar limpia las 4. Solo UI, sin escritura.
+- **C2** (`4e748e5`) `bulkDuplicateTasks`: rootIds/subOriginals desde el día materializado; `duplicateTaskRecursive`
+  limpia `templateId/instanceDate/isException/recurrence` → duplicado = **one-off suelto limpio**; `parent_task_id`
+  **FK-safe** (raíz a `null` si el padre no es fila real; nunca `inst-` virtual/generado); **insert SECUENCIAL padre→hijo**
+  (el `forEach` paralelo anterior podía insertar una hija antes que su contenedor → 23503). Anti-#6 intacto. **Validado**
+  (2028-02-05): duplicar contenedor virgen → **4 inserts** (contenedor `parent=null` + 3 hijas `parent`=id fresco), metadatos
+  limpios, `uniqueIds=4` (StrictMode no duplica), **sin 23503**, persiste, original intacto.
+- **C3** (`4e748e5`) `bulkDeleteTasks`/`bulkUpdateTasks`: `createDayResolver` (materializa cada día implicado UNA vez).
+  Delete virgen → **upsert fila-excepción `is_deleted:true`** (antes `UPDATE .eq(inst-…)` inexistente = **no-op**).
+  Update virgen → upsert excepción con los cambios. **Validado**: delete (02-06) → 4 upsert `is_deleted:true`, día
+  suprimido y persiste; completar (02-09) → 4 upsert `is_exception:true status:completed`, persiste. Plantilla sin contaminar.
+- **⚠️ GOTCHA encontrado al validar C3** (útil a futuro): `materializeDay` **hereda `existsInSupabase:true`** de la plantilla
+  (por el spread `{...childTemplate}`), así que ese flag **NO distingue** "instancia virgen" de "excepción persistida". La
+  condición `!existsInSupabase` de `bulkUpdate` mandaba el update de una virgen al **PATCH no-op**. Fix: forzar upsert para
+  vírgenes resueltos (`isVirgin = !!resolvedById[id]`), no fiarse de `existsInSupabase`. `bulkDelete` no usaba ese flag (upsert
+  incondicional) → no le afectaba.
+- **Bug #20 CERRADO**: selección (C1) y duplicación (C2) de contenedores virtuales funcionan; se cierra también el landmine
+  del 23503 al duplicar ([useBulkActions.ts:285] inventariado en §13.17). Reorder de virgen (#15) sigue diferido (Fase R).
+- **Dev-hooks de validación retirados** (`__selectedTaskIds`/`__setSelectionMode`/`__bulk*` en App.tsx; `__supabase` no se
+  usó esta vez). Quedan solo los de siempre (`__tasks`/`__goToDate`/`__materializeDay`, a retirar en D2).
+- **Con C hecha, el flip (Fase D) queda a tiro**: solo falta el ensayo general D0 + D1 (flag off) + D2 (borrado).
