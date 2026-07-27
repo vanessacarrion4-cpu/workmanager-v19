@@ -11,7 +11,7 @@ import {
   ChevronsUp, ChevronsDown, Eye, EyeOff, GripVertical, RefreshCw,
   ArrowRight, Tag, User, Zap, History
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { Task, WorkBlock, Person, DelegationMeeting } from './types';
 import { TAG_LABELS, COLORS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
@@ -545,41 +545,25 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                   </div>
                 </button>
 
-                {/* Tasks list - usando TaskCard */}
-                {isOpen && (
-                  <div className="border-t dark:border-border-main border-border-main-light/50">
-                    {(personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }))).map(({ task, subtasksForGroup: delegatedSubIds }: any, taskIdx: number) => {
-                      const allEntries = personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }));
-                      const totalEntries = allEntries.length;
-                      const handleMoveUp = () => {
-                        if (taskIdx === 0) return;
-                        const newOrder = allEntries.map((e: any) => e.task.id);
-                        [newOrder[taskIdx - 1], newOrder[taskIdx]] = [newOrder[taskIdx], newOrder[taskIdx - 1]];
-                        setLocalTaskOrders(prev => ({ ...prev, [person.id]: newOrder }));
-                        newOrder.forEach((id: string, i: number) => {
-                          const t = allTasksMap[id];
-                          if (t) onUpdateTask({ ...t, order: i, modifiedAt: new Date().toISOString() });
-                          supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
-                            if (error) console.error('[ORDER] Error:', error);
-                          });
-                        });
-                      };
-                      const handleMoveDown = () => {
-                        if (taskIdx === totalEntries - 1) return;
-                        const newOrder = allEntries.map((e: any) => e.task.id);
-                        [newOrder[taskIdx], newOrder[taskIdx + 1]] = [newOrder[taskIdx + 1], newOrder[taskIdx]];
-                        setLocalTaskOrders(prev => ({ ...prev, [person.id]: newOrder }));
-                        newOrder.forEach((id: string, i: number) => {
-                          const t = allTasksMap[id];
-                          if (t) onUpdateTask({ ...t, order: i, modifiedAt: new Date().toISOString() });
-                          supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
-                            if (error) console.error('[ORDER] Error:', error);
-                          });
-                        });
-                      };
-                      return (
+                {/* Tasks list - usando TaskCard (arrastre para reordenar; las flechas se retiraron) */}
+                {isOpen && (() => {
+                  const allEntries = personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }));
+                  const orderIds = allEntries.map((e: any) => e.task.id);
+                  const persistOrder = (newIds: string[]) => {
+                    setLocalTaskOrders(prev => ({ ...prev, [person.id]: newIds }));
+                    newIds.forEach((id: string, i: number) => {
+                      const t = allTasksMap[id];
+                      if (t) onUpdateTask({ ...t, order: i, modifiedAt: new Date().toISOString() });
+                      supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
+                        if (error) console.error('[ORDER] Error:', error);
+                      });
+                    });
+                  };
+                  return (
+                  <Reorder.Group axis="y" values={orderIds} onReorder={persistOrder} className="border-t dark:border-border-main border-border-main-light/50">
+                    {allEntries.map(({ task, subtasksForGroup: delegatedSubIds }: any) => (
+                      <Reorder.Item key={task.id} value={task.id} as="div" whileDrag={{ scale: 1.01, zIndex: 50, boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }} style={{ cursor: 'grab' }}>
                         <TaskCard
-                          key={task.id}
                           task={task}
                           variant="FULL"
                           allTasksMap={allTasksMap}
@@ -603,16 +587,13 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                           selectionMode={selectionMode}
                           selectedTaskIds={selectedTaskIds}
                           onToggleTaskSelection={onToggleTaskSelection}
-                          taskIndex={taskIdx}
-                          taskCount={totalEntries}
-                          onMoveUp={handleMoveUp}
-                          onMoveDown={handleMoveDown}
                           searchQuery={searchQuery}
                         />
-                      );
-                    })}
-                  </div>
-                )}
+                      </Reorder.Item>
+                    ))}
+                  </Reorder.Group>
+                  );
+                })()}
               </div>
             );
           })}

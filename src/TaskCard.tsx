@@ -308,27 +308,10 @@ export function TaskCard({
               (no en el bloque/sección entera). */}
           <div className={`group/row flex items-center gap-1.5 px-3 min-h-[29px] ${task.onHold ? 'opacity-60' : ''}`}>
 
-            {/* Flechitas reordenar - hover, compactas para no forzar la altura de la fila */}
-            <div className="flex flex-col gap-0 opacity-0 group-hover/row:opacity-100 transition-opacity shrink-0">
-              <button
-                onClick={() => onMoveUp && onMoveUp()}
-                disabled={taskIndex === 0}
-                className={`w-4 h-3 flex items-center justify-center rounded transition-all ${taskIndex === 0 ? 'text-text-secondary/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
-                title="Subir"
-              >
-                <ChevronUp size={11} />
-              </button>
-              <button
-                onClick={() => onMoveDown && onMoveDown()}
-                disabled={taskIndex === taskCount - 1}
-                className={`w-4 h-3 flex items-center justify-center rounded transition-all ${taskIndex === taskCount - 1 ? 'text-text-secondary/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
-                title="Bajar"
-              >
-                <ChevronDown size={11} />
-              </button>
-            </div>
+            {/* Flechas de reordenar retiradas: el arrastre reordena en todas las vistas
+                (Mi Día/Bloques/Calendario ya; Delegadas con Reorder.Group; Búsqueda no reordena). */}
 
-            {/* Barra color bloque - inline entre flechas y checkbox */}
+            {/* Barra color bloque */}
             <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: block.color }} />
 
             {/* Checkbox — en modo selección muestra selección, en modo normal completa */}
