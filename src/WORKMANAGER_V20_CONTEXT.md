@@ -1264,3 +1264,24 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
   (`is_exception && parent_task_id→is_template`) que la usuaria está corriendo **alimenta esa fase**, no B4.
 - **Requisito de validación fijo** (§13.13): cada fase B/C y el ensayo D0 se prueban también desde un **día ≠ activo**
   (vía Semana), no solo con `__goToDate` (que hace activo el día probado → enmascara).
+
+### 13.16 Estado B4 (sesión 13) — cambio-1 HECHO; cambio-2 pendiente
+- **B4-cambio-1 ✅ HECHO Y COMMITEADO (`fb2a57b`)**: en `handleUpdateTask`, retiradas las 3 líneas de
+  contaminación del bloque de reconexión-a-plantilla (push a `template.subtasks`; `parent_task_id` memoria + persist
+  `realParentTemplateId` → `null`). La propagación de `isTemplate` al padre (506-516) INTACTA. Scope: entero dentro
+  de `if (updatedTask.recurrence …)`.
+  - **Part A validado en vivo** (Semana, día ≠ activo, 2028-04-03): 1 write `parent_task_id: null`,
+    `template.subtasks` sin `inst-`, contenedor sigue `isTemplate`, hija bajo su padre en render inmediato Y tras
+    recargar (sin huérfano).
+  - **Part B (scope no-recurrente) CERRADA por garantía ESTRUCTURAL**: el cambio está entero dentro de
+    `if (updatedTask.recurrence …)` (línea-guarda NO tocada) → una subtarea no-recurrente no entra, conserva su
+    `parent_task_id` real. **Spot-check de la usuaria pendiente** (editar una subtarea manual en uso normal → sigue
+    bajo su padre). No es inferencia difusa: es el control de flujo literal.
+- **B4-cambio-2 (mover instance-aware) ⏸️ SIGUIENTE, turno aparte**: materializar la virgen antes de mover (gap
+  `dashboardTasks`) + `instanceDate`/`dueDate` + `parent_task_id=null`; validar moviendo hoja Y contenedor desde
+  Semana, día ≠ activo (día viejo vacío, destino la muestra, recarga, y subtarea movida bajo su padre en el destino).
+- **⚠️ LIMITACIÓN DE TOOLING (afecta a validaciones futuras)**: con el panel del navegador sin mostrar, **NO puedo
+  teclear de forma fiable en inputs** (`computer.type`/screenshot fallan); solo van clics vía `.click()` y
+  `form_input` a nivel DOM. **C1 (selección) y C2 (duplicar) son casi todo clics → OK**. Pero si una validación
+  necesita **CREAR algo** (una tarea/subtarea de prueba nueva), **lo crea la usuaria**, no intentarlo desde aquí.
+  Y NUNCA editar tareas reales de trabajo para validar — usar fixtures/throwaways.
