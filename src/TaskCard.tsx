@@ -583,27 +583,20 @@ export function TaskCard({
                     {isTimerRunning ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
                   </button>}
 
-                  {/* Block picker - clickable chip to change context */}
-                  {variant === 'FULL' ? (
-                    // In Bloques: small discrete chip
-                    <BlockPickerChip 
-                      value={task.blockId}
-                      blocks={blocks}
-                      onChange={(blockId: string) => onUpdateTask({ ...task, blockId })}
-                    />
-                  ) : (
-                    // In Dashboard: full chip with icon and name
-                    <BlockPickerChip 
+                  {/* Bloque — en una hija solo si difiere del bloque del padre (la barra de la
+                      izquierda ya ancla el bloque; se muestra la excepción, no la herencia). §7.2 */}
+                  {(!task.parentTaskId || allTasksMap[task.parentTaskId]?.blockId !== task.blockId) && (
+                    <BlockPickerChip
                       value={task.blockId}
                       blocks={blocks}
                       onChange={(blockId: string) => onUpdateTask({ ...task, blockId })}
                     />
                   )}
-                  {/* Ir a Bloques — todas las tareas excepto en BlocksView (variant FULL) */}
+                  {/* Ir a Bloques — solo en hover (§7.2), excepto en BlocksView (variant FULL) */}
                   {onGoToTemplate && variant !== 'FULL' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId || task.id); }}
-                      className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors shrink-0"
+                      className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
                       title="Ir a Bloques"
                     >
                       <ArrowUpRight size={10} className="text-turquesa" />
@@ -641,8 +634,8 @@ export function TaskCard({
               );
             })()}
 
-            {/* Botones acción - una sola fila (§7.2: ✎ 🗑 + · promover/degradar en hover) */}
-            <div className="flex items-center gap-1 shrink-0">
+            {/* Botones acción — TODO en hover (§7.2). El play del timer va aparte, siempre visible. */}
+            <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
               {/* En suspenso — marca visual (no reagrupa, el tiempo sigue contando) */}
               <button
                 onClick={(e) => { e.stopPropagation(); onUpdateTask({ ...task, onHold: !task.onHold }); }}
