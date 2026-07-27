@@ -1446,4 +1446,37 @@ Los tres handlers instance-aware para selección + bulk. Días de validación �
   del 23503 al duplicar ([useBulkActions.ts:285] inventariado en §13.17). Reorder de virgen (#15) sigue diferido (Fase R).
 - **Dev-hooks de validación retirados** (`__selectedTaskIds`/`__setSelectionMode`/`__bulk*` en App.tsx; `__supabase` no se
   usó esta vez). Quedan solo los de siempre (`__tasks`/`__goToDate`/`__materializeDay`, a retirar en D2).
-- **Con C hecha, el flip (Fase D) queda a tiro**: solo falta el ensayo general D0 + D1 (flag off) + D2 (borrado).
+- **Con C hecha, el flip (Fase D) queda a tiro.**
+
+### 13.19 Fase D — FLIP: D0 SALTADO, D1 HECHO (sesión 13)
+- **D0 (ensayo general) SALTADO — decisión de la usuaria.** Razón: su valor era hacer el flip *aburrido* cuando el
+  retroceso era caro; pero **D1 es un interruptor y volver atrás son segundos**, y **el ensayo ya está hecho repartido**:
+  cada fase (#1, A, B0–B5a, C1–C3) se validó en días de **2028 con todo VIRTUAL** — que es exactamente el estado post-flip.
+- **Backup**: el de hoy (`tasks_rows_27072026`) sirve — desde entonces solo se ha escrito sobre el fixture y días de 2028.
+- **`git tag v20-pre-flip`** en `5a8b3a9`. **D1** (`9785812`): `GENERATION_ENABLED=false` en [useGeneration.ts](src/useGeneration.ts)
+  (early-return; sin borrar). **Revertir el flag (una línea)**: poner `GENERATION_ENABLED = true` en `src/useGeneration.ts` (o `git revert 9785812`).
+- **BASELINE pre-flip (motor viejo puesto)**: Mi Día de HOY (Lunes 27) = **20 TAREAS** (contador de la app). Es la cifra de comparación.
+
+#### Lista de validación post-flip (la corre la usuaria; días 2028 = todo virtual)
+
+> **⚠️ DAÑO CONOCIDO — NO es regresión del flip (esperado):**
+> - Las **4 series contaminadas** ("Pago nóminas", "Pagos mensuales", "Cierre Propias", "Cierre Central Rec") se verán
+>   **duplicadas/triplicadas** — es la contaminación histórica, se limpia post-merge (§13.14), no la introduce el flip.
+> - **Reordenar** una recurrente cambia **todos los días** (#15, Fase R diferida).
+> - **Promover** una recurrente **no hace nada** (B5b diferido, §8.10).
+
+1. **CRÍTICO** — Mi Día de HOY: **mismo número (20) y orden** de tareas; **consola sin `[GENERATION]`** ni errores rojos;
+   **recargar** y sigue igual.
+2. **Las 7 vistas, un vistazo**: Mi Día · Semana · Calendario · Bloques · Delegadas · Search · Carga. **Foco en Bloques y
+   Delegadas** (nunca ensayadas en modo virtual).
+3. **Acciones, una vez cada una y recargando después**:
+   - Completar una recurrente **con subtareas** (las hijas también se completan).
+   - **Borrar** una ocurrencia (no vuelve al recargar).
+   - **Editar desde Semana** (sale el modal, "solo este día").
+   - **Mover** a otro día.
+   - **Seleccionar contenedor** (marca las hijas).
+   - **Duplicar contenedor** (copia limpia, sin recurrencia).
+   - **Calendario** en un mes lejano: abrir el día y **completar dentro**.
+
+- **Si todo verde → D2**: borrar `useGeneration.ts` + `generation.worker.ts` (+ `useTemplateKey`), y retirar los dev-hooks
+  (`__tasks`/`__goToDate`/`__materializeDay` en App.tsx, `devFetch`/`__spy` en supabaseClient.ts). Build + grep sin consumidores.
