@@ -663,6 +663,10 @@ prueba, y si está bien se sigue.
 | Pantalla de análisis previsto vs real | Más adelante |
 
 ### 11.1 Backlog UX/diseño (detectado sesión 11 — para la fase de diseño, NO ahora)
+- **(e) Desde Semana NO se puede mover una tarea a otro día** (detectado sesión 13): `WeekView` recibe
+  `onRecurrenceDateChange` pero **nunca lo llama**, y `WeekTaskCard` no tiene selector de fecha. Es justo la vista
+  donde arrastrar de un día a otro sería lo más natural. Cablear el arrastre/selector de fecha en Semana →
+  `onRecurrenceDateChange` (ya existe el flujo aguas abajo: modal "¿este día / serie?" → `handleUpdateTask`).
 - **(a) Dashboard no muestra el mes al desplazarse**: al hacer scroll en Mi Día no se ve el mes.
   **Diagnóstico primero**: averiguar si NO se pinta o si se pinta en **BLANCO** (posible color heredado del
   modo oscuro sobre fondo claro). Según cuál sea, el fix es distinto. Barato, pero no ahora.
@@ -956,6 +960,11 @@ navegando a un día **más allá de +400** de hoy — ahí la instancia ya es vi
   completar/editar/borrar dentro (TaskCard completo, mismos handlers). Recarga conserva.
 - **Reordenar (arrastre) recurrente virgen = comportamiento ESPERADO, NO validar como fallo**: escribe
   `order` en la plantilla (#15). Detalle en §13.9. Se corrige en el sub-paso siguiente (decisión A).
+- **DAÑO CONOCIDO (sesión 13) — al mover un CONTENEDOR, el estado por-día de las hijas NO viaja**: `materializeDay`
+  recoloca las hijas en el día nuevo por `occursOn` (frescas, `pending`), no las mueve con su estado. Si 2 de 3
+  estaban hechas, en el día nuevo aparecen las 3 pendientes. Es semántica de "mover la ocurrencia del contenedor",
+  **NO regresión del flip** — no leerlo así en Fase E. (Además: mover contenedor ni siquiera es triggerable por
+  chip hoy; §13.16.)
 - **DAÑO CONOCIDO (condición 2) — series contaminadas se DUPLICAN post-flip, NO es regresión del flip**: las 4
   series reales ("Pago nóminas", "Pagos mensuales", "Cierre Propias", "Cierre Central Rec") y las otras
   contaminadas aparecerán 2-3 veces en Mi Día/Semana, porque sus plantillas tienen ids `inst-` en `subtasks`
@@ -1277,9 +1286,19 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
     `if (updatedTask.recurrence …)` (línea-guarda NO tocada) → una subtarea no-recurrente no entra, conserva su
     `parent_task_id` real. **Spot-check de la usuaria pendiente** (editar una subtarea manual en uso normal → sigue
     bajo su padre). No es inferencia difusa: es el control de flujo literal.
-- **B4-cambio-2 (mover instance-aware) ⏸️ SIGUIENTE, turno aparte**: materializar la virgen antes de mover (gap
-  `dashboardTasks`) + `instanceDate`/`dueDate` + `parent_task_id=null`; validar moviendo hoja Y contenedor desde
-  Semana, día ≠ activo (día viejo vacío, destino la muestra, recarga, y subtarea movida bajo su padre en el destino).
+- **B4-cambio-2 (sesión 13) — CORRECCIÓN DEL PLAN: la parte "instance-aware" NO hacía falta**. Al investigar:
+  mover pasa el **objeto renderizado** directo a `handleUpdateTask` (`...task` desde `onRecurrenceDateChange`/el
+  modal de fecha), **NO lo relee de `tasks`/`dashboardTasks`** → mover una virgen **ya funcionaba** (persistía el
+  upsert new-date). No hay gap de materialización aquí (a diferencia de toggle/delete que sí leen `tasks[id]`).
+  → **cambio-2 se reduce a QUITAR LA CONTAMINACIÓN**: el write del move de subtarea recurrente escribía
+  `parent_task_id = plantilla` ([useTaskCRUD.ts:639](useTaskCRUD.ts), vía `resolveParentIdForSupabase`, el "FIX
+  Bug4") — 2º escritor de `parent→plantilla` además del de cambio-1. **Fix = una línea → `null`**. `instanceDate`/
+  `dueDate` ya se escribían bien; `materializeDay` re-anida en el destino por `templateId`. (No reclamar trabajo
+  instance-aware que no era necesario.)
+- **Disparo del move (sesión 13)**: solo desde el **`DatePickerChip`** de filas `!hasSubtasks` (hojas/subtareas)
+  en Mi Día / drawer del Calendario / Bloques / Delegadas / Search. **NO desde Semana** (ver §11.1) ni sobre
+  **contenedores** (no llevan chip de fecha). El contenedor-move (los 3 reales) vino de otro mecanismo; su
+  read-side ya lo cubre `findVacated` (validado), y su write-side ya era `null` (path general).
 - **⚠️ LIMITACIÓN DE TOOLING (afecta a validaciones futuras)**: con el panel del navegador sin mostrar, **NO puedo
   teclear de forma fiable en inputs** (`computer.type`/screenshot fallan); solo van clics vía `.click()` y
   `form_input` a nivel DOM. **C1 (selección) y C2 (duplicar) son casi todo clics → OK**. Pero si una validación
