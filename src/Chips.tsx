@@ -39,22 +39,22 @@ export function TaskTypeChip({ value, onChange, isCompact = false }: any) {
       <button 
         ref={buttonRef}
         onClick={handleOpen}
-        className={`h-6 px-2 py-0.5 rounded-lg flex items-center justify-center gap-1 border transition-all ${
-          isCore 
-            ? 'bg-turquesa/10 border-turquesa/40 text-turquesa shadow-sm shadow-turquesa/20 hover:border-turquesa' 
-            : 'bg-rosa/10 border-rosa/30 text-rosa shadow-sm shadow-rosa/20 hover:border-rosa'
+        className={`h-6 flex items-center justify-center gap-1 transition-all hover:opacity-80 ${
+          isCore
+            ? 'dark:text-core text-core-light'
+            : 'dark:text-adhoc text-adhoc-light'
         }`}
         title={isCore ? 'Puesto de Trabajo (CORE)' : 'Tarea Puntual (Ad-hoc)'}
       >
         {isCore ? (
           <>
-            <Compass size={10} strokeWidth={2.5} />
-            {!isCompact && <span className="text-[8px] font-black uppercase tracking-widest leading-none">Core</span>}
+            <Compass size={13} strokeWidth={2.5} />
+            {!isCompact && <span className="text-[11px] font-medium leading-none">Core</span>}
           </>
         ) : (
           <>
-            <div className="w-2 h-2 rounded-full bg-current shadow-[0_0_8px_rgba(251,113,133,0.4)]" />
-            {!isCompact && <span className="text-[8px] font-black uppercase tracking-widest leading-none ml-0.5">Ad-hoc</span>}
+            <div className="w-2.5 h-2.5 rounded-full bg-current" />
+            {!isCompact && <span className="text-[11px] font-medium leading-none ml-0.5">Ad-hoc</span>}
           </>
         )}
       </button>
@@ -79,8 +79,8 @@ export function TaskTypeChip({ value, onChange, isCompact = false }: any) {
                 <button 
                   onClick={() => { onChange('core'); setShow(false); }}
                   className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
-                    isCore 
-                      ? 'bg-turquesa text-white' 
+                    isCore
+                      ? 'bg-core text-white'
                       : 'dark:hover:bg-white/5 hover:bg-bg-main-light/50 dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light'
                   }`}
                 >
@@ -90,8 +90,8 @@ export function TaskTypeChip({ value, onChange, isCompact = false }: any) {
                 <button 
                   onClick={() => { onChange('adhoc'); setShow(false); }}
                   className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
-                    !isCore 
-                      ? 'bg-rosa text-white' 
+                    !isCore
+                      ? 'bg-adhoc text-white'
                       : 'dark:hover:bg-white/5 hover:bg-bg-main-light/50 dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light'
                   }`}
                 >
@@ -135,14 +135,14 @@ export function TimePickerChip({ value, onChange }: any) {
       <button
         ref={buttonRef}
         onClick={handleOpen}
-        className={`h-6 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-1 ${
+        className={`h-6 rounded transition-all flex items-center gap-1 text-[11px] font-medium tabular-nums ${
           value
-            ? 'bg-azul/10 border-azul text-azul shadow-sm'
-            : 'border-dashed dark:bg-bg-main bg-white dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul'
+            ? 'px-0.5 dark:text-azul text-azul-light'
+            : 'px-1.5 border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main border-border-main-light dark:text-text-secondary/70 text-text-secondary-light/70 hover:border-azul hover:text-azul'
         }`}
         title={value ? `Hora: ${value}` : 'Añadir hora'}
       >
-        <Clock size={9} />
+        <Clock size={11} />
         {value && <span>{value}</span>}
       </button>
       <AnimatePresence>
@@ -205,10 +205,10 @@ export function DatePickerChip({ value, onChange, dropUp = false }: any) {
       <button 
         ref={buttonRef}
         onClick={handleToggle}
-        className={`h-6 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all ${
+        className={`h-6 rounded transition-all flex items-center text-[11px] font-medium tabular-nums ${
           isSinFecha
-            ? 'border-dashed dark:bg-bg-main bg-white dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light'
-            : 'bg-turquesa/10 border-turquesa text-turquesa shadow-sm'
+            ? 'px-1.5 border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main border-border-main-light dark:text-text-secondary/70 text-text-secondary-light/70 hover:border-turquesa hover:text-turquesa'
+            : 'px-0.5 dark:text-turquesa text-turquesa-light'
         }`}
       >
         {label}
@@ -601,16 +601,14 @@ export function TagPickerChip({ selectedTags = [], onChange }: any) {
         className="flex items-center gap-1 cursor-pointer"
       >
         {selectedTags.length > 0 ? (
-          <div className="flex -space-x-1.5 h-6 items-center">
+          <div className="flex items-center gap-0.5 h-6">
             {selectedTags.map((t: any) => (
-              <span key={t} className="w-5 h-5 rounded-md dark:bg-bg-card bg-white border-2 border-naranja flex items-center justify-center shadow-md ring-2 dark:ring-bg-main ring-white">
-                <span className="text-[11px]">{TAG_LABELS[t].icon}</span>
-              </span>
+              <span key={t} className="text-[13px] leading-none" title={TAG_LABELS[t]?.label || t}>{TAG_LABELS[t].icon}</span>
             ))}
           </div>
         ) : (
-          <div className="w-6 h-6 rounded-lg border-dashed dark:bg-bg-main bg-white border-2 dark:border-border-main/30 border-naranja/70 flex items-center justify-center opacity-60 hover:opacity-90 dark:hover:border-border-main hover:border-naranja transition-all" title="Sin categoría">
-            <span className="text-[11px]">🏷️</span>
+          <div className="w-6 h-6 rounded border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main/40 border-border-main-light flex items-center justify-center opacity-70 hover:opacity-100 transition-all" title="Sin categoría">
+            <span className="text-[13px]">🏷️</span>
           </div>
         )}
       </button>
@@ -751,11 +749,11 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
   return (
     <div className="relative">
       <button ref={buttonRef} onClick={handleOpen}
-        className={`${isMini ? 'h-6 px-1.5' : 'h-6 px-2'} rounded-lg bg-azul/10 border-2 border-azul/50 text-azul font-black uppercase tracking-widest transition-all flex items-center gap-1 shadow-sm ${readonly ? 'opacity-60 cursor-default' : 'hover:bg-azul/20'}`}
+        className={`h-6 rounded transition-all flex items-center gap-1 text-[11px] font-medium tabular-nums dark:text-azul text-azul-light ${readonly ? 'opacity-70 cursor-default' : 'hover:opacity-80'}`}
         title={readonly ? 'Suma de subtareas' : 'Editar tiempo estimado'}
       >
-        <Clock size={9} />
-        <span className="text-[11px]">{label}</span>
+        <Clock size={11} />
+        <span>{label}</span>
       </button>
       <AnimatePresence>
         {show && !readonly && (
@@ -787,14 +785,14 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
   const label = formatMinutes(safeValue);
   const COLOR = '#14B8A6';
 
-  let color = '#94A3B8'; let bg = 'transparent'; let border = '#CBD5E1';
-  if (safeValue > 0 && estimated > 0 && safeValue > estimated) {
-    color = '#EC4899'; bg = 'rgba(236,72,153,0.1)'; border = 'rgba(236,72,153,0.5)';
-  } else if (safeValue > 0 && estimated > 0 && safeValue >= estimated * 0.9) {
-    color = '#F97316'; bg = 'rgba(249,115,22,0.1)'; border = 'rgba(249,115,22,0.5)';
-  } else if (safeValue > 0) {
-    color = '#84CC16'; bg = 'rgba(132,204,22,0.1)'; border = 'rgba(132,204,22,0.5)';
-  }
+  // §7.3 + decisión: morado plano (tenue en 0m, pleno cuando hay tiempo). El único estado
+  // excepcional es haberse pasado del estimado → alerta (naranja). Sin semáforo de 3 colores.
+  const isOver = safeValue > 0 && estimated > 0 && safeValue > estimated;
+  const colorCls = isOver
+    ? 'dark:text-naranja text-naranja-light'
+    : safeValue > 0
+      ? 'dark:text-registrado text-registrado-light'
+      : 'dark:text-registrado/40 text-registrado-light/60';
 
   const handleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -830,11 +828,11 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
   return (
     <div className="relative">
       <button ref={buttonRef} onClick={handleOpen}
-        className="h-6 px-2 py-0.5 rounded-lg font-black uppercase tracking-widest transition-all border shadow-sm flex items-center gap-1 hover:opacity-80"
-        style={{ color, backgroundColor: bg, borderColor: border }}
+        className={`h-6 rounded transition-all flex items-center gap-1 text-[11px] font-medium tabular-nums hover:opacity-80 ${colorCls}`}
+        title="Registrar tiempo"
       >
-        <Target size={9} />
-        <span className="text-[11px]">{label}</span>
+        <Target size={11} />
+        <span>{label}</span>
       </button>
 
       <AnimatePresence>
@@ -960,13 +958,13 @@ export function BlockPickerChip({ value, blocks = [], onChange }: any) {
       <button
         ref={buttonRef}
         onClick={toggleShow}
-        className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border tracking-tighter whitespace-nowrap shadow-sm dark:bg-bg-main bg-white dark:border-border-main border-border-main-light flex items-center gap-1.5 shrink-0 hover:shadow-md transition-all"
+        className="text-[11px] font-medium px-0.5 whitespace-nowrap flex items-center gap-1 shrink-0 hover:opacity-80 transition-all"
         style={{ color: selectedBlock?.color || '#64748b' }}
         title="Cambiar contexto"
       >
         <span>{selectedBlock?.icon || '📁'}</span>
         {selectedBlock?.name && <span>{selectedBlock.name}</span>}
-        <ChevronDown size={10} />
+        <ChevronDown size={11} />
       </button>
 
       <AnimatePresence>
@@ -1093,14 +1091,14 @@ export function DelegationChip({ delegation, people = [], onChange, onAddPerson,
       <button
         ref={buttonRef}
         onClick={toggleShow}
-        className={`h-6 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-1 ${
+        className={`h-6 rounded transition-all flex items-center gap-1 text-[11px] font-medium ${
           person
-            ? 'bg-azul/10 border-azul text-azul shadow-sm'
-            : 'border-dashed dark:bg-bg-main bg-white dark:border-border-main/30 border-azul/30 dark:text-text-secondary/40 text-text-secondary-light/40 dark:hover:text-text-secondary hover:text-text-secondary-light dark:hover:border-border-main hover:border-azul transition-all'
+            ? 'px-0.5 dark:text-rosa text-rosa-light'
+            : 'px-1.5 border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main/40 border-border-main-light dark:text-text-secondary/70 text-text-secondary-light/70 hover:border-rosa hover:text-rosa'
         }`}
         title={person ? `Delegado a ${person.name}` : 'Delegar tarea'}
       >
-        <User size={10} />
+        <User size={11} />
         {person && <span>{person.name}</span>}
       </button>
 

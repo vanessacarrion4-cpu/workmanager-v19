@@ -178,7 +178,7 @@ export function TaskCard({
           {task.attachments && task.attachments.length > 0 && (
             <span title={`${task.attachments.length} adjunto${task.attachments.length > 1 ? 's' : ''}`} className="flex items-center gap-0.5 shrink-0">
               <Paperclip size={10} className="text-azul" />
-              {task.attachments.length > 1 && <span className="text-[9px] font-black text-azul">{task.attachments.length}</span>}
+              {task.attachments.length > 1 && <span className="text-[11px] font-bold text-azul tabular-nums">{task.attachments.length}</span>}
             </span>
           )}
           <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light shrink-0">
@@ -400,7 +400,7 @@ export function TaskCard({
               {task.attachments && task.attachments.length > 0 && (
                 <span title={`${task.attachments.length} adjunto${task.attachments.length > 1 ? 's' : ''}`} className="flex items-center gap-0.5 shrink-0">
                   <Paperclip size={10} className="text-azul opacity-70" />
-                  {task.attachments.length > 1 && <span className="text-[9px] font-black text-azul">{task.attachments.length}</span>}
+                  {task.attachments.length > 1 && <span className="text-[11px] font-bold text-azul tabular-nums">{task.attachments.length}</span>}
                 </span>
               )}
               {/* Badge circular subtareas pendientes */}
@@ -418,7 +418,7 @@ export function TaskCard({
                       e.preventDefault();
                       onToggleExpand(task.id);
                     }}
-                    className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30 cursor-pointer"
+                    className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30 cursor-pointer tabular-nums"
                   >
                     {String(pendingCount)}
                   </button>
@@ -481,12 +481,9 @@ export function TaskCard({
                     }
                     else label = freq;
                     return (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <div className="flex items-center gap-1 px-2 py-1 rounded-lg border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5" title="Tarea recurrente">
-                          <RefreshCw size={9} className="text-turquesa shrink-0" />
-                          <span className="text-[10px] font-black text-turquesa uppercase tracking-wide">{label}</span>
-                        </div>
-
+                      <div className="flex items-center gap-1 shrink-0" title="Tarea recurrente">
+                        <RefreshCw size={11} className="dark:text-turquesa text-turquesa-light shrink-0" />
+                        <span className="text-[11px] font-medium dark:text-turquesa text-turquesa-light">{label}</span>
                       </div>
                     );
                   })()}
@@ -640,7 +637,7 @@ export function TaskCard({
               <button
                 onClick={(e) => { e.stopPropagation(); onUpdateTask({ ...task, onHold: !task.onHold }); }}
                 title={task.onHold ? 'Quitar en suspenso' : 'Marcar en suspenso (esperando algo)'}
-                className={`w-6 h-6 flex items-center justify-center rounded-lg transition-all border ${task.onHold ? 'text-naranja bg-naranja/10 border-naranja/30' : 'dark:text-text-secondary text-text-secondary-light bg-transparent border-transparent hover:text-naranja hover:bg-naranja/5'}`}
+                className={`w-6 h-6 flex items-center justify-center rounded-lg transition-all border ${task.onHold ? 'dark:text-naranja text-naranja-light dark:bg-naranja/10 bg-naranja-light/10 dark:border-naranja/30 border-naranja-light/30' : 'dark:text-text-secondary text-text-secondary-light bg-transparent border-transparent dark:hover:text-naranja hover:text-naranja-light'}`}
               >
                 <Hourglass size={12} />
               </button>
