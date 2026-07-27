@@ -717,6 +717,13 @@ prueba, y si está bien se sigue.
      Antes de dropear hay que quitar ese literal de TODOS los writers (`useTaskCRUD`, `useBulkActions`, `useTaskOrdering`,
      `App.tsx`) y confirmar por grep que **nadie** manda ya la clave `priority`.
   3. Solo entonces: **backup de `tasks`** → `alter table tasks drop column priority;`. Y de paso limpiar el hook muerto `useSupabaseData.ts`.
+- **(i) Error de consola PRE-EXISTENTE en `RegisteredTimeChip`** (sesión 13, no de la fila V20 —
+  verificado por `stash` contra `379d074`, aparece igual). Salta en el **montaje inicial** de Mi Día,
+  dentro de la maquinaria de medición de framer-motion (`AnimatePresence`/`PopChild`/`PopChildMeasure`
+  + `Reorder`); lo captura un error boundary y **la app funciona entera** (recupera). NO se reproduce al
+  redimensionar ni al expandir. Investigar aparte: probable choque de `AnimatePresence` anidados
+  (popup de RegisteredTimeChip dentro de las subtareas dentro del `Reorder.Group` del Dashboard). Bajo
+  impacto (solo ruido de consola), pero conviene silenciarlo.
 
 ---
 
