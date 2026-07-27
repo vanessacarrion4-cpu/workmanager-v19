@@ -233,7 +233,10 @@ Con 49 tareas → 12 caben en pantalla.
 `checkbox · tipo · [fecha*] · hora · recurrencia · etiqueta · delegación · estimado · registrado · bloque · ↗`
 + en hover: `▶ ✎ 🗑 +`
 
-\* La fecha NO se muestra en el Dashboard del día (redundante). SÍ en las demás vistas.
+\* **En Mi Día, la fecha se muestra SOLO como icono de calendario** (sin el texto de la fecha,
+que es redundante), pero **clicable**: ese chip NO es solo información, **es el control de mover
+la tarea a otro día**. Ocultarlo del todo (como se hizo primero) fue una regresión — se perdía el
+mover desde la fila. En las demás vistas, la fecha va con su texto visible.
 
 **Fila de contenedor (padre):** solo 4 chips
 `checkbox · tipo · título + nº hijas · estimado (suma) · registrado (suma) · bloque · + (fijo) · ↗`

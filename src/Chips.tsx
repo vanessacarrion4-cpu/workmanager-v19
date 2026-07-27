@@ -182,7 +182,7 @@ export function TimePickerChip({ value, onChange }: any) {
 }
 
 
-export function DatePickerChip({ value, onChange, dropUp = false }: any) {
+export function DatePickerChip({ value, onChange, dropUp = false, iconOnly = false }: any) {
   const [show, setShow] = useState(false);
   const [showFullCalendar, setShowFullCalendar] = useState(false);
   const [modalPos, setModalPos] = useState({ top: 0, left: 0 });
@@ -205,13 +205,17 @@ export function DatePickerChip({ value, onChange, dropUp = false }: any) {
       <button 
         ref={buttonRef}
         onClick={handleToggle}
-        className={`h-6 rounded transition-all flex items-center text-[11px] font-medium tabular-nums ${
-          isSinFecha
-            ? 'px-1.5 border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main border-border-main-light dark:text-text-secondary/70 text-text-secondary-light/70 hover:border-turquesa hover:text-turquesa'
-            : 'px-0.5 dark:text-turquesa text-turquesa-light'
-        }`}
+        className={iconOnly
+          ? `h-6 flex items-center px-0.5 transition-all ${isSinFecha ? 'dark:text-text-secondary/70 text-text-secondary-light/70 hover:text-turquesa' : 'dark:text-turquesa text-turquesa-light hover:opacity-80'}`
+          : `h-6 rounded transition-all flex items-center text-[11px] font-medium tabular-nums ${
+              isSinFecha
+                ? 'px-1.5 border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main border-border-main-light dark:text-text-secondary/70 text-text-secondary-light/70 hover:border-turquesa hover:text-turquesa'
+                : 'px-0.5 dark:text-turquesa text-turquesa-light'
+            }`
+        }
+        title={iconOnly ? (isSinFecha ? 'Poner fecha / mover a otro día' : `${label} — mover a otro día`) : undefined}
       >
-        {label}
+        {iconOnly ? <CalendarIcon size={13} /> : label}
       </button>
  
       <AnimatePresence>

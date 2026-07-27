@@ -445,10 +445,13 @@ export function TaskCard({
               </span>
             ) : (
               <div className="flex items-center gap-1 shrink-0">
-                  {/* Fecha — oculta en Mi Día (§7.2: redundante en el Dashboard del día) */}
-                  {!hasSubtasks && variant !== 'DASHBOARD' && (
+                  {/* Fecha — en Mi Día solo el ICONO de calendario (el texto de fecha es
+                      redundante, pero el chip ES el control para mover a otro día; §7.2).
+                      En el resto de vistas, con la fecha visible. */}
+                  {!hasSubtasks && (
                     <DatePickerChip
                       value={task.dueDate}
+                      iconOnly={variant === 'DASHBOARD'}
                       onChange={(date: string) => {
                         if (task.templateId) {
                           onRecurrenceDateChange && onRecurrenceDateChange(task, date);
@@ -602,16 +605,7 @@ export function TaskCard({
                       onChange={(blockId: string) => onUpdateTask({ ...task, blockId })}
                     />
                   )}
-                  {/* Ir a Bloques — solo en hover (§7.2), excepto en BlocksView (variant FULL) */}
-                  {onGoToTemplate && variant !== 'FULL' && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId || task.id); }}
-                      className="flex items-center justify-center w-5 h-5 rounded border dark:border-turquesa/30 border-turquesa/40 dark:bg-turquesa/10 bg-turquesa/5 hover:bg-turquesa/20 transition-colors shrink-0 opacity-0 group-hover/row:opacity-100"
-                      title="Ir a Bloques"
-                    >
-                      <ArrowUpRight size={10} className="text-turquesa" />
-                    </button>
-                  )}
+                  {/* ↗ Ir a Bloques retirado (§7.2 opción 1): el chip de bloque ya da ese contexto. */}
               </div>
             )}
 
