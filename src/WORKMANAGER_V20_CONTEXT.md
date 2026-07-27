@@ -1230,7 +1230,7 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
   B4-parte-1 (no hay paso separado). Tras B4, los writes van a `null` → no re-contamina → no amplifica. Crecimiento
   es **user-driven** (solo al editar/mover series contaminadas); no crece mientras se validan fixtures.
 
-### 13.15 ⏸️ PUNTO DE RETOMA (fin sesión 12) — retomar por B4-cambio-1
+### 13.15 ⏸️ PUNTO DE RETOMA — retomar por B5 (B4 cerrada en sesión 13)
 
 **Estado de fases (rama `refactor-v20`, árbol limpio):**
 | Fase | Estado | Commits (código) |
@@ -1242,7 +1242,9 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
 | B2 (borrar virgen: hija con `materializeInstanceById`) | ✅ hecho + validado (contenedor+hija) | `052510a` |
 | B3 (editar virgen → modal, editor con datos reales) | ✅ hecho + validado (Semana, día≠activo) | `8d4f782` |
 | `findVacated` (contenedor movido no duplica) | ✅ hecho + validado (43 tests + A/B en vivo) | `3fa2be0` |
-| **B4 (mover + null + retirar contaminación)** | ⏸️ **SIGUIENTE** | — |
+| B4-cambio-1 (retirar contaminación edición + null) | ✅ hecho + validado (Semana, día≠activo) | `fb2a57b` |
+| B4-cambio-2 (mover subtarea: `parent_task_id→null` + retira dead code) | ✅ hecho + validado en vivo (forma de fila + no-contaminación + recarga) | `66649e8` (+`cb6f4fd` dev) |
+| **B5 (promote/demote de virgen)** | ⏸️ **SIGUIENTE** (turno aparte) | — |
 
 **B4 — dos commits (plan detallado en §13.14):**
 - **B4-cambio-1 (contaminación + null)**: en `handleUpdateTask` ([useTaskCRUD.ts:473-504](useTaskCRUD.ts)) quitar el
@@ -1261,12 +1263,13 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
 
 **Entorno vivo (recordatorio para retomar):**
 - **Fixture de prueba** `t-1785089440019` "Test Recurrent B1" + 3 hijas (`t-1785089472309/481020/493867`), creado en
-  la app; días ya consumidos: 2028-01-15/16/17, 02-01, 02-08, 03-06/13. **Convención**: una fecha nueva por fase
+  la app; días ya consumidos: 2028-01-15/16/17, 02-01, 02-08, 03-06/13, 04-03, 05-10, 05-12. **Convención**: una fecha nueva por fase
   (§13.11). **Cleanup del fixture** cuando ya no haga falta:
   `delete from tasks where id in ('t-1785089440019','t-1785089472309','t-1785089481020','t-1785089493867') or template_id in (los mismos 4);`
-- **Código DEV-ONLY a RETIRAR en D2**: `window.__tasks` + `window.__goToDate` ([App.tsx](App.tsx)) y el spy de
-  escrituras (`devFetch`/`window.__spy` en [supabaseClient.ts](supabaseClient.ts), commit `2609be0`). Uso: leer
-  `window.__spy` en llamada APARTE (se puebla tras un tick).
+- **Código DEV-ONLY a RETIRAR en D2**: `window.__tasks` + `window.__goToDate` + `window.__materializeDay`
+  ([App.tsx](App.tsx), este último en `cb6f4fd`) y el spy de escrituras (`devFetch`/`window.__spy` en
+  [supabaseClient.ts](supabaseClient.ts), commit `2609be0`). Uso: leer `window.__spy` en llamada APARTE (se puebla
+  tras un tick). `window.__materializeDay(dia, window.__tasks)` = materializa cualquier día sin cambiar el activo.
 - **⚠️ PRODUCCIÓN hasta el merge de B4 a master**: NO mover/editar las 4 series contaminadas ("Pago nóminas",
   "Pagos mensuales", "Cierre Propias", "Cierre Central Rec") — cada edición añade filas anidadas (bucle vivo).
 - **Limpieza de contaminación** = fase propia **DESPUÉS de fusionar B4 a master** (§13.14). El **conteo del SQL**
@@ -1274,7 +1277,7 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
 - **Requisito de validación fijo** (§13.13): cada fase B/C y el ensayo D0 se prueban también desde un **día ≠ activo**
   (vía Semana), no solo con `__goToDate` (que hace activo el día probado → enmascara).
 
-### 13.16 Estado B4 (sesión 13) — cambio-1 HECHO; cambio-2 pendiente
+### 13.16 Estado B4 (sesión 13) — cambio-1 y cambio-2 HECHOS Y VALIDADOS ✅ (B4 CERRADA)
 - **B4-cambio-1 ✅ HECHO Y COMMITEADO (`fb2a57b`)**: en `handleUpdateTask`, retiradas las 3 líneas de
   contaminación del bloque de reconexión-a-plantilla (push a `template.subtasks`; `parent_task_id` memoria + persist
   `realParentTemplateId` → `null`). La propagación de `isTemplate` al padre (506-516) INTACTA. Scope: entero dentro
@@ -1291,10 +1294,18 @@ id de plantilla (FIX sesión 10) o inst- virtual corrompe/cuelga. → unificar T
   modal de fecha), **NO lo relee de `tasks`/`dashboardTasks`** → mover una virgen **ya funcionaba** (persistía el
   upsert new-date). No hay gap de materialización aquí (a diferencia de toggle/delete que sí leen `tasks[id]`).
   → **cambio-2 se reduce a QUITAR LA CONTAMINACIÓN**: el write del move de subtarea recurrente escribía
-  `parent_task_id = plantilla` ([useTaskCRUD.ts:639](useTaskCRUD.ts), vía `resolveParentIdForSupabase`, el "FIX
-  Bug4") — 2º escritor de `parent→plantilla` además del de cambio-1. **Fix = una línea → `null`**. `instanceDate`/
-  `dueDate` ya se escribían bien; `materializeDay` re-anida en el destino por `templateId`. (No reclamar trabajo
-  instance-aware que no era necesario.)
+  `parent_task_id = plantilla` (rama `_isSubtaskDateChange` de `handleUpdateTask`, vía `resolveParentIdForSupabase`,
+  el "FIX Bug4") — 2º escritor de `parent→plantilla` además del de cambio-1. **Fix = una línea → `null`**.
+  `instanceDate`/`dueDate` ya se escribían bien; `materializeDay` re-anida en el destino por `templateId`. (No
+  reclamar trabajo instance-aware que no era necesario.)
+  - **✅ HECHO (sesión 13, `66649e8`)**: `parent_task_id → null` + retirado `resolveParentIdForSupabase` (sin
+    llamadas tras cambio-1+cambio-2). Instrumentación `window.__materializeDay` en `cb6f4fd` (dev-only, D2). build+43/43.
+  - **✅ VALIDADO EN VIVO** (fixture, mover **Test hija1** `2028-05-10 → 05-12` desde Mi Día vía `DatePickerChip`→
+    "Solo este día", +recarga). Forma de la fila UPSERT comprobada (no solo que persista): `id=inst-t-1785089472309-
+    2028-05-12`, `parent_task_id=null`, `is_exception=true`, `template_id=t-1785089472309`, `instance_date=2028-05-10`,
+    `due_date=2028-05-12`, título/block/status/order poblados (no "a medias"). Tras `reconstructHierarchy` al recargar:
+    `template.subtasks=[Hija2,Hija3,hija1]` (los 3 ids de plantilla, **cero `inst-`** → sin contaminación). Render:
+    05-10 vaciado (sin hija1), 05-12 anida hija1 bajo su contenedor. **Día 2028-05-10/05-12 CONSUMIDOS** (ver §13.11).
 - **Disparo del move (sesión 13)**: solo desde el **`DatePickerChip`** de filas `!hasSubtasks` (hojas/subtareas)
   en Mi Día / drawer del Calendario / Bloques / Delegadas / Search. **NO desde Semana** (ver §11.1) ni sobre
   **contenedores** (no llevan chip de fecha). El contenedor-move (los 3 reales) vino de otro mecanismo; su
