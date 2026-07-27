@@ -352,7 +352,16 @@ Se mantiene. Referencia:
 - `text-text-secondary/40` sobre fondo oscuro está por debajo de WCAG AA → subir
 - Sustituir los 4 `confirm()` nativos por modales propios o toasts
 - Iconos de bloque: emojis → SVG lucide (renderizan distinto por SO)
-- Densidad compacta como toggle (36px vs 56px de fila)
+- ~~Densidad compacta como toggle (36px vs 56px de fila)~~ **ANULADO** por §7.11.1: fila fija 29px, sin toggle.
+
+### 7.11 Decisiones de la fase de diseño (sesión 12 — 27/07/2026)
+
+Tomadas por la usuaria al abrir la fase de diseño. **Prevalecen sobre cualquier otra subsección** si hay contradicción.
+
+1. **Fila fija a 29px, sin interruptor de densidad.** La §7.10 proponía un toggle 36/56px → queda anulado. Manda §7.1: altura única 29px.
+2. **`priority` se elimina** de la interfaz y del tipo `Task`. Verificado que no se usa en ningún orden ni filtro ([filters.ts](filters.ts) no lo referencia; solo es campo de paso). El punto de color de la fila pasa a ser el **tipo**: Puesto/`core` esmeralda `#10B981`, Puntual/`adhoc` ámbar `#F59E0B` (coherente con §7.4). **La columna `priority` de Supabase NO se toca**: se sigue escribiendo su default (`'media'`). Cero riesgo de BD.
+3. **Modo CLARO es la referencia.** La §7.10 está escrita para oscuro; el trabajo visual se valida en claro (el que usa la usuaria). Base de color: ~90% cableada con pares `dark:`/`-light`; gotea en overlays clavados a oscuro (p. ej. popup "mover tarea" de [TaskCard.tsx:210](TaskCard.tsx), arreglado al tocar la fila) → pulido puntual, no reconstrucción de la base.
+4. **Marca "en suspenso" (nueva — parte de la fila V20).** Estado visual para una tarea que no se puede hacer porque **se espera algo**, sin moverla de su sitio ni alterar el orden. Solo marca visual: **sin nota, sin fecha**. Su tiempo **sigue contando** en el pendiente del día (no la excluye de carga). **Convive con la etiqueta "espera"** (§7.5), son cosas distintas: "espera" es etiqueta/grupo del día; "en suspenso" es un flag por fila que NO reagrupa. Persistencia: campo nuevo `onHold?: boolean` en `Task` → requiere columna `on_hold` (boolean) en la tabla `tasks` de Supabase.
 
 ---
 
@@ -698,6 +707,13 @@ prueba, y si está bien se sigue.
   solo se renderiza si `task.recurrence` YA existe ([TaskCard.tsx:485,526](TaskCard.tsx)); una tarea sin
   recurrencia no muestra chip → hay que entrar al modal. **Falta el camino, no está roto** (cambiarla en una que
   ya la tiene sí funciona desde la fila). Encaja con la fila V20 §7.3 (chips vacíos clicables) = paso 4.
+- **(h) Borrar la columna `priority` de Supabase (tabla `tasks`)** — no se usa. Orden OBLIGATORIO para no romper writes:
+  1. ✅ **HECHO (sesión 12):** quitada del código de la app — `Priority`/`Task.priority`/`SubtaskTemplate.priority` fuera;
+     ninguna lectura de `.priority` en código vivo (queda solo en `useSupabaseData.ts`, hook MUERTO no importado).
+  2. **PENDIENTE:** los writes a `tasks` **todavía escriben `priority: 'media'`** (literal) para no violar la columna.
+     Antes de dropear hay que quitar ese literal de TODOS los writers (`useTaskCRUD`, `useBulkActions`, `useTaskOrdering`,
+     `App.tsx`) y confirmar por grep que **nadie** manda ya la clave `priority`.
+  3. Solo entonces: **backup de `tasks`** → `alter table tasks drop column priority;`. Y de paso limpiar el hook muerto `useSupabaseData.ts`.
 
 ---
 
