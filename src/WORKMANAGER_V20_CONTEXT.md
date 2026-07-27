@@ -191,11 +191,11 @@ De 387M a ~40K operaciones. Mejora ~10.000×.
 | 3 | `useTaskOrdering.ts` | `handleExpandAllInBlock` **muta el estado** (`t.isExpanded = expand` sobre objetos compartidos) → React no re-renderiza. |
 | 4 | `useTaskOrdering.ts` | `handleToggleExpandTask` escribe con `.eq('id', taskId)` donde taskId puede ser `inst-...` (fila inexistente). **Causa del bug "despliega la de arriba"**. |
 | 5 | `useSupabase.ts` | `reconstructInstanceHierarchy` empareja por ID construido → cuando `dueDate ≠ instanceDate` engancha al contenedor equivocado. Segunda causa del bug de desplegar. |
-| 6 | `useBulkActions.ts` | `bulkDuplicateTasks` hace `duplicates.push()` **dentro** del updater de `setTasks`. Con StrictMode se ejecuta 2× → **inserts duplicados en Supabase**. |
-| 7 | `useBulkActions.ts` | `bulkUpdateTasks` usa `activeDate` pero **no está en las deps** del useCallback → closure stale al cambiar de día. |
+| 6 | `useBulkActions.ts` | ✅ **RESUELTO** (anti-#6 `be9eed1` + reescrito en C2 `4e748e5`): cálculo fuera del updater, inserts idempotentes. |
+| 7 | `useBulkActions.ts` | ✅ **RESUELTO** (C3 `4e748e5`): `activeDate` ya está en las deps de `bulkUpdateTasks`/`bulkDeleteTasks`. |
 | 8 | `useTimerHandlers.ts` | `handleStartTimer` llama a `handleStopTimer` **antes de definirlo** (TDZ) → `ReferenceError`. |
 | 9 | `useTimerHandlers.ts` | `resolveId` hace `parts.pop()` 3× a ciegas → rompe con templateId que contengan guiones. Usar regex. |
-| 10 | `useGeneration.ts` | Effect depende de `[isDataLoaded, templateKey]` pero lee `tasks` → closure stale. Y `setTasks(cleaned)` corre en paralelo con `postMessage(tasksForWorker)` → datos divergentes. El bloque `preserved` es código muerto. |
+| 10 | ~~`useGeneration.ts`~~ | **N/A — archivo BORRADO en el flip (D2, `d159870`).** El motor viejo ya no existe. |
 
 ### 🟡 Funcionales
 
@@ -1526,3 +1526,46 @@ Las excepciones creadas por el motor nuevo son filas `is_exception` que el motor
   empujar el `inst-` a la plantilla y el doble-render desaparece.
 - Reorder de recurrente cambia todos los días (#15, Fase R) y promover recurrente no hace nada (B5b) — daño conocido, no del merge.
 - Nada más: reading validado idéntico (mismo contador 20) y perf mejor.
+
+### 13.21 Limpieza de contaminación — ❌ CANCELADA (no aplazada)
+**Conteo real** (la usuaria, post-merge en producción, con el SQL de §13.20): **446 filas** `is_exception && parent_task_id → plantilla`,
+repartidas en **24 series** — NO las 4 previstas. Mayores: **Rutinas mañana (132), Gestión campaña (117), Verduras vivas (46),
+Selecció RRHH (24)**. Ninguna de las 4 predichas (Pago nóminas / Pagos mensuales / Cierre Propias / Cierre Central Rec).
+- **El síntoma predicho NO apareció**: esas 24 series se ven **NORMALES** en producción tras el flip — sin duplicar/triplicar.
+- **Decisión: CANCELADA, no aplazada.** Con la predicción fallando no se aplica el tratamiento: no se modifican **446 filas de 24
+  series** (incluida la rutina diaria de la usuaria) para arreglar algo que **no se manifiesta**. Empírico manda sobre el modelo.
+- **Se reabre SOLO con síntoma nuevo**: si alguna vez se ve una tarea **REPETIDA en un día concreto** → diagnóstico nuevo primero,
+  y solo entonces limpiar lo que corresponda (con su propio `WHERE` acotado).
+- **Hipótesis a comprobar cuando toque**: ese `parent_task_id → plantilla` es probablemente **INERTE en V20**, porque `materializeDay`
+  anida las hijas por **PLANTILLA** (reconstruye desde `container.subtasks` de la plantilla y matchea excepciones por `templateId`+día)
+  e **ignora la columna `parent_task_id` de la instancia** para el anidado. Si se confirma, **no hay nada que limpiar nunca**. (El
+  doble-render que sí vimos en B4 era el COMPOUNDING `inst-inst-`, un caso más específico; no se ha reproducido con estas 446 filas.)
+- **No crece**: el código nuevo (cambio-1/2, C2, C3) ya escribe `parent_task_id = NULL` en toda excepción que crea → el conteo NO aumenta con el uso.
+
+### 13.22 ✅ REFACTOR DE DATOS — COMPLETO Y CERRADO (sesión 13)
+- **Fusionado a master** (`dd180a2`, merge `--no-ff` de 69 commits, sin conflictos), **en producción** (Vercel, push a `origin/master`),
+  **verificado por la usuaria** (Mi Día carga, contador **20** coincide, recurrentes salen, completar + recarga persiste), **SIN REGRESIONES**
+  (los 3 fallos hallados al desarrollar eran pre-existentes).
+- **Resultado**: reading 100% por `materializeDay` (puro, síncrono); `useGeneration`/`generation.worker` **BORRADOS**. Se acabó "abrir la
+  app y faltan las recurrentes". **Perf: de ~63 ms a ~43 ms** materializando un mes (y con más tareas). `git tag v20-pre-flip` en `5a8b3a9`
+  (último estado con motor viejo). Rollback de producción en §13.20.
+
+#### ⏭️ PUNTO DE RETOMA — FASE DE DISEÑO (backlog consolidado)
+El refactor de datos está cerrado. Lo siguiente es la **fase de diseño/UI** (§7) + limpiar bugs de fondo. Backlog vivo:
+
+- **§6 bugs conocidos (los que QUEDAN)** — resueltos: #1 (`83a7301`), #6 (anti-#6 + C2), #7 (deps `activeDate` en bulk); **#10 ya N/A**
+  (`useGeneration` borrado). **Pendientes**: #2 (handleDeleteBlock no persiste), #3 (handleExpandAllInBlock muta estado), #4
+  (handleToggleExpandTask `.eq(inst-)` → no persiste expand de virgen), #5 (reconstructInstanceHierarchy empareja mal si `dueDate≠instanceDate`),
+  #8 (handleStartTimer TDZ), #9 (resolveId `pop()` 3× rompe con guiones), #11 (isTaskCompleted ignora `instanceDate`), #12 (getStatsForDay
+  `registered` sin filtrar bloque), #13 (repairRecurringContainers escribe en cada carga), #14 (handleResetData trampa mortal bajo ⚙️),
+  **#15 (reorder escribe `order` en la plantilla = Fase R, diferida)**, #16 (tiempos descuadran tras F5), #17 (adjuntos no persisten).
+  Menor nuevo: `bulkDuplicateTasks` usa `activeDate` en su resolver pero no en deps (staleness teórica; el fallback casi nunca se alcanza).
+- **§8 funcionalidades nuevas V20**: 8.1–8.9 🟢 hechas; **8.10** promover/degradar-**serie** de recurrentes (= B5b, con modal) 🔵; y la
+  variante **per-día** de promover (feature de motor: desanclaje por-día en `materializeDay`/`filters`) aún más adelante.
+- **§11.1 backlog UX/diseño**: (a) Dashboard no muestra el mes al hacer scroll; (b) navegación de fechas del Calendario (salto directo a
+  mes/año — sustituye al `__goToDate` dev, ya borrado); (d) `TaskModal` sin guard de título vacío; (e) desde **Semana** no se puede mover;
+  (f) desde **Bloques** no se completan recurrentes; (g) **Calendario** sin icono de completar en el día.
+- **Diferidos de estos días**: reorder-#15 (Fase R) · B5b/per-día (§8.10) · **limpieza de contaminación CANCELADA** (§13.21, solo si aparece síntoma).
+- **Entorno**: los dev-hooks (`__tasks`/`__goToDate`/`__materializeDay`/spy) están **borrados** (D2) → validar trabajo futuro requiere
+  reinstrumentar si hace falta. El **fixture** "Test Recurrent B1" (`t-1785089440019` + 3 hijas, `startDate 2028-01-01`) sigue en la DB con
+  días 2028 consumidos (excepciones de validación); **borrarlo cuando ya no haga falta** (query en §13.15). No estorba (carga cero: fuera de vista).
