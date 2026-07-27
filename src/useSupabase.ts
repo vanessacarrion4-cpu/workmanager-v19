@@ -342,6 +342,7 @@ export function useSupabase({
               isDeleted: t.is_deleted,
               isExpanded: t.is_expanded,
               taskType: t.task_type,
+              onHold: t.on_hold ?? false,
               parentTaskId: t.parent_task_id,
               templateId: t.template_id,
               instanceDate: t.instance_date,

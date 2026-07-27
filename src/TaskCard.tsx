@@ -8,8 +8,8 @@ import {
   Edit, Trash2, Check, X, Clock, RefreshCw, GripVertical,
   Paperclip, Maximize2, Minimize2, ArrowUpLeft, ArrowDownRight,
   ChevronsUp, ChevronsDown, Copy, Play, Pause, MoreVertical,
-  Plus, ChevronDown, ChevronUp, ArrowUpRight, Calendar as CalendarIcon,
-  Eye, EyeOff, CheckCircle2, Circle, Info, Tag
+  Plus, ChevronDown, ChevronUp, ChevronLeft, ArrowUpRight, Calendar as CalendarIcon,
+  Eye, EyeOff, CheckCircle2, Circle, Info, Tag, Hourglass
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { WorkBlock, Task, TagType, TimeEntry, Person } from './types';
@@ -208,37 +208,37 @@ export function TaskCard({
                     <div className="fixed inset-0 z-[210]" onClick={() => { setShowMovePicker(false); setShowMoveCalendar(false); }} />
                     <motion.div
                       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-                      className="fixed bottom-4 right-4 z-[220] bg-bg-card border border-border-main rounded-2xl shadow-2xl p-4 w-[220px]"
+                      className="fixed bottom-4 right-4 z-[220] dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 w-[220px]"
                     >
                       {!showMoveCalendar ? (
                         <div className="space-y-2">
                           {task.templateId && (
-                            <p className="text-[9px] font-black text-text-secondary uppercase tracking-widest text-center pb-1 border-b border-border-main/50">
+                            <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest text-center pb-1 border-b dark:border-border-main/50 border-border-main-light/50">
                               Solo esta instancia
                             </p>
                           )}
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               onClick={(e) => { e.stopPropagation(); handleMoveTask(formatLocalISO(new Date())); }}
-                              className="flex flex-col items-center gap-1 p-3 bg-bg-main rounded-xl border border-border-main hover:border-turquesa transition-all group"
+                              className="flex flex-col items-center gap-1 p-3 dark:bg-bg-main bg-bg-secondary-light rounded-xl border dark:border-border-main border-border-main-light hover:border-turquesa transition-all group"
                             >
-                              <span className="text-[10px] font-black text-white uppercase tracking-widest group-hover:text-turquesa">Hoy</span>
-                              <span className="text-[8px] text-text-secondary">{new Date().getDate()}</span>
+                              <span className="text-[10px] font-black dark:text-white text-text-main-light uppercase tracking-widest group-hover:text-turquesa">Hoy</span>
+                              <span className="text-[8px] dark:text-text-secondary text-text-secondary-light">{new Date().getDate()}</span>
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); const m = new Date(); m.setDate(m.getDate() + 1); handleMoveTask(formatLocalISO(m)); }}
-                              className="flex flex-col items-center gap-1 p-3 bg-bg-main rounded-xl border border-border-main hover:border-turquesa transition-all group"
+                              className="flex flex-col items-center gap-1 p-3 dark:bg-bg-main bg-bg-secondary-light rounded-xl border dark:border-border-main border-border-main-light hover:border-turquesa transition-all group"
                             >
-                              <span className="text-[10px] font-black text-white uppercase tracking-widest group-hover:text-turquesa">Mañana</span>
-                              <span className="text-[8px] text-text-secondary">{(() => { const d = new Date(); d.setDate(d.getDate()+1); return d.getDate(); })()}</span>
+                              <span className="text-[10px] font-black dark:text-white text-text-main-light uppercase tracking-widest group-hover:text-turquesa">Mañana</span>
+                              <span className="text-[8px] dark:text-text-secondary text-text-secondary-light">{(() => { const d = new Date(); d.setDate(d.getDate()+1); return d.getDate(); })()}</span>
                             </button>
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); setShowMoveCalendar(true); }}
-                            className="w-full flex items-center justify-between p-3 bg-bg-main rounded-xl border border-border-main hover:border-azul transition-all group"
+                            className="w-full flex items-center justify-between p-3 dark:bg-bg-main bg-bg-secondary-light rounded-xl border dark:border-border-main border-border-main-light hover:border-azul transition-all group"
                           >
-                            <span className="text-[10px] font-black text-white uppercase tracking-widest group-hover:text-azul">Elegir fecha</span>
-                            <CalendarIcon size={14} className="text-text-secondary group-hover:text-azul" />
+                            <span className="text-[10px] font-black dark:text-white text-text-main-light uppercase tracking-widest group-hover:text-azul">Elegir fecha</span>
+                            <CalendarIcon size={14} className="dark:text-text-secondary text-text-secondary-light group-hover:text-azul" />
                           </button>
                         </div>
                       ) : (
@@ -250,7 +250,7 @@ export function TaskCard({
                             >
                               <ChevronLeft size={12} /> Volver
                             </button>
-                            <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">Mensual</span>
+                            <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Mensual</span>
                           </div>
                           <MonthDatePicker
                             value={task.dueDate}
@@ -304,26 +304,26 @@ export function TaskCard({
             onToggleTaskSelection(task.id, task.subtasks || []);
           } : undefined}
         >
-          {/* Main Row */}
-          <div className="flex items-center gap-2 px-4 py-2.5 pl-3">
+          {/* Main Row — una sola línea, 29px */}
+          <div className={`flex items-center gap-1.5 px-3 min-h-[29px] ${task.onHold ? 'opacity-60' : ''}`}>
 
-            {/* Flechitas reordenar - hover */}
-            <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            {/* Flechitas reordenar - hover, compactas para no forzar la altura de la fila */}
+            <div className="flex flex-col gap-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
               <button
                 onClick={() => onMoveUp && onMoveUp()}
                 disabled={taskIndex === 0}
-                className={`w-5 h-5 flex items-center justify-center rounded-md transition-all ${taskIndex === 0 ? 'text-text-secondary/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
+                className={`w-4 h-3 flex items-center justify-center rounded transition-all ${taskIndex === 0 ? 'text-text-secondary/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
                 title="Subir"
               >
-                <ChevronUp size={12} />
+                <ChevronUp size={11} />
               </button>
               <button
                 onClick={() => onMoveDown && onMoveDown()}
                 disabled={taskIndex === taskCount - 1}
-                className={`w-5 h-5 flex items-center justify-center rounded-md transition-all ${taskIndex === taskCount - 1 ? 'text-text-secondary/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
+                className={`w-4 h-3 flex items-center justify-center rounded transition-all ${taskIndex === taskCount - 1 ? 'text-text-secondary/20 cursor-not-allowed' : 'dark:text-text-secondary text-text-secondary-light hover:text-turquesa hover:bg-turquesa/10'}`}
                 title="Bajar"
               >
-                <ChevronDown size={12} />
+                <ChevronDown size={11} />
               </button>
             </div>
 
@@ -362,70 +362,79 @@ export function TaskCard({
               }
             </button>
 
-            {/* Contenido: título + chips */}
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-col gap-1">
-                {/* Fila título */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                    <div className="relative flex-1 min-w-0">
-                      <input 
-                        autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
-                        className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none min-w-0 w-full truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
-                        value={task.title}
-                        onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
-                        onBlur={() => { 
-                          if(editingTaskId === task.id) onEditTask(null);
-                          if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
-                        }}
-                        onKeyDown={(e) => { 
-                          if(e.key === 'Enter') {
-                            if(editingTaskId === task.id) onEditTask(null);
-                            if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
-                          }
-                        }}
-                        placeholder="Título de la tarea..."
-                      />
-                    </div>
-                    {/* Icono adjuntos */}
-                    {task.attachments && task.attachments.length > 0 && (
-                      <span title={`${task.attachments.length} adjunto${task.attachments.length > 1 ? 's' : ''}`} className="flex items-center gap-0.5 shrink-0">
-                        <Paperclip size={10} className="text-azul opacity-70" />
-                        {task.attachments.length > 1 && <span className="text-[9px] font-black text-azul">{task.attachments.length}</span>}
-                      </span>
-                    )}
-                    {/* Badge circular subtareas pendientes */}
-                    {hasSubtasks && (() => {
-                      const subIds: string[] = subtasksForGroup || task.subtasks || [];
-                      const pendingCount = subIds.filter((sid: string) => {
-                        const s = allTasksMap[sid];
-                        return s && !s.isDeleted && s.status !== 'completed';
-                      }).length;
-                      return (
-                        <button
-                          data-testid="expand-button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            onToggleExpand(task.id);
-                          }}
-                          className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30 cursor-pointer"
-                        >
-                          {String(pendingCount)}
-                        </button>
-                      );
-                    })()}
-                  </div>
-                </div>
+            {/* Tipo (punto de color) — §7.2: checkbox · tipo · título · chips */}
+            <div className="shrink-0">
+              <TaskTypeChip
+                value={task.taskType || (isTaskRepetitive(task.id, allTasksMap) ? 'core' : 'adhoc')}
+                onChange={(val: string) => onUpdateTask({ ...task, taskType: val })}
+                isCompact={true}
+              />
+            </div>
 
-                {/* Fila chips - incluye badge bloque al inicio */}
-                <div className="flex flex-wrap items-center gap-1">
-                  <TaskTypeChip 
-                    value={task.taskType || (isTaskRepetitive(task.id, allTasksMap) ? 'core' : 'adhoc')} 
-                    onChange={(val: string) => onUpdateTask({ ...task, taskType: val })} 
-                    isCompact={true}
-                  />
-                  {!hasSubtasks && (
+            {/* Título + badges (grupo flexible que trunca) */}
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <input
+                autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
+                className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none min-w-0 flex-1 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
+                value={task.title}
+                onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
+                onBlur={() => {
+                  if(editingTaskId === task.id) onEditTask(null);
+                  if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
+                }}
+                onKeyDown={(e) => {
+                  if(e.key === 'Enter') {
+                    if(editingTaskId === task.id) onEditTask(null);
+                    if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
+                  }
+                }}
+                placeholder="Título de la tarea..."
+              />
+              {/* Marca "en suspenso" (esperando algo) — solo visual, no reagrupa */}
+              {task.onHold && (
+                <span title="En suspenso (esperando algo)" className="shrink-0 flex items-center">
+                  <Hourglass size={12} className="dark:text-text-secondary text-text-secondary-light" />
+                </span>
+              )}
+              {/* Icono adjuntos */}
+              {task.attachments && task.attachments.length > 0 && (
+                <span title={`${task.attachments.length} adjunto${task.attachments.length > 1 ? 's' : ''}`} className="flex items-center gap-0.5 shrink-0">
+                  <Paperclip size={10} className="text-azul opacity-70" />
+                  {task.attachments.length > 1 && <span className="text-[9px] font-black text-azul">{task.attachments.length}</span>}
+                </span>
+              )}
+              {/* Badge circular subtareas pendientes */}
+              {hasSubtasks && (() => {
+                const subIds: string[] = subtasksForGroup || task.subtasks || [];
+                const pendingCount = subIds.filter((sid: string) => {
+                  const s = allTasksMap[sid];
+                  return s && !s.isDeleted && s.status !== 'completed';
+                }).length;
+                return (
+                  <button
+                    data-testid="expand-button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      onToggleExpand(task.id);
+                    }}
+                    className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center bg-rosa/20 border border-rosa/40 text-rosa transition-all hover:bg-rosa/30 cursor-pointer"
+                  >
+                    {String(pendingCount)}
+                  </button>
+                );
+              })()}
+            </div>
+
+            {/* Chips en línea (o resumen estimado→real si completada) */}
+            {task.status === 'completed' ? (
+              <span className="shrink-0 text-[11px] font-bold dark:text-text-secondary text-text-secondary-light tabular-nums line-through">
+                {formatMinutes(getTaskEstimatedCombo(task.id, allTasksMap))} → {formatMinutes(totalRegistered)}
+              </span>
+            ) : (
+              <div className="flex items-center gap-1 shrink-0">
+                  {/* Fecha — oculta en Mi Día (§7.2: redundante en el Dashboard del día) */}
+                  {!hasSubtasks && variant !== 'DASHBOARD' && (
                     <DatePickerChip
                       value={task.dueDate}
                       onChange={(date: string) => {
@@ -600,9 +609,8 @@ export function TaskCard({
                       <ArrowUpRight size={10} className="text-turquesa" />
                     </button>
                   )}
-                </div>
               </div>
-            </div>
+            )}
 
             {/* Fechas delegación - solo en vista Delegadas */}
             {showDelegationDates && (task.dueDate || task.delegation?.delegatedAt) && (() => {
@@ -633,51 +641,58 @@ export function TaskCard({
               );
             })()}
 
-            {/* Botones acción - una sola fila */}
-            <div className="flex flex-col gap-1 shrink-0">
-              <div className="flex items-center gap-1">
-                <button 
-                  onClick={() => onEditTask(task.id)} 
+            {/* Botones acción - una sola fila (§7.2: ✎ 🗑 + · promover/degradar en hover) */}
+            <div className="flex items-center gap-1 shrink-0">
+              {/* En suspenso — marca visual (no reagrupa, el tiempo sigue contando) */}
+              <button
+                onClick={(e) => { e.stopPropagation(); onUpdateTask({ ...task, onHold: !task.onHold }); }}
+                title={task.onHold ? 'Quitar en suspenso' : 'Marcar en suspenso (esperando algo)'}
+                className={`w-6 h-6 flex items-center justify-center rounded-lg transition-all border ${task.onHold ? 'text-naranja bg-naranja/10 border-naranja/30' : 'dark:text-text-secondary text-text-secondary-light bg-transparent border-transparent hover:text-naranja hover:bg-naranja/5'}`}
+              >
+                <Hourglass size={12} />
+              </button>
+              <button
+                onClick={() => onEditTask(task.id)}
+                className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-lg transition-all border border-turquesa/20"
+                title="Editar"
+              >
+                <Edit size={12} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(task.id); }}
+                className="w-6 h-6 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/10 rounded-lg transition-all border border-rosa/20"
+                title="Eliminar"
+              >
+                <Trash2 size={12} />
+              </button>
+              {level < 3 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); if (onAddTask) onAddTask(task.id, task.blockId); }}
                   className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-lg transition-all border border-turquesa/20"
-                  title="Editar"
+                  title="Añadir subtarea"
                 >
-                  <Edit size={12} />
+                  <Plus size={14} />
                 </button>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onDelete(task.id); }} 
-                  className="w-6 h-6 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/10 rounded-lg transition-all border border-rosa/20"
-                  title="Eliminar"
-                >
-                  <Trash2 size={12} />
-                </button>
-                {level < 3 && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); if (onAddTask) onAddTask(task.id, task.blockId); }} 
-                    className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-lg transition-all border border-turquesa/20" 
-                    title="Añadir subtarea"
-                  >
-                    <Plus size={14} />
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              )}
+              {/* Promover / degradar - hover */}
+              <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 {task.parentTaskId && (
-                  <button 
-                    onClick={() => onPromote(task.id)} 
-                    title="Subir un nivel" 
+                  <button
+                    onClick={() => onPromote(task.id)}
+                    title="Subir un nivel"
                     className="w-6 h-6 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-turquesa dark:bg-bg-main bg-white rounded-lg border dark:border-border-main border-border-main-light transition-all"
                   >
                     <ArrowUpLeft size={12} />
                   </button>
                 )}
-                <button 
-                  onClick={() => onDemote(task.id)} 
-                  title="Bajar un nivel" 
+                <button
+                  onClick={() => onDemote(task.id)}
+                  title="Bajar un nivel"
                   className="w-6 h-6 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-azul dark:bg-bg-main bg-white rounded-lg border dark:border-border-main border-border-main-light transition-all"
                 >
                   <ArrowDownRight size={12} />
                 </button>
-              </div>
+              </span>
             </div>
 
           </div>

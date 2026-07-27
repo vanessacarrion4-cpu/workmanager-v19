@@ -138,7 +138,7 @@ export function TimePickerChip({ value, onChange }: any) {
         className={`h-6 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-1 ${
           value
             ? 'bg-azul/10 border-azul text-azul shadow-sm'
-            : 'dark:bg-bg-main bg-white dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul'
+            : 'border-dashed dark:bg-bg-main bg-white dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul'
         }`}
         title={value ? `Hora: ${value}` : 'Añadir hora'}
       >
@@ -206,8 +206,8 @@ export function DatePickerChip({ value, onChange, dropUp = false }: any) {
         ref={buttonRef}
         onClick={handleToggle}
         className={`h-6 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all ${
-          isSinFecha 
-            ? 'dark:bg-bg-main bg-white dark:border-border-main border-gray-400 dark:text-text-secondary text-text-secondary-light' 
+          isSinFecha
+            ? 'border-dashed dark:bg-bg-main bg-white dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light'
             : 'bg-turquesa/10 border-turquesa text-turquesa shadow-sm'
         }`}
       >
@@ -609,7 +609,7 @@ export function TagPickerChip({ selectedTags = [], onChange }: any) {
             ))}
           </div>
         ) : (
-          <div className="w-6 h-6 rounded-lg dark:bg-bg-main bg-white border-2 dark:border-border-main/30 border-naranja/70 flex items-center justify-center opacity-60 hover:opacity-90 dark:hover:border-border-main hover:border-naranja transition-all" title="Sin categoría">
+          <div className="w-6 h-6 rounded-lg border-dashed dark:bg-bg-main bg-white border-2 dark:border-border-main/30 border-naranja/70 flex items-center justify-center opacity-60 hover:opacity-90 dark:hover:border-border-main hover:border-naranja transition-all" title="Sin categoría">
             <span className="text-[11px]">🏷️</span>
           </div>
         )}
@@ -1096,7 +1096,7 @@ export function DelegationChip({ delegation, people = [], onChange, onAddPerson,
         className={`h-6 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-1 ${
           person
             ? 'bg-azul/10 border-azul text-azul shadow-sm'
-            : 'dark:bg-bg-main bg-white dark:border-border-main/30 border-azul/30 dark:text-text-secondary/40 text-text-secondary-light/40 dark:hover:text-text-secondary hover:text-text-secondary-light dark:hover:border-border-main hover:border-azul transition-all'
+            : 'border-dashed dark:bg-bg-main bg-white dark:border-border-main/30 border-azul/30 dark:text-text-secondary/40 text-text-secondary-light/40 dark:hover:text-text-secondary hover:text-text-secondary-light dark:hover:border-border-main hover:border-azul transition-all'
         }`}
         title={person ? `Delegado a ${person.name}` : 'Delegar tarea'}
       >

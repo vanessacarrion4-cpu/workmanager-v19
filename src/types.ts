@@ -100,6 +100,7 @@ export interface Task {
   attachments?: Attachment[];
   isExpanded?: boolean;
   taskType?: 'core' | 'adhoc';
+  onHold?: boolean; // "en suspenso": marca visual (espero algo). NO reagrupa ni mueve la tarea; su tiempo sigue contando en el pendiente del día. Convive con la etiqueta "espera".
   delegation?: {
     personId: string;
     delegatedAt: string; // YYYY-MM-DD
