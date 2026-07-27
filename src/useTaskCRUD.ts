@@ -27,13 +27,6 @@ interface UseTaskCRUDOptions {
   dashboardTasks: Task[];
 }
 
-/** Resuelve un parentTaskId (puede ser inst-xxx-fecha) al templateId real para Supabase */
-function resolveParentIdForSupabase(parentTaskId: string | null | undefined): string | null {
-  if (!parentTaskId) return null;
-  if (!parentTaskId.startsWith('inst-')) return parentTaskId;
-  return parentTaskId.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
-}
-
 export function useTaskCRUD({
   tasks,
   setTasks,
@@ -608,9 +601,10 @@ export function useTaskCRUD({
           const _oldDate = updatedTask.instanceDate;
           const _newSubtaskId = `inst-${updatedTask.templateId}-${_newDate}`;
 
-          // FIX Bug4: resolver parent_task_id correcto (nunca inst-xxx, siempre templateId)
-          const _parentIdForSupabase = resolveParentIdForSupabase(updatedTask.parentTaskId);
-
+          // B4-cambio-2: la excepción recurrente MOVIDA NO se enlaza a la plantilla (era el 2º escritor de
+          // contaminación parent→plantilla, además del de cambio-1). parent_task_id queda `null`; materializeDay
+          // re-anida en el día destino por templateId+dueDate (findLanded). Revierte el "FIX Bug4" (que ponía la
+          // plantilla): en V20 el huérfano lo evita materializeDay, no el parent_task_id.
           await supabase.from('tasks')
             .update({ is_deleted: true, deleted_at: new Date().toISOString() })
             .eq('id', updatedTask.id);
@@ -636,7 +630,7 @@ export function useTaskCRUD({
             is_deleted: false,
             is_expanded: updatedTask.isExpanded || false,
             task_type: updatedTask.taskType || null,
-            parent_task_id: _parentIdForSupabase,  // ← FIX: antes era null siempre
+            parent_task_id: null,  // B4-cambio-2: null (no plantilla); materializeDay re-anida por templateId
             template_id: updatedTask.templateId,
             instance_date: _oldDate,
             recurrence: null,
