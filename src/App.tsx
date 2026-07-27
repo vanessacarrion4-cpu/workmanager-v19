@@ -16,7 +16,6 @@ import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { filterTasksForDay } from './filters';
 import { materializeDay, materializeInstanceById } from './instanceEngine';
 import { useSupabase } from './useSupabase';
-import { useGeneration } from './useGeneration';
 import { useTaskCRUD } from './useTaskCRUD';
 import { useTaskOrdering } from './useTaskOrdering';
 import { useBlockHandlers } from './useBlockHandlers';
@@ -120,17 +119,6 @@ export default function App() {
     localStorage.setItem('workmanager-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
-  // DEV TEMPORAL (sesión 11, §13.10): expone el estado `tasks` en consola para verificar que un
-  // día de test es VIRGEN (window.__tasks['inst-…'] === undefined) antes de validar B/C y el ensayo
-  // D0. NO es lógica de B; retirar en la Fase D2 (borrado de useGeneration).
-  useEffect(() => { (window as any).__tasks = tasks; (window as any).__materializeDay = materializeDay; }, [tasks]);
-
-  // DEV TEMPORAL (sesión 11, §13.11): salto directo a una fecha en Mi Día para validar en día
-  // lejano SIN navegar el Calendario (lento). Uso: window.__goToDate('2028-01-15'). Retirar en D2.
-  useEffect(() => {
-    (window as any).__goToDate = (d: string) => { setActiveDate(d); setCurrentView('dashboard'); };
-  }, []);
-
   // Selection helpers
   const toggleSelectionMode = () => {
     setSelectionMode(prev => {
@@ -161,17 +149,14 @@ export default function App() {
 
   // --- Data Loading ---
   useSupabase({ setBlocks, setTasks, setPeople, setMeetings, setTimeEntries, setIsDataLoaded });
-  useGeneration({ tasks, isDataLoaded, setTasks });
 
   // --- Computed dashboard tasks (needed by useTaskCRUD) ---
   const allActiveTasks = useMemo(() =>
     Object.values(tasks).filter((t: Task) => !t.isDeleted && !t.isTemplate), [tasks]);
 
-  // Motor V20 (mitad LECTURA): mapa del día activo = instancias materializadas + estado,
-  // con el ESTADO GANANDO. useGeneration sigue poblando el día activo en el estado con los
-  // mismos ids, así que se preserva isExpanded/orden/vinculación reales (reading idéntico).
-  // materializeDay solo RELLENA días que el estado no tiene (p.ej. un día lejano navegado a
-  // mano, que antes salía vacío).
+  // Motor V20 (LECTURA): mapa del día activo = instancias materializadas al vuelo + estado, con el
+  // ESTADO GANANDO (excepciones persistidas: completadas/movidas/borradas). `materializeDay` genera
+  // las ocurrencias recurrentes del día (ya no hay `useGeneration` que las pre-fabrique en el estado).
   const activeDayMap = useMemo(() => {
     const map: any = {};
     for (const inst of materializeDay(activeDate, tasks)) map[inst.id] = inst; // rellena huecos
