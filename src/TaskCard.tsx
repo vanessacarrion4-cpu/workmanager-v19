@@ -427,6 +427,14 @@ export function TaskCard({
               />
             </div>
 
+            {/* Marca "en suspenso" — a la IZQUIERDA, junto al tipo (es un estado, no una columna
+                del raíl que se lea en vertical). Derivada en contenedores. */}
+            {rowOnHold && (
+              <span title="En suspenso (esperando algo)" className="shrink-0 flex items-center" data-testid="hold-mark">
+                <Hourglass size={12} className="dark:text-naranja text-naranja-light" />
+              </span>
+            )}
+
             {/* Título: <span> mide su texto (los chips lo pegan; se trunca al chocar, min-w-0).
                 <input> solo al editar. Clic → edita; Enter guarda, Escape cancela, salir guarda. */}
             {isEditingTitle ? (
@@ -452,12 +460,6 @@ export function TaskCard({
                 {task.title || 'Título de la tarea...'}
               </span>
             )}
-              {/* Marca "en suspenso" (esperando algo) — solo visual, no reagrupa. En contenedor, derivada. */}
-              {rowOnHold && (
-                <span title="En suspenso (esperando algo)" className="shrink-0 flex items-center">
-                  <Hourglass size={12} className="dark:text-text-secondary text-text-secondary-light" />
-                </span>
-              )}
               {/* Icono adjuntos */}
               {task.attachments && task.attachments.length > 0 && (
                 <span title={`${task.attachments.length} adjunto${task.attachments.length > 1 ? 's' : ''}`} className="flex items-center gap-0.5 shrink-0">
@@ -486,8 +488,9 @@ export function TaskCard({
                   </button>
                 );
               })()}
-            {/* Hora junto al título en HIJAS: es el dato que ordena el grupo "CON HORA". */}
-            {task.parentTaskId && task.dueTime && !hasSubtasks && !inMeeting && (
+            {/* Hora a la IZQUIERDA, junto al título (misma posición que el contador; nunca coinciden:
+                los contenedores llevan contador, las tareas con hora llevan hora). Solo si la tiene. */}
+            {!hasSubtasks && task.dueTime && !inMeeting && (
               <div className="shrink-0">
                 <TimePickerChip
                   value={task.dueTime}
@@ -496,146 +499,140 @@ export function TaskCard({
               </div>
             )}
 
-            {/* Chips en línea (o resumen estimado→real si completada) */}
+            {/* Spacer: empuja el raíl a la derecha. El título (izquierda) mide su texto y cede
+                este hueco; se trunca solo al chocar con el raíl. */}
+            <div className="flex-1 min-w-0" />
+
+            {/* ── RAÍL ── columnas de ancho fijo, misma posición horizontal en todas las filas.
+                Anchos a ojo (primera pasada, para afinar). Columna vacía = en blanco; su punteado
+                clicable aparece solo al pasar el ratón por la fila (o si su desplegable está
+                abierto, vía :has(data-open)). */}
             {task.status === 'completed' ? (
-              <span className="shrink-0 text-[11px] font-bold dark:text-text-secondary text-text-secondary-light tabular-nums line-through">
+              <span className="shrink-0 text-[11px] font-bold dark:text-text-secondary text-text-secondary-light tabular-nums line-through pr-1">
                 {formatMinutes(getTaskEstimatedCombo(task.id, allTasksMap))} → {formatMinutes(totalRegistered)}
               </span>
             ) : (
-              <div className="flex items-center gap-1 shrink-0">
-                  {/* Fecha — en Mi Día solo el ICONO de calendario (el texto de fecha es
-                      redundante, pero el chip ES el control para mover a otro día; §7.2).
-                      En el resto de vistas, con la fecha visible. */}
-                  {!hasSubtasks && (
-                    <DatePickerChip
-                      value={task.dueDate}
-                      iconOnly={variant === 'DASHBOARD'}
-                      muted
-                      onChange={(date: string) => {
-                        if (task.templateId) {
-                          onRecurrenceDateChange && onRecurrenceDateChange(task, date);
-                        } else {
-                          onUpdateTask({ ...task, dueDate: date });
-                        }
-                      }}
-                    />
-                  )}
-                  {/* Hora en el grupo derecho, salvo que ya se muestre junto al título (hija con hora) */}
-                  {!hasSubtasks && !inMeeting && !(task.parentTaskId && task.dueTime) && (
-                    <TimePickerChip
-                      value={task.dueTime || ''}
-                      onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })}
-                    />
-                  )}
-                  {/* Chip recurrencia informativo para instancias */}
-                  {task.templateId && !hasSubtasks && (() => {
-                    const tmpl = allTasksMap[task.templateId];
-                    const rec = tmpl?.recurrence;
-                    if (!rec) return null;
-                    const label = recurrenceLabel(rec, task.instanceDate || task.dueDate);
-                    return (
-                      <div className="flex items-center gap-1 shrink-0" title="Tarea recurrente">
-                        <span className="text-[11px] font-medium dark:text-text-secondary text-text-secondary-light">{label}</span>
-                      </div>
-                    );
-                  })()}
-                  {/* Chip recurrencia para templates (Delegadas, Vista Bloques) */}
-                  {task.isTemplate && task.recurrence && !task.templateId && (() => {
-                    const rec = task.recurrence;
-                    const label = recurrenceLabel(rec, task.dueDate);
-                    return (
-                      <div className="flex items-center gap-1 shrink-0" title="Tarea recurrente">
-                        <span className="text-[11px] font-medium dark:text-text-secondary text-text-secondary-light">{label}</span>
-                        {onViewInstances && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onViewInstances(task); }}
-                            className="flex items-center justify-center w-5 h-5 rounded border dark:border-azul/30 border-azul/40 dark:bg-azul/10 bg-azul/5 hover:bg-azul/20 transition-colors"
-                            title="Ver instancias generadas"
-                          >
-                            <Info size={10} className="text-azul" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  {!hasSubtasks && !task.templateId && !task.isTemplate && (
-                    <RecurrencePickerChip
-                      muted
-                      value={task.recurrence}
-                      onChange={(rec: any) => onUpdateTask({ 
-                        ...task, 
-                        recurrence: rec || undefined,
-                        isTemplate: !!rec,
-                        dueDate: rec ? null : (task.dueDate || formatLocalISO(new Date())),
-                        dueTime: task.dueTime
-                      })}
-                    />
-                  )}
-                  {!hasSubtasks && (
-                    <TagPickerChip
-                      muted
-                      selectedTags={task.tags}
-                      onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} 
-                    />
-                  )}
-                  {!hasSubtasks && (
-                    <DelegationChip
-                      muted
-                      delegation={task.delegation}
-                      people={people || []}
-                      onChange={(delegation: any) => onUpdateTask({ ...task, delegation })}
-                      onAddPerson={onAddPerson}
-                      onRenamePerson={onRenamePerson}
-                      onDeletePerson={onDeletePerson}
-                      onRecurrenceDateChange={onRecurrenceDateChange}
-                    />
-                  )}
-                  {!inMeeting && <EstimatedTimeChip 
-                    value={hasSubtasks ? totalEstimated : task.estimatedMinutes} 
-                    onChange={(val: number) => { if (!hasSubtasks) onUpdateTask({ ...task, estimatedMinutes: val }); }} 
-                    readonly={hasSubtasks}
-                    variant={level > 1 ? 'mini' : 'default'}
-                  />}
-                  {!inMeeting && <RegisteredTimeChip 
-                    value={totalRegistered} 
-                    estimated={totalEstimated}
-                    onAddEntry={onAddTimeEntry}
-                    taskId={currentRootId}
-                    subtaskId={level === 1 ? null : task.id}
-                    date={task.dueDate || task.instanceDate || formatLocalISO(new Date())}
-                    onMoreOptions={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)}
-                    onClick={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)} 
-                  />}
-                  {!inMeeting && <button 
-                    onClick={() => isTimerRunning ? onStopTimer() : onStartTimer(currentRootId, level === 1 ? null : task.id)}
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isTimerRunning ? 'bg-rosa text-white' : 'dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light text-turquesa hover:bg-turquesa/10'}`}
-                  >
-                    {isTimerRunning ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
-                  </button>}
+              <div className="flex items-center shrink-0">
+                {/* TIEMPOS: estimado · registrado · play (pegados) */}
+                <div className="flex items-center">
+                  <div className="w-[42px] shrink-0 flex items-center justify-end overflow-hidden">
+                    {!inMeeting && <EstimatedTimeChip
+                      value={hasSubtasks ? totalEstimated : task.estimatedMinutes}
+                      onChange={(val: number) => { if (!hasSubtasks) onUpdateTask({ ...task, estimatedMinutes: val }); }}
+                      readonly={hasSubtasks}
+                      variant={level > 1 ? 'mini' : 'default'}
+                    />}
+                  </div>
+                  <div className="w-[42px] shrink-0 flex items-center justify-end overflow-hidden">
+                    {!inMeeting && <RegisteredTimeChip
+                      value={totalRegistered}
+                      estimated={totalEstimated}
+                      onAddEntry={onAddTimeEntry}
+                      taskId={currentRootId}
+                      subtaskId={level === 1 ? null : task.id}
+                      date={task.dueDate || task.instanceDate || formatLocalISO(new Date())}
+                      onMoreOptions={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)}
+                      onClick={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)}
+                    />}
+                  </div>
+                  {/* play — columna reservada (botón en B2) */}
+                  <div className="w-[26px] shrink-0" aria-hidden="true" />
+                </div>
 
-                  {/* Bloque — en una hija solo si difiere del bloque del padre (la barra de la
-                      izquierda ya ancla el bloque; se muestra la excepción, no la herencia). §7.2 */}
-                  {/* Es HIJA si la recursión le pasó parentBlockId (una instancia recurrente tiene
-                      parentTaskId=null, así que no sirve para detectar hija). Chip solo si difiere del padre. */}
-                  {((parentBlockId == null && !task.parentTaskId)
-                    || (parentBlockId ?? allTasksMap[task.parentTaskId]?.blockId) !== task.blockId) && (
-                    <BlockPickerChip
-                      muted
-                      value={task.blockId}
-                      blocks={blocks}
-                      onChange={(blockId: string) => onUpdateTask({ ...task, blockId })}
-                    />
-                  )}
-                  {/* Ir a Bloques (↗) — hover. El chip de bloque CAMBIA de bloque; esto NAVEGA a él. */}
-                  {onGoToTemplate && variant !== 'FULL' && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId || task.id); }}
-                      className="shrink-0 w-5 h-5 flex items-center justify-center rounded transition-all opacity-0 group-hover/row:opacity-100 dark:text-turquesa text-turquesa-light hover:opacity-80"
-                      title="Ir a Bloques"
-                    >
-                      <ArrowUpRight size={12} />
-                    </button>
-                  )}
+                {/* Hueco de aire fijo entre tiempos y contexto */}
+                <div className="w-[20px] shrink-0" aria-hidden="true" />
+
+                {/* CONTEXTO (gris #64748B): fecha · recurrencia · delegación · etiqueta · bloque */}
+                <div className="flex items-center">
+                  {/* Fecha (en Mi Día = columna sin dato: punteado en hover, clic mueve el día) */}
+                  <div className="w-[44px] shrink-0 flex items-center justify-center overflow-hidden">
+                    {!hasSubtasks && (() => {
+                      const railBlank = variant === 'DASHBOARD' || !task.dueDate;
+                      return (
+                        <div className={railBlank ? 'hidden group-hover/row:flex has-[[data-open=true]]:flex' : 'flex'}>
+                          <DatePickerChip
+                            muted
+                            value={railBlank ? null : task.dueDate}
+                            onChange={(date: string) => {
+                              if (task.templateId) { onRecurrenceDateChange && onRecurrenceDateChange(task, date); }
+                              else { onUpdateTask({ ...task, dueDate: date }); }
+                            }}
+                          />
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  {/* Recurrencia (recurrente → etiqueta gris; manual sin recurrencia → picker para añadir) */}
+                  <div className="w-[56px] shrink-0 flex items-center justify-center overflow-hidden">
+                    {(() => {
+                      if (task.templateId && !hasSubtasks) {
+                        const rec = allTasksMap[task.templateId]?.recurrence;
+                        return rec ? <span className="text-[11px] font-medium dark:text-text-secondary text-text-secondary-light whitespace-nowrap">{recurrenceLabel(rec, task.instanceDate || task.dueDate)}</span> : null;
+                      }
+                      if (task.isTemplate && task.recurrence && !task.templateId) {
+                        return <span className="text-[11px] font-medium dark:text-text-secondary text-text-secondary-light whitespace-nowrap">{recurrenceLabel(task.recurrence, task.dueDate)}</span>;
+                      }
+                      if (!hasSubtasks && !task.templateId && !task.isTemplate) {
+                        return (
+                          <div className={task.recurrence ? 'flex' : 'hidden group-hover/row:flex has-[[data-open=true]]:flex'}>
+                            <RecurrencePickerChip
+                              muted
+                              value={task.recurrence}
+                              onChange={(rec: any) => onUpdateTask({ ...task, recurrence: rec || undefined, isTemplate: !!rec, dueDate: rec ? null : (task.dueDate || formatLocalISO(new Date())), dueTime: task.dueTime })}
+                            />
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                  {/* Delegación */}
+                  <div className="w-[64px] shrink-0 flex items-center justify-center overflow-hidden">
+                    {!hasSubtasks && (
+                      <div className={task.delegation ? 'flex' : 'hidden group-hover/row:flex has-[[data-open=true]]:flex'}>
+                        <DelegationChip
+                          muted
+                          delegation={task.delegation}
+                          people={people || []}
+                          onChange={(delegation: any) => onUpdateTask({ ...task, delegation })}
+                          onAddPerson={onAddPerson}
+                          onRenamePerson={onRenamePerson}
+                          onDeletePerson={onDeletePerson}
+                          onRecurrenceDateChange={onRecurrenceDateChange}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {/* Etiqueta (a color pleno) */}
+                  <div className="w-[28px] shrink-0 flex items-center justify-center">
+                    {!hasSubtasks && (
+                      <div className={(task.tags && task.tags.length > 0) ? 'flex' : 'hidden group-hover/row:flex has-[[data-open=true]]:flex'}>
+                        <TagPickerChip
+                          muted
+                          selectedTags={task.tags}
+                          onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {/* Bloque (en hija: solo si difiere del padre renderizado) */}
+                  <div className="w-[76px] shrink-0 flex items-center justify-center overflow-hidden">
+                    {((parentBlockId == null && !task.parentTaskId)
+                      || (parentBlockId ?? allTasksMap[task.parentTaskId]?.blockId) !== task.blockId) && (
+                      <BlockPickerChip
+                        muted
+                        value={task.blockId}
+                        blocks={blocks}
+                        onChange={(blockId: string) => onUpdateTask({ ...task, blockId })}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* + — columna reservada (botón en B2) */}
+                <div className="w-[26px] shrink-0" aria-hidden="true" />
+                {/* ··· — columna reservada (tira de acciones en B2) */}
+                <div className="w-[26px] shrink-0" aria-hidden="true" />
               </div>
             )}
 
@@ -668,60 +665,8 @@ export function TaskCard({
               );
             })()}
 
-            {/* Botones acción — FLOTAN sobre la fila (absolute), no reservan ancho. Degradado corto
-                detrás (transparente→color de la fila) para que se lean sobre el contenido. §Tanda 2.1 */}
-            <div className="absolute inset-y-0 right-0 z-[5] flex items-center gap-1 pl-10 pr-3 opacity-0 group-hover/row:opacity-100 transition-opacity bg-gradient-to-l to-transparent dark:from-bg-card dark:via-bg-card from-bg-card-light via-bg-card-light">
-              {/* En suspenso — marca visual (no reagrupa, el tiempo sigue contando) */}
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleOnHold(); }}
-                title={rowOnHold ? 'Quitar en suspenso' : 'Marcar en suspenso (esperando algo)'}
-                className={`w-6 h-6 flex items-center justify-center rounded-lg transition-all border ${rowOnHold ? 'dark:text-naranja text-naranja-light dark:bg-naranja/10 bg-naranja-light/10 dark:border-naranja/30 border-naranja-light/30' : 'dark:text-text-secondary text-text-secondary-light bg-transparent border-transparent dark:hover:text-naranja hover:text-naranja-light'}`}
-              >
-                <Hourglass size={12} />
-              </button>
-              <button
-                onClick={() => onEditTask(task.id)}
-                className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-lg transition-all border border-turquesa/20"
-                title="Editar"
-              >
-                <Edit size={12} />
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(task.id); }}
-                className="w-6 h-6 flex items-center justify-center text-rosa bg-rosa/5 hover:bg-rosa/10 rounded-lg transition-all border border-rosa/20"
-                title="Eliminar"
-              >
-                <Trash2 size={12} />
-              </button>
-              {level < 3 && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); if (onAddTask) onAddTask(task.id, task.blockId); }}
-                  className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/5 hover:bg-turquesa/10 rounded-lg transition-all border border-turquesa/20"
-                  title="Añadir subtarea"
-                >
-                  <Plus size={14} />
-                </button>
-              )}
-              {/* Promover / degradar - hover */}
-              <span className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                {task.parentTaskId && (
-                  <button
-                    onClick={() => onPromote(task.id)}
-                    title="Subir un nivel"
-                    className="w-6 h-6 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-turquesa dark:bg-bg-main bg-white rounded-lg border dark:border-border-main border-border-main-light transition-all"
-                  >
-                    <ArrowUpLeft size={12} />
-                  </button>
-                )}
-                <button
-                  onClick={() => onDemote(task.id)}
-                  title="Bajar un nivel"
-                  className="w-6 h-6 flex items-center justify-center dark:text-text-secondary text-text-secondary-light hover:text-azul dark:bg-bg-main bg-white rounded-lg border dark:border-border-main border-border-main-light transition-all"
-                >
-                  <ArrowDownRight size={12} />
-                </button>
-              </span>
-            </div>
+            {/* Batería vieja RETIRADA. Las acciones (editar · borrar · ir-al-bloque · suspender) van
+                a la tira '···' en B2, y el '+' a su columna. Reservadas ya en el raíl. */}
 
           </div>
         </div>
