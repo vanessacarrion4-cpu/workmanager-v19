@@ -7,7 +7,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Edit, Trash2, Check, X, Clock, RefreshCw, GripVertical,
   Paperclip, Maximize2, Minimize2, ArrowUpLeft, ArrowDownRight,
-  ChevronsUp, ChevronsDown, Copy, Play, Pause, MoreVertical,
+  ChevronsUp, ChevronsDown, Copy, Play, Pause, MoreVertical, MoreHorizontal,
   Plus, ChevronDown, ChevronUp, ChevronLeft, ArrowUpRight, Calendar as CalendarIcon,
   Eye, EyeOff, CheckCircle2, Circle, Info, Tag, Hourglass
 } from 'lucide-react';
@@ -182,6 +182,11 @@ export function TaskCard({
   const isTimerRunning = activeTimer?.entityId === task.id;
   const [dragX, setDragX] = useState(0);
   const origTitleRef = useRef<string>(''); // título antes de editar, para Escape (cancelar)
+  // Tira de acciones "···": apertura por hover con retardo (150ms abrir / 250ms replegar).
+  const [stripOpen, setStripOpen] = useState(false);
+  const stripTimer = useRef<any>(null);
+  const openStrip = () => { clearTimeout(stripTimer.current); stripTimer.current = setTimeout(() => setStripOpen(true), 150); };
+  const closeStrip = () => { clearTimeout(stripTimer.current); stripTimer.current = setTimeout(() => setStripOpen(false), 250); };
 
   // "En suspenso": en un CONTENEDOR el estado se DERIVA de sus hijas del grupo (no se persiste
   // en el padre; la columna on_hold solo la escriben las hijas). subtasksForGroup = hijas de esta
@@ -535,8 +540,20 @@ export function TaskCard({
                       onClick={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)}
                     />}
                   </div>
-                  {/* play — columna reservada (botón en B2) */}
-                  <div className="w-[26px] shrink-0" aria-hidden="true" />
+                  {/* play — temporizador, siempre visible. Corriendo: cambia de forma y destaca. */}
+                  <div className="w-[26px] shrink-0 flex items-center justify-center">
+                    {!inMeeting && (
+                      <button
+                        onClick={() => isTimerRunning ? onStopTimer() : onStartTimer(currentRootId, level === 1 ? null : task.id)}
+                        title={isTimerRunning ? 'Parar temporizador' : 'Iniciar temporizador'}
+                        className={isTimerRunning
+                          ? 'w-6 h-6 rounded-md flex items-center justify-center bg-rosa text-white shadow-md shadow-rosa/40 ring-2 ring-rosa/30 animate-pulse'
+                          : 'w-5 h-5 rounded-full flex items-center justify-center dark:text-turquesa text-turquesa-light hover:bg-turquesa/10 transition-all'}
+                      >
+                        {isTimerRunning ? <Pause size={12} fill="currentColor" /> : <Play size={11} fill="currentColor" />}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Hueco de aire fijo entre tiempos y contexto */}
@@ -629,10 +646,44 @@ export function TaskCard({
                   </div>
                 </div>
 
-                {/* + — columna reservada (botón en B2) */}
-                <div className="w-[26px] shrink-0" aria-hidden="true" />
-                {/* ··· — columna reservada (tira de acciones en B2) */}
-                <div className="w-[26px] shrink-0" aria-hidden="true" />
+                {/* + añadir subtarea — fijo y siempre visible. Solo contenedores y sueltas, nunca
+                    hijas (añadir a una hija la convierte en contenedor y borra hora/recurrencia/etiqueta). */}
+                <div className="w-[26px] shrink-0 flex items-center justify-center">
+                  {level < 3 && (hasSubtasks || (parentBlockId == null && !task.parentTaskId)) && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); if (onAddTask) onAddTask(task.id, task.blockId); }}
+                      title="Añadir subtarea"
+                      className="w-5 h-5 flex items-center justify-center rounded dark:text-turquesa text-turquesa-light hover:bg-turquesa/10 transition-all"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  )}
+                </div>
+                {/* ··· acciones — botón fijo a la derecha; la tira se despliega a su IZQUIERDA
+                    (absolute, descendiente → onMouseLeave no salta al pasar de los puntos a la tira). */}
+                <div
+                  className="w-[26px] shrink-0 relative flex items-center justify-center"
+                  onMouseEnter={openStrip}
+                  onMouseLeave={closeStrip}
+                >
+                  <button
+                    onClick={(e) => { e.stopPropagation(); clearTimeout(stripTimer.current); setStripOpen(o => !o); }}
+                    title="Más acciones"
+                    className={`w-6 h-6 flex items-center justify-center rounded-lg transition-all dark:text-text-secondary text-text-secondary-light ${stripOpen ? 'opacity-100 dark:bg-white/10 bg-black/5' : 'opacity-0 group-hover/row:opacity-100'}`}
+                  >
+                    <MoreHorizontal size={16} />
+                  </button>
+                  {stripOpen && (
+                    <div className="absolute right-full top-0 h-full z-[6] flex items-center gap-1 pl-8 pr-1 bg-gradient-to-l to-transparent dark:from-bg-card dark:via-bg-card from-bg-card-light via-bg-card-light">
+                      {onGoToTemplate && (
+                        <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onGoToTemplate(task.templateId || task.id); }} title="Ir a Bloques" className="w-6 h-6 flex items-center justify-center rounded-lg dark:text-turquesa text-turquesa-light hover:bg-turquesa/10 transition-all"><ArrowUpRight size={13} /></button>
+                      )}
+                      <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onEditTask(task.id); }} title="Editar" className="w-6 h-6 flex items-center justify-center rounded-lg text-turquesa hover:bg-turquesa/10 transition-all"><Edit size={13} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onDelete(task.id); }} title="Eliminar" className="w-6 h-6 flex items-center justify-center rounded-lg text-rosa hover:bg-rosa/10 transition-all"><Trash2 size={13} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); toggleOnHold(); setStripOpen(false); }} title={rowOnHold ? 'Quitar en suspenso' : 'Marcar en suspenso'} className={`w-6 h-6 flex items-center justify-center rounded-lg transition-all ${rowOnHold ? 'dark:text-naranja text-naranja-light' : 'dark:text-text-secondary text-text-secondary-light hover:dark:text-naranja hover:text-naranja-light'}`}><Hourglass size={13} /></button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
