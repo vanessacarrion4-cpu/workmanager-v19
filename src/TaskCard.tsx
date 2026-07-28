@@ -510,6 +510,7 @@ export function TaskCard({
                     <DatePickerChip
                       value={task.dueDate}
                       iconOnly={variant === 'DASHBOARD'}
+                      muted
                       onChange={(date: string) => {
                         if (task.templateId) {
                           onRecurrenceDateChange && onRecurrenceDateChange(task, date);
@@ -534,8 +535,7 @@ export function TaskCard({
                     const label = recurrenceLabel(rec, task.instanceDate || task.dueDate);
                     return (
                       <div className="flex items-center gap-1 shrink-0" title="Tarea recurrente">
-                        <RefreshCw size={11} className="dark:text-turquesa text-turquesa-light shrink-0" />
-                        <span className="text-[11px] font-medium dark:text-turquesa text-turquesa-light">{label}</span>
+                        <span className="text-[11px] font-medium dark:text-text-secondary text-text-secondary-light">{label}</span>
                       </div>
                     );
                   })()}
@@ -545,8 +545,7 @@ export function TaskCard({
                     const label = recurrenceLabel(rec, task.dueDate);
                     return (
                       <div className="flex items-center gap-1 shrink-0" title="Tarea recurrente">
-                        <RefreshCw size={11} className="dark:text-turquesa text-turquesa-light shrink-0" />
-                        <span className="text-[11px] font-medium dark:text-turquesa text-turquesa-light">{label}</span>
+                        <span className="text-[11px] font-medium dark:text-text-secondary text-text-secondary-light">{label}</span>
                         {onViewInstances && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onViewInstances(task); }}
@@ -560,7 +559,8 @@ export function TaskCard({
                     );
                   })()}
                   {!hasSubtasks && !task.templateId && !task.isTemplate && (
-                    <RecurrencePickerChip 
+                    <RecurrencePickerChip
+                      muted
                       value={task.recurrence}
                       onChange={(rec: any) => onUpdateTask({ 
                         ...task, 
@@ -572,13 +572,15 @@ export function TaskCard({
                     />
                   )}
                   {!hasSubtasks && (
-                    <TagPickerChip 
-                      selectedTags={task.tags} 
+                    <TagPickerChip
+                      muted
+                      selectedTags={task.tags}
                       onChange={(tags: TagType[]) => onUpdateTask({ ...task, tags })} 
                     />
                   )}
                   {!hasSubtasks && (
                     <DelegationChip
+                      muted
                       delegation={task.delegation}
                       people={people || []}
                       onChange={(delegation: any) => onUpdateTask({ ...task, delegation })}
@@ -618,6 +620,7 @@ export function TaskCard({
                   {((parentBlockId == null && !task.parentTaskId)
                     || (parentBlockId ?? allTasksMap[task.parentTaskId]?.blockId) !== task.blockId) && (
                     <BlockPickerChip
+                      muted
                       value={task.blockId}
                       blocks={blocks}
                       onChange={(blockId: string) => onUpdateTask({ ...task, blockId })}

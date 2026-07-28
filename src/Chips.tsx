@@ -18,6 +18,10 @@ import { formatMinutes } from './utils';
 import { supabase } from './supabaseClient';
 import { MonthDatePicker } from './TimeComponents';
 
+// Variante "raíl" (muted): contexto en gris apagado, editable. Afordancia al pasar el ratón
+// por el chip (oscurece + fondo sutil). No afecta a cómo se ven los chips en el modal.
+const RAIL_GREY = 'dark:text-text-secondary text-text-secondary-light hover:text-text-main-light dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/10';
+
 export function TaskTypeChip({ value, onChange, isCompact = false }: any) {
   const [show, setShow] = useState(false);
   const [modalPos, setModalPos] = useState({ top: 0, left: 0 });
@@ -142,8 +146,7 @@ export function TimePickerChip({ value, onChange }: any) {
         }`}
         title={value ? `Hora: ${value}` : 'Añadir hora'}
       >
-        <Clock size={11} />
-        {value && <span>{value}</span>}
+        {value ? <span>{value}</span> : <Clock size={11} />}
       </button>
       <AnimatePresence>
         {show && (
@@ -182,7 +185,7 @@ export function TimePickerChip({ value, onChange }: any) {
 }
 
 
-export function DatePickerChip({ value, onChange, dropUp = false, iconOnly = false }: any) {
+export function DatePickerChip({ value, onChange, dropUp = false, iconOnly = false, muted = false }: any) {
   const [show, setShow] = useState(false);
   const [showFullCalendar, setShowFullCalendar] = useState(false);
   const [modalPos, setModalPos] = useState({ top: 0, left: 0 });
@@ -201,16 +204,16 @@ export function DatePickerChip({ value, onChange, dropUp = false, iconOnly = fal
   };
  
   return (
-    <div className="relative">
-      <button 
+    <div className="relative" data-open={show ? 'true' : undefined}>
+      <button
         ref={buttonRef}
         onClick={handleToggle}
         className={iconOnly
-          ? `h-6 flex items-center px-0.5 transition-all ${isSinFecha ? 'dark:text-text-secondary/70 text-text-secondary-light/70 hover:text-turquesa' : 'dark:text-turquesa text-turquesa-light hover:opacity-80'}`
+          ? `h-6 flex items-center px-0.5 rounded transition-all ${muted ? RAIL_GREY : (isSinFecha ? 'dark:text-text-secondary/70 text-text-secondary-light/70 hover:text-turquesa' : 'dark:text-turquesa text-turquesa-light hover:opacity-80')}`
           : `h-6 rounded transition-all flex items-center text-[11px] font-medium tabular-nums ${
               isSinFecha
                 ? 'px-1.5 border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main border-border-main-light dark:text-text-secondary/70 text-text-secondary-light/70 hover:border-turquesa hover:text-turquesa'
-                : 'px-0.5 dark:text-turquesa text-turquesa-light'
+                : (muted ? `px-1 ${RAIL_GREY}` : 'px-0.5 dark:text-turquesa text-turquesa-light')
             }`
         }
         title={iconOnly ? (isSinFecha ? 'Poner fecha / mover a otro día' : `${label} — mover a otro día`) : undefined}
@@ -301,7 +304,7 @@ export function DatePickerChip({ value, onChange, dropUp = false, iconOnly = fal
 }
  
 
-export function RecurrencePickerChip({ value, onChange }: any) {
+export function RecurrencePickerChip({ value, onChange, muted = false }: any) {
   const [show, setShow] = useState(false);
   const [modalPos, setModalPos] = useState({ top: 0, left: 0 });
   const [localValue, setLocalValue] = useState<any>(value);
@@ -371,20 +374,24 @@ export function RecurrencePickerChip({ value, onChange }: any) {
   };
  
   return (
-    <div className="relative">
-      <button 
+    <div className="relative" data-open={show ? 'true' : undefined}>
+      <button
         ref={buttonRef}
         onClick={handleOpen}
         className={`flex items-center justify-center transition-all group/rec h-6 rounded-lg ${
-          value 
-            ? 'px-2 py-0.5 bg-azul/10 border-2 border-azul text-azul hover:bg-azul/20 whitespace-nowrap shadow-sm' 
-            : 'w-6 dark:bg-bg-main bg-white dark:border-border-main border-gray-400 dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul border-2'
+          muted
+            ? (value
+                ? `px-1 text-[11px] font-medium ${RAIL_GREY}`
+                : `w-6 border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main border-border-main-light ${RAIL_GREY}`)
+            : (value
+                ? 'px-2 py-0.5 bg-azul/10 border-2 border-azul text-azul hover:bg-azul/20 whitespace-nowrap shadow-sm'
+                : 'w-6 dark:bg-bg-main bg-white dark:border-border-main border-gray-400 dark:text-text-secondary text-text-secondary-light hover:border-azul hover:text-azul border-2')
         }`}
         title={value ? "Cambiar Recurrencia" : "Activar Recurrencia"}
       >
-        <RefreshCw size={10} className={value ? "" : "opacity-50"} />
+        {(!value || !muted) && <RefreshCw size={10} className={value ? "" : "opacity-50"} />}
         {value && (
-          <span className="text-[9px] font-black uppercase tracking-widest ml-1.5">
+          <span className={muted ? '' : 'text-[9px] font-black uppercase tracking-widest ml-1.5'}>
             {getLabel()}
           </span>
         )}
@@ -581,7 +588,7 @@ export function RecurrencePickerChip({ value, onChange }: any) {
 }
  
 
-export function TagPickerChip({ selectedTags = [], onChange }: any) {
+export function TagPickerChip({ selectedTags = [], onChange, muted = false }: any) {
   const [show, setShow] = useState(false);
   const [modalPos, setModalPos] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -598,14 +605,14 @@ export function TagPickerChip({ selectedTags = [], onChange }: any) {
   };
  
   return (
-    <div className="relative">
-      <button 
+    <div className="relative" data-open={show ? 'true' : undefined}>
+      <button
         ref={buttonRef}
         onClick={handleOpen}
         className="flex items-center gap-1 cursor-pointer"
       >
         {selectedTags.length > 0 ? (
-          <div className="flex items-center gap-0.5 h-6">
+          <div className={`flex items-center gap-0.5 h-6 rounded ${muted ? 'opacity-60 hover:opacity-100 hover:bg-black/[0.05] dark:hover:bg-white/10 px-1 transition-all' : ''}`}>
             {selectedTags.map((t: any) => (
               <span key={t} className="text-[13px] leading-none" title={TAG_LABELS[t]?.label || t}>{TAG_LABELS[t].icon}</span>
             ))}
@@ -756,7 +763,6 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
         className={`h-6 rounded transition-all flex items-center gap-1 text-[11px] font-medium tabular-nums dark:text-azul text-azul-light ${readonly ? 'opacity-70 cursor-default' : 'hover:opacity-80'}`}
         title={readonly ? 'Suma de subtareas' : 'Editar tiempo estimado'}
       >
-        <Clock size={11} />
         <span>{label}</span>
       </button>
       <AnimatePresence>
@@ -835,7 +841,6 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
         className={`h-6 rounded transition-all flex items-center gap-1 text-[11px] font-medium tabular-nums hover:opacity-80 ${colorCls}`}
         title="Registrar tiempo"
       >
-        <Target size={11} />
         <span>{label}</span>
       </button>
 
@@ -932,7 +937,7 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
 }
  
 
-export function BlockPickerChip({ value, blocks = [], onChange }: any) {
+export function BlockPickerChip({ value, blocks = [], onChange, muted = false }: any) {
   const [show, setShow] = useState(false);
   const [modalPos, setModalPos] = useState({ top: 0, left: 0, maxHeight: 500 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -958,15 +963,17 @@ export function BlockPickerChip({ value, blocks = [], onChange }: any) {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" data-open={show ? 'true' : undefined}>
       <button
         ref={buttonRef}
         onClick={toggleShow}
-        className="text-[11px] font-medium px-0.5 whitespace-nowrap flex items-center gap-1 shrink-0 hover:opacity-80 transition-all"
-        style={{ color: selectedBlock?.color || '#64748b' }}
+        className={muted
+          ? `text-[11px] font-medium px-1 rounded whitespace-nowrap flex items-center gap-1 shrink-0 transition-all ${RAIL_GREY}`
+          : "text-[11px] font-medium px-0.5 whitespace-nowrap flex items-center gap-1 shrink-0 hover:opacity-80 transition-all"}
+        style={muted ? undefined : { color: selectedBlock?.color || '#64748b' }}
         title="Cambiar contexto"
       >
-        <span>{selectedBlock?.icon || '📁'}</span>
+        {!muted && <span>{selectedBlock?.icon || '📁'}</span>}
         {selectedBlock?.name && <span>{selectedBlock.name}</span>}
         <ChevronDown size={11} />
       </button>
@@ -1018,7 +1025,7 @@ export function BlockPickerChip({ value, blocks = [], onChange }: any) {
 }
 
 
-export function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRenamePerson, onDeletePerson, onOpen = null, onClose = null, allTasksMap = {} }: any) {
+export function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRenamePerson, onDeletePerson, onOpen = null, onClose = null, allTasksMap = {}, muted = false }: any) {
   const [show, setShow] = useState(false);
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1091,18 +1098,18 @@ export function DelegationChip({ delegation, people = [], onChange, onAddPerson,
   };
 
   return (
-    <div className="relative">
+    <div className="relative" data-open={show ? 'true' : undefined}>
       <button
         ref={buttonRef}
         onClick={toggleShow}
         className={`h-6 rounded transition-all flex items-center gap-1 text-[11px] font-medium ${
           person
-            ? 'px-0.5 dark:text-rosa text-rosa-light'
-            : 'px-1.5 border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main/40 border-border-main-light dark:text-text-secondary/70 text-text-secondary-light/70 hover:border-rosa hover:text-rosa'
+            ? (muted ? `px-1 ${RAIL_GREY}` : 'px-0.5 dark:text-rosa text-rosa-light')
+            : `px-1.5 border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main/40 border-border-main-light ${muted ? RAIL_GREY : 'dark:text-text-secondary/70 text-text-secondary-light/70 hover:border-rosa hover:text-rosa'}`
         }`}
         title={person ? `Delegado a ${person.name}` : 'Delegar tarea'}
       >
-        <User size={11} />
+        {(!person || !muted) && <User size={11} />}
         {person && <span>{person.name}</span>}
       </button>
 
