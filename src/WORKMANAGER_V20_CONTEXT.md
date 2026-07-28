@@ -1595,3 +1595,49 @@ El refactor de datos está cerrado. Lo siguiente es la **fase de diseño/UI** (�
 - **Entorno**: los dev-hooks (`__tasks`/`__goToDate`/`__materializeDay`/spy) están **borrados** (D2) → validar trabajo futuro requiere
   reinstrumentar si hace falta. El **fixture** "Test Recurrent B1" (`t-1785089440019` + 3 hijas, `startDate 2028-01-01`) sigue en la DB con
   días 2028 consumidos (excepciones de validación); **borrarlo cuando ya no haga falta** (query en §13.15). No estorba (carga cero: fuera de vista).
+
+---
+
+## 14. Backlog de diseño — fase post-fila (sesión 14)
+
+La fila V20 está **EN PRODUCCIÓN** (master `574149a`, Vercel Ready, verificado por hash de bundle).
+A partir de aquí la fase de diseño se ataca **por TANDAS**, en este orden acordado con la usuaria:
+
+1. **Cosas rotas** (rápido — no funcionan).
+2. **Retoques de la fila** — todo lo que salió probando la fila.
+3. **Paneles flotantes** — registrar tiempo, tiempo estimado y los demás (comparten componente).
+4. **Barrido de visibilidad** — el mes que no se ve (§11.1a), el título de Bloques, las islas oscuras (§7.11.3 / §11.1).
+5. **Vistas**: Delegadas → Bloques → Carga.
+
+### 14.1 Tanda 1 — cosas rotas (EN CURSO)
+
+1. **Paneles flotantes heredan la transparencia de la fila.** Al abrir un panel (p. ej. registrar tiempo)
+   sobre una tarea EN SUSPENSO, el panel sale **translúcido** (se ve la lista detrás → ilegible) porque el
+   `opacity-60` de la fila cascadea a los popups (son descendientes DOM, aunque sean `fixed`). Regla: el
+   atenuado de la fila **NO** debe heredarlo nada que se abra encima; los paneles flotantes llevan **fondo
+   sólido SIEMPRE**. Fix: dejar de atenuar con la propiedad `opacity` en un ancestro de los popups.
+2. **Devolver "ir al bloque" (↗) a la fila.** Se retiró (commit `379d074`) dando por hecho que el chip de
+   bloque navegaba al bloque; NO: el chip abre el selector para **cambiar** de bloque, no lleva a él. El ↗
+   (`onGoToTemplate`) es el que navega. Restaurar en la batería de hover.
+3. **El chip de bloque se repite en las hijas RECURRENTES.** En hijas normales la regla funciona; en una
+   instancia recurrente el padre NO está en `tasks` (mapa crudo) → `allTasksMap[parentTaskId]?.blockId` =
+   undefined → "distinto" → pinta el chip. Ej. real: "Previsional" → "Previsional 1Q" (recurrente) repite
+   "Contabilidad central"; en "JD Tancament + IS" (no recurrentes) va bien. Fix: comparar contra el objeto
+   **RENDERIZADO** (bloque del padre pasado como prop), no contra `tasks`.
+
+**Confirmado que YA funcionan** (NO son bugs, descartados): añadir subtarea desde la fila (`+`), crear tarea
+desde el modal, y registrar tiempo en una tarea en suspenso. El único problema del suspenso es el translúcido (1).
+
+### 14.2 Tanda 2 — retoques de la fila
+Todo lo que salió probando la fila. (Pendiente de enumerar según se revise.)
+
+### 14.3 Tanda 3 — paneles flotantes (comparten componente)
+Registrar tiempo, tiempo estimado y demás popups → rediseño unificado. (El translúcido se resuelve ya en §14.1.1.)
+
+### 14.4 Tanda 4 — barrido de visibilidad
+- Mes que no se ve al hacer scroll en Mi Día (§11.1a).
+- Título de Bloques.
+- Islas oscuras restantes en modo claro (§7.11.3 / §11.1): overlays clavados a oscuro.
+
+### 14.5 Tanda 5 — vistas
+Delegadas (cositas menores ya vistas en localhost, nada que impidiera subir) → Bloques → Carga.
