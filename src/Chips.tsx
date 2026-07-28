@@ -33,7 +33,7 @@ export function TaskTypeChip({ value, onChange, isCompact = false }: any) {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - 20;
-      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
+      setModalPos({ top: rect.bottom + 8, left: Math.max(8, Math.min(rect.left, window.innerWidth - 260)), maxHeight: spaceBelow });
     }
     setShow(!show);
   };
@@ -129,7 +129,7 @@ export function TimePickerChip({ value, onChange, muted = false }: any) {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - 20;
-      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
+      setModalPos({ top: rect.bottom + 8, left: Math.max(8, Math.min(rect.left, window.innerWidth - 260)), maxHeight: spaceBelow });
     }
     setShow(s => !s);
   };
@@ -198,7 +198,7 @@ export function DatePickerChip({ value, onChange, dropUp = false, iconOnly = fal
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - 20;
-      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
+      setModalPos({ top: rect.bottom + 8, left: Math.max(8, Math.min(rect.left, window.innerWidth - 260)), maxHeight: spaceBelow });
     }
     setShow(s => !s);
   };
@@ -326,7 +326,7 @@ export function RecurrencePickerChip({ value, onChange, muted = false }: any) {
       const spaceBelow = window.innerHeight - rect.bottom - 20;
       setModalPos({
         top: rect.bottom + 8,
-        left: rect.left,
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 260)),
         maxHeight: spaceBelow
       });
     }
@@ -599,7 +599,7 @@ export function TagPickerChip({ selectedTags = [], onChange, muted = false }: an
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - 20;
-      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
+      setModalPos({ top: rect.bottom + 8, left: Math.max(8, Math.min(rect.left, window.innerWidth - 260)), maxHeight: spaceBelow });
     }
     setShow(!show);
   };
@@ -752,7 +752,7 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
     if (!readonly && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - 20;
-      setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow });
+      setModalPos({ top: rect.bottom + 8, left: Math.max(8, Math.min(rect.left, window.innerWidth - 260)), maxHeight: spaceBelow });
       setShow(true);
     }
   };
@@ -818,10 +818,10 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
       const PANEL_HEIGHT = 300; // altura aproximada del panel
       if (spaceBelow >= PANEL_HEIGHT || spaceBelow >= spaceAbove) {
         // Abrir hacia abajo
-        setModalPos({ top: rect.bottom + 8, left: rect.left, maxHeight: spaceBelow, openUp: false });
+        setModalPos({ top: rect.bottom + 8, left: Math.max(8, Math.min(rect.left, window.innerWidth - 260)), maxHeight: spaceBelow, openUp: false });
       } else {
         // Abrir hacia arriba
-        setModalPos({ top: rect.top - PANEL_HEIGHT - 8, left: rect.left, maxHeight: spaceAbove, openUp: true });
+        setModalPos({ top: rect.top - PANEL_HEIGHT - 8, left: Math.max(8, Math.min(rect.left, window.innerWidth - 260)), maxHeight: spaceAbove, openUp: true });
       }
       setManualVal('');
       setMarkComplete(false);
@@ -955,7 +955,7 @@ export function BlockPickerChip({ value, blocks = [], onChange, muted = false }:
       const spaceBelow = window.innerHeight - rect.bottom - 20;
       setModalPos({ 
         top: rect.bottom + 8, 
-        left: rect.left,
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 260)),
         maxHeight: spaceBelow > 400 ? spaceBelow : 400
       });
     }
@@ -1046,7 +1046,7 @@ export function DelegationChip({ delegation, people = [], onChange, onAddPerson,
       const spaceBelow = window.innerHeight - rect.bottom - 20; // 20px margin
       setModalPos({ 
         top: rect.bottom + 8, 
-        left: rect.left,
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 260)),
         maxHeight: spaceBelow
       });
     }
