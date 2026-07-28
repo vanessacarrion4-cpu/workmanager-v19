@@ -62,6 +62,7 @@ export function TaskCard({
   onRecurrenceDateChange = null,
   onViewInstances = null,
   onGoToTemplate = null,
+  parentBlockId = null,
   highlightTaskId = null,
   onAddTimeEntry = null,
   taskIndex = null,
@@ -331,7 +332,9 @@ export function TaskCard({
         >
           {/* Main Row — una sola línea, 29px. group/row: el hover se activa SOLO en esta fila
               (no en el bloque/sección entera). */}
-          <div className={`group/row flex items-center gap-1.5 px-3 min-h-[29px] ${rowOnHold ? 'opacity-60' : ''}`}>
+          {/* Atenuado de "en suspenso" con ::after (NO opacity): el opacity cascadea a los popups
+              fixed y los deja translúcidos; el pseudo-elemento se queda en la caja de la fila. */}
+          <div className={`group/row relative flex items-center gap-1.5 px-3 min-h-[29px] ${rowOnHold ? "after:absolute after:inset-0 after:content-[''] after:pointer-events-none after:rounded-lg dark:after:bg-bg-main/45 after:bg-bg-main-light/55" : ''}`}>
 
             {/* Flechas de reordenar retiradas: el arrastre reordena en todas las vistas
                 (Mi Día/Bloques/Calendario ya; Delegadas con Reorder.Group; Búsqueda no reordena). */}
@@ -606,14 +609,26 @@ export function TaskCard({
 
                   {/* Bloque — en una hija solo si difiere del bloque del padre (la barra de la
                       izquierda ya ancla el bloque; se muestra la excepción, no la herencia). §7.2 */}
-                  {(!task.parentTaskId || allTasksMap[task.parentTaskId]?.blockId !== task.blockId) && (
+                  {/* Es HIJA si la recursión le pasó parentBlockId (una instancia recurrente tiene
+                      parentTaskId=null, así que no sirve para detectar hija). Chip solo si difiere del padre. */}
+                  {((parentBlockId == null && !task.parentTaskId)
+                    || (parentBlockId ?? allTasksMap[task.parentTaskId]?.blockId) !== task.blockId) && (
                     <BlockPickerChip
                       value={task.blockId}
                       blocks={blocks}
                       onChange={(blockId: string) => onUpdateTask({ ...task, blockId })}
                     />
                   )}
-                  {/* ↗ Ir a Bloques retirado (§7.2 opción 1): el chip de bloque ya da ese contexto. */}
+                  {/* Ir a Bloques (↗) — hover. El chip de bloque CAMBIA de bloque; esto NAVEGA a él. */}
+                  {onGoToTemplate && variant !== 'FULL' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onGoToTemplate(task.templateId || task.id); }}
+                      className="shrink-0 w-5 h-5 flex items-center justify-center rounded transition-all opacity-0 group-hover/row:opacity-100 dark:text-turquesa text-turquesa-light hover:opacity-80"
+                      title="Ir a Bloques"
+                    >
+                      <ArrowUpRight size={12} />
+                    </button>
+                  )}
               </div>
             )}
 
@@ -734,8 +749,9 @@ export function TaskCard({
                     })
                     .map((subId: string, idx: number, visibleSubs: string[]) => (
                     <Reorder.Item key={subId} value={subId} as="div" whileDrag={{ scale: 1.01, zIndex: 50, boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }} style={{ cursor: 'grab' }}>
-                      <TaskCard 
+                      <TaskCard
                         task={allTasksMap[subId]}
+                        parentBlockId={task.blockId}
                         variant={variant}
                         allTasksMap={allTasksMap}
                         people={people}
