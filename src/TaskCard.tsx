@@ -695,7 +695,7 @@ export function TaskCard({
                 {/* ··· acciones — botón fijo a la derecha; la tira se despliega a su IZQUIERDA
                     (absolute, descendiente → onMouseLeave no salta al pasar de los puntos a la tira). */}
                 <div
-                  className="w-[26px] shrink-0 relative flex items-center justify-center"
+                  className="w-[26px] shrink-0 relative z-[10] flex items-center justify-center"
                   onMouseEnter={openStrip}
                   onMouseLeave={closeStrip}
                 >
@@ -707,7 +707,12 @@ export function TaskCard({
                     <MoreHorizontal size={16} />
                   </button>
                   {stripOpen && (
-                    <div className="absolute right-full top-0 h-full z-[6] flex items-center gap-1 pl-8 pr-1 bg-gradient-to-l to-transparent dark:from-bg-card dark:via-bg-card from-bg-card-light via-bg-card-light">
+                    <div className="absolute right-full top-0 h-full z-[10] flex items-center">
+                      {/* remate: 20px de degradado a la IZQUIERDA del primer icono (sólido→transparente),
+                          para que la transición no sea un corte seco. Ningún icono cae aquí. */}
+                      <div className="w-5 h-full bg-gradient-to-l from-bg-card-light dark:from-bg-card to-transparent" />
+                      {/* fondo SÓLIDO bajo toda la tira (color de la fila = tarjeta) */}
+                      <div className="h-full flex items-center gap-1 pl-1 pr-1 bg-bg-card-light dark:bg-bg-card">
                       {onGoToTemplate && (
                         <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onGoToTemplate(task.templateId || task.id); }} title="Ir a Bloques" className="w-6 h-6 flex items-center justify-center rounded-lg dark:text-turquesa text-turquesa-light hover:bg-turquesa/10 transition-all"><ArrowUpRight size={13} /></button>
                       )}
@@ -717,6 +722,7 @@ export function TaskCard({
                         <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onPromote(task.id); }} title="Subir un nivel" className="w-6 h-6 flex items-center justify-center rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-turquesa transition-all"><ArrowUpLeft size={13} /></button>
                       )}
                       <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onDemote(task.id); }} title="Bajar un nivel" className="w-6 h-6 flex items-center justify-center rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-azul transition-all"><ArrowDownRight size={13} /></button>
+                      </div>
                     </div>
                   )}
                 </div>
