@@ -431,7 +431,7 @@ export function TaskCard({
                 del raíl que se lea en vertical). Derivada en contenedores. */}
             {rowOnHold && (
               <span title="En suspenso (esperando algo)" className="shrink-0 flex items-center" data-testid="hold-mark">
-                <Hourglass size={12} className="dark:text-naranja text-naranja-light" />
+                <Hourglass size={12} className="dark:text-text-secondary text-text-secondary-light" />
               </span>
             )}
 
@@ -545,7 +545,7 @@ export function TaskCard({
                 {/* CONTEXTO (gris #64748B): fecha · recurrencia · delegación · etiqueta · bloque */}
                 <div className="flex items-center">
                   {/* Fecha (en Mi Día = columna sin dato: punteado en hover, clic mueve el día) */}
-                  <div className="w-[44px] shrink-0 flex items-center justify-center overflow-hidden">
+                  <div className="w-[44px] shrink-0 flex items-center justify-start overflow-hidden">
                     {!hasSubtasks && (() => {
                       const railBlank = variant === 'DASHBOARD' || !task.dueDate;
                       return (
@@ -563,7 +563,7 @@ export function TaskCard({
                     })()}
                   </div>
                   {/* Recurrencia (recurrente → etiqueta gris; manual sin recurrencia → picker para añadir) */}
-                  <div className="w-[56px] shrink-0 flex items-center justify-center overflow-hidden">
+                  <div className="w-[56px] shrink-0 flex items-center justify-start overflow-hidden">
                     {(() => {
                       if (task.templateId && !hasSubtasks) {
                         const rec = allTasksMap[task.templateId]?.recurrence;
@@ -587,7 +587,7 @@ export function TaskCard({
                     })()}
                   </div>
                   {/* Delegación */}
-                  <div className="w-[64px] shrink-0 flex items-center justify-center overflow-hidden">
+                  <div className="w-[70px] shrink-0 flex items-center justify-start overflow-hidden">
                     {!hasSubtasks && (
                       <div className={task.delegation ? 'flex' : 'hidden group-hover/row:flex has-[[data-open=true]]:flex'}>
                         <DelegationChip
@@ -604,7 +604,7 @@ export function TaskCard({
                     )}
                   </div>
                   {/* Etiqueta (a color pleno) */}
-                  <div className="w-[28px] shrink-0 flex items-center justify-center">
+                  <div className="w-[28px] shrink-0 flex items-center justify-start">
                     {!hasSubtasks && (
                       <div className={(task.tags && task.tags.length > 0) ? 'flex' : 'hidden group-hover/row:flex has-[[data-open=true]]:flex'}>
                         <TagPickerChip
@@ -616,7 +616,7 @@ export function TaskCard({
                     )}
                   </div>
                   {/* Bloque (en hija: solo si difiere del padre renderizado) */}
-                  <div className="w-[76px] shrink-0 flex items-center justify-center overflow-hidden">
+                  <div className="w-[80px] shrink-0 flex items-center justify-start overflow-hidden">
                     {((parentBlockId == null && !task.parentTaskId)
                       || (parentBlockId ?? allTasksMap[task.parentTaskId]?.blockId) !== task.blockId) && (
                       <BlockPickerChip
