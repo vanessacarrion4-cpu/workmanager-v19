@@ -27,7 +27,37 @@ import {
 } from './Chips';
 import { MonthDatePicker } from './TimeComponents';
 
-export function TaskCard({ 
+// Formato corto ÚNICO de recurrencia — mismo para todos los tipos (mismo tamaño/mayúsculas donde se pinta).
+// refDate = fecha de la instancia/tarea, para rellenar el día del mes/año si la regla no lo trae.
+function recurrenceLabel(rec: any, refDate?: string | null): string {
+  if (!rec) return '';
+  const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+  const freq = rec.frequency || rec.type;
+  const dayOf = (iso?: string | null) => (iso ? new Date(iso + 'T12:00:00').getDate() : null);
+  const monthOf = (iso?: string | null) => (iso ? new Date(iso + 'T12:00:00').getMonth() + 1 : null);
+  if (freq === 'daily') return 'Diaria';
+  if (freq === 'weekdays') return 'L-V';
+  if (freq === 'weekly') {
+    const days = (rec.weekDays || []).map((d: number) => dayNames[d]).join(' ');
+    return days || 'Sem';
+  }
+  if (freq === 'monthly') {
+    const day = rec.monthDay || dayOf(rec.startDate) || dayOf(refDate);
+    return day ? `Mes ${day}` : 'Mes';
+  }
+  if (freq === 'yearly') {
+    const yd = rec.yearDay || dayOf(rec.startDate) || dayOf(refDate);
+    const ym = rec.yearMonth || monthOf(rec.startDate) || monthOf(refDate);
+    if (yd && ym) {
+      const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+      return `Año ${yd} ${months[ym - 1] || ''}`.trim();
+    }
+    return 'Año';
+  }
+  return String(freq || '');
+}
+
+export function TaskCard({
   task, 
   variant, 
   allTasksMap,
@@ -484,29 +514,7 @@ export function TaskCard({
                     const tmpl = allTasksMap[task.templateId];
                     const rec = tmpl?.recurrence;
                     if (!rec) return null;
-                    const freq = rec.frequency || rec.type;
-                    const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-                    let label = '';
-                    if (freq === 'daily') label = 'Diaria';
-                    else if (freq === 'weekdays') label = 'L-V';
-                    else if (freq === 'weekly') {
-                      const days = (rec.weekDays || []).map((d: number) => dayNames[d]).join(' ');
-                      label = days || 'Sem';
-                    }
-                    else if (freq === 'monthly') {
-                      const day = rec.monthDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : '');
-                      label = `Mes ${day || ''}`;
-                    }
-                    else if (freq === 'yearly') {
-                      const yd = rec.yearDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : null);
-                      const ym = rec.yearMonth || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getMonth() + 1 : null);
-                      if (yd && ym) {
-                        const dd = String(yd).padStart(2, '0');
-                        const mm = String(ym).padStart(2, '0');
-                        label = `Año ${dd}-${mm}`;
-                      } else label = 'Año';
-                    }
-                    else label = freq;
+                    const label = recurrenceLabel(rec, task.instanceDate || task.dueDate);
                     return (
                       <div className="flex items-center gap-1 shrink-0" title="Tarea recurrente">
                         <RefreshCw size={11} className="dark:text-turquesa text-turquesa-light shrink-0" />
@@ -517,32 +525,11 @@ export function TaskCard({
                   {/* Chip recurrencia para templates (Delegadas, Vista Bloques) */}
                   {task.isTemplate && task.recurrence && !task.templateId && (() => {
                     const rec = task.recurrence;
-                    const freq = rec.frequency || rec.type;
-                    const dayNames = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-                    let label = '';
-                    if (freq === 'daily') label = 'Diaria';
-                    else if (freq === 'weekdays') label = 'L-V';
-                    else if (freq === 'weekly') {
-                      const days = (rec.weekDays || []).map((d: number) => dayNames[d]).join(' ');
-                      label = days || 'Sem';
-                    }
-                    else if (freq === 'monthly') {
-                      const day = rec.monthDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : '');
-                      label = `Mes ${day || ''}`;
-                    }
-                    else if (freq === 'yearly') {
-                      const yd = rec.yearDay || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getDate() : null);
-                      const ym = rec.yearMonth || (rec.startDate ? new Date(rec.startDate + 'T12:00:00').getMonth() + 1 : null);
-                      if (yd && ym) {
-                        const dd = String(yd).padStart(2, '0');
-                        const mm = String(ym).padStart(2, '0');
-                        label = `Año ${dd}-${mm}`;
-                      } else label = 'Año';
-                    }
-                    else label = freq;
+                    const label = recurrenceLabel(rec, task.dueDate);
                     return (
-                      <div className="flex items-center gap-1 shrink-0">
-
+                      <div className="flex items-center gap-1 shrink-0" title="Tarea recurrente">
+                        <RefreshCw size={11} className="dark:text-turquesa text-turquesa-light shrink-0" />
+                        <span className="text-[11px] font-medium dark:text-turquesa text-turquesa-light">{label}</span>
                         {onViewInstances && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onViewInstances(task); }}
