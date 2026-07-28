@@ -412,12 +412,15 @@ export function useTaskCRUD({
             updated[oldParent.id] = { ...oldParent, subtasks: newParentSubtasks, modifiedAt: timestamp };
           }
 
-          const newParentId = oldParent.templateId
-            ? `inst-${oldParent.templateId}-${newDate}`
-            : `inst-${oldParent.id}-${newDate}`;
+          // Fuga inst-inst-: normalizar SIEMPRE las bases con templateIdFromInstanceId antes de
+          // construir ids. Si oldParent/updatedTask ya eran instancias (o su templateId apuntaba a
+          // otra instancia), concatenar en crudo generaba `inst-inst-…` y `template_id → instancia`.
+          const parentTid = templateIdFromInstanceId(oldParent.templateId || oldParent.id);
+          const childTid = templateIdFromInstanceId(updatedTask.templateId);
+          const newParentId = `inst-${parentTid}-${newDate}`;
 
           const existingNewParent = updated[newParentId];
-          const newSubtaskId = `inst-${updatedTask.templateId}-${newDate}`;
+          const newSubtaskId = `inst-${childTid}-${newDate}`;
 
           if (existingNewParent) {
             updated[newParentId] = {
@@ -430,7 +433,7 @@ export function useTaskCRUD({
             updated[newParentId] = {
               ...(parentTemplate || oldParent),
               id: newParentId,
-              templateId: oldParent.templateId || oldParent.id,
+              templateId: parentTid,
               dueDate: newDate,
               instanceDate: newDate,
               isTemplate: false,
@@ -514,7 +517,7 @@ export function useTaskCRUD({
         !updatedTask.isTemplate
       ) {
         const instanceDate = updatedTask.dueDate || formatLocalISO(new Date());
-        const instanceId = `inst-${updatedTask.id}-${instanceDate}`;
+        const instanceId = `inst-${templateIdFromInstanceId(updatedTask.id)}-${instanceDate}`;
         const instanceTimestamp = new Date().toISOString();
 
         updated[updatedTask.id] = {
@@ -599,7 +602,9 @@ export function useTaskCRUD({
         if (_isSubtaskDateChange) {
           const _newDate = updatedTask.dueDate;
           const _oldDate = updatedTask.instanceDate;
-          const _newSubtaskId = `inst-${updatedTask.templateId}-${_newDate}`;
+          // Fuga inst-inst- (escritor async/DB): normalizar la base antes de construir el id Y el template_id.
+          const _childTid = templateIdFromInstanceId(updatedTask.templateId);
+          const _newSubtaskId = `inst-${_childTid}-${_newDate}`;
 
           // B4-cambio-2: la excepción recurrente MOVIDA NO se enlaza a la plantilla (era el 2º escritor de
           // contaminación parent→plantilla, además del de cambio-1). parent_task_id queda `null`; materializeDay
@@ -631,7 +636,7 @@ export function useTaskCRUD({
             is_expanded: updatedTask.isExpanded || false,
             task_type: updatedTask.taskType || null,
             parent_task_id: null,  // B4-cambio-2: null (no plantilla); materializeDay re-anida por templateId
-            template_id: updatedTask.templateId,
+            template_id: _childTid,
             instance_date: _oldDate,
             recurrence: null,
             delegation: updatedTask.delegation || null,
