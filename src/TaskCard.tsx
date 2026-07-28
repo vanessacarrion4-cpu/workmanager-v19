@@ -181,6 +181,7 @@ export function TaskCard({
   
   const isTimerRunning = activeTimer?.entityId === task.id;
   const [dragX, setDragX] = useState(0);
+  const origTitleRef = useRef<string>(''); // título antes de editar, para Escape (cancelar)
 
   // "En suspenso": en un CONTENEDOR el estado se DERIVA de sus hijas del grupo (no se persiste
   // en el padre; la columna on_hold solo la escriben las hijas). subtasksForGroup = hijas de esta
@@ -205,6 +206,19 @@ export function TaskCard({
     } else {
       onUpdateTask({ ...task, onHold: !task.onHold });
     }
+  };
+
+  // Edición del título: <span> por defecto (mide su texto), <input> al editar.
+  const isEditingTitle = editingTaskId === task.id || inlineEditingTaskId === task.id;
+  const enterTitleEdit = (e: React.MouseEvent) => {
+    if (selectionMode) return;            // en modo selección, dejar que el clic seleccione
+    e.stopPropagation();
+    origTitleRef.current = task.title;
+    setInlineEditingTaskId && setInlineEditingTaskId(task.id);
+  };
+  const exitTitleEdit = () => {
+    if (editingTaskId === task.id) onEditTask(null);
+    if (inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
   };
 
   if (variant === 'COMPACT') {
@@ -413,27 +427,31 @@ export function TaskCard({
               />
             </div>
 
-            {/* Título + badges. En hijas el grupo es flex-1 (empuja el resto de chips a la
-                derecha, alineados en columna). En padre/sueltas ancho natural (máx. mitad):
-                los chips arrancan justo tras el texto, no en el extremo. */}
-            <div className={`flex items-center gap-1.5 min-w-0 ${task.parentTaskId ? 'flex-1' : 'max-w-[55%]'}`}>
+            {/* Título: <span> mide su texto (los chips lo pegan; se trunca al chocar, min-w-0).
+                <input> solo al editar. Clic → edita; Enter guarda, Escape cancela, salir guarda. */}
+            {isEditingTitle ? (
               <input
-                autoFocus={editingTaskId === task.id || inlineEditingTaskId === task.id}
-                className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none min-w-0 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
+                autoFocus
+                className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none flex-1 min-w-0 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
                 value={task.title}
                 onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
-                onBlur={() => {
-                  if(editingTaskId === task.id) onEditTask(null);
-                  if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
-                }}
+                onFocus={() => { origTitleRef.current = task.title; }}
+                onBlur={exitTitleEdit}
                 onKeyDown={(e) => {
-                  if(e.key === 'Enter') {
-                    if(editingTaskId === task.id) onEditTask(null);
-                    if(inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
-                  }
+                  if (e.key === 'Enter') exitTitleEdit();
+                  else if (e.key === 'Escape') { onUpdateTask({ ...task, title: origTitleRef.current }); exitTitleEdit(); }
                 }}
                 placeholder="Título de la tarea..."
               />
+            ) : (
+              <span
+                onClick={enterTitleEdit}
+                title={task.title || undefined}
+                className={`text-[13px] font-black min-w-0 truncate capitalize cursor-text ${task.status === 'completed' ? 'line-through dark:text-white/60 text-text-main-light/60' : (!task.title ? 'italic font-medium dark:text-text-secondary/40 text-text-secondary-light/40' : 'dark:text-white text-text-main-light')}`}
+              >
+                {task.title || 'Título de la tarea...'}
+              </span>
+            )}
               {/* Marca "en suspenso" (esperando algo) — solo visual, no reagrupa. En contenedor, derivada. */}
               {rowOnHold && (
                 <span title="En suspenso (esperando algo)" className="shrink-0 flex items-center">
@@ -468,16 +486,15 @@ export function TaskCard({
                   </button>
                 );
               })()}
-              {/* Hora junto al título en HIJAS: es el dato que ordena el grupo "CON HORA". */}
-              {task.parentTaskId && task.dueTime && !hasSubtasks && !inMeeting && (
-                <div className="shrink-0">
-                  <TimePickerChip
-                    value={task.dueTime}
-                    onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })}
-                  />
-                </div>
-              )}
-            </div>
+            {/* Hora junto al título en HIJAS: es el dato que ordena el grupo "CON HORA". */}
+            {task.parentTaskId && task.dueTime && !hasSubtasks && !inMeeting && (
+              <div className="shrink-0">
+                <TimePickerChip
+                  value={task.dueTime}
+                  onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })}
+                />
+              </div>
+            )}
 
             {/* Chips en línea (o resumen estimado→real si completada) */}
             {task.status === 'completed' ? (
@@ -648,8 +665,9 @@ export function TaskCard({
               );
             })()}
 
-            {/* Botones acción — TODO en hover (§7.2). El play del timer va aparte, siempre visible. */}
-            <div className="flex items-center gap-1 shrink-0 ml-auto opacity-0 group-hover/row:opacity-100 transition-opacity">
+            {/* Botones acción — FLOTAN sobre la fila (absolute), no reservan ancho. Degradado corto
+                detrás (transparente→color de la fila) para que se lean sobre el contenido. §Tanda 2.1 */}
+            <div className="absolute inset-y-0 right-0 z-[5] flex items-center gap-1 pl-10 pr-3 opacity-0 group-hover/row:opacity-100 transition-opacity bg-gradient-to-l to-transparent dark:from-bg-card dark:via-bg-card from-bg-card-light via-bg-card-light">
               {/* En suspenso — marca visual (no reagrupa, el tiempo sigue contando) */}
               <button
                 onClick={(e) => { e.stopPropagation(); toggleOnHold(); }}
