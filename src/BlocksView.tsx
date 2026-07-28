@@ -121,7 +121,17 @@ export function BlocksManagerView({
 
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [hideCompleted, setHideCompleted] = useState(false);
+  // Bloques es una vista de planificación, no un registro histórico: por defecto ocultamos
+  // completadas (evita arrastrar el histórico legado). El interruptor se persiste en localStorage.
+  const [hideCompleted, setHideCompleted] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem('wm-blocks-hide-completed');
+      return v === null ? true : v === 'true';
+    } catch { return true; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('wm-blocks-hide-completed', String(hideCompleted)); } catch { /* noop */ }
+  }, [hideCompleted]);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   // Notify parent of expand state changes
