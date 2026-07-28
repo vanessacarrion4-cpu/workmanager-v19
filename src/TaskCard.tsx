@@ -150,7 +150,32 @@ export function TaskCard({
   
   const isTimerRunning = activeTimer?.entityId === task.id;
   const [dragX, setDragX] = useState(0);
- 
+
+  // "En suspenso": en un CONTENEDOR el estado se DERIVA de sus hijas del grupo (no se persiste
+  // en el padre; la columna on_hold solo la escriben las hijas). subtasksForGroup = hijas de esta
+  // etiqueta (Mi Día); fuera de Mi Día llega null → todas las hijas activas del objeto renderizado.
+  const onHoldChildIds: string[] = hasSubtasks
+    ? (subtasksForGroup || (task.subtasks || []).filter((id: string) => {
+        const s = allTasksMap[id];
+        return s && !s.isDeleted && s.status !== 'completed';
+      }))
+    : [];
+  const rowOnHold = hasSubtasks
+    ? (onHoldChildIds.length > 0 && onHoldChildIds.every((id: string) => allTasksMap[id]?.onHold))
+    : !!task.onHold;
+  const toggleOnHold = () => {
+    if (hasSubtasks) {
+      // Suspender/reactivar SOLO las hijas de este grupo → el padre queda suspendido solo aquí.
+      const next = !rowOnHold;
+      onHoldChildIds.forEach((id: string) => {
+        const child = allTasksMap[id];
+        if (child) onUpdateTask({ ...child, onHold: next });
+      });
+    } else {
+      onUpdateTask({ ...task, onHold: !task.onHold });
+    }
+  };
+
   if (variant === 'COMPACT') {
     const [showMovePicker, setShowMovePicker] = useState(false);
     const [showMoveCalendar, setShowMoveCalendar] = useState(false);
@@ -306,7 +331,7 @@ export function TaskCard({
         >
           {/* Main Row — una sola línea, 29px. group/row: el hover se activa SOLO en esta fila
               (no en el bloque/sección entera). */}
-          <div className={`group/row flex items-center gap-1.5 px-3 min-h-[29px] ${task.onHold ? 'opacity-60' : ''}`}>
+          <div className={`group/row flex items-center gap-1.5 px-3 min-h-[29px] ${rowOnHold ? 'opacity-60' : ''}`}>
 
             {/* Flechas de reordenar retiradas: el arrastre reordena en todas las vistas
                 (Mi Día/Bloques/Calendario ya; Delegadas con Reorder.Group; Búsqueda no reordena). */}
@@ -376,8 +401,8 @@ export function TaskCard({
                 }}
                 placeholder="Título de la tarea..."
               />
-              {/* Marca "en suspenso" (esperando algo) — solo visual, no reagrupa */}
-              {task.onHold && (
+              {/* Marca "en suspenso" (esperando algo) — solo visual, no reagrupa. En contenedor, derivada. */}
+              {rowOnHold && (
                 <span title="En suspenso (esperando algo)" className="shrink-0 flex items-center">
                   <Hourglass size={12} className="dark:text-text-secondary text-text-secondary-light" />
                 </span>
@@ -625,9 +650,9 @@ export function TaskCard({
             <div className="flex items-center gap-1 shrink-0 ml-auto opacity-0 group-hover/row:opacity-100 transition-opacity">
               {/* En suspenso — marca visual (no reagrupa, el tiempo sigue contando) */}
               <button
-                onClick={(e) => { e.stopPropagation(); onUpdateTask({ ...task, onHold: !task.onHold }); }}
-                title={task.onHold ? 'Quitar en suspenso' : 'Marcar en suspenso (esperando algo)'}
-                className={`w-6 h-6 flex items-center justify-center rounded-lg transition-all border ${task.onHold ? 'dark:text-naranja text-naranja-light dark:bg-naranja/10 bg-naranja-light/10 dark:border-naranja/30 border-naranja-light/30' : 'dark:text-text-secondary text-text-secondary-light bg-transparent border-transparent dark:hover:text-naranja hover:text-naranja-light'}`}
+                onClick={(e) => { e.stopPropagation(); toggleOnHold(); }}
+                title={rowOnHold ? 'Quitar en suspenso' : 'Marcar en suspenso (esperando algo)'}
+                className={`w-6 h-6 flex items-center justify-center rounded-lg transition-all border ${rowOnHold ? 'dark:text-naranja text-naranja-light dark:bg-naranja/10 bg-naranja-light/10 dark:border-naranja/30 border-naranja-light/30' : 'dark:text-text-secondary text-text-secondary-light bg-transparent border-transparent dark:hover:text-naranja hover:text-naranja-light'}`}
               >
                 <Hourglass size={12} />
               </button>
