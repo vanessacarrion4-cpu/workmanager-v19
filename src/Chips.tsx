@@ -612,7 +612,7 @@ export function TagPickerChip({ selectedTags = [], onChange, muted = false }: an
         className="flex items-center gap-1 cursor-pointer"
       >
         {selectedTags.length > 0 ? (
-          <div className={`flex items-center gap-0.5 h-6 rounded ${muted ? 'opacity-60 hover:opacity-100 hover:bg-black/[0.05] dark:hover:bg-white/10 px-1 transition-all' : ''}`}>
+          <div className={`flex items-center gap-0.5 h-6 rounded ${muted ? 'px-1 hover:bg-black/[0.05] dark:hover:bg-white/10 transition-all' : ''}`}>
             {selectedTags.map((t: any) => (
               <span key={t} className="text-[13px] leading-none" title={TAG_LABELS[t]?.label || t}>{TAG_LABELS[t].icon}</span>
             ))}
