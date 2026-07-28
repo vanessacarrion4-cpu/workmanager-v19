@@ -388,8 +388,10 @@ export function TaskCard({
             {/* Flechas de reordenar retiradas: el arrastre reordena en todas las vistas
                 (Mi Día/Bloques/Calendario ya; Delegadas con Reorder.Group; Búsqueda no reordena). */}
 
-            {/* Barra color bloque */}
-            <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: block.color }} />
+            {/* Barra color bloque — inset vertical (my-1) para que sus extremos no asomen por
+                las esquinas redondeadas de la tarjeta (rounded-2xl). Sin overflow-hidden: así los
+                popups fixed del raíl no se recortan. Conserva el marco redondeado. */}
+            <div className="w-1 self-stretch my-1 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
 
             {/* Checkbox — en modo selección muestra selección, en modo normal completa */}
             <button
