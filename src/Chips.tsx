@@ -112,7 +112,7 @@ export function TaskTypeChip({ value, onChange, isCompact = false }: any) {
 }
  
 
-export function TimePickerChip({ value, onChange, muted = false }: any) {
+export function TimePickerChip({ value, onChange, muted = false, light = false }: any) {
   const [show, setShow] = useState(false);
   const [inputVal, setInputVal] = React.useState(value || '');
   const [modalPos, setModalPos] = useState({ top: 0, left: 0 });
@@ -141,8 +141,8 @@ export function TimePickerChip({ value, onChange, muted = false }: any) {
         onClick={handleOpen}
         className={`h-6 rounded transition-all flex items-center gap-1 text-[11px] font-medium tabular-nums ${
           value
-            ? (muted ? `px-1 ${RAIL_GREY}` : 'px-0.5 dark:text-azul text-azul-light')
-            : `px-1.5 border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main border-border-main-light ${muted ? RAIL_GREY : 'dark:text-text-secondary/70 text-text-secondary-light/70 hover:border-azul hover:text-azul'}`
+            ? (muted ? `px-1 ${RAIL_GREY}` : light ? 'px-1 text-[#60A5FA] hover:bg-black/[0.05] dark:hover:bg-white/10' : 'px-0.5 dark:text-azul text-azul-light')
+            : `px-1.5 border border-dashed dark:bg-bg-main/40 bg-white ${muted ? `dark:border-border-main border-border-main-light ${RAIL_GREY}` : light ? 'border-[#60A5FA]/40 text-[#60A5FA]/80 hover:bg-black/[0.05] dark:hover:bg-white/10' : 'dark:border-border-main border-border-main-light dark:text-text-secondary/70 text-text-secondary-light/70 hover:border-azul hover:text-azul'}`
         }`}
         title={value ? `Hora: ${value}` : 'Añadir hora'}
       >

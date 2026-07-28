@@ -439,7 +439,7 @@ export function TaskCard({
               {!hasSubtasks && !inMeeting && (
                 <div className={task.dueTime ? 'flex' : 'hidden group-hover/row:flex has-[[data-open=true]]:flex'}>
                   <TimePickerChip
-                    muted
+                    light
                     value={task.dueTime || ''}
                     onChange={(time: string) => onUpdateTask({ ...task, dueTime: time })}
                   />
