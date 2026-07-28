@@ -432,20 +432,6 @@ export function TaskCard({
               />
             </div>
 
-            {/* Suspender — marca Y control en un mismo objeto, a la IZQUIERDA junto al tipo (donde ya
-                vive el otro estado: el checkbox). Suspendida → reloj gris visible, clic reactiva. No
-                suspendida → en blanco; al pasar el ratón por la fila, reloj tenue clicable para suspender. */}
-            <button
-              onClick={(e) => { e.stopPropagation(); toggleOnHold(); }}
-              title={rowOnHold ? 'Quitar en suspenso' : 'Marcar en suspenso (esperando algo)'}
-              data-testid="hold-mark"
-              className={`shrink-0 w-5 h-5 flex items-center justify-center rounded transition-all ${rowOnHold
-                ? 'dark:text-text-secondary text-text-secondary-light'
-                : 'opacity-0 group-hover/row:opacity-100 dark:text-text-secondary/40 text-text-secondary-light/40 hover:dark:text-text-secondary hover:text-text-secondary-light hover:bg-black/[0.05] dark:hover:bg-white/10'}`}
-            >
-              <Hourglass size={12} />
-            </button>
-
             {/* Título: <span> mide su texto (los chips lo pegan; se trunca al chocar, min-w-0).
                 <input> solo al editar. Clic → edita; Enter guarda, Escape cancela, salir guarda. */}
             {isEditingTitle ? (
@@ -510,6 +496,19 @@ export function TaskCard({
               </div>
             )}
 
+            {/* Suspender — marca + control (mismo objeto), DESPUÉS del contador/hora. Suspendida →
+                reloj gris visible, clic reactiva. No suspendida → en blanco; reloj tenue clicable en hover. */}
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleOnHold(); }}
+              title={rowOnHold ? 'Quitar en suspenso' : 'Marcar en suspenso (esperando algo)'}
+              data-testid="hold-mark"
+              className={`shrink-0 w-5 h-5 flex items-center justify-center rounded transition-all ${rowOnHold
+                ? 'dark:text-text-secondary text-text-secondary-light'
+                : 'opacity-0 group-hover/row:opacity-100 dark:text-text-secondary/40 text-text-secondary-light/40 hover:dark:text-text-secondary hover:text-text-secondary-light hover:bg-black/[0.05] dark:hover:bg-white/10'}`}
+            >
+              <Hourglass size={12} />
+            </button>
+
             {/* Spacer: empuja el raíl a la derecha. El título (izquierda) mide su texto y cede
                 este hueco; se trunca solo al chocar con el raíl. */}
             <div className="flex-1 min-w-0" />
@@ -527,12 +526,20 @@ export function TaskCard({
                 {/* TIEMPOS: estimado · registrado · play (pegados) */}
                 <div className="flex items-center">
                   <div className="w-[42px] shrink-0 flex items-center justify-end overflow-hidden">
-                    {!inMeeting && <EstimatedTimeChip
-                      value={hasSubtasks ? totalEstimated : task.estimatedMinutes}
-                      onChange={(val: number) => { if (!hasSubtasks) onUpdateTask({ ...task, estimatedMinutes: val }); }}
-                      readonly={hasSubtasks}
-                      variant={level > 1 ? 'mini' : 'default'}
-                    />}
+                    {!inMeeting && (() => {
+                      const estVal = hasSubtasks ? totalEstimated : task.estimatedMinutes;
+                      const estEmpty = !hasSubtasks && !(estVal > 0); // sin estimado → columna vacía (hover)
+                      return (
+                        <div className={estEmpty ? 'hidden group-hover/row:flex has-[[data-open=true]]:flex' : 'flex'}>
+                          <EstimatedTimeChip
+                            value={estVal}
+                            onChange={(val: number) => { if (!hasSubtasks) onUpdateTask({ ...task, estimatedMinutes: val }); }}
+                            readonly={hasSubtasks}
+                            variant={level > 1 ? 'mini' : 'default'}
+                          />
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="w-[42px] shrink-0 flex items-center justify-end overflow-hidden">
                     {!inMeeting && <RegisteredTimeChip

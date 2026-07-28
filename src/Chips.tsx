@@ -757,13 +757,18 @@ export function EstimatedTimeChip({ value, onChange, variant = 'default', readon
     }
   };
 
+  const isEmpty = (!value || value === 0) && !readonly; // sin estimado y editable
   return (
-    <div className="relative">
+    <div className="relative" data-open={show ? 'true' : undefined}>
       <button ref={buttonRef} onClick={handleOpen}
-        className={`h-6 rounded transition-all flex items-center gap-1 text-[11px] font-medium tabular-nums dark:text-azul text-azul-light ${readonly ? 'opacity-70 cursor-default' : 'hover:opacity-80'}`}
-        title={readonly ? 'Suma de subtareas' : 'Editar tiempo estimado'}
+        className={`h-6 rounded transition-all flex items-center gap-1 text-[11px] font-medium tabular-nums dark:text-azul text-azul-light ${
+          readonly ? 'opacity-70 cursor-default'
+          : isEmpty ? 'px-1.5 border border-dashed dark:border-azul/40 border-azul-light/50 hover:bg-black/[0.05] dark:hover:bg-white/10'
+          : 'px-1 hover:bg-black/[0.05] dark:hover:bg-white/10'
+        }`}
+        title={readonly ? 'Suma de subtareas' : (isEmpty ? 'Poner tiempo estimado' : 'Editar tiempo estimado')}
       >
-        <span>{label}</span>
+        {isEmpty ? <Clock size={11} /> : <span>{label}</span>}
       </button>
       <AnimatePresence>
         {show && !readonly && (
