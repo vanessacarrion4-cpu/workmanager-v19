@@ -216,9 +216,9 @@ export function DatePickerChip({ value, onChange, dropUp = false, iconOnly = fal
                 : (muted ? `px-1 ${RAIL_GREY}` : 'px-0.5 dark:text-turquesa text-turquesa-light')
             }`
         }
-        title={iconOnly ? (isSinFecha ? 'Poner fecha / mover a otro día' : `${label} — mover a otro día`) : undefined}
+        title={(iconOnly || (muted && isSinFecha)) ? (isSinFecha ? 'Poner fecha / mover a otro día' : `${label} — mover a otro día`) : undefined}
       >
-        {iconOnly ? <CalendarIcon size={13} /> : label}
+        {(iconOnly || (muted && isSinFecha)) ? <CalendarIcon size={13} /> : label}
       </button>
  
       <AnimatePresence>

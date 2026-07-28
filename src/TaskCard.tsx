@@ -432,13 +432,19 @@ export function TaskCard({
               />
             </div>
 
-            {/* Marca "en suspenso" — a la IZQUIERDA, junto al tipo (es un estado, no una columna
-                del raíl que se lea en vertical). Derivada en contenedores. */}
-            {rowOnHold && (
-              <span title="En suspenso (esperando algo)" className="shrink-0 flex items-center" data-testid="hold-mark">
-                <Hourglass size={12} className="dark:text-text-secondary text-text-secondary-light" />
-              </span>
-            )}
+            {/* Suspender — marca Y control en un mismo objeto, a la IZQUIERDA junto al tipo (donde ya
+                vive el otro estado: el checkbox). Suspendida → reloj gris visible, clic reactiva. No
+                suspendida → en blanco; al pasar el ratón por la fila, reloj tenue clicable para suspender. */}
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleOnHold(); }}
+              title={rowOnHold ? 'Quitar en suspenso' : 'Marcar en suspenso (esperando algo)'}
+              data-testid="hold-mark"
+              className={`shrink-0 w-5 h-5 flex items-center justify-center rounded transition-all ${rowOnHold
+                ? 'dark:text-text-secondary text-text-secondary-light'
+                : 'opacity-0 group-hover/row:opacity-100 dark:text-text-secondary/40 text-text-secondary-light/40 hover:dark:text-text-secondary hover:text-text-secondary-light hover:bg-black/[0.05] dark:hover:bg-white/10'}`}
+            >
+              <Hourglass size={12} />
+            </button>
 
             {/* Título: <span> mide su texto (los chips lo pegan; se trunca al chocar, min-w-0).
                 <input> solo al editar. Clic → edita; Enter guarda, Escape cancela, salir guarda. */}
@@ -562,7 +568,7 @@ export function TaskCard({
                 {/* CONTEXTO (gris #64748B): fecha · recurrencia · delegación · etiqueta · bloque */}
                 <div className="flex items-center">
                   {/* Fecha (en Mi Día = columna sin dato: punteado en hover, clic mueve el día) */}
-                  <div className="w-[44px] shrink-0 flex items-center justify-start overflow-hidden">
+                  <div className="w-[36px] shrink-0 flex items-center justify-start overflow-hidden">
                     {!hasSubtasks && (() => {
                       const railBlank = variant === 'DASHBOARD' || !task.dueDate;
                       return (
@@ -580,7 +586,7 @@ export function TaskCard({
                     })()}
                   </div>
                   {/* Recurrencia (recurrente → etiqueta gris; manual sin recurrencia → picker para añadir) */}
-                  <div className="w-[56px] shrink-0 flex items-center justify-start overflow-hidden">
+                  <div className="w-[48px] shrink-0 flex items-center justify-start overflow-hidden">
                     {(() => {
                       if (task.templateId && !hasSubtasks) {
                         const rec = allTasksMap[task.templateId]?.recurrence;
@@ -604,7 +610,7 @@ export function TaskCard({
                     })()}
                   </div>
                   {/* Delegación */}
-                  <div className="w-[70px] shrink-0 flex items-center justify-start overflow-hidden">
+                  <div className="w-[60px] shrink-0 flex items-center justify-start overflow-hidden">
                     {!hasSubtasks && (
                       <div className={task.delegation ? 'flex' : 'hidden group-hover/row:flex has-[[data-open=true]]:flex'}>
                         <DelegationChip
@@ -647,8 +653,9 @@ export function TaskCard({
                 </div>
 
                 {/* + añadir subtarea — fijo y siempre visible. Solo contenedores y sueltas, nunca
-                    hijas (añadir a una hija la convierte en contenedor y borra hora/recurrencia/etiqueta). */}
-                <div className="w-[26px] shrink-0 flex items-center justify-center">
+                    hijas (añadir a una hija la convierte en contenedor y borra hora/recurrencia/etiqueta).
+                    relative z-[7]: la tira ··· nunca lo tapa (queda por encima). */}
+                <div className="w-[26px] shrink-0 flex items-center justify-center relative z-[7]">
                   {level < 3 && (hasSubtasks || (parentBlockId == null && !task.parentTaskId)) && (
                     <button
                       onClick={(e) => { e.stopPropagation(); if (onAddTask) onAddTask(task.id, task.blockId); }}
@@ -680,7 +687,10 @@ export function TaskCard({
                       )}
                       <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onEditTask(task.id); }} title="Editar" className="w-6 h-6 flex items-center justify-center rounded-lg text-turquesa hover:bg-turquesa/10 transition-all"><Edit size={13} /></button>
                       <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onDelete(task.id); }} title="Eliminar" className="w-6 h-6 flex items-center justify-center rounded-lg text-rosa hover:bg-rosa/10 transition-all"><Trash2 size={13} /></button>
-                      <button onClick={(e) => { e.stopPropagation(); toggleOnHold(); setStripOpen(false); }} title={rowOnHold ? 'Quitar en suspenso' : 'Marcar en suspenso'} className={`w-6 h-6 flex items-center justify-center rounded-lg transition-all ${rowOnHold ? 'dark:text-naranja text-naranja-light' : 'dark:text-text-secondary text-text-secondary-light hover:dark:text-naranja hover:text-naranja-light'}`}><Hourglass size={13} /></button>
+                      {task.parentTaskId && (
+                        <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onPromote(task.id); }} title="Subir un nivel" className="w-6 h-6 flex items-center justify-center rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-turquesa transition-all"><ArrowUpLeft size={13} /></button>
+                      )}
+                      <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onDemote(task.id); }} title="Bajar un nivel" className="w-6 h-6 flex items-center justify-center rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-azul transition-all"><ArrowDownRight size={13} /></button>
                     </div>
                   )}
                 </div>
