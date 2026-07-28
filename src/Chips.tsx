@@ -45,8 +45,8 @@ export function TaskTypeChip({ value, onChange, isCompact = false }: any) {
         onClick={handleOpen}
         className={`h-6 flex items-center justify-center gap-1 transition-all hover:opacity-80 ${
           isCore
-            ? 'dark:text-core text-core-light'
-            : 'dark:text-adhoc text-adhoc-light'
+            ? 'text-[#34D399]'
+            : 'text-[#FBBF24]'
         }`}
         title={isCore ? 'Puesto de Trabajo (CORE)' : 'Tarea Puntual (Ad-hoc)'}
       >
