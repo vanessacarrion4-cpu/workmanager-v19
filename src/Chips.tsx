@@ -112,7 +112,7 @@ export function TaskTypeChip({ value, onChange, isCompact = false }: any) {
 }
  
 
-export function TimePickerChip({ value, onChange }: any) {
+export function TimePickerChip({ value, onChange, muted = false }: any) {
   const [show, setShow] = useState(false);
   const [inputVal, setInputVal] = React.useState(value || '');
   const [modalPos, setModalPos] = useState({ top: 0, left: 0 });
@@ -135,14 +135,14 @@ export function TimePickerChip({ value, onChange }: any) {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" data-open={show ? 'true' : undefined}>
       <button
         ref={buttonRef}
         onClick={handleOpen}
         className={`h-6 rounded transition-all flex items-center gap-1 text-[11px] font-medium tabular-nums ${
           value
-            ? 'px-0.5 dark:text-azul text-azul-light'
-            : 'px-1.5 border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main border-border-main-light dark:text-text-secondary/70 text-text-secondary-light/70 hover:border-azul hover:text-azul'
+            ? (muted ? `px-1 ${RAIL_GREY}` : 'px-0.5 dark:text-azul text-azul-light')
+            : `px-1.5 border border-dashed dark:bg-bg-main/40 bg-white dark:border-border-main border-border-main-light ${muted ? RAIL_GREY : 'dark:text-text-secondary/70 text-text-secondary-light/70 hover:border-azul hover:text-azul'}`
         }`}
         title={value ? `Hora: ${value}` : 'Añadir hora'}
       >
