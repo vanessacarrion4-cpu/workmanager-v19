@@ -572,6 +572,20 @@ export function TaskCard({
                       </button>
                     )}
                   </div>
+                  {/* Información — histórico de tiempos de la serie (estimado vs real, ocurrencia a
+                      ocurrencia). Cierra el grupo de tiempos. Solo en recurrentes; en el resto, en blanco.
+                      La tira ··· nunca la alcanza (está en los tiempos). */}
+                  <div className="w-[24px] shrink-0 flex items-center justify-center">
+                    {onViewInstances && (task.templateId || (task.isTemplate && task.recurrence)) && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onViewInstances(task.isTemplate ? task : (allTasksMap[task.templateId] || task)); }}
+                        title="Historial de la serie (estimado vs real por ocurrencia)"
+                        className="w-5 h-5 flex items-center justify-center rounded dark:text-text-secondary text-text-secondary-light hover:text-azul hover:bg-black/[0.05] dark:hover:bg-white/10 transition-all"
+                      >
+                        <Info size={13} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Hueco de aire fijo entre tiempos y contexto */}
