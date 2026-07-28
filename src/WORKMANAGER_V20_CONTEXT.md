@@ -1609,7 +1609,12 @@ A partir de aquí la fase de diseño se ataca **por TANDAS**, en este orden acor
 4. **Barrido de visibilidad** — el mes que no se ve (§11.1a), el título de Bloques, las islas oscuras (§7.11.3 / §11.1).
 5. **Vistas**: Delegadas → Bloques → Carga.
 
-### 14.1 Tanda 1 — cosas rotas (EN CURSO)
+> **Estado sesión 14 (cierre):** Tandas **1 y 2 HECHAS y EN PRODUCCIÓN** (master `e7e3bc6`).
+> La estructura definitiva de la fila, el raíl editable, los colores finales, el filtro de Bloques y
+> el fix de la fuga de ids están documentados en **§15**. Pendientes: Tandas 3/4/5 + limpieza de datos
+> legados + dos decisiones abiertas (ver **§15.7**).
+
+### 14.1 Tanda 1 — cosas rotas (✅ HECHA)
 
 1. **Paneles flotantes heredan la transparencia de la fila.** Al abrir un panel (p. ej. registrar tiempo)
    sobre una tarea EN SUSPENSO, el panel sale **translúcido** (se ve la lista detrás → ilegible) porque el
@@ -1628,8 +1633,8 @@ A partir de aquí la fase de diseño se ataca **por TANDAS**, en este orden acor
 **Confirmado que YA funcionan** (NO son bugs, descartados): añadir subtarea desde la fila (`+`), crear tarea
 desde el modal, y registrar tiempo en una tarea en suspenso. El único problema del suspenso es el translúcido (1).
 
-### 14.2 Tanda 2 — retoques de la fila
-Todo lo que salió probando la fila. (Pendiente de enumerar según se revise.)
+### 14.2 Tanda 2 — retoques de la fila (✅ HECHA)
+Todo lo que salió probando la fila → cristalizó en la **estructura definitiva de §15**.
 
 ### 14.3 Tanda 3 — paneles flotantes (comparten componente)
 Registrar tiempo, tiempo estimado y demás popups → rediseño unificado. (El translúcido se resuelve ya en §14.1.1.)
@@ -1641,3 +1646,117 @@ Registrar tiempo, tiempo estimado y demás popups → rediseño unificado. (El t
 
 ### 14.5 Tanda 5 — vistas
 Delegadas (cositas menores ya vistas en localhost, nada que impidiera subir) → Bloques → Carga.
+
+---
+
+## 15. Fila V20 — estructura DEFINITIVA (sesión 14, EN PRODUCCIÓN, master `e7e3bc6`)
+
+Estado como quedó tras Tandas 1 y 2. **Prevalece sobre §7.2/§7.3/§7.4** en todo lo relativo a colocación
+de elementos de la fila. Trabajo en modo CLARO. Archivos: [TaskCard.tsx](TaskCard.tsx) (la fila),
+[Chips.tsx](Chips.tsx) (chips/selectores compartidos).
+
+### 15.1 Estructura — bloque izquierdo + raíl
+
+**Bloque IZQUIERDO** (mide su contenido, el título se estira hasta el raíl y trunca con tooltip):
+`barra color bloque` · `checkbox` · `icono de tipo` · `hora` (columna propia, 40px, ANTES del título) ·
+`título` (span→input al click) · `contador de hijas` (rosa) **o** hora (mutuamente excluyentes: contenedores
+llevan contador, tareas-hoja llevan hora) · spacer `flex-1`.
+
+**RAÍL** (columnas de ancho fijo → misma posición horizontal en todas las filas). Anchos (px):
+
+| suspenso | estimado | registrado | play | info | — hueco — | fecha | recurrencia | delegación | etiqueta | bloque | `+` | `···` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 24 | 42 | 42 | 26 | 24 | 20 | 36 | 48 | 60 | 28 | 80 | 26 | 26 |
+
+Grupos: **tiempos** = suspenso·estimado·registrado·play·info · (hueco 20) · **contexto** = fecha·recurrencia·delegación·etiqueta·bloque · `+` · `···`. Columna de hora izquierda = 40px.
+
+### 15.2 Raíl EDITABLE + regla "visible mientras su desplegable esté abierto"
+
+- Todo el contexto (fecha·recurrencia·delegación·etiqueta·bloque) y los tiempos (estimado, hora) se **editan
+  inline** desde la propia fila; cada chip abre su selector. Recurrencia editable **siempre**, incl. instancias
+  (guarda excepción del día, no propaga a la serie).
+- **Columnas vacías:** en blanco; **punteado al hacer hover de la fila**; clic para rellenar. Contenedor:
+  `hidden group-hover/row:flex has-[[data-open=true]]:flex`.
+- **Regla `:has([data-open=true])`:** cada picker pone `data-open="true"` en su raíz cuando su popup está
+  abierto → el chip vacío **sigue visible mientras el desplegable esté abierto** (no desaparece al salir el
+  ratón de la fila). Implementado en [Chips.tsx](Chips.tsx) para los 7 selectores.
+- **Contexto en gris** `#64748B` (`text-secondary`/`-light`), editable; la **etiqueta emoji queda a COLOR
+  PLENO** (el gris solo la vacía). Los tiempos conservan color (estimado `#2563EB`, registrado `#9333EA`).
+- **Sin `overflow-hidden` en fila/tarjeta:** los popups son `fixed z-[220]` y, bajo un ancestro transformado
+  (Reorder de framer), un `overflow-hidden` los recortaría. Las columnas de contexto sí usan `overflow-hidden`
+  para truncar (seguro: sus popups escapan). Para que la **barra de color** no asome por las esquinas
+  `rounded-2xl` de la tarjeta se usa **inset vertical `my-1`**, no recorte.
+
+### 15.3 Colocación de suspenso, hora, play e información
+
+- **Suspenso = la marca ES el botón** (un solo objeto). **Primera columna del raíl** (antes del estimado).
+  Suspendido → reloj de arena gris; no suspendido → en blanco, reloj tenue al hover, clic alterna. Contenedor:
+  `onHold` **DERIVADO por grupo** (`rowOnHold` = todas las hijas activas del grupo en suspenso); solo las
+  **hijas** persisten `on_hold`, el padre no. NO va en la tira `···`.
+- **Hora:** columna propia (40px) **antes del título**; azul claro `#60A5FA` (más claro que el estimado para no
+  competir). Variante `light` de `TimePickerChip`.
+- **Play:** su columna (26px) en el grupo de tiempos; rosa cuadrado + anillo + `animate-pulse` corriendo /
+  turquesa redondo parado.
+- **Información ("i"):** **última columna del grupo de tiempos** (tras el play), solo en recurrentes; clic abre
+  el histórico de la serie (`onViewInstances`).
+- **`+` añadir subtarea:** columna fija (26px), solo contenedores/sueltas, nunca hijas-hoja.
+- **Tira `···`:** apertura por hover (150ms abre / 250ms cierra), **absolute descendiente del botón** de puntos
+  (así `onMouseLeave` no salta al pasar a la tira), se despliega a la IZQUIERDA. **Fondo SÓLIDO** bajo los
+  iconos (color de la fila) + **degradado de 20px solo como remate** a la izquierda del primer icono; `z-[10]`
+  (por encima del `+` en `z-[7]` y de los chips del raíl). Acciones: ir al bloque · editar · borrar · subir
+  nivel · bajar nivel.
+
+### 15.4 Colores finales
+
+| Elemento | Valor |
+|---|---|
+| Contexto (fecha/recurrencia/delegación/bloque) | gris `#64748B` |
+| Etiqueta (emoji) | color pleno |
+| Hora | `#60A5FA` (azul claro) |
+| Estimado | `#2563EB` (claro) / `#3B82F6` (oscuro) |
+| Registrado | `#9333EA` (claro) / `#A855F7` (oscuro) |
+| Icono de tipo — core | `#22C68D` (solo el icono; título en negro) |
+| Icono de tipo — ad-hoc | `#F8AE17` (solo el icono) |
+| `+` (añadir subtarea) | reposo `#2DD4BF` → hover de FILA `#14B8A6` |
+| Marca suspenso | gris `#64748B` |
+
+### 15.5 Filtro de Bloques
+
+[BlocksView.tsx](BlocksView.tsx): **ocultar completadas por DEFECTO** (`hideCompleted` init `true`) y el
+interruptor se **persiste** en `localStorage` (`wm-blocks-hide-completed`). Razón: Bloques es vista de
+**planificación**, no registro histórico; así no arrastra el histórico legado de completadas. El ojo
+(Eye/EyeOff) las reabre.
+
+### 15.6 Fix de la fuga de ids `inst-inst-`
+
+[useTaskCRUD.ts](useTaskCRUD.ts) · `handleUpdateTask`. Al mover/reprogramar una recurrente **con hijas** se
+construían ids de instancia **concatenando en crudo** (`inst-${oldParent.id}` / `${oldParent.templateId}` /
+`${updatedTask.templateId}`). Si la base ya era una instancia (o su `template_id` apuntaba a otra instancia),
+salía `inst-inst-…` y `template_id → instancia`, y era **autoalimentado**. **Fix:** todas las bases pasan por
+`templateIdFromInstanceId(...)` (de [instanceEngine.ts](instanceEngine.ts)) antes de concatenar — **5 bases**
+(bloque síncrono de estado + bloque **async que persiste a Supabase**, este último el que grababa la basura en
+la BD) + 1 defensiva (convertir-manual→plantilla). **No queda ninguna concatenación de id en crudo** en el
+archivo. Tapa solo la generación NUEVA; la limpieza de lo legado queda pendiente (§15.7).
+
+### 15.7 Pendiente para la próxima sesión
+
+1. **Limpieza de datos legados de Bloques** (con backup). Diagnóstico de la sesión 14: lo que inundaba Bloques
+   son **tareas normales completadas hace meses, sin `template_id` ni `is_exception`** (ocurrencias anteriores
+   al motor de recurrentes; el filtro no puede excluirlas porque nada las marca, y ya se ocultan por defecto con
+   §15.5). Además hay filas corruptas: una con `template_id` apuntando a otra instancia e id `inst-inst-`, y una
+   instancia sin `parent_task_id`. **Lanzar los 4 conteos SQL** y, según salgan, limpiar:
+   ```sql
+   select count(*) from tasks where id like 'inst-inst-%';            -- a) doble prefijo
+   select count(*) from tasks where template_id like 'inst-%';        -- b) template_id -> instancia
+   select count(*) from tasks where id like 'inst-%' and parent_task_id is null;  -- c) (ojo: B4 deja null legítimos)
+   select count(*) from tasks t                                       -- d) sin template_id con titulo = plantilla
+     where t.template_id is null and coalesce(t.is_template,false)=false and t.id not like 'inst-%'
+       and exists (select 1 from tasks p where coalesce(p.is_template,false)=true and lower(p.title)=lower(t.title));
+   ```
+2. **Tanda 3 — rediseño de los paneles flotantes** (registrar/estimar tiempo y demás; comparten componente).
+3. **Tanda 4 — barrido de visibilidad en las siete vistas** (mes que no se ve §11.1a, título de Bloques, islas
+   oscuras en claro).
+4. **Tanda 5 — Delegadas → Bloques → Carga.**
+5. **Dos decisiones abiertas:**
+   - **Qué cuenta el contador de tareas** (contador rosa de hijas): definir exactamente qué incluye.
+   - **El hueco delante del título en Mi Día:** decidir si compensa para la alineación de la hora, o se quita.
