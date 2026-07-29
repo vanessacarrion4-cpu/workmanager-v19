@@ -588,8 +588,10 @@ export function useTaskCRUD({
 
       return updated;
     });
-    setEditingTaskId(null);
-    setInlineEditingTaskId(null);
+    // NO se resetea aquí el estado de edición (editingTaskId / inlineEditingTaskId): guardar NO debe
+    // apagar la edición ni cerrar el modal. El modal cierra por su propio onClose (TaskModal.handleSave);
+    // la edición inline del título sale en su commit (TaskCard.commitTitle). Antes, este reset por-guardado
+    // desmontaba el <input> del título con cada pulsación (se guardaba en cada tecla) → fila inusable.
 
     (async () => {
       try {

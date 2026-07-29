@@ -20,6 +20,7 @@ import {
   getTaskEstimatedPending, getTaskRegisteredCombo, formatMinutes
 } from './utils';
 import { getTagColor } from './helpers';
+import { TitleField } from './TitleField';
 import {
   TaskTypeChip, TimePickerChip, DatePickerChip, RecurrencePickerChip,
   TagPickerChip, EstimatedTimeChip, RegisteredTimeChip, BlockPickerChip,
@@ -181,7 +182,6 @@ export function TaskCard({
   
   const isTimerRunning = activeTimer?.entityId === task.id;
   const [dragX, setDragX] = useState(0);
-  const origTitleRef = useRef<string>(''); // título antes de editar, para Escape (cancelar)
   // Tira de acciones "···": apertura por hover con retardo (150ms abrir / 250ms replegar).
   const [stripOpen, setStripOpen] = useState(false);
   const stripTimer = useRef<any>(null);
@@ -218,11 +218,16 @@ export function TaskCard({
   const enterTitleEdit = (e: React.MouseEvent) => {
     if (selectionMode) return;            // en modo selección, dejar que el clic seleccione
     e.stopPropagation();
-    origTitleRef.current = task.title;
     setInlineEditingTaskId && setInlineEditingTaskId(task.id);
   };
-  const exitTitleEdit = () => {
-    if (editingTaskId === task.id) onEditTask(null);
+  // Guardar el título: un único onUpdateTask, solo si cambió. NO toca editingTaskId (la bandera del
+  // modal), para que abrir el modal con el campo en edición no lo cierre. El borrador vive en TitleField.
+  const commitTitle = (next: string) => {
+    if ((next ?? '') !== (task.title || '')) onUpdateTask({ ...task, title: next });
+    if (inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
+  };
+  // Escape: salir sin guardar (TitleField ya descartó su borrador local).
+  const cancelTitle = () => {
     if (inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
   };
 
@@ -451,29 +456,15 @@ export function TaskCard({
 
             {/* Título: <span> mide su texto (los chips lo pegan; se trunca al chocar, min-w-0).
                 <input> solo al editar. Clic → edita; Enter guarda, Escape cancela, salir guarda. */}
-            {isEditingTitle ? (
-              <input
-                autoFocus
-                className={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none flex-1 min-w-0 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
-                value={task.title}
-                onChange={(e) => onUpdateTask({ ...task, title: e.target.value })}
-                onFocus={() => { origTitleRef.current = task.title; }}
-                onBlur={exitTitleEdit}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') exitTitleEdit();
-                  else if (e.key === 'Escape') { onUpdateTask({ ...task, title: origTitleRef.current }); exitTitleEdit(); }
-                }}
-                placeholder="Título de la tarea..."
-              />
-            ) : (
-              <span
-                onClick={enterTitleEdit}
-                title={task.title || undefined}
-                className={`text-[13px] font-black min-w-0 truncate capitalize cursor-text ${task.status === 'completed' ? 'line-through dark:text-white/60 text-text-main-light/60' : (!task.title ? 'italic font-medium dark:text-text-secondary/40 text-text-secondary-light/40' : 'dark:text-white text-text-main-light')}`}
-              >
-                {task.title || 'Título de la tarea...'}
-              </span>
-            )}
+            <TitleField
+              value={task.title}
+              editing={isEditingTitle}
+              onStartEdit={enterTitleEdit}
+              onCommit={commitTitle}
+              onCancel={cancelTitle}
+              inputClassName={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none flex-1 min-w-0 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
+              spanClassName={`text-[13px] font-black min-w-0 truncate capitalize cursor-text ${task.status === 'completed' ? 'line-through dark:text-white/60 text-text-main-light/60' : (!task.title ? 'italic font-medium dark:text-text-secondary/40 text-text-secondary-light/40' : 'dark:text-white text-text-main-light')}`}
+            />
               {/* Icono adjuntos */}
               {task.attachments && task.attachments.length > 0 && (
                 <span title={`${task.attachments.length} adjunto${task.attachments.length > 1 ? 's' : ''}`} className="flex items-center gap-0.5 shrink-0">
