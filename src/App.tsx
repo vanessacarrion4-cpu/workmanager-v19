@@ -5,12 +5,12 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
-  LayoutDashboard, Grid2X2, Calendar as CalendarIcon, CalendarDays, Settings,
+  LayoutDashboard, Grid2X2, Calendar as CalendarIcon, CalendarDays,
   Search, Users, Zap, Moon, Sun, ChevronRight, BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WorkBlock, Task, ViewType, TagType, TimeEntry, Person, DelegationMeeting } from './types';
-import { INITIAL_BLOCKS, COLORS, MOCK_TASKS } from './constants';
+import { COLORS } from './constants';
 import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { filterTasksForDay } from './filters';
@@ -36,7 +36,6 @@ import {
   TimerDisplay, InstancesModal
 } from './components';
 
-const STORAGE_KEY = 'workmanager-v19-data-v1';
 
 export default function App() {
   // --- Core State ---
@@ -293,16 +292,6 @@ export default function App() {
     setActiveDate(formatLocalISO(current));
   };
 
-  const handleResetData = () => {
-    if (confirm("¿Estás seguro de que quieres reiniciar todos los datos?")) {
-      localStorage.removeItem(STORAGE_KEY);
-      setBlocks(INITIAL_BLOCKS);
-      setTasks(MOCK_TASKS);
-      setCurrentView('dashboard');
-      window.location.reload();
-    }
-  };
-
   // --- Loading screen ---
   if (!isDataLoaded) {
     return (
@@ -395,10 +384,6 @@ export default function App() {
           <NavItem active={currentView === 'workload'} onClick={() => setCurrentView('workload')} icon={<BarChart2 size={20} />} label="Carga" />
         </div>
 
-        <div className="mt-auto px-4">
-          <div className="h-px bg-border-main/50 mb-6" />
-          <NavItem active={false} onClick={handleResetData} icon={<Settings size={20} />} label="Configuración" />
-        </div>
       </nav>
 
       {/* Main Content Area */}
