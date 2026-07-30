@@ -77,8 +77,12 @@ export function useTimerHandlers({
           } else {
             diag('completar:instancia/plantilla — la escritura la hace handleUpdateTask; solo readback', { dbId });
           }
-          const rb = await supabase.from('tasks').select('id,status,completed_at,modified_at').eq('id', dbId).maybeSingle();
-          diag('completar:readback (lo que hay REALMENTE en la BD)', { dbId, dbStatus: rb.data?.status ?? null, dbCompletedAt: rb.data?.completed_at ?? null, error: rb.error?.message ?? null });
+          // matiz 2: leer la fila de la INSTANCIA real (t.id), NO `dbId` (que resolvía a la PLANTILLA
+          // y siempre daba 'pending'). handleUpdateTask persiste la excepción con id = t.id, pero de forma
+          // ASÍNCRONA → damos un margen para que aterrice antes del readback (si no, carrera → existeFila:false).
+          await new Promise(res => setTimeout(res, 900));
+          const rb = await supabase.from('tasks').select('id,status,completed_at,is_exception').eq('id', t.id).maybeSingle();
+          diag('completar:readback (fila de la INSTANCIA real)', { instanceId: t.id, existeFila: !!rb.data, dbStatus: rb.data?.status ?? null, dbCompletedAt: rb.data?.completed_at ?? null, error: rb.error?.message ?? null });
         } catch (e: any) {
           diag('completar:EXCEPCIÓN async (ignorada)', { message: String(e?.message || e) });
         }
