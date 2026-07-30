@@ -9,6 +9,7 @@ import { useCallback, useRef } from 'react';
 import { Task, TimeEntry } from './types';
 import { supabase } from './supabaseClient';
 import { formatLocalISO } from './dateUtils';
+import { resolveActionTarget } from './instanceEngine'; // rescate centralizado: resuelve/materializa la instancia virtual
 import { diag } from './diag'; // DIAG-TEMP (sesión 15): quitar con el revert del commit de diagnóstico
 
 interface ActiveTimer {
@@ -97,9 +98,9 @@ export function useTimerHandlers({
       handleStopTimer();
     }
 
-    const task = tasks[taskId];
+    const task = resolveActionTarget(taskId, tasks);
     if (!task) return;
-    const targetEntity = subtaskId ? tasks[subtaskId] : task;
+    const targetEntity = subtaskId ? resolveActionTarget(subtaskId, tasks) : task;
     const title = targetEntity?.title || "Tarea sin título";
 
     setActiveTimer({
@@ -165,7 +166,7 @@ export function useTimerHandlers({
 
     if (markComplete && (pendingEntry.subtaskId || pendingEntry.taskId)) {
       const targetId = pendingEntry.subtaskId || pendingEntry.taskId;
-      const t = tasks[targetId];
+      const t = resolveActionTarget(targetId, tasks); // rescate: materializa la instancia virtual si solo existe en memoria
       const completedAt = diagComplete('cronómetro-stop', targetId, t, { taskId: pendingEntry.taskId, subtaskId: pendingEntry.subtaskId, minutes }); // DIAG-TEMP
       if (t) handleUpdateTask({ ...t, status: 'completed', completedAt });
     }
@@ -209,7 +210,7 @@ export function useTimerHandlers({
 
     if (markComplete) {
       const targetId = subtaskId || taskId;
-      const t = tasks[targetId];
+      const t = resolveActionTarget(targetId, tasks); // rescate: materializa la instancia virtual si solo existe en memoria
       const completedAt = diagComplete('panel manual', targetId, t, { taskId, subtaskId, minutes, date }); // DIAG-TEMP
       if (t) handleUpdateTask({ ...t, status: 'completed', completedAt });
     }
@@ -260,7 +261,7 @@ export function useTimerHandlers({
       path,
       createdAt: new Date().toISOString()
     };
-    const task = tasks[taskId];
+    const task = resolveActionTarget(taskId, tasks);
     if (!task) return;
     const updatedAttachments = [...(task.attachments || []), attachment];
     handleUpdateTaskFn({ ...task, attachments: updatedAttachments });
@@ -268,7 +269,7 @@ export function useTimerHandlers({
 
   const handleDeleteAttachment = useCallback(async (taskId: string, attachmentId: string, path: string, handleUpdateTaskFn: (task: Task) => void) => {
     await supabase.storage.from('task-attachments').remove([path]);
-    const task = tasks[taskId];
+    const task = resolveActionTarget(taskId, tasks);
     if (!task) return;
     const updatedAttachments = (task.attachments || []).filter((a: any) => a.id !== attachmentId);
     handleUpdateTaskFn({ ...task, attachments: updatedAttachments });

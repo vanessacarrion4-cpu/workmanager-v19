@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { occursOn, materializeDay, resolveTaskId, materializeInstanceById, templateIdFromInstanceId } from './instanceEngine';
+import { occursOn, materializeDay, resolveTaskId, materializeInstanceById, templateIdFromInstanceId, resolveActionTarget } from './instanceEngine';
 import { Task } from './types';
 
 // Fechas ancla (verificadas): 2026-07-15 es MIÉRCOLES.
@@ -319,6 +319,67 @@ describe('resolveTaskId', () => {
     ]);
     const snapshot = JSON.stringify(allTasks);
     resolveTaskId('inst-t-5-2026-07-15', allTasks);
+    expect(JSON.stringify(allTasks)).toBe(snapshot);
+  });
+});
+
+// =========================================================================
+// resolveActionTarget — rescate centralizado (sesión 15): resuelve el objetivo de
+// una acción, materializando la instancia virtual si solo existe en memoria.
+// =========================================================================
+describe('resolveActionTarget', () => {
+  const daily = () => byId([
+    task({ id: 't-5', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+  ]);
+
+  it('fila real en el estado → se devuelve tal cual', () => {
+    const allTasks = byId([task({ id: 't-9', dueDate: WED })]);
+    expect(resolveActionTarget('t-9', allTasks)?.id).toBe('t-9');
+  });
+
+  it('instancia SOLO virtual (la recurrencia toca) → la MATERIALIZA (la ocurrencia, no la plantilla)', () => {
+    const r = resolveActionTarget('inst-t-5-2026-07-15', daily());
+    expect(r).not.toBeNull();
+    expect(r!.id).toBe('inst-t-5-2026-07-15');
+    expect(r!.templateId).toBe('t-5');
+    expect(r!.isException).toBe(false);
+    expect(r!.status).toBe('pending');
+  });
+
+  it('NUNCA devuelve la plantilla', () => {
+    const r = resolveActionTarget('inst-t-5-2026-07-15', daily());
+    expect(r!.isTemplate).not.toBe(true);
+    expect(r!.id).not.toBe('t-5');
+  });
+
+  it('excepción persistida en su sitio → la devuelve (hit directo, con su estado real)', () => {
+    const allTasks = byId([
+      task({ id: 't-5', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({ id: 'inst-t-5-2026-07-15', templateId: 't-5', isException: true, instanceDate: WED, dueDate: WED, status: 'completed' }),
+    ]);
+    const r = resolveActionTarget('inst-t-5-2026-07-15', allTasks);
+    expect(r!.id).toBe('inst-t-5-2026-07-15');
+    expect(r!.status).toBe('completed');
+  });
+
+  it('excepción MOVIDA → al pedir el id del día destino, resuelve a la EXCEPCIÓN (no la plantilla)', () => {
+    const allTasks = byId([
+      task({ id: 't-5', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({ id: 'inst-t-5-2026-07-15', templateId: 't-5', isException: true, instanceDate: WED, dueDate: THU }),
+    ]);
+    const r = resolveActionTarget('inst-t-5-2026-07-16', allTasks);
+    expect(r!.id).toBe('inst-t-5-2026-07-15');
+  });
+
+  it('no encontrado → null', () => {
+    expect(resolveActionTarget('t-inexistente', {})).toBeNull();
+    expect(resolveActionTarget('inst-t-5-2026-07-15', {})).toBeNull(); // sin plantilla
+  });
+
+  it('no muta allTasks', () => {
+    const allTasks = daily();
+    const snapshot = JSON.stringify(allTasks);
+    resolveActionTarget('inst-t-5-2026-07-15', allTasks);
     expect(JSON.stringify(allTasks)).toBe(snapshot);
   });
 });

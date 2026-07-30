@@ -380,3 +380,34 @@ export function materializeInstanceById(instanceId: string, allTasks: Record<str
   const dayInstances = materializeDay(date, allTasks);
   return dayInstances.find(t => t.id === instanceId) ?? null;
 }
+
+/**
+ * Resuelve el OBJETIVO de una acción (completar, registrar tiempo, borrar, editar, arrancar timer…) a
+ * partir de un id, cubriendo las TRES formas en que una tarea puede existir tras retirar `useGeneration`:
+ *   1. Fila real en el estado (`allTasks[id]`): tarea manual o excepción ya persistida → se devuelve.
+ *   2. Instancia recurrente con excepción persistida bajo OTRO id (movida): se resuelve vía
+ *      `resolveTaskId`, PERO solo si es `isException` — NUNCA la plantilla (tocarla afectaría a toda la
+ *      serie sin avisar).
+ *   3. Instancia SOLO VIRTUAL (materializada al vuelo, sin fila): se materializa con
+ *      `materializeInstanceById`.
+ * Devuelve `null` si no existe ese día. NO persiste ni muta: la ESCRITURA de la acción (p.ej.
+ * `handleUpdateTask`) es la que crea/actualiza la fila de excepción. El id sobre el que actuar es
+ * siempre `resultado.id`.
+ *
+ * RESCATE CENTRALIZADO (sesión 15): TODO handler que actúe sobre UNA ocurrencia por id debe pasar por
+ * aquí en vez de leer `allTasks[id]` directamente. Si no, una instancia solo-virtual no se encuentra y
+ * la acción es un no-op silencioso (bug del completado). Excepción: `handleToggleStatus` y las acciones
+ * en lote necesitan el DÍA entero (recursión de hijas) y usan `materializeDay` directamente.
+ */
+export function resolveActionTarget(id: string, allTasks: Record<string, Task>): Task | null {
+  if (!id || !allTasks) return null;
+  const direct = allTasks[id];
+  if (direct) return direct;
+  const resolvedId = resolveTaskId(id, allTasks);
+  if (resolvedId !== id) {
+    const resolved = allTasks[resolvedId];
+    if (resolved && resolved.isException) return resolved;
+  }
+  if (id.startsWith('inst-')) return materializeInstanceById(id, allTasks);
+  return null;
+}

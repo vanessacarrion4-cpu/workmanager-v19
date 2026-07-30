@@ -11,7 +11,7 @@ import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { formatLocalISO } from './dateUtils';
-import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById } from './instanceEngine';
+import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById, resolveActionTarget } from './instanceEngine';
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -54,22 +54,13 @@ export function useTaskCRUD({
         setTasks(prev => ({ ...prev, [taskId]: task! }));
       }
     }
-    // Fallback V20 (a): instancia movida cuyo id de excepción difiere → resolver a la EXCEPCIÓN persistida.
-    // NUNCA a la plantilla: editar la plantilla cambiaría toda la serie SIN preguntar (silenciosamente
-    // destructivo). Por eso se restringe a `resolved.isException` (antes usaba cualquier `tasks[resolvedId]`).
+    // Rescate CENTRALIZADO (resolveActionTarget): excepción persistida movida (NUNCA la plantilla — editarla
+    // cambiaría la serie sin avisar) o instancia recurrente VIRGEN materializada (para que `task.templateId`
+    // esté presente y salga el modal "¿este día o toda la serie?"). effectiveId = la ocurrencia a editar.
     let effectiveId = taskId;
     if (!task) {
-      const resolvedId = resolveTaskId(taskId, tasks);
-      const resolved = resolvedId !== taskId ? tasks[resolvedId] : undefined;
-      if (resolved && resolved.isException) { task = resolved; effectiveId = resolvedId; }
-    }
-    // Fallback V20 (b) — B3: instancia recurrente VIRGEN (hija o día NO-activo → no está en `dashboardTasks`,
-    // que es plano y solo del día activo) → materializar para que `task.templateId` esté presente y se abra el
-    // modal "¿este día o toda la serie?". Sin esto caía en la plantilla y editaba la SERIE sin avisar.
-    // `effectiveId` sigue = taskId (editar ESA ocurrencia).
-    if (!task && taskId.startsWith('inst-')) {
-      const materialized = materializeInstanceById(taskId, tasks);
-      if (materialized) task = materialized;
+      const resolved = resolveActionTarget(taskId, tasks);
+      if (resolved) { task = resolved; effectiveId = resolved.id; }
     }
     if (task?.templateId) {
       setRecurrenceAction({ taskId: effectiveId, type: 'edit', ruleId: task.templateId });
@@ -83,22 +74,13 @@ export function useTaskCRUD({
     if (!task) {
       task = dashboardTasks.find(t => t.id === taskId);
     }
-    // Fallback V20: instancia virtual no presente → resolver, SOLO si es una excepción real.
-    // NUNCA a la plantilla: borrar la plantilla eliminaría toda la serie. Si la tarea ya se
-    // encontró arriba, effectiveId === taskId → comportamiento idéntico. No cambia cómo se borra.
+    // Rescate CENTRALIZADO (resolveActionTarget): excepción persistida (NUNCA la plantilla — borrarla
+    // eliminaría toda la serie) o instancia VIRGEN materializada. Cubre las HIJAS, que NO están en el
+    // array plano `dashboardTasks` (solo top-level). effectiveId = la ocurrencia a borrar.
     let effectiveId = taskId;
     if (!task) {
-      const resolvedId = resolveTaskId(taskId, tasks);
-      const resolved = resolvedId !== taskId ? tasks[resolvedId] : undefined;
-      if (resolved && resolved.isException) { task = resolved; effectiveId = resolvedId; }
-    }
-    // B2: instancia recurrente VIRGEN sin fila ni excepción → materializar para abrir el modal y borrar la
-    // ocurrencia. Necesario para las HIJAS: NO están en el array flat `dashboardTasks` (solo top-level), así
-    // que el `dashboardTasks.find` de arriba solo resuelve el contenedor; sin esto, borrar una hija virgen es
-    // no-op (caía en handleDeleteTask → return). `effectiveId` sigue = taskId (borrar ESA ocurrencia).
-    if (!task && taskId.startsWith('inst-')) {
-      const materialized = materializeInstanceById(taskId, tasks);
-      if (materialized) task = materialized;
+      const resolved = resolveActionTarget(taskId, tasks);
+      if (resolved) { task = resolved; effectiveId = resolved.id; }
     }
     if (task?.parentTaskId && !tasks[task.parentTaskId]) {
       const parentTask = dashboardTasks.find(t => t.id === task!.parentTaskId);
