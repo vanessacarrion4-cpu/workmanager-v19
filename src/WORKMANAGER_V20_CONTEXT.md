@@ -1566,7 +1566,25 @@ Selecció RRHH (24)**. Ninguna de las 4 predichas (Pago nóminas / Pagos mensual
   anida las hijas por **PLANTILLA** (reconstruye desde `container.subtasks` de la plantilla y matchea excepciones por `templateId`+día)
   e **ignora la columna `parent_task_id` de la instancia** para el anidado. Si se confirma, **no hay nada que limpiar nunca**. (El
   doble-render que sí vimos en B4 era el COMPOUNDING `inst-inst-`, un caso más específico; no se ha reproducido con estas 446 filas.)
-- **No crece**: el código nuevo (cambio-1/2, C2, C3) ya escribe `parent_task_id = NULL` en toda excepción que crea → el conteo NO aumenta con el uso.
+- **No crece**: el código nuevo (cambio-1/2, C2, C3) ya escribe `parent_task_id = NULL` en toda excepción que crea → el conteo NO aumenta con el uso. (Esto SIGUE siendo cierto — es independiente de lo de abajo.)
+
+> **⚠️ CORRECCIÓN (la usuaria, post-cierre): la hipótesis de INERCIA NO SE SOSTIENE, y la reapertura ESTÁ ACTIVA.**
+> - **Síntoma nuevo CUMPLIDO**: **"Cierre Anual" sale DUPLICADA en Mi Día** en producción. La condición de reapertura que dejé escrita se ha dado → el caso vuelve a estar abierto.
+> - **Por qué la inercia era un error**: mi argumento era "materializeDay ignora `parent_task_id`". Cierto para el ANIDADO, pero **incompleto**: justo después de materializar, el `activeDayMap` **vuelca ENCIMA todas las filas persistidas** — [App.tsx:164](src/App.tsx:164) `Object.values(tasks).forEach(t => map[t.id] = t)` ("estado gana"). Así que **toda excepción persistida entra al mapa** (línea 170: `candidates`), reintroduciendo lo que materializeDay había reducido a una-por-día. (Vía secundaria: `reconstructHierarchy` empuja el id contaminado a `template.subtasks`, que materializeDay sí lee; pero el mapa dedup por id, así que la vía visible es el "estado gana".)
+> - **Mecanismo del doble render** (a confirmar con datos): una excepción persistida llega a `candidates` y se pinta bajo su contenedor vía `getVisibleSubtasksForDay` **CASO 1** (por `templateId`, no por `parent_task_id`). Un doble VISIBLE requiere **≥2 filas no-borradas con el mismo `templateId` en el mismo día** (materializeDay elige una; el "estado gana" reintroduce la(s) otra(s)). Es decir: el problema real puede ser **filas duplicadas**, no el `parent_task_id` en sí.
+> - **A COMPROBAR cuando se hagan los conteos** (dos preguntas abiertas de la usuaria):
+>   1. ¿Las filas duplicadas de "Cierre Anual" están **entre esas 446** (mismo mecanismo = contaminación) o son un **conjunto distinto** (duplicados de excepción, otro bug)? Localizar su plantilla + sus filas:
+>   ```sql
+>   SELECT id, title, is_template, parent_task_id, template_id, instance_date, due_date, is_exception, is_deleted
+>   FROM tasks WHERE title ILIKE '%Cierre Anual%' ORDER BY is_template DESC, due_date;
+>   ```
+>   2. Fuente directa del doble = `templateId`+día con **>1 excepción viva**:
+>   ```sql
+>   SELECT template_id, coalesce(instance_date, due_date) AS dia, count(*) AS n, array_agg(id) AS ids
+>   FROM tasks WHERE is_exception = true AND is_deleted = false
+>   GROUP BY template_id, coalesce(instance_date, due_date) HAVING count(*) > 1 ORDER BY n DESC;
+>   ```
+> - **Según el resultado, la limpieza NO es necesariamente `parent_task_id=NULL`**: si el doble viene de filas duplicadas, la limpieza es **deduplicar** (quedarse con una por `templateId`+día), no anular padres. Decidir el tratamiento DESPUÉS del diagnóstico, no antes.
 
 ### 13.22 ✅ REFACTOR DE DATOS — COMPLETO Y CERRADO (sesión 13)
 - **Fusionado a master** (`dd180a2`, merge `--no-ff` de 69 commits, sin conflictos), **en producción** (Vercel, push a `origin/master`),
@@ -1591,7 +1609,7 @@ El refactor de datos está cerrado. Lo siguiente es la **fase de diseño/UI** (�
 - **§11.1 backlog UX/diseño**: (a) Dashboard no muestra el mes al hacer scroll; (b) navegación de fechas del Calendario (salto directo a
   mes/año — sustituye al `__goToDate` dev, ya borrado); (d) `TaskModal` sin guard de título vacío; (e) desde **Semana** no se puede mover;
   (f) desde **Bloques** no se completan recurrentes; (g) **Calendario** sin icono de completar en el día.
-- **Diferidos de estos días**: reorder-#15 (Fase R) · B5b/per-día (§8.10) · **limpieza de contaminación CANCELADA** (§13.21, solo si aparece síntoma).
+- **Diferidos de estos días**: reorder-#15 (Fase R) · B5b/per-día (§8.10) · **contaminación/duplicados: REABIERTO** (§13.21 corrección — "Cierre Anual" duplicada; hipótesis de inercia caída por el "estado gana"; pendiente diagnóstico con conteos antes de decidir tratamiento).
 - **Entorno**: los dev-hooks (`__tasks`/`__goToDate`/`__materializeDay`/spy) están **borrados** (D2) → validar trabajo futuro requiere
   reinstrumentar si hace falta. El **fixture** "Test Recurrent B1" (`t-1785089440019` + 3 hijas, `startDate 2028-01-01`) sigue en la DB con
   días 2028 consumidos (excepciones de validación); **borrarlo cuando ya no haga falta** (query en §13.15). No estorba (carga cero: fuera de vista).
