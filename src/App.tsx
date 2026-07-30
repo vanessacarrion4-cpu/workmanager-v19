@@ -20,6 +20,7 @@ import { useTaskCRUD } from './useTaskCRUD';
 import { useTaskOrdering } from './useTaskOrdering';
 import { useBlockHandlers } from './useBlockHandlers';
 import { useTimerHandlers } from './useTimerHandlers';
+import { DiagPanel } from './DiagPanel'; // DIAG-TEMP (sesión 15): quitar con el revert del commit de diagnóstico
 import { useBulkActions } from './useBulkActions';
 import { BlocksManagerView } from './BlocksView';
 import { DashboardView } from './DashboardView';
@@ -305,14 +306,17 @@ export default function App() {
   // --- Loading screen ---
   if (!isDataLoaded) {
     return (
-      <div className="min-h-screen bg-bg-main flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-turquesa border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-text-secondary font-black uppercase tracking-widest text-sm">
-            Cargando datos desde Supabase...
-          </p>
+      <>
+        <div className="min-h-screen bg-bg-main flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-16 h-16 border-4 border-turquesa border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-text-secondary font-black uppercase tracking-widest text-sm">
+              Cargando datos desde Supabase...
+            </p>
+          </div>
         </div>
-      </div>
+        <DiagPanel /> {/* DIAG-TEMP */}
+      </>
     );
   }
 
@@ -1083,6 +1087,8 @@ export default function App() {
           onCancel={() => setTimerStopModal(null)}
         />
       )}
+
+      <DiagPanel /> {/* DIAG-TEMP (sesión 15): panel de diagnóstico. Quitar con el revert del commit. */}
     </div>
   );
 }

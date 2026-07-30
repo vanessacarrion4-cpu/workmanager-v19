@@ -13,6 +13,7 @@ import { useEffect } from 'react';
 import { Task, WorkBlock, Person } from './types';
 import { supabase } from './supabaseClient';
 import { INITIAL_BLOCKS } from './constants';
+import { diag } from './diag'; // DIAG-TEMP (sesión 15): quitar con el revert del commit de diagnóstico
 
 interface UseSupabaseOptions {
   setBlocks: (blocks: WorkBlock[]) => void;
@@ -223,6 +224,8 @@ export function useSupabase({
 }: UseSupabaseOptions): void {
   useEffect(() => {
     const loadFromSupabase = async () => {
+      const _diagT0 = Date.now(); // DIAG-TEMP
+      diag('carga:INICIO'); // DIAG-TEMP
       try {
         console.log('[SUPABASE] Loading initial data...');
 
@@ -400,6 +403,7 @@ export function useSupabase({
         }
 
         setIsDataLoaded(true);
+        diag('carga:FIN (isDataLoaded=true)', { tareas: tasksData?.length ?? 0, ms: Date.now() - _diagT0 }); // DIAG-TEMP
         console.log('[SUPABASE] Data loaded successfully');
 
         // Limpieza automática: borrar instancias eliminadas de más de 30 días

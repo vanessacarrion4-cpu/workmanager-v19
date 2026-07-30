@@ -5,10 +5,11 @@
  * Extraído de App.tsx.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { Task, TimeEntry } from './types';
 import { supabase } from './supabaseClient';
 import { formatLocalISO } from './dateUtils';
+import { diag } from './diag'; // DIAG-TEMP (sesión 15): quitar con el revert del commit de diagnóstico
 
 interface ActiveTimer {
   entityId: string;
@@ -38,6 +39,57 @@ export function useTimerHandlers({
   setTimeEntries,
   handleUpdateTask,
 }: UseTimerHandlersOptions) {
+
+  // DIAG-TEMP: ref al `tasks` más reciente, para registrar el estado local DESPUÉS del completado.
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+
+  // DIAG-TEMP: traza del completado (payload → escritura AWAIT con respuesta real → readback → estado local).
+  const diagComplete = (origin: string, targetId: string, t: Task | undefined, meta: any) => {
+    const completedAt = new Date().toISOString();
+    // BLINDAJE: la instrumentación NUNCA debe romper el completado real. Todo va en try/catch y
+    // devolvemos `completedAt` pase lo que pase.
+    try {
+      diag(`completar:disparado (${origin})`, {
+        ...meta, targetId, foundInTasks: !!t, currentStatus: t?.status,
+        isInstance: targetId.startsWith('inst-'), templateId: t?.templateId, isTemplate: t?.isTemplate,
+      });
+      if (!t) {
+        diag('completar:NO-OP — targetId no está en `tasks` (posible instancia virtual)', { targetId });
+        return completedAt;
+      }
+      diag('completar:payload', { id: t.id, newStatus: 'completed', completedAt });
+      const dbId = resolveId(t.id, tasks) || t.id;
+      const isPlainLeaf = !t.templateId && !t.isTemplate && !String(t.id).startsWith('inst-');
+      void (async () => {
+        try {
+          if (isPlainLeaf) {
+            const resp = await supabase.from('tasks')
+              .update({ status: 'completed', completed_at: completedAt, modified_at: new Date().toISOString() })
+              .eq('id', dbId).select();
+            diag('completar:respuesta-supabase (AWAIT)', {
+              dbId,
+              error: resp.error ? { message: resp.error.message, code: (resp.error as any).code, details: (resp.error as any).details, hint: (resp.error as any).hint } : null,
+              filasAfectadas: resp.data?.length ?? 0,
+              statusDevuelto: resp.data?.[0]?.status ?? null,
+            });
+          } else {
+            diag('completar:instancia/plantilla — la escritura la hace handleUpdateTask; solo readback', { dbId });
+          }
+          const rb = await supabase.from('tasks').select('id,status,completed_at,modified_at').eq('id', dbId).maybeSingle();
+          diag('completar:readback (lo que hay REALMENTE en la BD)', { dbId, dbStatus: rb.data?.status ?? null, dbCompletedAt: rb.data?.completed_at ?? null, error: rb.error?.message ?? null });
+        } catch (e: any) {
+          diag('completar:EXCEPCIÓN async (ignorada)', { message: String(e?.message || e) });
+        }
+      })();
+      setTimeout(() => {
+        try { diag('completar:estado-local-después', { id: t.id, localStatus: tasksRef.current[t.id]?.status ?? '(ya no está en tasks)' }); } catch { /* noop */ }
+      }, 600);
+    } catch (e: any) {
+      try { diag('completar:DIAG-ERROR (instrumentación falló, se ignora)', { message: String(e?.message || e) }); } catch { /* noop */ }
+    }
+    return completedAt;
+  };
 
   const handleStartTimer = useCallback((taskId: string, subtaskId: string | null = null) => {
     if (activeTimer) {
@@ -111,12 +163,11 @@ export function useTimerHandlers({
     };
     setTimeEntries(prev => [...prev, newEntry]);
 
-    if (markComplete && pendingEntry.subtaskId) {
-      const t = tasks[pendingEntry.subtaskId];
-      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
-    } else if (markComplete && pendingEntry.taskId) {
-      const t = tasks[pendingEntry.taskId];
-      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
+    if (markComplete && (pendingEntry.subtaskId || pendingEntry.taskId)) {
+      const targetId = pendingEntry.subtaskId || pendingEntry.taskId;
+      const t = tasks[targetId];
+      const completedAt = diagComplete('cronómetro-stop', targetId, t, { taskId: pendingEntry.taskId, subtaskId: pendingEntry.subtaskId, minutes }); // DIAG-TEMP
+      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt });
     }
 
     supabase.from('time_entries').insert({
@@ -159,7 +210,8 @@ export function useTimerHandlers({
     if (markComplete) {
       const targetId = subtaskId || taskId;
       const t = tasks[targetId];
-      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt: new Date().toISOString() });
+      const completedAt = diagComplete('panel manual', targetId, t, { taskId, subtaskId, minutes, date }); // DIAG-TEMP
+      if (t) handleUpdateTask({ ...t, status: 'completed', completedAt });
     }
 
     supabase.from('time_entries').insert({
