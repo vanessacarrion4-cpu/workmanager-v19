@@ -363,11 +363,9 @@ export function useTaskCRUD({
       }
     })();
 
-    if (!effectiveParentId) {
-      setTimeout(() => setEditingTaskId(id), 50);
-    } else {
-      setInlineEditingTaskId(id);
-    }
+    // Opción A (sesión 15): crear SIEMPRE abre la edición del título EN LA FILA (no el modal), igual
+    // en nivel-1 y en subtareas. El modal solo se abre a petición (botón editar → setEditingTaskId).
+    setInlineEditingTaskId(id);
     return id;
   }, [tasks, setTasks, blocks, selectedBlockId, activeDate, setEditingTaskId, setInlineEditingTaskId]);
 

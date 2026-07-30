@@ -214,7 +214,9 @@ export function TaskCard({
   };
 
   // Edición del título: <span> por defecto (mide su texto), <input> al editar.
-  const isEditingTitle = editingTaskId === task.id || inlineEditingTaskId === task.id;
+  // SEPARADO (sesión 15): `editingTaskId` es SOLO la bandera del modal; la edición en la fila la
+  // gobierna SOLO `inlineEditingTaskId`. Antes el `||` acoplaba las dos (abrir modal editaba también la fila).
+  const isEditingTitle = inlineEditingTaskId === task.id;
   const enterTitleEdit = (e: React.MouseEvent) => {
     if (selectionMode) return;            // en modo selección, dejar que el clic seleccione
     e.stopPropagation();
