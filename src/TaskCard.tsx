@@ -673,22 +673,8 @@ export function TaskCard({
                   </div>
                 </div>
 
-                {/* + añadir subtarea — fijo y siempre visible. Solo contenedores y sueltas, nunca
-                    hijas (añadir a una hija la convierte en contenedor y borra hora/recurrencia/etiqueta).
-                    relative z-[7]: por encima de los chips del raíl, pero por debajo de la tira ··· (z-[10]),
-                    que sí lo cubre al desplegarse. Color: #2DD4BF en reposo → #14B8A6 en hover de FILA. */}
-                <div className="w-[26px] shrink-0 flex items-center justify-center relative z-[7]">
-                  {level < 3 && (hasSubtasks || (parentBlockId == null && !task.parentTaskId)) && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); if (onAddTask) onAddTask(task.id, task.blockId); }}
-                      title="Añadir subtarea"
-                      className="w-5 h-5 flex items-center justify-center rounded text-[#2DD4BF] group-hover/row:text-[#14B8A6] hover:bg-turquesa/10 transition-all"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  )}
-                </div>
-                {/* ··· acciones — botón fijo a la derecha; la tira se despliega a su IZQUIERDA
+                {/* ··· acciones — botón (solo en hover); la tira se despliega a su IZQUIERDA sobre el raíl.
+                    Va ANTES del "+": así, por GEOMETRÍA, la tira nunca alcanza el "+" (queda a su derecha).
                     (absolute, descendiente → onMouseLeave no salta al pasar de los puntos a la tira). */}
                 <div
                   className="w-[26px] shrink-0 relative z-[10] flex items-center justify-center"
@@ -720,6 +706,20 @@ export function TaskCard({
                       <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onDemote(task.id); }} title="Bajar un nivel" className="w-6 h-6 flex items-center justify-center rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-azul transition-all"><ArrowDownRight size={13} /></button>
                       </div>
                     </div>
+                  )}
+                </div>
+                {/* + añadir subtarea — EXTREMO DERECHO, siempre visible. Sin z-index: la tira ··· despliega a
+                    la izquierda de los puntos (que están a su izquierda), así que por GEOMETRÍA nunca lo alcanza.
+                    Solo contenedores y sueltas, nunca hijas. Color: #2DD4BF → #14B8A6 en hover de FILA. */}
+                <div className="w-[26px] shrink-0 flex items-center justify-center">
+                  {level < 3 && (hasSubtasks || (parentBlockId == null && !task.parentTaskId)) && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); if (onAddTask) onAddTask(task.id, task.blockId); }}
+                      title="Añadir subtarea"
+                      className="w-5 h-5 flex items-center justify-center rounded text-[#2DD4BF] group-hover/row:text-[#14B8A6] hover:bg-turquesa/10 transition-all"
+                    >
+                      <Plus size={14} />
+                    </button>
                   )}
                 </div>
               </div>
