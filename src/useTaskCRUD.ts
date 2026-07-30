@@ -389,7 +389,71 @@ export function useTaskCRUD({
     return id;
   }, [tasks, setTasks, blocks, selectedBlockId, activeDate, setEditingTaskId, setInlineEditingTaskId]);
 
-  const handleUpdateTask = useCallback((updatedTask: Task) => {
+  const handleUpdateTask = useCallback((updatedTask: Task, options?: { onHoldOnly?: boolean }) => {
+    // Suspender/reactivar ("en suspenso") es un cambio de FLAG y nada más: NUNCA debe re-fechar la
+    // instancia ni recrear su id. Antes pasaba por la maquinaria de excepción/reprogramación, que movía
+    // la hija al día del contenedor/hoy (id -07-29 → -07-30) → en la vista del día original desaparecía y
+    // había que recargar. Y al hacerlo en bucle (9 hijas) el estado se corrompía. Aquí es escritura pura
+    // del on_hold conservando id, due_date e instance_date; cada llamada toca su propia fila → compone sin
+    // pisarse. (sesión 15)
+    if (options?.onHoldOnly) {
+      const ts = new Date().toISOString();
+      const isInstance = !!updatedTask.templateId || String(updatedTask.id).startsWith('inst-');
+      const next: Task = {
+        ...updatedTask,
+        existsInSupabase: true,
+        isException: isInstance ? true : updatedTask.isException,
+        modifiedAt: ts,
+      };
+      setTasks(prev => ({ ...prev, [updatedTask.id]: { ...(prev[updatedTask.id] || {} as Task), ...next } }));
+
+      if (isInstance && updatedTask.templateId && String(updatedTask.id).startsWith('inst-')) {
+        // Instancia recurrente: upsert de la excepción CONSERVANDO fecha e id (no se mueve nada).
+        supabase.from('tasks').upsert({
+          id: updatedTask.id,
+          block_id: updatedTask.blockId,
+          parent_task_id: null,
+          template_id: updatedTask.templateId,
+          instance_date: updatedTask.instanceDate || null,
+          title: updatedTask.title,
+          notes: updatedTask.notes || '',
+          priority: 'media',
+          status: updatedTask.status,
+          due_date: updatedTask.dueDate || null,
+          due_time: updatedTask.dueTime || null,
+          completed_at: updatedTask.completedAt || null,
+          estimated_minutes: updatedTask.estimatedMinutes || 0,
+          actual_minutes: updatedTask.actualMinutes || 0,
+          total_estimated_combo: updatedTask.totalEstimatedCombo || 0,
+          total_registered_combo: updatedTask.totalRegisteredCombo || 0,
+          tags: updatedTask.tags || [],
+          order: updatedTask.order || 0,
+          is_template: false,
+          is_active: true,
+          is_exception: true,
+          is_deleted: false,
+          is_expanded: updatedTask.isExpanded || false,
+          task_type: updatedTask.taskType || 'core',
+          on_hold: updatedTask.onHold ?? false,
+          recurrence: null,
+          delegation: updatedTask.delegation || null,
+          was_recurring: updatedTask.wasRecurring || false,
+          created_at: updatedTask.createdAt || ts,
+          modified_at: ts,
+        }, { onConflict: 'id' }).then(({ error }) => {
+          if (error) console.error('[SUPABASE] Error on_hold (instancia):', updatedTask.id, error);
+        });
+      } else {
+        // Tarea real (manual o excepción ya persistida): solo el flag.
+        supabase.from('tasks').update({ on_hold: updatedTask.onHold ?? false, modified_at: ts })
+          .eq('id', updatedTask.id)
+          .then(({ error }) => {
+            if (error) console.error('[SUPABASE] Error on_hold:', updatedTask.id, error);
+          });
+      }
+      return;
+    }
+
     const isException = updatedTask.templateId &&
       updatedTask.instanceDate &&
       updatedTask.dueDate !== updatedTask.instanceDate;

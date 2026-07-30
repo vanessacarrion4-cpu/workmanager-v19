@@ -206,10 +206,10 @@ export function TaskCard({
       const next = !rowOnHold;
       onHoldChildIds.forEach((id: string) => {
         const child = allTasksMap[id];
-        if (child) onUpdateTask({ ...child, onHold: next });
+        if (child) onUpdateTask({ ...child, onHold: next }, { onHoldOnly: true });
       });
     } else {
-      onUpdateTask({ ...task, onHold: !task.onHold });
+      onUpdateTask({ ...task, onHold: !task.onHold }, { onHoldOnly: true });
     }
   };
 
