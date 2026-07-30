@@ -296,11 +296,12 @@ export function DashboardView({
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* TAREAS */}
+        {/* PENDIENTES (antes "Tareas"): el número = HOJAS PENDIENTES (sueltas + hijas, nunca contenedores;
+            getStatsForDay ya cuenta hojas). El anillo se rellena con completado/total. Las horas del card
+            "Pendiente" ya son estimatedPending → mismo conjunto, y cuadra con la "Carga" del Calendario. */}
         <SummaryCard
-          label="Tareas"
-          value={stats.completed}
-          total={stats.total}
+          label="Pendientes"
+          value={stats.pending}
           progress={(stats.completed / (stats.total || 1)) * 100}
           color="turquesa"
         />
