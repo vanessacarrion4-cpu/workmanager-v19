@@ -287,13 +287,16 @@ export function TaskModal({
         </div>
 
         {/* ── BODY ── */}
-        <div className={`p-3 space-y-3 overflow-y-auto custom-scrollbar flex-1 ${locked ? 'pointer-events-none select-none' : ''}`}>
+        {/* Nota (sesión 15): NO se bloquea el cuerpo entero — eso mataba la consulta (abrir adjuntos,
+            copiar notas, entrar en subtareas). Se bloquea CADA control de ESCRITURA por separado. */}
+        <div className="p-3 space-y-3 overflow-y-auto custom-scrollbar flex-1">
 
           {/* FILA 1: Tipo + Bloque + Estimado + Registrado */}
           <div className="flex items-center gap-2 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-2">
             {/* Tipo Core/Adhoc */}
             <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light shrink-0">
               <button
+                disabled={locked}
                 onClick={() => setLocalTask(prev => ({ ...prev, taskType: 'core' }))}
                 className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${
                   localTask.taskType === 'core' || (hasActiveRecurrence && !localTask.taskType)
@@ -302,6 +305,7 @@ export function TaskModal({
                 }`}
               >Core</button>
               <button
+                disabled={locked}
                 onClick={() => setLocalTask(prev => ({ ...prev, taskType: 'adhoc' }))}
                 className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${
                   localTask.taskType === 'adhoc' || (!hasActiveRecurrence && !isRecurringInstance && !localTask.taskType)
@@ -315,6 +319,7 @@ export function TaskModal({
 
             {/* Bloque */}
             <select
+              disabled={locked}
               className="flex-1 min-w-0 bg-transparent text-[11px] font-bold dark:text-white text-text-main-light outline-none cursor-pointer truncate"
               value={localTask.blockId}
               onChange={e => setLocalTask(prev => ({ ...prev, blockId: e.target.value }))}
@@ -331,6 +336,7 @@ export function TaskModal({
               <Clock size={12} className="text-turquesa" />
               <input
                 type="number"
+                disabled={locked}
                 className="w-12 bg-transparent text-[11px] font-bold dark:text-white text-text-main-light outline-none text-right"
                 value={localTask.estimatedMinutes || ''}
                 onChange={e => setLocalTask(prev => ({ ...prev, estimatedMinutes: parseInt(e.target.value) || 0 }))}
@@ -341,11 +347,11 @@ export function TaskModal({
 
             <div className="w-px h-5 dark:bg-border-main bg-border-main-light shrink-0" />
 
-            {/* Registrado — clicable para añadir. EXCEPCIÓN: sigue vivo aunque la tarea esté completada
-                (pointer-events-auto re-activa sobre el cuerpo bloqueado). */}
+            {/* Registrado — clicable para añadir. Sigue vivo aunque la tarea esté completada (el tiempo
+                registrado es la excepción a "completada = no editable"). */}
             <button
               onClick={() => setShowTimeEntry(v => !v)}
-              className={`flex items-center gap-1 shrink-0 px-1.5 py-1 rounded-lg transition-all hover:bg-white/10 pointer-events-auto ${regColor}`}
+              className={`flex items-center gap-1 shrink-0 px-1.5 py-1 rounded-lg transition-all hover:bg-white/10 ${regColor}`}
               title="Tiempo registrado — clic para añadir"
             >
               <Check size={11} strokeWidth={3} />
@@ -353,10 +359,8 @@ export function TaskModal({
             </button>
           </div>
 
-          {/* Panel tiempo — TimeManagementPanel completo como overlay. pointer-events-auto: sigue editable
-              aunque la tarea esté completada (el cuerpo está bloqueado). */}
+          {/* Panel tiempo — TimeManagementPanel completo como overlay */}
           {showTimeEntry && (
-            <div className="pointer-events-auto">
             <TimeManagementPanel
               taskId={localTask.id}
               subtaskId={null}
@@ -371,11 +375,10 @@ export function TaskModal({
               onUpdateEntry={(entryId: string, updates: any) => { if (onUpdateTimeEntry) onUpdateTimeEntry(entryId, updates); }}
               onClose={() => setShowTimeEntry(false)}
             />
-            </div>
           )}
 
-          {/* FILA 2: Tags + Delegación + Fecha */}
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-0 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl px-2 py-1.5">
+          {/* FILA 2: Tags + Delegación + Fecha — solo escritura → bloqueada entera si completada */}
+          <div className={`grid grid-cols-[1fr_auto_1fr] items-center gap-0 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl px-2 py-1.5 ${locked ? 'pointer-events-none' : ''}`}>
             {/* Tags — solo si no es contenedor */}
             <div className="flex items-center gap-1">
               {!(localTask.subtasks && localTask.subtasks.length > 0) ? (
@@ -442,7 +445,7 @@ export function TaskModal({
 
           {/* FILA 3: Hora — solo si tiene fecha y no es recurrente */}
           {localTask.dueDate && !localTask.recurrence && (
-            <div className="flex items-center gap-2 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-xl px-3 py-2">
+            <div className={`flex items-center gap-2 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 ${locked ? 'pointer-events-none' : ''}`}>
               <Clock size={12} className="text-azul shrink-0" />
               <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest shrink-0">Hora</span>
               <input
@@ -481,8 +484,9 @@ export function TaskModal({
             )}
           </AnimatePresence>
 
-          {/* Recurrencia — colapsable */}
-          <div className="dark:bg-bg-main/20 bg-gray-100/50 border dark:border-border-main border-border-main-light rounded-2xl overflow-hidden">
+          {/* Recurrencia — colapsable. Solo escritura → bloqueada si completada (la etiqueta-resumen se
+              sigue viendo en la cabecera). */}
+          <div className={`dark:bg-bg-main/20 bg-gray-100/50 border dark:border-border-main border-border-main-light rounded-2xl overflow-hidden ${locked ? 'pointer-events-none' : ''}`}>
             {/* Toggle header */}
             <button
               onClick={() => setShowRecurrence(v => !v)}
@@ -731,6 +735,7 @@ export function TaskModal({
             <div className="flex items-center justify-between px-1">
               <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Subtareas</span>
               <button
+                disabled={locked}
                 onClick={() => {
                   const nid = onAddTask(localTask.id, localTask.blockId, localTask.dueDate || localTask.instanceDate || undefined);
                   if (nid) {
@@ -749,6 +754,7 @@ export function TaskModal({
               {subtasks.map((st: Task) => (
                 <div key={st.id} className="flex gap-2 items-start dark:bg-bg-main/40 bg-white p-3 rounded-xl border dark:border-border-main border-border-main-light group">
                   <button
+                    disabled={locked}
                     onClick={() => handleUpdateSubtask(st.id, { status: st.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() })}
                     className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
                       st.status === 'completed' ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light hover:border-turquesa'
@@ -758,8 +764,9 @@ export function TaskModal({
                   </button>
                   <div className="flex-1 space-y-1.5 min-w-0">
                     <input
+                      readOnly={locked}
                       autoFocus={st.id === focusedSubtaskId}
-                      onFocus={() => { 
+                      onFocus={() => {
                         if (st.id === focusedSubtaskId) setFocusedSubtaskId(null);
                         // Inicializar título local si no existe
                         if (subtaskTitles[st.id] === undefined) {
@@ -779,7 +786,7 @@ export function TaskModal({
                       }}
                       placeholder="Título del paso..."
                     />
-                    <div className="flex flex-wrap items-center gap-1">
+                    <div className={`flex flex-wrap items-center gap-1 ${locked ? 'pointer-events-none' : ''}`}>
                       {!st.isTemplate && st.dueDate && (
                         <TimePickerChip value={st.dueTime || ''} onChange={(time: string) => handleUpdateSubtask(st.id, { dueTime: time })} />
                       )}
@@ -805,12 +812,14 @@ export function TaskModal({
                     </div>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
-                    <button onClick={() => onEditTask(st.id)} className="p-1.5 dark:text-text-secondary text-text-secondary-light hover:text-turquesa transition-all">
+                    <button onClick={() => onEditTask(st.id)} title="Entrar en la subtarea" className="p-1.5 dark:text-text-secondary text-text-secondary-light hover:text-turquesa transition-all">
                       <Edit size={13} />
                     </button>
-                    <button onClick={() => onDeleteTask(st.id)} className="p-1.5 dark:text-text-secondary text-text-secondary-light hover:text-rosa transition-all">
-                      <Trash2 size={13} />
-                    </button>
+                    {!locked && (
+                      <button onClick={() => onDeleteTask(st.id)} className="p-1.5 dark:text-text-secondary text-text-secondary-light hover:text-rosa transition-all">
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -828,6 +837,7 @@ export function TaskModal({
             <textarea
               ref={notesRef}
               rows={2}
+              readOnly={locked}
               className="w-full p-3 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl text-[12px] font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20 resize-none placeholder:dark:text-text-secondary/30 placeholder:text-text-secondary-light/30 overflow-hidden"
               placeholder="Anota cualquier detalle relevante..."
               value={localTask.notes || ''}
@@ -845,11 +855,11 @@ export function TaskModal({
             <div className="flex items-center justify-between pl-1">
               <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Adjuntos</label>
               <label className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border cursor-pointer transition-all text-[10px] font-black uppercase tracking-widest ${
-                uploading ? 'opacity-50 cursor-not-allowed' : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'
+                (uploading || locked) ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'
               }`}>
                 <Paperclip size={11} />
                 {uploading ? 'Subiendo...' : 'Adjuntar'}
-                <input type="file" className="hidden" disabled={uploading} onChange={async (e) => {
+                <input type="file" className="hidden" disabled={uploading || locked} onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file || !onUploadAttachment) return;
                   setUploading(true);
@@ -880,9 +890,11 @@ export function TaskModal({
                         <a href={att.url} target="_blank" rel="noopener noreferrer" className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/10 hover:bg-turquesa/20 rounded-lg transition-all">
                           <Eye size={11} />
                         </a>
-                        <button onClick={() => onDeleteAttachment && onDeleteAttachment(localTask.id, att.id, att.path)} className="w-6 h-6 flex items-center justify-center text-rosa bg-rosa/10 hover:bg-rosa/20 rounded-lg transition-all">
-                          <Trash2 size={11} />
-                        </button>
+                        {!locked && (
+                          <button onClick={() => onDeleteAttachment && onDeleteAttachment(localTask.id, att.id, att.path)} className="w-6 h-6 flex items-center justify-center text-rosa bg-rosa/10 hover:bg-rosa/20 rounded-lg transition-all">
+                            <Trash2 size={11} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
