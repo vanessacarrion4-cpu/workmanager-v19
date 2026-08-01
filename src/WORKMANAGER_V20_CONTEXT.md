@@ -1876,9 +1876,10 @@ tarea nueva, o la creación será un no-op invisible.
 → siempre `null`. **Lo lee solo** `doAddTask` ([useTaskCRUD.ts:278](useTaskCRUD.ts)): `finalBlockId = selectedBlockId ||
 blocks[0]`. Como es siempre null, **toda tarea de nivel-1 sin bloque explícito cae en `blocks[0]` (el primer bloque)**.
 
-- **Acción decidida:** **borrar la variable** (recomendado). Se ejecuta **al empezar la próxima sesión**, en su propio
-  commit. NO hoy. (Borrarla no cambia el comportamiento actual: ya es siempre `blocks[0]`.)
-- **⚠️ PREGUNTA ABIERTA (FASE 5), la decide la usuaria antes de tocarlo:** como esa variable siempre es nula, **toda
+- **✅ HECHO (sesión 16, `6dce9a0`):** variable **borrada** de `App.tsx` y `useTaskCRUD` (interfaz, destructuring, deps).
+  Comportamiento idéntico (ya era siempre `blocks[0]`). En `useTaskCRUD.ts:278` queda un comentario marcando el fallback
+  a `blocks[0]` como **PROVISIONAL** — el borrado NO congela la decisión de FASE 5 (abajo), que sigue abierta.
+- **⚠️ PREGUNTA ABIERTA (FASE 5), la decide la usuaria (SIGUE ABIERTA tras el borrado):** como esa variable siempre era nula, **toda
   tarea creada sin bloque explícito, Mi Día incluido, acaba en el primer bloque de la lista.** Eso **nadie lo ha
   decidido nunca**. Borrar la variable NO debe congelar ese comportamiento como "así es la app". Decisión pendiente:
   **una tarea creada en Mi Día, ¿debe caer en el primer bloque o quedarse sin bloque?**
@@ -1950,7 +1951,7 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
   reordenar recurrente cambia todos los días · escritura innecesaria en cada carga (§16.1 de la sesión 14 / repairs) ·
   desplegar todo no refresca · conteos SQL + limpieza legada (§15.7) · borrar la columna de prioridad.
 - **FASE 5 — creación:** tarea vacía que se persiste + guard de título vacío · encadenado con Enter · ruido en consola al
-  arrancar Mi Día · **borrar `selectedBlockId`** (§16.5) + **pregunta abierta** Mi Día→primer bloque (§16.5).
+  arrancar Mi Día · ~~borrar `selectedBlockId`~~ ✅ HECHO (`6dce9a0`, §16.5) + **pregunta abierta** Mi Día→primer bloque (§16.5, SIGUE ABIERTA).
 - **FASE 6 — diseño:** zona de diagnóstico (§16.8, sustituye §7.4) · Tanda 3 paneles flotantes · Tanda 4 barrido de
   visibilidad · Tanda 5 Delegadas/Bloques/Carga · icono de calendario en la fila · avisos propios en vez de los del
   navegador · hueco cabecera Bloques (§16.9) · unificar Semana con el TaskCard normal (§16.6).
