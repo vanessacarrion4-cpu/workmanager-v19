@@ -51,7 +51,6 @@ interface BlocksViewProps {
   setInlineEditingTaskId?: (id: string | null) => void;
   onOpenTimePanel?: (taskId: string, subtaskId: string | null) => void;
   onEditRule?: (taskId: string) => void;
-  onToggleRule?: (taskId: string) => void;
   onAddBlock: () => void;
   onEditBlock: (blockId: string) => void;
   onReorderBlocks: (blocks: WorkBlock[]) => void;
@@ -89,7 +88,7 @@ export function BlocksManagerView({
   blocks, tasks, allTasksMap, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null,
   timeEntries, activeTimer, onStartTimer, onStopTimer, onAddTask, onAddRule, onToggleTask, onDelete,
   onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel,
-  onEditRule, onToggleRule, onAddBlock, onEditBlock, onReorderBlocks, onToggleBlock, activeDate,
+  onEditRule, onAddBlock, onEditBlock, onReorderBlocks, onToggleBlock, activeDate,
   onReorderSubtasks, onReorderTasks, onToggleExpand, onExpandAll, onViewInstances, onPromote, onDemote,
   highlightTaskId, onClearHighlight,
   onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(),
@@ -294,7 +293,7 @@ export function BlocksManagerView({
                     activeTimer={activeTimer}
                     onStartTimer={onStartTimer}
                     onStopTimer={onStopTimer}
-                    onToggleStatus={t.isTemplate ? onToggleRule : onToggleTask}
+                    onToggleStatus={onToggleTask}
                     onUpdateTask={onUpdateTask}
                     onEditTask={t.isTemplate ? onEditRule : onEditTask}
                     editingTaskId={editingTaskId}
@@ -367,7 +366,7 @@ export function BlocksManagerView({
                     activeTimer={activeTimer}
                     onStartTimer={onStartTimer}
                     onStopTimer={onStopTimer}
-                    onToggleStatus={t.isTemplate ? onToggleRule : onToggleTask}
+                    onToggleStatus={onToggleTask}
                     onUpdateTask={onUpdateTask}
                     onEditTask={t.isTemplate ? onEditRule : onEditTask}
                     editingTaskId={editingTaskId}

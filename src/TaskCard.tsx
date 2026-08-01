@@ -412,7 +412,11 @@ export function TaskCard({
                 popups fixed del raíl no se recortan. Conserva el marco redondeado. */}
             <div className="w-1 self-stretch my-1 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
 
-            {/* Checkbox — en modo selección muestra selección, en modo normal completa */}
+            {/* Checkbox — en modo selección muestra selección, en modo normal completa.
+                PLANTILLAS (Bloques) en modo normal NO tienen casilla de completar: una definición no
+                se completa (§16.6). En modo SELECCIÓN sí se pinta, para poder seleccionarlas. Hueco del
+                mismo tamaño cuando no se pinta, para no desalinear la fila. */}
+            {(selectionMode || !task.isTemplate) ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -443,6 +447,9 @@ export function TaskCard({
                   : null
               }
             </button>
+            ) : (
+              <div className="w-5 h-5 shrink-0" aria-hidden="true" />
+            )}
 
             {/* Tipo (punto de color) — §7.2: checkbox · tipo · título · chips */}
             <div className="shrink-0">

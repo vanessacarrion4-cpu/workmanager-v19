@@ -574,10 +574,6 @@ export default function App() {
                   setEditingTaskId(resolved);
                 }}
                 onEditRule={setEditingRuleId}
-                onToggleRule={(id: string) => setTasks(prev => ({
-                  ...prev,
-                  [id]: { ...prev[id], isActive: prev[id].isActive !== false, modifiedAt: new Date().toISOString() }
-                }))}
                 onEditBlock={setEditingBlockId}
                 onReorderBlocks={handleReorderBlocks}
                 onToggleBlock={handleToggleBlockActive}
