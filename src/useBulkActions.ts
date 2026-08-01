@@ -9,6 +9,7 @@ import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { resolveTaskId, materializeDay } from './instanceEngine';
+import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan (agrupadas por lote)
 
 interface UseBulkActionsOptions {
   tasks: Record<string, Task>;
@@ -150,6 +151,7 @@ export function useBulkActions({
           }, { onConflict: 'id' }).then(({ error }) => {
             if (error) {
               console.error('[BULK] Error upsert instancia:', task.id, error);
+              reportPersistError({ verbo: 'guardar', titulo: task.title });
             } else {
               setTasks(prev => ({
                 ...prev,
@@ -166,9 +168,7 @@ export function useBulkActions({
           if (updates.estimatedMinutes !== undefined) supabaseUpdates.estimated_minutes = updatedTask.estimatedMinutes;
           if ('delegation' in updates) supabaseUpdates.delegation = updatedTask.delegation ?? null;
 
-          supabase.from('tasks').update(supabaseUpdates).eq('id', id).then(({ error }) => {
-            if (error) console.error('[BULK] Error update tarea:', id, error);
-          });
+          persist(supabase.from('tasks').update(supabaseUpdates).eq('id', id), { verbo: 'guardar', titulo: updatedTask.title });
         }
       });
     }, 0);
@@ -213,12 +213,11 @@ export function useBulkActions({
     });
 
     realIds.forEach(id => {
-      supabase.from('tasks').update({ is_deleted: true, modified_at: timestamp }).eq('id', id)
-        .then(({ error }) => { if (error) console.error('[SUPABASE] Error bulk delete:', error); });
+      persist(supabase.from('tasks').update({ is_deleted: true, modified_at: timestamp }).eq('id', id), { verbo: 'borrar', titulo: tasks[id]?.title });
     });
     Object.values(virginObjs).forEach(o => {
       const day = o.instanceDate || o.dueDate || activeDate;
-      supabase.from('tasks').upsert({
+      persist(supabase.from('tasks').upsert({
         id: o.id,
         block_id: o.blockId,
         parent_task_id: null,          // no cuelga de plantilla (evita contaminación); materializeDay ya no la renderiza (findDeletedForDay)
@@ -245,9 +244,7 @@ export function useBulkActions({
         delegation: o.delegation || null,
         created_at: o.createdAt || timestamp,
         modified_at: timestamp,
-      }, { onConflict: 'id' }).then(({ error }) => {
-        if (error) console.error('[SUPABASE] Error bulk delete (materializar excepción borrada):', o.id, error);
-      });
+      }, { onConflict: 'id' }), { verbo: 'borrar', titulo: o.title });
     });
 
     setSelectedTaskIds(new Set());
@@ -404,7 +401,7 @@ export function useBulkActions({
     (async () => {
       for (const task of duplicates) {
         const { error } = await supabase.from('tasks').insert(rowOf(task));
-        if (error) { console.error('[SUPABASE] Error duplicando tarea:', error); break; }
+        if (error) { console.error('[SUPABASE] Error duplicando tarea:', error); reportPersistError({ verbo: 'duplicar', titulo: task.title }); break; }
       }
     })();
 
