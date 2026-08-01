@@ -22,7 +22,7 @@ import { useBlockHandlers } from './useBlockHandlers';
 import { useTimerHandlers } from './useTimerHandlers';
 import { DiagPanel } from './DiagPanel'; // DIAG-TEMP (sesión 15): quitar con el revert del commit de diagnóstico
 import { ToastContainer } from './ToastContainer'; // Avisos (B1): pila de toasts, se suscribe al bus toast.ts
-import { persist } from './persist'; // Avisos (B1): escrituras que fallan avisan
+import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
 import { useBulkActions } from './useBulkActions';
 import { BlocksManagerView } from './BlocksView';
 import { DashboardView } from './DashboardView';
@@ -255,6 +255,7 @@ export default function App() {
       setPeople(prev => [...prev, person]);
     } catch (e) {
       console.error('[SUPABASE] Error creating person:', e);
+      reportPersistError({ verbo: 'crear', titulo: person.name, singular: 'la persona', plural: 'personas' });
       const existing = people.find(p => p.name.toLowerCase() === person.name.toLowerCase());
       if (!existing) setPeople(prev => [...prev, person]);
     }
@@ -266,6 +267,8 @@ export default function App() {
       if (error) throw error;
       setPeople(prev => prev.map(p => p.id === id ? { ...p, name } : p));
     } catch (e) {
+      console.error('[SUPABASE] Error renaming person:', e);
+      reportPersistError({ verbo: 'guardar', titulo: name, singular: 'la persona', plural: 'personas' });
       setPeople(prev => prev.map(p => p.id === id ? { ...p, name } : p));
     }
   };
@@ -283,6 +286,8 @@ export default function App() {
         return updated;
       });
     } catch (e) {
+      console.error('[SUPABASE] Error deleting person:', e);
+      reportPersistError({ verbo: 'borrar', titulo: people.find(p => p.id === id)?.name, singular: 'la persona', plural: 'personas' });
       setPeople(prev => prev.filter(p => p.id !== id));
     }
   };
@@ -658,18 +663,27 @@ export default function App() {
                 onUpdatePeople={setPeople}
                 onUpdateMeetings={async (updatedMeetings: any[]) => {
                   setMeetings(updatedMeetings);
-                  for (const m of updatedMeetings) {
-                    await supabase.from('meetings').upsert({
-                      id: m.id, person_id: m.personId, date: m.date,
-                      notes: m.notes || '', items: m.items || [],
-                      created_at: m.createdAt || new Date().toISOString()
-                    }, { onConflict: 'id' });
-                  }
-                  const currentIds = updatedMeetings.map((m: any) => m.id);
-                  const { data: existing } = await supabase.from('meetings').select('id');
-                  if (existing) {
-                    const toDelete = existing.filter((r: any) => !currentIds.includes(r.id));
-                    for (const r of toDelete) await supabase.from('meetings').delete().eq('id', r.id);
+                  try {
+                    for (const m of updatedMeetings) {
+                      const { error } = await supabase.from('meetings').upsert({
+                        id: m.id, person_id: m.personId, date: m.date,
+                        notes: m.notes || '', items: m.items || [],
+                        created_at: m.createdAt || new Date().toISOString()
+                      }, { onConflict: 'id' });
+                      if (error) throw error;
+                    }
+                    const currentIds = updatedMeetings.map((m: any) => m.id);
+                    const { data: existing } = await supabase.from('meetings').select('id');
+                    if (existing) {
+                      const toDelete = existing.filter((r: any) => !currentIds.includes(r.id));
+                      for (const r of toDelete) {
+                        const { error } = await supabase.from('meetings').delete().eq('id', r.id);
+                        if (error) throw error;
+                      }
+                    }
+                  } catch (e) {
+                    console.error('[SUPABASE] Error guardando reuniones:', e);
+                    reportPersistError({ verbo: 'guardar', singular: 'la reunión', plural: 'reuniones' });
                   }
                 }}
                 onAddTask={handleAddTask}
