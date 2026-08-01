@@ -1922,11 +1922,13 @@ sumaba ~75.600m = 51 días en la fila de un día → ahora el día).
 
 **Coherencia entre vistas (a2), medida:** **Semana** ya está acotada al día — muestra estimado vía
 `getTaskMins(task, dayMap)` con el mapa materializado por día ([WeekView.tsx:60-71](WeekView.tsx)) y **no** muestra
-registrado → sin histórico, sin cambio necesario. **Calendario** (variant COMPACT) muestra **solo estimado**
-([TaskCard.tsx:288](TaskCard.tsx)) y hoy sin día → estimado de todas las fechas; **arreglo barato** = pasar
-`dayForTotals={selectedDay}` (una línea, el día ya existe). **Bloques** es vista de DEFINICIÓN (plantillas → registrado
-0, estimado base): semántica distinta a un día; que no coincida con Mi Día es esperado (definición vs día), no el bug
-del histórico. Pendiente de decisión: hacer el de Calendario ya (antes de b) por coherencia.
+registrado → sin histórico, sin cambio necesario. **Calendario** — VERIFICADO en el render (sesión 16): el **contenedor NO se pinta como `TaskCard` con total**, es una
+cabecera de texto con título + `(nº)` **sin minutos** ([CalendarView.tsx:414-420](CalendarView.tsx)); solo las HOJAS
+son `TaskCard` COMPACT y muestran su propio estimado (correcto). Los contenedores sin hijas del día ni aparecen (filtro).
+→ **NO hay total de contenedor mal sumado en Calendario; no requiere cambio** (mi recomendación previa de "una línea"
+era errónea: sería un no-op). **Bloques** es vista de DEFINICIÓN (plantillas → registrado 0, estimado base): semántica
+distinta a un día; que no coincida con Mi Día es esperado (definición vs día), no el bug del histórico. **Conclusión:
+tras (a2), ninguna de las otras vistas muestra el histórico inflado; solo Mi Día lo tenía y ya está corregido.**
 
 **🔴 CASO REAL 30-jul (evidencia de oro, va a (b)/(c) como TEST — sale de datos reales):** en "Pago nóminas" el 30-jul
 hay **10 hijas-excepción, todas con `parent_task_id=NULL`** (8 completadas + 2 pendientes: "Pago NGD" y "Pago NGD
