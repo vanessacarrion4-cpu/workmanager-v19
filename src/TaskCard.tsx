@@ -233,6 +233,17 @@ export function TaskCard({
     if (inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
   };
 
+  // Una tarea COMPLETADA es un hecho cerrado: no se edita desde la fila (sesión 15). Las columnas de
+  // datos se muestran pero NO son clicables (sin afordancia de hover, sin cursor de mano); las vacías
+  // quedan en blanco. Vivos solo: tiempo registrado, casilla (reabrir), ··· (modal/borrar).
+  const locked = task.status === 'completed';
+  // Clase del envoltorio de una columna del raíl: lleno → visible (bloqueado si completada); vacío →
+  // en blanco si completada, o punteado en hover si no.
+  const railCol = (filled: boolean) =>
+    locked
+      ? (filled ? 'flex pointer-events-none' : 'hidden')
+      : (filled ? 'flex' : 'hidden group-hover/row:flex has-[[data-open=true]]:flex');
+
   if (variant === 'COMPACT') {
     const [showMovePicker, setShowMovePicker] = useState(false);
     const [showMoveCalendar, setShowMoveCalendar] = useState(false);
@@ -356,7 +367,8 @@ export function TaskCard({
       <div>
         <div
           className={`relative transition-all duration-150 rounded-2xl
-            ${task.status === 'completed' ? 'opacity-50' : ''}
+            ${/* Completada: atenuada por scrim ::after en la FILA (abajo), NO por opacity — opacity en un
+                 ancestro cascadea a los popups fixed y los deja translúcidos (mismo caso §14.1.1). */''}
             ${isHighlighted ? 'rounded-2xl' : ''}
             ${selectionMode
               ? selectedTaskIds.has(task.id)
@@ -390,7 +402,7 @@ export function TaskCard({
               (no en el bloque/sección entera). */}
           {/* Atenuado de "en suspenso" con ::after (NO opacity): el opacity cascadea a los popups
               fixed y los deja translúcidos; el pseudo-elemento se queda en la caja de la fila. */}
-          <div className={`group/row relative flex items-center gap-1.5 px-3 min-h-[29px] ${rowOnHold ? "after:absolute after:inset-0 after:content-[''] after:pointer-events-none after:rounded-lg dark:after:bg-bg-main/45 after:bg-bg-main-light/55" : ''}`}>
+          <div className={`group/row relative flex items-center gap-1.5 px-3 min-h-[29px] ${(rowOnHold || locked) ? "after:absolute after:inset-0 after:content-[''] after:pointer-events-none after:rounded-lg dark:after:bg-bg-main/45 after:bg-bg-main-light/55" : ''}`}>
 
             {/* Flechas de reordenar retiradas: el arrastre reordena en todas las vistas
                 (Mi Día/Bloques/Calendario ya; Delegadas con Reorder.Group; Búsqueda no reordena). */}
@@ -446,7 +458,7 @@ export function TaskCard({
                 (no llevan hora). Vacía → punteado con reloj en hover, clic para poner. */}
             <div className="w-[40px] shrink-0 flex items-center justify-start overflow-hidden">
               {!hasSubtasks && !inMeeting && (
-                <div className={task.dueTime ? 'flex' : 'hidden group-hover/row:flex has-[[data-open=true]]:flex'}>
+                <div className={railCol(!!task.dueTime)}>
                   <TimePickerChip
                     light
                     value={task.dueTime || ''}
@@ -511,6 +523,7 @@ export function TaskCard({
                 {/* Suspender — PRIMERA columna del raíl (fija; la tira nunca la alcanza). Suspendida →
                     reloj gris; no suspendida → en blanco, reloj tenue en hover, clic alterna. */}
                 <div className="w-[24px] shrink-0 flex items-center justify-center">
+                  {!locked && (
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleOnHold(); }}
                     title={rowOnHold ? 'Quitar en suspenso' : 'Marcar en suspenso (esperando algo)'}
@@ -521,6 +534,7 @@ export function TaskCard({
                   >
                     <Hourglass size={12} />
                   </button>
+                  )}
                 </div>
                 {/* TIEMPOS: estimado · registrado · play (pegados) */}
                 <div className="flex items-center">
@@ -529,7 +543,7 @@ export function TaskCard({
                       const estVal = hasSubtasks ? totalEstimated : task.estimatedMinutes;
                       const estEmpty = !hasSubtasks && !(estVal > 0); // sin estimado → columna vacía (hover)
                       return (
-                        <div className={estEmpty ? 'hidden group-hover/row:flex has-[[data-open=true]]:flex' : 'flex'}>
+                        <div className={railCol(!estEmpty)}>
                           <EstimatedTimeChip
                             value={estVal}
                             onChange={(val: number) => { if (!hasSubtasks) onUpdateTask({ ...task, estimatedMinutes: val }); }}
@@ -554,7 +568,7 @@ export function TaskCard({
                   </div>
                   {/* play — temporizador, siempre visible. Corriendo: cambia de forma y destaca. */}
                   <div className="w-[26px] shrink-0 flex items-center justify-center">
-                    {!inMeeting && (
+                    {!inMeeting && !locked && (
                       <button
                         onClick={() => isTimerRunning ? onStopTimer() : onStartTimer(currentRootId, level === 1 ? null : task.id)}
                         title={isTimerRunning ? 'Parar temporizador' : 'Iniciar temporizador'}
@@ -570,7 +584,7 @@ export function TaskCard({
                       ocurrencia). Cierra el grupo de tiempos. Solo en recurrentes; en el resto, en blanco.
                       La tira ··· nunca la alcanza (está en los tiempos). */}
                   <div className="w-[24px] shrink-0 flex items-center justify-center">
-                    {onViewInstances && (task.templateId || (task.isTemplate && task.recurrence)) && (
+                    {onViewInstances && !locked && (task.templateId || (task.isTemplate && task.recurrence)) && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onViewInstances(task.isTemplate ? task : (allTasksMap[task.templateId] || task)); }}
                         title="Historial de la serie (estimado vs real por ocurrencia)"
@@ -592,7 +606,7 @@ export function TaskCard({
                     {!hasSubtasks && (() => {
                       const railBlank = variant === 'DASHBOARD' || !task.dueDate;
                       return (
-                        <div className={railBlank ? 'hidden group-hover/row:flex has-[[data-open=true]]:flex' : 'flex'}>
+                        <div className={railCol(!railBlank)}>
                           <DatePickerChip
                             muted
                             value={railBlank ? null : task.dueDate}
@@ -617,7 +631,7 @@ export function TaskCard({
                       }
                       if (!hasSubtasks && !task.templateId && !task.isTemplate) {
                         return (
-                          <div className={task.recurrence ? 'flex' : 'hidden group-hover/row:flex has-[[data-open=true]]:flex'}>
+                          <div className={railCol(!!task.recurrence)}>
                             <RecurrencePickerChip
                               muted
                               value={task.recurrence}
@@ -632,7 +646,7 @@ export function TaskCard({
                   {/* Delegación */}
                   <div className="w-[60px] shrink-0 flex items-center justify-start overflow-hidden">
                     {!hasSubtasks && (
-                      <div className={task.delegation ? 'flex' : 'hidden group-hover/row:flex has-[[data-open=true]]:flex'}>
+                      <div className={railCol(!!task.delegation)}>
                         <DelegationChip
                           muted
                           delegation={task.delegation}
@@ -649,7 +663,7 @@ export function TaskCard({
                   {/* Etiqueta (a color pleno) */}
                   <div className="w-[28px] shrink-0 flex items-center justify-start">
                     {!hasSubtasks && (
-                      <div className={(task.tags && task.tags.length > 0) ? 'flex' : 'hidden group-hover/row:flex has-[[data-open=true]]:flex'}>
+                      <div className={railCol(!!(task.tags && task.tags.length > 0))}>
                         <TagPickerChip
                           muted
                           selectedTags={task.tags}
@@ -659,7 +673,7 @@ export function TaskCard({
                     )}
                   </div>
                   {/* Bloque (en hija: solo si difiere del padre renderizado) */}
-                  <div className="w-[80px] shrink-0 flex items-center justify-start overflow-hidden">
+                  <div className={`w-[80px] shrink-0 flex items-center justify-start overflow-hidden ${locked ? 'pointer-events-none' : ''}`}>
                     {((parentBlockId == null && !task.parentTaskId)
                       || (parentBlockId ?? allTasksMap[task.parentTaskId]?.blockId) !== task.blockId) && (
                       <BlockPickerChip
@@ -699,10 +713,12 @@ export function TaskCard({
                       )}
                       <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onEditTask(task.id); }} title="Editar" className="w-6 h-6 flex items-center justify-center rounded-lg text-turquesa hover:bg-turquesa/10 transition-all"><Edit size={13} /></button>
                       <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onDelete(task.id); }} title="Eliminar" className="w-6 h-6 flex items-center justify-center rounded-lg text-rosa hover:bg-rosa/10 transition-all"><Trash2 size={13} /></button>
-                      {task.parentTaskId && (
+                      {task.parentTaskId && !locked && (
                         <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onPromote(task.id); }} title="Subir un nivel" className="w-6 h-6 flex items-center justify-center rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-turquesa transition-all"><ArrowUpLeft size={13} /></button>
                       )}
-                      <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onDemote(task.id); }} title="Bajar un nivel" className="w-6 h-6 flex items-center justify-center rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-azul transition-all"><ArrowDownRight size={13} /></button>
+                      {!locked && (
+                        <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onDemote(task.id); }} title="Bajar un nivel" className="w-6 h-6 flex items-center justify-center rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-azul transition-all"><ArrowDownRight size={13} /></button>
+                      )}
                       </div>
                     </div>
                   )}
@@ -711,7 +727,7 @@ export function TaskCard({
                     la izquierda de los puntos (que están a su izquierda), así que por GEOMETRÍA nunca lo alcanza.
                     Solo contenedores y sueltas, nunca hijas. Color: #2DD4BF → #14B8A6 en hover de FILA. */}
                 <div className="w-[26px] shrink-0 flex items-center justify-center">
-                  {level < 3 && (hasSubtasks || (parentBlockId == null && !task.parentTaskId)) && (
+                  {level < 3 && !locked && (hasSubtasks || (parentBlockId == null && !task.parentTaskId)) && (
                     <button
                       onClick={(e) => { e.stopPropagation(); if (onAddTask) onAddTask(task.id, task.blockId); }}
                       title="Añadir subtarea"
