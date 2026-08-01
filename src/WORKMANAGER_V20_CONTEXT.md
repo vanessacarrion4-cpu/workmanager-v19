@@ -1953,7 +1953,14 @@ huérfanas no tienen dónde anidar. Es trabajo del bloque de **mover + reconcili
 día** vía `rowCompleted` (`cd45ee7`), no del status guardado. Impacto medido: **~21 contenedores cambian de aspecto**
 — 1 tachado→pendiente ("Poner fechas varias laboral", le queda 1 hija) y 20 pendiente→tachado (proyectos manuales ya
 terminados). **⚠️ TOGGLE "completar-solo-el-día" NO incluido en (b):** para contenedores recurrentes exige materializar
-las hijas-instancia del día → es territorio de **(c)**; se hace allí, no a medias en (b). **Hallazgo:** `isTaskCompleted`
+las hijas-instancia del día → es territorio de **(c)**; se hace allí, no a medias en (b).
+
+**🔴🔴 CONTRADICCIÓN VIVA (desde b2 hasta que se cierre (c)) — CERRAR EN (c) SÍ O SÍ:** el **visto** del contenedor
+ya se calcula **por el día** (b2, `isContainerCompleteOnDay`), pero **clicarlo sigue cerrando las hijas de CUALQUIER
+fecha** (`handleToggleStatus`/`toggleRecursive` sin tocar). O sea: **la pantalla y la acción dicen cosas distintas** —
+el visto refleja el día, el clic actúa sobre todos los días (podría cerrar cosas de meses atrás). No es un riesgo
+nuevo (el toggle ya era así), pero b2 lo hace evidente. (c) debe alinear la acción con el visto: **clic = completar/
+reabrir SOLO las hijas del día** (`childrenToToggleOnDay` ya existe; falta materializar las hijas-instancia del día). **Hallazgo:** `isTaskCompleted`
 ([utils.ts:24-28](utils.ts)) YA deriva el completado del contenedor de sus hijas (todas, sin filtrar por día) → el
 trabajo de (b3)/(c) sobre filtros/contadores es hacer esa derivación **por día**, no crearla.
 
