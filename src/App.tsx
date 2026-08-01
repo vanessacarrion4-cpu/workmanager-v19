@@ -47,7 +47,6 @@ export default function App() {
   const [blocks, setBlocks] = useState<WorkBlock[]>([]);
   const [tasks, setTasks] = useState<Record<string, Task>>({});
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const todayLocal = formatLocalISO(new Date());
   const [activeDate, setActiveDate] = useState(todayLocal);
@@ -206,7 +205,7 @@ export default function App() {
     handleEditTaskRequest, handleDeleteTaskRequest, handleToggleStatus,
     handleAddTask, doAddTask, handleUpdateTask, handleDeleteTask, handleAddRule,
   } = useTaskCRUD({
-    tasks, setTasks, blocks, selectedBlockId, activeDate,
+    tasks, setTasks, blocks, activeDate,
     setEditingTaskId, setInlineEditingTaskId, setEditingRuleId,
     setRecurrenceAction, setAddSubtaskWarning, dashboardTasks,
   });

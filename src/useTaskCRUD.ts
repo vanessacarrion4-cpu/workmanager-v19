@@ -17,7 +17,6 @@ interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
   setTasks: React.Dispatch<React.SetStateAction<Record<string, Task>>>;
   blocks: any[];
-  selectedBlockId: string | null;
   activeDate: string;
   setEditingTaskId: (id: string | null) => void;
   setInlineEditingTaskId: (id: string | null) => void;
@@ -31,7 +30,6 @@ export function useTaskCRUD({
   tasks,
   setTasks,
   blocks,
-  selectedBlockId,
   activeDate,
   setEditingTaskId,
   setInlineEditingTaskId,
@@ -275,7 +273,8 @@ export function useTaskCRUD({
     }
 
     if (!finalBlockId) {
-      finalBlockId = selectedBlockId || (blocks.length > 0 ? blocks[0].id : 'b1');
+      // FASE 5 (pendiente de decisión): fallback PROVISIONAL a blocks[0]; no está decidido que una tarea sin bloque deba caer en el primer bloque.
+      finalBlockId = blocks.length > 0 ? blocks[0].id : 'b1';
     }
 
     const newTask: Task = {
@@ -367,7 +366,7 @@ export function useTaskCRUD({
     // en nivel-1 y en subtareas. El modal solo se abre a petición (botón editar → setEditingTaskId).
     setInlineEditingTaskId(id);
     return id;
-  }, [tasks, setTasks, blocks, selectedBlockId, activeDate, setEditingTaskId, setInlineEditingTaskId]);
+  }, [tasks, setTasks, blocks, activeDate, setEditingTaskId, setInlineEditingTaskId]);
 
   const handleUpdateTask = useCallback((updatedTask: Task, options?: { onHoldOnly?: boolean }) => {
     // Suspender/reactivar ("en suspenso") es un cambio de FLAG y nada más: NUNCA debe re-fechar la
