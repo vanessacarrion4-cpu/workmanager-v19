@@ -21,6 +21,7 @@ import { useTaskOrdering } from './useTaskOrdering';
 import { useBlockHandlers } from './useBlockHandlers';
 import { useTimerHandlers } from './useTimerHandlers';
 import { DiagPanel } from './DiagPanel'; // DIAG-TEMP (sesión 15): quitar con el revert del commit de diagnóstico
+import { ToastContainer } from './ToastContainer'; // Avisos (B1): pila de toasts, se suscribe al bus toast.ts
 import { useBulkActions } from './useBulkActions';
 import { BlocksManagerView } from './BlocksView';
 import { DashboardView } from './DashboardView';
@@ -304,6 +305,7 @@ export default function App() {
           </div>
         </div>
         <DiagPanel /> {/* DIAG-TEMP */}
+        <ToastContainer /> {/* Avisos (B1) */}
       </>
     );
   }
@@ -1073,6 +1075,7 @@ export default function App() {
       )}
 
       <DiagPanel /> {/* DIAG-TEMP (sesión 15): panel de diagnóstico. Quitar con el revert del commit. */}
+      <ToastContainer /> {/* Avisos (B1) */}
     </div>
   );
 }
