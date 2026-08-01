@@ -258,6 +258,14 @@ export function BlocksManagerView({
             >
               {hideCompleted ? <EyeOff size={13} /> : <Eye size={13} />}
             </button>
+            {/* Añadir tarea AL BLOQUE ABIERTO (punto 6): pasa selectedBlock.id → se crea aquí, no en b1. */}
+            <button
+              onClick={() => onAddTask(null, selectedBlock.id)}
+              className="flex items-center gap-1.5 px-3 h-8 rounded-xl bg-turquesa text-white hover:bg-turquesa/85 transition-all text-[11px] font-black uppercase tracking-widest shadow-md shadow-turquesa/20 shrink-0"
+              title="Añadir tarea a este bloque"
+            >
+              <Plus size={13} /> Tarea
+            </button>
           </div>
         </div>
 
