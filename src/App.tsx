@@ -439,7 +439,7 @@ export default function App() {
           selectionMode={selectionMode}
           selectedCount={selectedTaskIds.size}
           onToggleSelectionMode={toggleSelectionMode}
-          onAddTask={currentView === 'dashboard' || currentView === 'delegadas' ? () => handleAddTask() : undefined}
+          onAddTask={currentView === 'dashboard' ? () => handleAddTask() : undefined}
           hideCompleted={currentView === 'dashboard' ? dashHideCompleted : currentView === 'delegadas' ? delegadasHideCompleted : undefined}
           onToggleHideCompleted={
             currentView === 'dashboard' ? () => setDashHideCompleted(p => !p) :
