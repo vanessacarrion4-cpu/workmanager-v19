@@ -9,6 +9,7 @@ import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { materializeDay, templateIdFromInstanceId } from './instanceEngine';
+import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
 
 /**
  * B5a: fila-excepción (mismo shape validado en cambio-2, useTaskCRUD) para MATERIALIZAR una
@@ -71,9 +72,7 @@ export function useTaskOrdering({
     setTasks(updated);
     orderedTasks.forEach((t, i) => {
       const dbId = t.id.startsWith('inst-') ? (t.templateId || t.id) : t.id;
-      supabase.from('tasks').update({ order: i }).eq('id', dbId).then(({ error }) => {
-        if (error) console.error('[ORDER] Error saving task order:', error);
-      });
+      persist(supabase.from('tasks').update({ order: i }).eq('id', dbId), { verbo: 'guardar', titulo: t.title });
     });
   }, [tasks, setTasks]);
 
@@ -99,6 +98,9 @@ export function useTaskOrdering({
     });
 
     const parentDbId = parentId.startsWith('inst-') ? (tasks[parentId]?.templateId || parentId) : parentId;
+    // Bug #18 (columna `subtasks` inexistente en BD): esta escritura SIEMPRE devuelve error.
+    // NO se cablea a un aviso a propósito: saltaría un toast rojo en CADA reordenación de subtareas,
+    // cuando el reorden SÍ persiste por los update({order}) de abajo. Queda muda hasta resolver #18.
     supabase.from('tasks').update({ subtasks: subtaskIds }).eq('id', parentDbId).then(({ error }) => {
       if (error) console.error('[ORDER] Error saving parent subtasks array:', error);
     });
@@ -107,9 +109,7 @@ export function useTaskOrdering({
       const sub = tasks[subId];
       if (!sub) return;
       const dbId = subId.startsWith('inst-') ? (sub.templateId || subId) : subId;
-      supabase.from('tasks').update({ order }).eq('id', dbId).then(({ error }) => {
-        if (error) console.error('[ORDER] Error saving subtask order:', error);
-      });
+      persist(supabase.from('tasks').update({ order }).eq('id', dbId), { verbo: 'guardar', titulo: sub.title });
     });
   }, [tasks, setTasks]);
 
@@ -125,8 +125,8 @@ export function useTaskOrdering({
           ...prev,
           [targetTask.parentTaskId!]: { ...prev[targetTask.parentTaskId!], isExpanded: true, modifiedAt: timestamp }
         }));
-        supabase.from('tasks').update({ is_expanded: true, modified_at: timestamp })
-          .eq('id', targetTask.parentTaskId).then(() => {});
+        persist(supabase.from('tasks').update({ is_expanded: true, modified_at: timestamp })
+          .eq('id', targetTask.parentTaskId), { verbo: 'guardar', titulo: parent.title });
       }
     }
 
@@ -147,12 +147,10 @@ export function useTaskOrdering({
       [taskId]: { ...prev[taskId], isExpanded: newExpanded, modifiedAt: timestamp }
     }));
 
-    supabase.from('tasks').update({
+    persist(supabase.from('tasks').update({
       is_expanded: newExpanded,
       modified_at: timestamp
-    }).eq('id', taskId).then(({ error }) => {
-      if (error) console.error('[SUPABASE] Error actualizando isExpanded:', error);
-    });
+    }).eq('id', taskId), { verbo: 'guardar', titulo: task.title });
   }, [tasks, setTasks]);
 
   const handleExpandAllInBlock = useCallback((blockId: string, expand: boolean) => {
@@ -217,12 +215,9 @@ export function useTaskOrdering({
     // (columna inexistente = #18; la jerarquía se reconstruye desde parent_task_id al cargar).
     // .eq('id', taskId) sin resolver a templateId: si es una instancia virgen (inst-…) esto
     // es no-op a propósito (materializar excepción = Fase 3).
-    supabase.from('tasks')
+    persist(supabase.from('tasks')
       .update({ parent_task_id: grandParentId, modified_at: timestamp })
-      .eq('id', taskId)
-      .then(({ error }) => {
-        if (error) console.error('[PROMOTE] Error persistiendo parent_task_id:', error);
-      });
+      .eq('id', taskId), { verbo: 'mover', titulo: outerTask.title });
   }, [tasks, setTasks]);
 
   const handleDemoteTask = useCallback((taskId: string) => {
@@ -267,10 +262,10 @@ export function useTaskOrdering({
             (async () => {
               const { error: eP } = await supabase.from('tasks')
                 .upsert([buildExceptionRow({ ...above, isExpanded: true }, day, null, ts)], { onConflict: 'id' });
-              if (eP) { console.error('[DEMOTE-B5a] Error materializando contenedor destino:', eP); return; }
+              if (eP) { console.error('[DEMOTE-B5a] Error materializando contenedor destino:', eP); reportPersistError({ verbo: 'mover', titulo: subject.title }); return; }
               const { error: eS } = await supabase.from('tasks')
                 .update({ parent_task_id: aboveId, modified_at: ts }).eq('id', taskId);
-              if (eS) console.error('[DEMOTE-B5a] Error persistiendo parent_task_id del one-off:', eS);
+              if (eS) { console.error('[DEMOTE-B5a] Error persistiendo parent_task_id del one-off:', eS); reportPersistError({ verbo: 'mover', titulo: subject.title }); }
             })();
             return;
           }
@@ -348,12 +343,9 @@ export function useTaskOrdering({
 
     // #1: persistir SOLO el nuevo padre de la fila movida. NO se escribe `subtasks` (#18).
     // .eq('id', taskId) sin resolver: instancia virgen (inst-…) → no-op a propósito (Fase 3).
-    supabase.from('tasks')
+    persist(supabase.from('tasks')
       .update({ parent_task_id: aboveTaskId, modified_at: timestamp })
-      .eq('id', taskId)
-      .then(({ error }) => {
-        if (error) console.error('[DEMOTE] Error persistiendo parent_task_id:', error);
-      });
+      .eq('id', taskId), { verbo: 'mover', titulo: outerTask.title });
   }, [tasks, setTasks]);
 
   return {
