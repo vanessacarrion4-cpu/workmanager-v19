@@ -1948,6 +1948,15 @@ peligroso, entrar con todo verificado), pero ese síntoma sigue VIVO hasta el ú
 Eso es lo que dejó esas 10 hijas huérfanas del 30-jul. Frágil: si el contenedor no está materializado ese día, las
 huérfanas no tienen dónde anidar. Es trabajo del bloque de **mover + reconciliar** (dentro de FASE 3 (c) / move).
 
+**✅ (b1)+(b2 visual) HECHOS (sesión 16):** `isContainerCompleteOnDay`/`childrenToToggleOnDay` implementadas
+(`08472fe`, +test forma real 30-jul); el **visual** del contenedor en Mi Día (visto/tachado/lock) ya se **deriva por
+día** vía `rowCompleted` (`cd45ee7`), no del status guardado. Impacto medido: **~21 contenedores cambian de aspecto**
+— 1 tachado→pendiente ("Poner fechas varias laboral", le queda 1 hija) y 20 pendiente→tachado (proyectos manuales ya
+terminados). **⚠️ TOGGLE "completar-solo-el-día" NO incluido en (b):** para contenedores recurrentes exige materializar
+las hijas-instancia del día → es territorio de **(c)**; se hace allí, no a medias en (b). **Hallazgo:** `isTaskCompleted`
+([utils.ts:24-28](utils.ts)) YA deriva el completado del contenedor de sus hijas (todas, sin filtrar por día) → el
+trabajo de (b3)/(c) sobre filtros/contadores es hacer esa derivación **por día**, no crearla.
+
 ### 16.8 Especificación: ZONA DE DIAGNÓSTICO — cabecera de Mi Día (para FASE 6)
 
 Sustituye por completo a las tres tarjetas actuales (Pendientes / Pendiente / Registrado): **desaparecen**. NO
