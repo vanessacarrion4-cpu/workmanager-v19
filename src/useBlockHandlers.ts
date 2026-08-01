@@ -9,6 +9,7 @@ import { useCallback } from 'react';
 import { WorkBlock, Task } from './types';
 import { supabase } from './supabaseClient';
 import { COLORS } from './constants';
+import { reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
 
 interface UseBlockHandlersOptions {
   blocks: WorkBlock[];
@@ -53,6 +54,7 @@ export function useBlockHandlers({
       setEditingBlockId(id);
     } catch (e) {
       console.error('[SUPABASE] Error creating block:', e);
+      reportPersistError({ verbo: 'crear', titulo: newBlock.name || undefined, singular: 'el bloque', plural: 'bloques' });
     }
   }, [blocks, setBlocks, setEditingBlockId]);
 
@@ -71,6 +73,7 @@ export function useBlockHandlers({
       setEditingBlockId(null);
     } catch (e) {
       console.error('[SUPABASE] Error updating block:', e);
+      reportPersistError({ verbo: 'guardar', titulo: updated.name || undefined, singular: 'el bloque', plural: 'bloques' });
     }
   }, [setBlocks, setEditingBlockId]);
 
@@ -84,6 +87,7 @@ export function useBlockHandlers({
       setBlocks(updated);
     } catch (e) {
       console.error('[SUPABASE] Error reordering blocks:', e);
+      reportPersistError({ verbo: 'reordenar', singular: 'los bloques', plural: 'bloques' });
     }
   }, [setBlocks]);
 
@@ -97,6 +101,7 @@ export function useBlockHandlers({
       setBlocks(prev => prev.map(b => b.id === id ? { ...b, isActive: newIsActive } : b));
     } catch (e) {
       console.error('[SUPABASE] Error toggling block:', e);
+      reportPersistError({ verbo: 'guardar', titulo: block.name || undefined, singular: 'el bloque', plural: 'bloques' });
     }
   }, [blocks, setBlocks]);
 
