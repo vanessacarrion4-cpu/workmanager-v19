@@ -1835,13 +1835,14 @@ la fila, NO por `opacity` en un ancestro (el opacity cascadea a los popups fixed
 ### 16.3 FASE 2 — enumeración con causas (lo que bloquea a diario)
 
 Cada punto: causa localizada, si es no-op silencioso o error tragado, y ficheros. **6 hecho** (§16.1). **7 hecho**
-(§16.2). **2 (B1) HECHO** (sesión 16, §16.11). **Quedan 1, 3, 4, 5 y 8** (ver estados abajo).
+(§16.2). **2 (B1) HECHO** (sesión 16, §16.11). **1 y 8 HECHOS** (sesión 16). **Quedan 3, 4, 5** (los tres necesitan
+decisión de la usuaria).
 
-1. **Poner recurrencia desde la fila.** El picker existe para hojas no-recurrentes ([TaskCard.tsx:621](TaskCard.tsx)),
-   pero su `onChange` pre-pone `isTemplate:true`, que **salta el bloque de conversión** manual→plantilla de
-   `handleUpdateTask` ([useTaskCRUD.ts:558-561](useTaskCRUD.ts), exige `!isTemplate` y crea la 1ª instancia). En
-   instancias/plantillas la fila muestra etiqueta gris de solo-lectura (sin picker). — No-op silencioso. Ficheros:
-   `TaskCard.tsx` (+`useTaskCRUD.ts`). *(Menos certeza sin reproducir — confirmar al arreglar.)*
+1. **Poner recurrencia desde la fila.** ✅ **HECHO** (`c0bb09d`, sesión 16). El `onChange` de la fila pre-ponía
+   `isTemplate:true`, que **saltaba el bloque de conversión** manual→plantilla de `handleUpdateTask` (exige
+   `!isTemplate` y crea la 1ª instancia) → la tarea se volvía plantilla sin instancia del día y **desaparecía**. Fix:
+   el `onChange` ahora solo fija `recurrence`; `handleUpdateTask` hace la conversión completa y crea la instancia del
+   día. Igual que ponerla desde el modal. Fichero: `TaskCard.tsx`.
 2. **B1 — que nada falle en silencio.** No es un bug con causa única; es el trabajo del toast. Contexto: todas las
    escrituras son fire-and-forget con `.then(({error})=>console.error)` (tragado); los no-op (`resolveActionTarget`
    null) son mudos. Ficheros: componente/hook de toast + los puntos de escritura.
@@ -1856,13 +1857,11 @@ Cada punto: causa localizada, si es no-op silencioso o error tragado, y ficheros
    que completar. No-op silencioso. De fondo es decisión de diseño (Bloques es vista de definición).
 6. **Bloques — añadir tarea.** ✅ HECHO (`d8b192e`, §16.1).
 7. **Regresión visual — completadas sin raíl.** ✅ HECHO (`3fff45f`, §16.2).
-8. **Delegadas — añadir tarea.** **Precisado (sesión 16):** el "+" **por persona** YA pasa `person.id`
-   ([DelegadasView.tsx:530](DelegadasView.tsx)) → ese camino funciona. El bug vive en el "+" **GLOBAL** de la
-   `StickyActionBar`: en Delegadas llama a `handleAddTask()` **sin persona** ([App.tsx:442](App.tsx)) → tarea sin
-   delegación → **invisible** (patrón §16.4). **DECISIÓN PENDIENTE de la usuaria:** qué hace el "+" global en Delegadas
-   cuando NO hay filtro de persona activo — (a) usar el filtro activo si lo hay y desactivarlo/ocultarlo si no, (b)
-   quitarlo y dejar solo el "+" por persona, o (c) subir `filterPersonId` a App. `filterPersonId` es estado local de
-   DelegadasView ([:62](DelegadasView.tsx)). Ficheros: `App.tsx`/`DelegadasView.tsx`/`StickyActionBar`.
+8. **Delegadas — añadir tarea.** ✅ **HECHO** (`3889c28`, sesión 16). El "+" **por persona** ya pasaba `person.id`
+   ([DelegadasView.tsx:530](DelegadasView.tsx)) → funcionaba. El roto era el "+" **GLOBAL** de la `StickyActionBar`, que
+   en Delegadas llamaba a `handleAddTask()` sin persona → tarea sin delegación → invisible. Decisión de la usuaria
+   (misma que en Bloques): **quitar el global, dejar el contextual**. Fix: `onAddTask` pasa a `undefined` en `delegadas`
+   ([App.tsx:442](App.tsx)) → la barra no pinta el botón ([StickyActionBar.tsx:213](StickyActionBar.tsx)).
 
 ### 16.4 FAMILIA de bugs: "crear en una vista con filtro propio que no recibe su contexto"
 
