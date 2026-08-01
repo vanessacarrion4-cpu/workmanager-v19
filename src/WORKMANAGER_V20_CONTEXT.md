@@ -1905,6 +1905,14 @@ contenedor** de FASE 3 (la reconciliación mal hecha entre el mapa materializado
 de `activeDayMap`, [App.tsx:160-165](App.tsx)). **FASE 3 = tests primero** (el "estado gana" legítimo: una excepción
 completada/movida/borrada de hoy debe ganar sobre la instancia regenerada).
 
+**Misma familia "HOY real vs DÍA QUE MIRO" (sesión 16):** al poner una recurrencia desde la fila, el `startDate` de la
+regla sale de `new Date()` (hoy real) en `RecurrencePickerChip` ([Chips.tsx:422-423,575](Chips.tsx)) → la serie arranca
+hoy aunque estés mirando otro día. La tarea nueva SÍ nace con `dueDate = activeDate` ([useTaskCRUD.ts:285](useTaskCRUD.ts)),
+pero el `startDate` de la recurrencia no. **Debería ser el día del dashboard que se está mirando** (cuando miras hoy,
+coinciden, así que la regla cubre ambos casos). **No es one-liner:** `TaskCard` no recibe `activeDate` → hay que
+enhebrarlo App→cada vista→TaskCard→chip, y cambiar SOLO los `new Date()` de defaults de recurrencia (no los botones
+"hoy/mañana" del DatePicker). Por eso va a FASE 3 con el resto de la familia, no a un cierre rápido de FASE 2.
+
 ### 16.8 Especificación: ZONA DE DIAGNÓSTICO — cabecera de Mi Día (para FASE 6)
 
 Sustituye por completo a las tres tarjetas actuales (Pendientes / Pendiente / Registrado): **desaparecen**. NO
