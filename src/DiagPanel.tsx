@@ -4,10 +4,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useState } from 'react';
 import { getDiag, clearDiag, subscribeDiag } from './diag';
+import { toast } from './toast'; // Avisos (B1): prueba manual desde el panel
+import { reportPersistError } from './persist'; // Avisos (B1): dispara el aviso REAL de error de guardado
 
 const btn: React.CSSProperties = {
   background: '#1F2937', color: '#fff', border: '1px solid #374151',
   borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer',
+};
+const btnTest: React.CSSProperties = {
+  ...btn, background: '#7C2D12', borderColor: '#9A3412',
 };
 
 export function DiagPanel() {
@@ -41,6 +46,22 @@ export function DiagPanel() {
             <button onClick={copy} style={btn}>Copiar todo</button>
             <button onClick={() => clearDiag()} style={btn}>Limpiar</button>
             <span style={{ marginLeft: 'auto', fontSize: 11, color: '#6B7280', alignSelf: 'center' }}>{entries.length} pasos</span>
+          </div>
+          {/* Avisos (B1): PRUEBA MANUAL — dispara toasts de ejemplo, NO escribe en la base de datos ni recarga. */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10, color: '#F59E0B', fontWeight: 700, letterSpacing: '.03em' }}>PRUEBA DE AVISOS · no guarda nada:</span>
+            <button
+              onClick={() => reportPersistError({ verbo: 'guardar', titulo: 'Ingresos Tiendas (ejemplo)' })}
+              style={btnTest}
+            >
+              Error de guardado
+            </button>
+            <button
+              onClick={() => toast.warn('No encuentro la tarea para «completar» — recarga e inténtalo de nuevo.')}
+              style={btnTest}
+            >
+              No-op
+            </button>
           </div>
           <textarea
             id="diag-json"
