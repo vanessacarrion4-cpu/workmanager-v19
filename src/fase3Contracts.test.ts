@@ -1,0 +1,114 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// FASE 3 — tests en ROJO (tests primero). Fijan el comportamiento correcto que el
+// TRATAMIENTO debe cumplir. HOY FALLAN a propósito (fase3Contracts.ts son stubs con
+// el comportamiento actual incorrecto). Cuando el tratamiento implemente las funciones,
+// pasarán a verde. Si alguien regresa (p.ej. vuelve a leer el status guardado del
+// contenedor), volverán a rojo.
+// ─────────────────────────────────────────────────────────────────────────────
+import { describe, it, expect } from 'vitest';
+import { Task } from './types';
+import {
+  containerEstimatedForDay,
+  containerRegisteredForDay,
+  isContainerCompleteOnDay,
+  childrenToToggleOnDay,
+  reconcileDay,
+} from './fase3Contracts';
+
+// 2026-07-13 Lun · 07-15 Mié · 07-16 Jue
+const WED = '2026-07-15';
+const THU = '2026-07-16';
+
+function task(partial: Partial<Task> & { id: string }): Task {
+  return {
+    blockId: 'b1', title: partial.id, status: 'pending', dueDate: null,
+    estimatedMinutes: 0, tags: [], order: 0, subtasks: [],
+    createdAt: '2026-01-01T00:00:00.000Z', modifiedAt: '2026-01-01T00:00:00.000Z',
+    ...partial,
+  } as Task;
+}
+const byId = (ts: Task[]) => Object.fromEntries(ts.map(t => [t.id, t]));
+
+// =========================================================================
+// Principio (a): el tiempo/estimado del contenedor = suma de sus hijas DEL DÍA;
+// nunca cuenta tiempo registrado sobre el propio contenedor.
+// =========================================================================
+describe('FASE 3 · principio (a) — totales del contenedor por día', () => {
+  it('estimado del contenedor = suma SOLO de las hijas del día (no de otros días)', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A', 'B'] }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED, estimatedMinutes: 15 }),
+      task({ id: 'B', parentTaskId: 'C', dueDate: THU, estimatedMinutes: 20 }),
+    ]);
+    // Mié: solo A (15). Hoy el stub suma A+B = 35.
+    expect(containerEstimatedForDay('C', tasks, WED)).toBe(15);
+  });
+
+  it('registrado del contenedor NO cuenta el tiempo registrado sobre el propio contenedor', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A'] }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED }),
+    ]);
+    const entries = [
+      { taskId: 'C', subtaskId: null, date: WED, duration: 90 }, // sobre el contenedor: NO debe contar
+      { taskId: 'A', subtaskId: null, date: WED, duration: 10 }, // sobre la hija: sí
+    ];
+    expect(containerRegisteredForDay('C', tasks, entries, WED)).toBe(10);
+  });
+});
+
+// =========================================================================
+// Principio (b): completado DERIVADO de las hijas del día; el status guardado NO se lee.
+// =========================================================================
+describe('FASE 3 · principio (b) — completado derivado del contenedor', () => {
+  it('completo cuando TODAS las hijas del día están completas', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A', 'B'] }), // sin status guardado
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED, status: 'completed' }),
+      task({ id: 'B', parentTaskId: 'C', dueDate: WED, status: 'completed' }),
+    ]);
+    expect(isContainerCompleteOnDay('C', tasks, WED)).toBe(true);
+  });
+
+  it('TRAMPA: status guardado "completed" pero una hija del día pendiente → NO completo (no se lee el campo)', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A', 'B'], status: 'completed' }), // guardado engañoso
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED, status: 'completed' }),
+      task({ id: 'B', parentTaskId: 'C', dueDate: WED, status: 'pending' }),
+    ]);
+    expect(isContainerCompleteOnDay('C', tasks, WED)).toBe(false);
+  });
+
+  it('solo cuentan las hijas DEL DÍA: hija de otro día pendiente no impide completar hoy', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A', 'B'] }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED, status: 'completed' }),
+      task({ id: 'B', parentTaskId: 'C', dueDate: THU, status: 'pending' }), // otro día
+    ]);
+    expect(isContainerCompleteOnDay('C', tasks, WED)).toBe(true);
+  });
+
+  it('clicar el contenedor completa SOLO las hijas del día', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A', 'B'] }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED }),
+      task({ id: 'B', parentTaskId: 'C', dueDate: THU }),
+    ]);
+    expect(childrenToToggleOnDay('C', tasks, WED)).toEqual(['A']);
+  });
+});
+
+// =========================================================================
+// Reconciliación sin fuga: el mapa del día X no incluye filas de otro día.
+// =========================================================================
+describe('FASE 3 · reconciliación del día sin fuga', () => {
+  it('el mapa del día X excluye una fila cuyo día es distinto', () => {
+    const tasks = byId([
+      task({ id: 'X', dueDate: WED }),
+      task({ id: 'Y', dueDate: THU }),
+    ]);
+    const map = reconcileDay(WED, tasks);
+    expect(map['X']).toBeDefined();
+    expect(map['Y']).toBeUndefined();
+  });
+});
