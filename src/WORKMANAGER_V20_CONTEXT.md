@@ -1913,6 +1913,28 @@ coinciden, así que la regla cubre ambos casos). **No es one-liner:** `TaskCard`
 enhebrarlo App→cada vista→TaskCard→chip, y cambiar SOLO los `new Date()` de defaults de recurrencia (no los botones
 "hoy/mañana" del DatePicker). Por eso va a FASE 3 con el resto de la familia, no a un cierre rápido de FASE 2.
 
+**✅ (a2) CABLEADO (sesión 16):** los totales del contenedor en Mi Día ya se calculan sobre el
+DÍA que se mira (`dayForTotals=activeDate` → `TaskCard` → `containerEstimatedForDay`/`containerRegisteredForDay` y, en
+grupos, `registeredFilterDate=activeDate`). `getVisibleSubtasksForDay` unificado con `belongsToDay` (una sola
+definición de "pertenece al día"). **Ningún dato borrado** (684 entradas de tiempo intactas antes y después); solo
+cambia la agregación. Impacto medido: contenedores manuales con hijas recurrentes dejan de inflar (ej. "Rutinas mañana"
+sumaba ~75.600m = 51 días en la fila de un día → ahora el día).
+
+**🔴 CASO REAL 30-jul (evidencia de oro, va a (b)/(c) como TEST — sale de datos reales):** en "Pago nóminas" el 30-jul
+hay **10 hijas-excepción, todas con `parent_task_id=NULL`** (8 completadas + 2 pendientes: "Pago NGD" y "Pago NGD
+Botigues"), y **NO existe instancia del contenedor ese día** (el contenedor no tiene recurrencia propia). El filtro
+rechaza mostrar como raíz cualquier instancia cuya plantilla tiene padre ([filters.ts:154-157](filters.ts)) → esas 2
+pendientes **solo pueden salir anidadas** bajo el contenedor; como no hay contenedor sintetizado ese día, **desaparecen
+de la lista aunque el contador (que cuenta hojas) diga "2 pendientes".** Gravedad: la app **esconde tareas pendientes**
+(no un número raro, sino una tarea que no está). **DOS tests a fijar:** (1) un contenedor con ≥1 hija PENDIENTE del día
+NO se considera completo; (2) "ocultar completadas" / la reconciliación **no** debe hacer desaparecer un contenedor con
+hijas pendientes del día (reproducir la forma huérfana exacta). El (1) es (b); el (2) es (c).
+
+**🧵 HILO DE DATOS (mover-y-reconciliar, NO tocar aún):** al **mover** una tarea, su fila-excepción queda con
+`parent_task_id=NULL` (patrón B4-cambio-2) y al leer se **re-anida por la plantilla** (`getVisibleSubtasksForDay` CASO 1).
+Eso es lo que dejó esas 10 hijas huérfanas del 30-jul. Frágil: si el contenedor no está materializado ese día, las
+huérfanas no tienen dónde anidar. Es trabajo del bloque de **mover + reconciliar** (dentro de FASE 3 (c) / move).
+
 ### 16.8 Especificación: ZONA DE DIAGNÓSTICO — cabecera de Mi Día (para FASE 6)
 
 Sustituye por completo a las tres tarjetas actuales (Pendientes / Pendiente / Registrado): **desaparecen**. NO

@@ -16,6 +16,7 @@
 
 import { Task } from './types';
 import { isTaskCompleted } from './utils';
+import { belongsToDay } from './instanceEngine'; // FASE 3: única definición de "pertenece a un día"
 
 // ─────────────────────────────────────────────
 // TIPOS
@@ -85,7 +86,7 @@ function getVisibleSubtasksForDay(
   const seen = new Set<string>();
   return Object.values(allTasksMap).filter((task: Task) => {
     if (task.isDeleted) return false;
-    if (task.dueDate !== activeDate) return false;
+    if (!belongsToDay(task, activeDate)) return false; // FASE 3: función compartida (antes: task.dueDate !== activeDate)
 
     // CASO 1: Instancia recurrente - buscar por template
     if (task.templateId) {

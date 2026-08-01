@@ -436,6 +436,7 @@ export function DashboardView({
                                 <TaskCard
                                   task={{ ...task, isExpanded: getContainerExpanded(tag, task) }}
                                   variant="DASHBOARD"
+                                  dayForTotals={activeDate}
                                   allTasksMap={allTasksMap}
                                   people={people}
                                   onAddPerson={onAddPerson}

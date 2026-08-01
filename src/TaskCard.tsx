@@ -19,6 +19,7 @@ import {
   isTaskCompleted, isTaskRepetitive, getTaskEstimatedCombo,
   getTaskEstimatedPending, getTaskRegisteredCombo, formatMinutes
 } from './utils';
+import { containerEstimatedForDay, containerRegisteredForDay } from './fase3Contracts'; // (a2) FASE 3: totales de contenedor por día
 import { getTagColor } from './helpers';
 import { TitleField } from './TitleField';
 import {
@@ -83,6 +84,7 @@ export function TaskCard({
   onReorderSubtasks,
   onToggleExpand,
   level = 1,
+  dayForTotals = null, // (a2) FASE 3: día que se mira; los totales del contenedor se calculan sobre él (no la fecha de la fila)
   rootTaskId = null,
   hideCompleted = false,
   subtasksForGroup = null,
@@ -147,33 +149,41 @@ export function TaskCard({
   // En Dashboard con subtasksForGroup: solo sumar las subtareas de ese grupo
   // En Bloques template: estimado fijo (sin filtrar completadas), registrado = 0
   // En Bloques o tarea normal: sumar PENDIENTES
+  // (a2) FASE 3: el día para los totales del contenedor = el día que se MIRA (dayForTotals), no la
+  // fecha de la fila. Para un contenedor MANUAL la fecha de la fila es null → sin esto se sumaba el
+  // registrado de TODAS las fechas (el historial entero) en la fila de un solo día.
+  const registeredFilterDate = dayForTotals || (task.instanceDate || task.dueDate) || undefined;
+
   const totalEstimated = (() => {
     if (subtasksForGroup !== null) {
-      // Dashboard: contenedor dividido por grupos - solo sumar subtareas PENDIENTES del grupo
+      // Dashboard: contenedor dividido por grupos - solo sumar subtareas PENDIENTES del grupo (ya son del día)
       return subtasksForGroup.reduce((acc: number, subId: string) => {
         return acc + getTaskEstimatedPending(subId, allTasksMap);
       }, 0);
     } else if (task.isTemplate && !task.templateId) {
       // Template en BlocksView: mostrar estimado base (suma de subtemplates, sin filtrar por estado)
       return getTaskEstimatedCombo(task.id, allTasksMap);
+    } else if (hasSubtasks && dayForTotals) {
+      // Contenedor (fuera de grupos) con día conocido: estimado de las hijas DEL DÍA
+      return containerEstimatedForDay(task.id, allTasksMap, dayForTotals);
     } else {
       // Instancia o tarea manual: sumar PENDIENTES
       return getTaskEstimatedPending(task.id, allTasksMap);
     }
   })();
-  
-  // Filtrar tiempo por fecha del día para instancias recurrentes
-  const registeredFilterDate = (task.instanceDate || task.dueDate) || undefined;
 
   const totalRegistered = (() => {
     if (subtasksForGroup !== null) {
-      // Dashboard: solo tiempo de subtareas del grupo, filtrado por fecha
+      // Dashboard: solo tiempo de subtareas del grupo, filtrado por el DÍA que se mira (registeredFilterDate)
       return subtasksForGroup.reduce((acc: number, subId: string) => {
         return acc + getTaskRegisteredCombo(subId, allTasksMap, timeEntries, new Set(), registeredFilterDate);
       }, 0);
     } else if (task.isTemplate && !task.templateId) {
       // Template en BlocksView: no acumular tiempo de instancias pasadas
       return 0;
+    } else if (hasSubtasks && dayForTotals) {
+      // Contenedor (fuera de grupos) con día conocido: registrado de las hijas DEL DÍA (sin tiempo propio)
+      return containerRegisteredForDay(task.id, allTasksMap, timeEntries, dayForTotals);
     } else {
       // Instancia o tarea manual: filtrar por fecha si la tiene
       return getTaskRegisteredCombo(task.id, allTasksMap, timeEntries, new Set(), registeredFilterDate);
