@@ -51,20 +51,46 @@ export function containerRegisteredForDay(
 }
 
 /**
- * Principio (b): un contenedor está completo cuando TODAS sus hijas DEL DÍA lo están. Su `status`
- * guardado NO se lee (los 92 "completados" guardados quedan huérfanos, no se limpian).
- * STUB actual: lee el status guardado del contenedor → si alguien lo lee, el test se pone rojo.
+ * Principio (b): un contenedor está completo cuando tiene ≥1 hija DEL DÍA y TODAS sus hijas del día
+ * lo están. NO se lee el `status` guardado del contenedor (los 92 "completados" guardados quedan
+ * huérfanos, no se limpian). Una hija que a su vez es contenedor se evalúa por derivación.
  */
-export function isContainerCompleteOnDay(containerId: string, allTasks: Record<string, Task>, _day: string): boolean {
-  return allTasks[containerId]?.status === 'completed'; // STUB (incorrecto): lee el campo guardado
+export function isContainerCompleteOnDay(containerId: string, allTasks: Record<string, Task>, day: string): boolean {
+  const c = allTasks[containerId];
+  if (!c) return false;
+  let hasDayChild = false;
+  for (const sid of c.subtasks || []) {
+    const s = allTasks[sid];
+    if (!s || s.isDeleted) continue;
+    if (s.subtasks && s.subtasks.length > 0) {
+      // Hija-contenedor: solo cuenta si ella tiene hijas del día; si las tiene, debe estar completa.
+      if (childrenToToggleOnDay(sid, allTasks, day).length > 0) {
+        hasDayChild = true;
+        if (!isContainerCompleteOnDay(sid, allTasks, day)) return false;
+      }
+    } else if (belongsToDay(s, day)) {
+      hasDayChild = true;
+      if (s.status !== 'completed') return false;
+    }
+  }
+  return hasDayChild;
 }
 
 /**
- * Principio (b): al clicar la casilla de un contenedor se completan SOLO sus hijas del día.
- * STUB actual: devuelve TODAS las hijas (cerraría cosas de otros días/meses atrás).
+ * Principio (b): al clicar la casilla de un contenedor se completan SOLO sus hijas del día
+ * (nunca las de otros días/meses). Devuelve los ids de las hojas del día (recursivo).
  */
-export function childrenToToggleOnDay(containerId: string, allTasks: Record<string, Task>, _day: string): string[] {
-  return allTasks[containerId]?.subtasks || []; // STUB (incorrecto): todas, sin filtrar por día
+export function childrenToToggleOnDay(containerId: string, allTasks: Record<string, Task>, day: string): string[] {
+  const c = allTasks[containerId];
+  if (!c) return [];
+  const out: string[] = [];
+  for (const sid of c.subtasks || []) {
+    const s = allTasks[sid];
+    if (!s || s.isDeleted) continue;
+    if (s.subtasks && s.subtasks.length > 0) out.push(...childrenToToggleOnDay(sid, allTasks, day));
+    else if (belongsToDay(s, day)) out.push(sid);
+  }
+  return out;
 }
 
 /**

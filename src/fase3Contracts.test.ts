@@ -88,6 +88,18 @@ describe('FASE 3 · principio (b) — completado derivado del contenedor', () =>
     expect(isContainerCompleteOnDay('C', tasks, WED)).toBe(true);
   });
 
+  it('CASO REAL 30-jul: 8 hijas del día completas + 2 pendientes → NO completo (aunque status guardado engañe)', () => {
+    const subs: Task[] = [];
+    for (let i = 0; i < 8; i++) subs.push(task({ id: `done${i}`, parentTaskId: 'C', dueDate: WED, status: 'completed' }));
+    subs.push(task({ id: 'ngd', parentTaskId: 'C', dueDate: WED, status: 'pending' }));
+    subs.push(task({ id: 'ngdbot', parentTaskId: 'C', dueDate: WED, status: 'pending' }));
+    const tasks = byId([
+      task({ id: 'C', subtasks: subs.map(s => s.id), status: 'completed' }), // status guardado engañoso
+      ...subs,
+    ]);
+    expect(isContainerCompleteOnDay('C', tasks, WED)).toBe(false);
+  });
+
   it('clicar el contenedor completa SOLO las hijas del día', () => {
     const tasks = byId([
       task({ id: 'C', subtasks: ['A', 'B'] }),
