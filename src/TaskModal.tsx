@@ -484,9 +484,9 @@ export function TaskModal({
             )}
           </AnimatePresence>
 
-          {/* Recurrencia — colapsable. Solo escritura → bloqueada si completada (la etiqueta-resumen se
-              sigue viendo en la cabecera). */}
-          <div className={`dark:bg-bg-main/20 bg-gray-100/50 border dark:border-border-main border-border-main-light rounded-2xl overflow-hidden ${locked ? 'pointer-events-none' : ''}`}>
+          {/* Recurrencia — colapsable. En completadas: DESPLEGAR sigue vivo (consulta: ver cuándo se
+              repite); solo se bloquea EDITAR la regla (el contenido, más abajo). */}
+          <div className="dark:bg-bg-main/20 bg-gray-100/50 border dark:border-border-main border-border-main-light rounded-2xl overflow-hidden">
             {/* Toggle header */}
             <button
               onClick={() => setShowRecurrence(v => !v)}
@@ -513,7 +513,7 @@ export function TaskModal({
                   exit={{ opacity: 0, height: 0 }}
                   className="overflow-hidden"
                 >
-                  <div className="px-3 pb-3 space-y-3 border-t dark:border-border-main border-border-main-light">
+                  <div className={`px-3 pb-3 space-y-3 border-t dark:border-border-main border-border-main-light ${locked ? 'pointer-events-none' : ''}`}>
 
                     {/* Instancia recurrente — info */}
                     {isRecurringInstance && (() => {
@@ -811,7 +811,7 @@ export function TaskModal({
                       <EstimatedTimeChip value={st.estimatedMinutes || 0} onChange={(val: number) => handleUpdateSubtask(st.id, { estimatedMinutes: val })} variant="mini" />
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                  <div className={`flex items-center gap-1 transition-all shrink-0 ${locked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                     <button onClick={() => onEditTask(st.id)} title="Entrar en la subtarea" className="p-1.5 dark:text-text-secondary text-text-secondary-light hover:text-turquesa transition-all">
                       <Edit size={13} />
                     </button>
@@ -831,13 +831,13 @@ export function TaskModal({
             </div>
           </div>
 
-          {/* Notas */}
+          {/* Notas — EXCEPCIÓN explícita a "completada = no editable" (sesión 15): las notas son un
+              CUADERNO, no un valor de la tarea. Se editan siempre, aunque esté completada. No poner readOnly. */}
           <div className="space-y-1.5">
             <label className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest pl-1">Notas</label>
             <textarea
               ref={notesRef}
               rows={2}
-              readOnly={locked}
               className="w-full p-3 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl text-[12px] font-bold dark:text-white text-text-main-light outline-none focus:ring-2 focus:ring-turquesa/20 resize-none placeholder:dark:text-text-secondary/30 placeholder:text-text-secondary-light/30 overflow-hidden"
               placeholder="Anota cualquier detalle relevante..."
               value={localTask.notes || ''}
@@ -886,7 +886,7 @@ export function TaskModal({
                         <p className="text-[11px] font-bold dark:text-white text-text-main-light truncate">{att.name}</p>
                         <p className="text-[9px] dark:text-text-secondary text-text-secondary-light">{att.size ? `${Math.round(att.size / 1024)}KB` : ''}</p>
                       </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className={`flex items-center gap-1 transition-opacity ${locked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                         <a href={att.url} target="_blank" rel="noopener noreferrer" className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/10 hover:bg-turquesa/20 rounded-lg transition-all">
                           <Eye size={11} />
                         </a>
