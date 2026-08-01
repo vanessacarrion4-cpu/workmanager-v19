@@ -84,6 +84,9 @@ export function TaskModal({
   const [uploading, setUploading] = useState(false);
   const [showTimeEntry, setShowTimeEntry] = useState(initialShowTime);
   const notesRef = useRef<HTMLTextAreaElement>(null);
+  // Una tarea COMPLETADA no se edita (ni desde la fila ni desde el modal — el modal era la puerta de
+  // atrás). Con `locked` el cuerpo del modal es no-editable; excepción: el tiempo registrado. (sesión 15)
+  const locked = localTask.status === 'completed';
   const tags: TagType[] = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
 
   useEffect(() => { setLocalTask(task); }, [task.id]);
@@ -203,15 +206,21 @@ export function TaskModal({
 
           {/* Título */}
           <div className="flex-1 min-w-0">
-            <p className="text-[9px] font-black text-turquesa uppercase tracking-[0.2em] mb-0.5">
+            <p className="text-[9px] font-black text-turquesa uppercase tracking-[0.2em] mb-0.5 flex items-center gap-2">
               {isRecurringInstance ? 'Instancia recurrente' : hasActiveRecurrence ? 'Tarea repetitiva' : 'Tarea'}
+              {locked && (
+                <span className="px-1.5 py-0.5 rounded-md bg-turquesa/15 text-turquesa border border-turquesa/30 flex items-center gap-1">
+                  <Check size={9} strokeWidth={3} /> Completada
+                </span>
+              )}
             </p>
             <input
-              autoFocus
-              className="text-base font-black w-full bg-transparent outline-none placeholder:text-text-secondary dark:text-white text-text-main-light leading-tight"
+              autoFocus={!locked}
+              readOnly={locked}
+              className={`text-base font-black w-full bg-transparent outline-none placeholder:text-text-secondary dark:text-white text-text-main-light leading-tight ${locked ? 'line-through opacity-60' : ''}`}
               value={localTask.title}
               onChange={e => setLocalTask(prev => ({ ...prev, title: e.target.value }))}
-              onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
+              onKeyDown={e => { if (e.key === 'Enter' && !locked) handleSave(); }}
               placeholder="¿Qué hay que hacer?"
             />
           </div>
@@ -220,12 +229,21 @@ export function TaskModal({
           <div className="flex items-center gap-1 shrink-0">
             {onToggleStatus && (
               <button
-                onClick={() => { onToggleStatus(localTask.id); onClose(); }}
-                title={localTask.status === 'completed' ? 'Marcar pendiente' : 'Completar'}
+                onClick={() => {
+                  // No cerrar: cambiar el estado en el sitio. Reabrir → pending → los campos se
+                  // desbloquean con el modal abierto. Completar → completed → se bloquean. (sesión 15)
+                  onToggleStatus(localTask.id);
+                  setLocalTask(prev => ({
+                    ...prev,
+                    status: prev.status === 'completed' ? 'pending' : 'completed',
+                    completedAt: prev.status === 'completed' ? undefined : new Date().toISOString(),
+                  }));
+                }}
+                title={localTask.status === 'completed' ? 'Reabrir (volver a pendiente)' : 'Completar tarea'}
                 className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all ${
                   localTask.status === 'completed'
-                    ? 'dark:bg-bg-secondary bg-bg-secondary-light dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa hover:text-turquesa'
-                    : 'bg-turquesa/10 border-turquesa/40 text-turquesa hover:bg-turquesa/20'
+                    ? 'bg-turquesa border-turquesa text-white hover:bg-turquesa/85'
+                    : 'bg-transparent border-turquesa/40 text-turquesa hover:bg-turquesa/10'
                 }`}
               >
                 <Check size={14} />
@@ -269,7 +287,7 @@ export function TaskModal({
         </div>
 
         {/* ── BODY ── */}
-        <div className="p-3 space-y-3 overflow-y-auto custom-scrollbar flex-1">
+        <div className={`p-3 space-y-3 overflow-y-auto custom-scrollbar flex-1 ${locked ? 'pointer-events-none select-none' : ''}`}>
 
           {/* FILA 1: Tipo + Bloque + Estimado + Registrado */}
           <div className="flex items-center gap-2 dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light rounded-2xl p-2">
@@ -323,10 +341,11 @@ export function TaskModal({
 
             <div className="w-px h-5 dark:bg-border-main bg-border-main-light shrink-0" />
 
-            {/* Registrado — clicable para añadir */}
+            {/* Registrado — clicable para añadir. EXCEPCIÓN: sigue vivo aunque la tarea esté completada
+                (pointer-events-auto re-activa sobre el cuerpo bloqueado). */}
             <button
               onClick={() => setShowTimeEntry(v => !v)}
-              className={`flex items-center gap-1 shrink-0 px-1.5 py-1 rounded-lg transition-all hover:bg-white/10 ${regColor}`}
+              className={`flex items-center gap-1 shrink-0 px-1.5 py-1 rounded-lg transition-all hover:bg-white/10 pointer-events-auto ${regColor}`}
               title="Tiempo registrado — clic para añadir"
             >
               <Check size={11} strokeWidth={3} />
@@ -334,8 +353,10 @@ export function TaskModal({
             </button>
           </div>
 
-          {/* Panel tiempo — TimeManagementPanel completo como overlay */}
+          {/* Panel tiempo — TimeManagementPanel completo como overlay. pointer-events-auto: sigue editable
+              aunque la tarea esté completada (el cuerpo está bloqueado). */}
           {showTimeEntry && (
+            <div className="pointer-events-auto">
             <TimeManagementPanel
               taskId={localTask.id}
               subtaskId={null}
@@ -350,6 +371,7 @@ export function TaskModal({
               onUpdateEntry={(entryId: string, updates: any) => { if (onUpdateTimeEntry) onUpdateTimeEntry(entryId, updates); }}
               onClose={() => setShowTimeEntry(false)}
             />
+            </div>
           )}
 
           {/* FILA 2: Tags + Delegación + Fecha */}
