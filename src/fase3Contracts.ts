@@ -10,27 +10,44 @@
 // las usa todavía: añadir este fichero NO cambia el comportamiento de producción.
 // ─────────────────────────────────────────────────────────────────────────────
 import { Task } from './types';
-import { getTaskEstimatedCombo, getTaskRegisteredCombo } from './utils';
-import { materializeDay } from './instanceEngine';
+import { getTaskRegisteredSelf } from './utils';
+import { materializeDay, belongsToDay } from './instanceEngine';
 
 /**
  * Principio (a): el estimado de un contenedor en un día = suma del estimado de sus hijas
- * DE ESE DÍA (no de todas sus hijas de cualquier día).
- * STUB actual: getTaskEstimatedCombo suma TODAS las hijas, sin filtrar por día.
+ * PENDIENTES DE ESE DÍA (no de todas sus hijas de cualquier día). Recorre hojas; una hija
+ * que a su vez es contenedor se recurre. Nunca cuenta estimado propio del contenedor.
  */
-export function containerEstimatedForDay(containerId: string, allTasks: Record<string, Task>, _day: string): number {
-  return getTaskEstimatedCombo(containerId, allTasks); // STUB (incorrecto): ignora el día
+export function containerEstimatedForDay(containerId: string, allTasks: Record<string, Task>, day: string): number {
+  const c = allTasks[containerId];
+  if (!c) return 0;
+  let total = 0;
+  for (const sid of c.subtasks || []) {
+    const s = allTasks[sid];
+    if (!s || s.isDeleted) continue;
+    if (s.subtasks && s.subtasks.length > 0) total += containerEstimatedForDay(sid, allTasks, day);
+    else if (belongsToDay(s, day) && s.status !== 'completed') total += s.estimatedMinutes || 0;
+  }
+  return total;
 }
 
 /**
  * Principio (a): el registrado de un contenedor = suma del registrado de sus hijas DEL DÍA,
- * y NUNCA cuenta tiempo registrado sobre el propio contenedor.
- * STUB actual: getTaskRegisteredCombo suma el tiempo PROPIO del contenedor + el de las hijas.
+ * y NUNCA cuenta tiempo registrado sobre el propio contenedor (no se recorre la raíz).
  */
 export function containerRegisteredForDay(
   containerId: string, allTasks: Record<string, Task>, timeEntries: any[], day: string,
 ): number {
-  return getTaskRegisteredCombo(containerId, allTasks, timeEntries, new Set(), day); // STUB: incluye lo propio
+  const c = allTasks[containerId];
+  if (!c) return 0;
+  let total = 0;
+  for (const sid of c.subtasks || []) {
+    const s = allTasks[sid];
+    if (!s || s.isDeleted) continue;
+    if (s.subtasks && s.subtasks.length > 0) total += containerRegisteredForDay(sid, allTasks, timeEntries, day);
+    else if (belongsToDay(s, day)) total += getTaskRegisteredSelf(sid, timeEntries, day);
+  }
+  return total;
 }
 
 /**

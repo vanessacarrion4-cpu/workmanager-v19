@@ -106,6 +106,11 @@ export function useTimerHandlers({
     const task = resolveActionTarget(taskId, tasks);
     if (!task) { toast.warn('No encuentro esa tarea para iniciar el cronómetro. Recarga e inténtalo.'); return; }
     const targetEntity = subtaskId ? resolveActionTarget(subtaskId, tasks) : task;
+    // Principio (a) FASE 3: el tiempo NUNCA se registra sobre un contenedor (su tiempo = suma de hijas).
+    if ((targetEntity?.subtasks || []).some((sid: string) => tasks[sid] && !tasks[sid].isDeleted)) {
+      toast.warn('No se registra tiempo sobre un contenedor: su tiempo es la suma de sus tareas.');
+      return;
+    }
     const title = targetEntity?.title || "Tarea sin título";
 
     // DIAG-TEMP: qué pasa la FILA al pulsar play → distingue si el play era del contenedor o de la hija.
@@ -205,6 +210,12 @@ export function useTimerHandlers({
     note?: string,
     markComplete?: boolean
   ) => {
+    // Principio (a) FASE 3: el tiempo NUNCA se registra sobre un contenedor (su tiempo = suma de hijas).
+    const entryTarget = resolveActionTarget(subtaskId || taskId, tasks);
+    if ((entryTarget?.subtasks || []).some((sid: string) => tasks[sid] && !tasks[sid].isDeleted)) {
+      toast.warn('No se registra tiempo sobre un contenedor: su tiempo es la suma de sus tareas.');
+      return;
+    }
     const resolvedTaskId = resolveId(taskId, tasks) || taskId;
     const resolvedSubtaskId = resolveId(subtaskId, tasks);
 

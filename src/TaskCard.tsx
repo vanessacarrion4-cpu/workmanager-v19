@@ -562,20 +562,23 @@ export function TaskCard({
                     })()}
                   </div>
                   <div className="w-[42px] shrink-0 flex items-center justify-end overflow-hidden">
+                    {/* Principio (a) FASE 3: en un CONTENEDOR el registrado es SOLO-LECTURA (suma de
+                        las hijas); no se registra tiempo sobre él → sin onAddEntry/onClick/onMoreOptions. */}
                     {!inMeeting && <RegisteredTimeChip
                       value={totalRegistered}
                       estimated={totalEstimated}
-                      onAddEntry={onAddTimeEntry}
+                      onAddEntry={hasSubtasks ? undefined : onAddTimeEntry}
                       taskId={currentRootId}
                       subtaskId={level === 1 ? null : task.id}
                       date={task.dueDate || task.instanceDate || formatLocalISO(new Date())}
-                      onMoreOptions={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)}
-                      onClick={() => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)}
+                      onMoreOptions={hasSubtasks ? undefined : () => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)}
+                      onClick={hasSubtasks ? undefined : () => onOpenTimePanel(currentRootId, level === 1 ? null : task.id)}
                     />}
                   </div>
-                  {/* play — temporizador, siempre visible. Corriendo: cambia de forma y destaca. */}
+                  {/* play — temporizador. Principio (a) FASE 3: un CONTENEDOR no lleva cronómetro
+                      (su tiempo = suma de hijas) → oculto en filas con hijas. */}
                   <div className="w-[26px] shrink-0 flex items-center justify-center">
-                    {!inMeeting && !locked && (
+                    {!inMeeting && !locked && !hasSubtasks && (
                       <button
                         onClick={() => isTimerRunning ? onStopTimer() : onStartTimer(currentRootId, level === 1 ? null : task.id)}
                         title={isTimerRunning ? 'Parar temporizador' : 'Iniciar temporizador'}

@@ -57,6 +57,21 @@ function matchesRecurrence(recurrence: NonNullable<Task['recurrence']>, dateStr:
 }
 
 /**
+/**
+ * FASE 3 — ¿la fila `t` PERTENECE al día `day`? ÚNICA definición de "pertenece a un día".
+ * La usan los tres cambios de FASE 3 (totales, completado, reconciliación): que no haya tres
+ * definiciones que se desincronicen. Una fila se muestra/cuenta el día de su `dueDate`; si no
+ * lo tiene, el de su `instanceDate` (excepciones movidas / instancias materializadas).
+ * Un contenedor manual (sin fecha) NO pertenece a un día por sí mismo: pertenece por tener
+ * hijas de ese día — eso lo derivan quienes la usan, llamando a esta misma función sobre las hijas.
+ */
+export function belongsToDay(t: Task | null | undefined, day: string): boolean {
+  if (!t || !day) return false;
+  const d = t.dueDate || t.instanceDate || null;
+  return d === day;
+}
+
+/**
  * ¿La tarea `task` ocurre en `dateStr` (YYYY-MM-DD)?
  *
  * - Con `recurrence`: aplica la regla de recurrencia.
