@@ -1958,11 +1958,21 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
   contenedor no tiene estado de completado propio, está completo por derivación cuando sus hijas **del día** lo están, y
   clicar su casilla completa esas hijas — **solo las del día** (con el bug de otros días vivo, cerraría cosas de meses
   atrás). Tests del "estado gana" verdes antes de tocar.
+  - **DATOS DE MIGRACIÓN (sesión 16, decidido por la usuaria):**
+    - **Tiempo registrado sobre contenedores: NO se borra.** Son **4 entradas · 116 min (1h 56m)**, de meses atrás
+      (la mayor 90m en "Lluis Corbera Bankinter"). Es **trabajo real**: cuando el principio (a) entre, **dejarán de
+      contar** en los totales pero **se quedan en la base**. Anotado para que nadie las dé por perdidas.
+    - **92 "completados" guardados sobre contenedores (5 directos + 87 instancias): NO se limpian.** Borrar 92 filas no
+      tiene vuelta atrás y no hace falta si el código deja de leer ese campo. **En su lugar: TEST que garantice que el
+      completado del contenedor se DERIVA de las hijas del día y que el `status` guardado del contenedor NO se lee** — si
+      alguien vuelve a leerlo, el test se pone rojo. (Misma trampa que la variable muerta, resuelta sin tocar datos.)
 - **FASE 4 — persistencia:** borrar bloque no persiste · adjuntos no persisten · tiempos descuadran al recargar ·
   reordenar recurrente cambia todos los días · escritura innecesaria en cada carga (§16.1 de la sesión 14 / repairs) ·
   desplegar todo no refresca · conteos SQL + limpieza legada (§15.7) · borrar la columna de prioridad.
-- **FASE 5 — creación:** tarea vacía que se persiste + guard de título vacío · encadenado con Enter · ruido en consola al
-  arrancar Mi Día · ~~borrar `selectedBlockId`~~ ✅ HECHO (`6dce9a0`, §16.5) + **pregunta abierta** Mi Día→primer bloque (§16.5, SIGUE ABIERTA).
+- **FASE 5 — creación:** tarea vacía que se persiste + guard de título vacío **(EVIDENCIA REAL, sesión 16: la usuaria
+  dejó una tarea de título vacío persistida `t-1785615179787` al validar el punto 1 — borrada; el bug NO es teórico)** ·
+  encadenado con Enter · ruido en consola al arrancar Mi Día · ~~borrar `selectedBlockId`~~ ✅ HECHO (`6dce9a0`, §16.5)
+  + **pregunta abierta** Mi Día→primer bloque (§16.5, SIGUE ABIERTA).
 - **FASE 6 — diseño:** zona de diagnóstico (§16.8, sustituye §7.4) · Tanda 3 paneles flotantes · Tanda 4 barrido de
   visibilidad · Tanda 5 Delegadas/Bloques/Carga · icono de calendario en la fila · avisos propios en vez de los del
   navegador · hueco cabecera Bloques (§16.9) · unificar Semana con el TaskCard normal (§16.6).
