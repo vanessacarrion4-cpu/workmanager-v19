@@ -22,6 +22,7 @@ import { useBlockHandlers } from './useBlockHandlers';
 import { useTimerHandlers } from './useTimerHandlers';
 import { DiagPanel } from './DiagPanel'; // DIAG-TEMP (sesión 15): quitar con el revert del commit de diagnóstico
 import { ToastContainer } from './ToastContainer'; // Avisos (B1): pila de toasts, se suscribe al bus toast.ts
+import { persist } from './persist'; // Avisos (B1): escrituras que fallan avisan
 import { useBulkActions } from './useBulkActions';
 import { BlocksManagerView } from './BlocksView';
 import { DashboardView } from './DashboardView';
@@ -856,12 +857,10 @@ export default function App() {
                     },
                     [id]: newTask
                   }));
-                  supabase.from('tasks').update({
+                  persist(supabase.from('tasks').update({
                     due_date: null, due_time: null, tags: [], estimated_minutes: 0,
                     recurrence: null, is_template: false, delegation: null, is_expanded: true, modified_at: timestamp
-                  }).eq('id', parentTaskId).then(({ error }) => {
-                    if (error) console.error('[SUPABASE] Error limpiando contenedor:', error);
-                  });
+                  }).eq('id', parentTaskId), { verbo: 'guardar', titulo: tasks[parentTaskId]?.title });
                   setTimeout(() => setEditingTaskId(id), 50);
                 }}
                 className="flex-1 py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/80 transition-all"
@@ -915,9 +914,7 @@ export default function App() {
           onEditTask={(id) => { setInstancesModalTask(null); handleEditTaskRequest(id); }}
           onDelete={(id) => { handleDeleteTaskRequest(id); setInstancesModalTask(null); }}
           onRestore={(deletedTaskId) => {
-            supabase.from('tasks').delete().eq('id', deletedTaskId).then(({ error }) => {
-              if (error) console.error('[RESTORE] Error restoring instance:', error);
-            });
+            persist(supabase.from('tasks').delete().eq('id', deletedTaskId), { verbo: 'restaurar' });
             setTasks(prev => {
               const next = { ...prev };
               delete next[deletedTaskId];
@@ -958,7 +955,7 @@ export default function App() {
                   ...prev,
                   [taskId]: { ...(prev[taskId] || taskToDelete), isDeleted: true, isException: true, existsInSupabase: true, modifiedAt: timestamp }
                 }));
-                supabase.from('tasks').upsert({
+                persist(supabase.from('tasks').upsert({
                   id: taskToDelete.id, block_id: taskToDelete.blockId, parent_task_id: null,
                   template_id: taskToDelete.templateId, instance_date: taskToDelete.instanceDate || null,
                   title: taskToDelete.title, notes: taskToDelete.notes || '',
@@ -969,9 +966,7 @@ export default function App() {
                   delegation: taskToDelete.delegation || null, is_template: false, is_exception: true,
                   is_deleted: true, deleted_at: new Date().toISOString(), is_active: false,
                   created_at: taskToDelete.createdAt || new Date().toISOString(), modified_at: timestamp
-                }, { onConflict: 'id' }).then(({ error }) => {
-                  if (error) console.error('[SUPABASE] Error eliminando instancia:', error);
-                });
+                }, { onConflict: 'id' }), { verbo: 'borrar', titulo: taskToDelete.title });
               }
             } else if (choice === 'series') {
               if (type === 'edit') {
@@ -987,9 +982,7 @@ export default function App() {
                   });
                   return updated;
                 });
-                supabase.from('tasks').update({ is_active: false, modified_at: timestamp }).eq('id', ruleId).then(({ error }) => {
-                  if (error) console.error('[SUPABASE] Error desactivando serie:', error);
-                });
+                persist(supabase.from('tasks').update({ is_active: false, modified_at: timestamp }).eq('id', ruleId), { verbo: 'borrar', titulo: tasks[ruleId]?.title });
               }
             }
           }}

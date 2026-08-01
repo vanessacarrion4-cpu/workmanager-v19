@@ -12,6 +12,7 @@ import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { formatLocalISO } from './dateUtils';
 import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById, resolveActionTarget } from './instanceEngine';
+import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan en vez de morir en consola
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -178,7 +179,7 @@ export function useTaskCRUD({
 
     tasksToUpsert.forEach(t => {
       if (t.templateId && t.id.startsWith('inst-')) {
-        supabase.from('tasks').upsert({
+        persist(supabase.from('tasks').upsert({
           id: t.id,
           block_id: t.blockId,
           parent_task_id: null,
@@ -208,17 +209,13 @@ export function useTaskCRUD({
           was_recurring: t.wasRecurring || false,
           created_at: t.createdAt || timestamp,
           modified_at: timestamp,
-        }, { onConflict: 'id' }).then(({ error }) => {
-          if (error) console.error('[SUPABASE] Error upsert instancia:', t.id, error);
-        });
+        }, { onConflict: 'id' }), { verbo: 'guardar', titulo: t.title });
       } else {
-        supabase.from('tasks').update({
+        persist(supabase.from('tasks').update({
           status: t.status,
           completed_at: t.completedAt || null,
           modified_at: timestamp
-        }).eq('id', t.id).then(({ error }) => {
-          if (error) console.error('[SUPABASE] Error update tarea:', t.id, error);
-        });
+        }).eq('id', t.id), { verbo: 'guardar', titulo: t.title });
       }
     });
   }, [tasks, setTasks]);
@@ -359,6 +356,7 @@ export function useTaskCRUD({
         if (error) throw error;
       } catch (e) {
         console.error('[SUPABASE] Error creating task:', e);
+        reportPersistError({ verbo: 'crear', titulo: newTask.title });
       }
     })();
 
@@ -388,7 +386,7 @@ export function useTaskCRUD({
 
       if (isInstance && updatedTask.templateId && String(updatedTask.id).startsWith('inst-')) {
         // Instancia recurrente: upsert de la excepción CONSERVANDO fecha e id (no se mueve nada).
-        supabase.from('tasks').upsert({
+        persist(supabase.from('tasks').upsert({
           id: updatedTask.id,
           block_id: updatedTask.blockId,
           parent_task_id: null,
@@ -419,16 +417,11 @@ export function useTaskCRUD({
           was_recurring: updatedTask.wasRecurring || false,
           created_at: updatedTask.createdAt || ts,
           modified_at: ts,
-        }, { onConflict: 'id' }).then(({ error }) => {
-          if (error) console.error('[SUPABASE] Error on_hold (instancia):', updatedTask.id, error);
-        });
+        }, { onConflict: 'id' }), { verbo: 'guardar', titulo: updatedTask.title });
       } else {
         // Tarea real (manual o excepción ya persistida): solo el flag.
-        supabase.from('tasks').update({ on_hold: updatedTask.onHold ?? false, modified_at: ts })
-          .eq('id', updatedTask.id)
-          .then(({ error }) => {
-            if (error) console.error('[SUPABASE] Error on_hold:', updatedTask.id, error);
-          });
+        persist(supabase.from('tasks').update({ on_hold: updatedTask.onHold ?? false, modified_at: ts })
+          .eq('id', updatedTask.id), { verbo: 'guardar', titulo: updatedTask.title });
       }
       return;
     }
@@ -529,12 +522,9 @@ export function useTaskCRUD({
           };
 
           setTimeout(() => {
-            supabase.from('tasks')
+            persist(supabase.from('tasks')
               .update({ parent_task_id: null })
-              .eq('id', updatedTask.id)
-              .then(({ error }) => {
-                if (error) console.error('[SUPABASE] Error escribiendo parent_task_id=null (excepción recurrente):', error);
-              });
+              .eq('id', updatedTask.id), { verbo: 'guardar', titulo: updatedTask.title });
           }, 0);
 
           parent = realParent;
@@ -543,12 +533,9 @@ export function useTaskCRUD({
         if (!parent.isTemplate || parent.dueDate) {
           updated[parent.id] = { ...parent, isTemplate: true, dueDate: null };
           setTimeout(() => {
-            supabase.from('tasks')
+            persist(supabase.from('tasks')
               .update({ is_template: true, due_date: null })
-              .eq('id', parent.id)
-              .then(({ error }) => {
-                if (error) console.error('[SUPABASE] Error propagando isTemplate al padre:', error);
-              });
+              .eq('id', parent.id), { verbo: 'guardar', titulo: parent.title });
           }, 0);
         }
       }
@@ -586,7 +573,7 @@ export function useTaskCRUD({
         };
 
         setTimeout(() => {
-          supabase.from('tasks')
+          persist(supabase.from('tasks')
             .update({
               is_template: true,
               due_date: null,
@@ -594,12 +581,9 @@ export function useTaskCRUD({
               recurrence: updatedTask.recurrence,
               modified_at: instanceTimestamp
             })
-            .eq('id', updatedTask.id)
-            .then(({ error }) => {
-              if (error) console.error('[SUPABASE] Error convirtiendo a template:', error);
-            });
+            .eq('id', updatedTask.id), { verbo: 'guardar', titulo: updatedTask.title });
 
-          supabase.from('tasks').upsert({
+          persist(supabase.from('tasks').upsert({
             id: instanceId,
             block_id: updatedTask.blockId,
             parent_task_id: null,
@@ -623,9 +607,7 @@ export function useTaskCRUD({
             recurrence: null,
             created_at: instanceTimestamp,
             modified_at: instanceTimestamp
-          }, { onConflict: 'id' }).then(({ error }) => {
-            if (error) console.error('[SUPABASE] Error creando instancia del día:', error);
-          });
+          }, { onConflict: 'id' }), { verbo: 'guardar', titulo: updatedTask.title });
         }, 0);
       }
 
@@ -689,7 +671,7 @@ export function useTaskCRUD({
             created_at: updatedTask.createdAt || new Date().toISOString(),
             modified_at: new Date().toISOString()
           }], { onConflict: 'id' });
-          if (errNew) console.error('[SUPABASE] Error guardando subtarea excepción nueva fecha:', errNew);
+          if (errNew) { console.error('[SUPABASE] Error guardando subtarea excepción nueva fecha:', errNew); reportPersistError({ verbo: 'guardar', titulo: updatedTask.title }); }
           return;
         }
 
@@ -736,6 +718,7 @@ export function useTaskCRUD({
         if (error) throw error;
       } catch (e) {
         console.error('[SUPABASE] Error updating task:', e);
+        reportPersistError({ verbo: 'guardar', titulo: updatedTask.title });
       }
     })();
   }, [tasks, setTasks, setEditingTaskId, setInlineEditingTaskId]);
@@ -826,6 +809,7 @@ export function useTaskCRUD({
           }
         } catch (e) {
           console.error('[SUPABASE] Error borrando:', t.id, e);
+          reportPersistError({ verbo: 'borrar', titulo: t.title });
         }
       }
     })();
