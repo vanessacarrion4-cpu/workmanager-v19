@@ -1834,9 +1834,9 @@ la fila, NO por `opacity` en un ancestro (el opacity cascadea a los popups fixed
 
 ### 16.3 FASE 2 — enumeración con causas (lo que bloquea a diario)
 
-Cada punto: causa localizada, si es no-op silencioso o error tragado, y ficheros. **6 hecho** (§16.1). **7 hecho**
-(§16.2). **2 (B1) HECHO** (sesión 16, §16.11). **1 y 8 HECHOS** (sesión 16). **Quedan 3, 4, 5** (los tres necesitan
-decisión de la usuaria).
+Cada punto: causa localizada, si es no-op silencioso o error tragado, y ficheros. **✅ FASE 2 CERRADA (sesión 16).**
+Lo que quedaba se resolvió casi todo **decidiendo, no programando**: dos puntos se movieron a diseño / al trabajo del
+arrastre, uno se descartó (no debía existir) y solo quedó un borrado pequeño. Estado por punto abajo.
 
 1. **Poner recurrencia desde la fila.** ✅ **HECHO** (`c0bb09d`, sesión 16). El `onChange` de la fila pre-ponía
    `isTemplate:true`, que **saltaba el bloque de conversión** manual→plantilla de `handleUpdateTask` (exige
@@ -1846,15 +1846,18 @@ decisión de la usuaria).
 2. **B1 — que nada falle en silencio.** No es un bug con causa única; es el trabajo del toast. Contexto: todas las
    escrituras son fire-and-forget con `.then(({error})=>console.error)` (tragado); los no-op (`resolveActionTarget`
    null) son mudos. Ficheros: componente/hook de toast + los puntos de escritura.
-3. **Semana — mover/promover/degradar.** Semana usa un `WeekTaskCard` propio ([WeekView.tsx:566](WeekView.tsx)) que
-   solo cablea `onToggle`+`onEdit`; los controles **no están renderizados**. Función ausente. Ficheros: `WeekView.tsx`.
-   *(Ver también §16.6 — decisión de estructura.)*
-4. **Calendario — falta el icono de completar.** El día renderiza `variant="COMPACT"` ([CalendarView.tsx:461](CalendarView.tsx));
-   la variante COMPACT ([TaskCard.tsx:254-275](TaskCard.tsx)) no pinta casilla. Función ausente en COMPACT. **Antes de
-   tocar:** saber qué otras vistas usan COMPACT (añadir la casilla las cambia todas — lo decide la usuaria).
-5. **Bloques — completar recurrentes.** Bloques muestra plantillas (excluye instancias, [BlocksView.tsx:159](BlocksView.tsx));
-   el check va a `onToggleRule` ([App.tsx:570-573](App.tsx)), que **no completa nada** (§16.6). No hay instancia-del-día
-   que completar. No-op silencioso. De fondo es decisión de diseño (Bloques es vista de definición).
+3. **Semana — mover/promover/degradar.** **DECIDIDO (sesión 16), NO se programa ahora:** *mover* tareas de un día a
+   otro **espera al arrastre en profundidad** (después de FASE 3), no un botón aparte. *Promover/degradar en Semana* se
+   **DESCARTA**: la jerarquía se cambia en Mi Día, no hace falta duplicarla en Semana. (Queda vivo el hallazgo de
+   estructura §16.6: Semana usa un `WeekTaskCard` propio.)
+4. **Calendario — icono de completar.** **MOVIDO a la FASE DE DISEÑO (sesión 16):** va con el **rediseño del
+   Calendario**. No se le pega un botón de completar a la variante `COMPACT` ([CalendarView.tsx](CalendarView.tsx)) ahora,
+   porque esa vista se va a rehacer (y COMPACT la comparten otras vistas). Motivo: no invertir en algo que se sustituye.
+5. **Bloques — completar recurrentes.** ✅ **HECHO (`a8dde11`, sesión 16), por eliminación:** una plantilla es una
+   **definición** — no se completa, y con la recurrencia teniendo fecha de fin tampoco hay que pausar/activar la regla.
+   La casilla **sobraba** (iba a `onToggleRule`, que no hacía nada). Se **quitó la casilla de completar de las plantillas**
+   en modo normal (en selección se mantiene, la selección múltiple sigue intacta) y se **borró `onToggleRule`** (variable
+   muerta, resuelve §16.6). Ficheros: `TaskCard.tsx`, `BlocksView.tsx`, `App.tsx`.
 6. **Bloques — añadir tarea.** ✅ HECHO (`d8b192e`, §16.1).
 7. **Regresión visual — completadas sin raíl.** ✅ HECHO (`3fff45f`, §16.2).
 8. **Delegadas — añadir tarea.** ✅ **HECHO** (`3889c28`, sesión 16). El "+" **por persona** ya pasaba `person.id`
@@ -1887,9 +1890,8 @@ blocks[0]`. Como es siempre null, **toda tarea de nivel-1 sin bloque explícito 
 
 ### 16.6 Hallazgos separados (documentados como bug/decisión propia)
 
-- **`onToggleRule` no hace nada** ([App.tsx:570-573](App.tsx)): `isActive: prev[id].isActive !== false` devuelve el
-  **mismo** valor que ya había. Ese botón **ni completa la ocurrencia, ni activa/desactiva la regla** — no hace nada en
-  ningún caso. Es su propio bug, separado del punto 5.
+- **`onToggleRule` — ✅ RESUELTO (`a8dde11`, sesión 16): borrado.** Era un no-op (`isActive: prev[id].isActive !== false`
+  devolvía el mismo valor). Al quitar la casilla de completar de las plantillas (punto 5) quedó sin usar y se eliminó.
 - **Semana usa un `WeekTaskCard` propio** en vez del `TaskCard` normal ([WeekView.tsx:566](WeekView.tsx)): el rediseño de
   fila de §15 **nunca ha llegado a Semana**, y cualquier cambio futuro de fila hay que hacerlo **dos veces**. No es un
   bug: es una **decisión de estructura pendiente** (unificar Semana con el TaskCard normal, o asumir el doble mantenimiento).
@@ -1939,8 +1941,8 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
 
 ### 16.10 Orden de trabajo por fases
 
-- **FASE 2 — lo que me bloquea a diario:** §16.3 (puntos 1,3,4,5 + Delegadas). Con B1 (avisos, §16.3-2) para que nada
-  falle en silencio.
+- **FASE 2 — ✅ CERRADA (sesión 16):** §16.3 (todos los puntos hechos/movidos/descartados) + B1 (avisos, §16.11).
+  Siguiente fase activa = **FASE 3**.
 - **FASE 3 — modelo de datos, TESTS PRIMERO:** la reconciliación en cuarentena (hijas de otros días, subtareas duplicadas
   con el tipo cambiado, totales que no cuadran entre vistas — §16.7); el contenedor que se marca completo mirando
   subtareas de otros días; el total registrado que no filtra por bloque activo; diagnóstico de los contadores de
@@ -1988,6 +1990,7 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
   `parent_task_id` y (b) **renumerar el `order` entre grupos** — y **las dos cosas son justo lo que FASE 3 va a poner
   en orden** (reconciliación del día, "estado gana", totales). Hacerlo antes sería construir encima de lo torcido. Se
   retoma con el plan tal cual **cuando FASE 3 esté cerrada**.
-- **FASE 2 restante:** puntos **1** (recurrencia desde la fila — 0 decisiones, bug de enrutado), **3** (Semana), **4**
-  (Calendario, decisión COMPACT), **5** (Bloques recurrentes, decisión de diseño) y **8** (Delegadas, "+" global —
-  decisión pendiente, §16.3-8).
+- **FASE 2 — ✅ CERRADA (sesión 16).** Cierres finales: **1** recurrencia desde la fila (`c0bb09d`) · **8** Delegadas,
+  quitar "+" global (`3889c28`) · **5** Bloques, quitar casilla de plantillas + borrar `onToggleRule` (`a8dde11`).
+  Movidos/descartados: **3** Semana (mover → arrastre post-FASE 3; promover/degradar → descartado, se hace en Mi Día) ·
+  **4** Calendario icono completar → FASE DE DISEÑO (rediseño del Calendario). Detalle por punto en §16.3.
