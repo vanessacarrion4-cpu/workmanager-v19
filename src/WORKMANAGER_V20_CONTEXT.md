@@ -2073,3 +2073,38 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
   quitar "+" global (`3889c28`) · **5** Bloques, quitar casilla de plantillas + borrar `onToggleRule` (`a8dde11`).
   Movidos/descartados: **3** Semana (mover → arrastre post-FASE 3; promover/degradar → descartado, se hace en Mi Día) ·
   **4** Calendario icono completar → FASE DE DISEÑO (rediseño del Calendario). Detalle por punto en §16.3.
+
+### 16.12 PUNTO DE RETOMADA (fin de la sesión 16) — FASE 3 en curso
+
+**Dónde estamos: FASE 3, principio (a) cerrado, principio (b) hecho hasta el VISUAL. Todo en producción, nada a medias.**
+
+**✅ CERRADO y en producción:**
+- **(a) entera** — el tiempo nunca se registra sobre un contenedor + totales por día:
+  - `belongsToDay` (única definición de "pertenece a un día", `instanceEngine`).
+  - `containerEstimatedForDay`/`containerRegisteredForDay` (`fase3Contracts`), cableadas en Mi Día (`dayForTotals`).
+  - Play oculto y registrado solo-lectura en contenedores; guard en `handleStartTimer`/`handleManualTimeEntry`.
+  - `getVisibleSubtasksForDay` unificado con `belongsToDay`.
+  - Impacto medido: contenedores manuales dejan de inflar (ej. "Rutinas mañana" ~75.600m → el día). 684 entradas de tiempo INTACTAS (no se borró nada).
+- **(b1)+(b2 visual)** — completado del contenedor DERIVADO de las hijas, NUNCA de su `status` guardado:
+  - Con día → hijas del día; sin día (Bloques) → todas las hijas (`isTaskCompleted`); hoja → su status.
+  - Vacío-verdadero cubierto (`hasDayChild`). Fix del bug de Bloques incluido (`55a69df`).
+
+**⏳ PENDIENTE DE VALIDACIÓN DE LA USUARIA (antes de seguir):**
+- **Bloques**: "Poner fechas varias laboral" debe salir SIN tachar (hija pendiente). ~21 de 102 contenedores cambian de aspecto (1 a pendiente, 20 proyectos viejos a tachado) — un puñado, no media vista. Si ve muchos más o cambios raros → pedir recuento antes de seguir.
+- **Mi Día**: los mismos 21, ninguno más.
+
+**❌ FALTA (mañana, con la cabeza fresca):**
+- **(b3)** — filtros/contadores por día. `isTaskCompleted` YA deriva de las hijas (todas); (b3) es hacerlo POR DÍA. **Es el paso donde algo puede desaparecer de la vista → validar con calma.**
+- **(c) COMPLETA** — reconciliación del día sin fuga (`reconcileDay`, el único test aún ROJO). Es el paso más peligroso; entrar con (a)/(b) verificados.
+
+**🔴 EN (c) SE CIERRA, SÍ O SÍ:**
+- **Contradicción viva del clic:** el VISTO del contenedor ya va por el día, pero CLICARLO sigue cerrando hijas de cualquier fecha (`toggleRecursive` sin tocar). Pantalla y acción dicen cosas distintas. (c) alinea: clic = solo hijas del día (`childrenToToggleOnDay` ya existe; falta materializar).
+- **Síntoma del 30-jul (tareas pendientes ESCONDIDAS):** hijas huérfanas (`parent_task_id=null` al mover) sin contenedor materializado ese día. NO se arregla en (b); vive hasta (c). Es lo más grave (esconde trabajo).
+- **Toggle "completar-solo-el-día"** (recurrentes necesitan materializar las hijas-instancia del día).
+- **Fecha de inicio de recurrencia** ("hoy real vs día que miro": `startDate` sale de `new Date()` en `RecurrencePickerChip`; debe ser el día que se mira — enhebrar `activeDate`, tocar solo los defaults de recurrencia).
+
+**🧵 Hilo de datos (con (c)/mover):** al mover una tarea, su excepción queda `parent_task_id=null` y al leer se re-anida por plantilla; frágil si el contenedor no está materializado ese día. Es lo que dejó huérfanas las 10 hijas del 30-jul.
+
+**Reglas de datos ya decididas (NO tocar):** el tiempo sobre contenedores (4 entradas/116m) NO se borra (deja de contar, se queda). Los 92 "completados" guardados NO se limpian (el código deja de leerlos; el test lo garantiza).
+
+**Tests:** 69 verdes, 1 ROJO a propósito (`reconcileDay`, se pone verde en (c)). DIAG-TEMP sigue puesto (no quitar aún).
