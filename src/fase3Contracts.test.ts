@@ -100,6 +100,21 @@ describe('FASE 3 · principio (b) — completado derivado del contenedor', () =>
     expect(isContainerCompleteOnDay('C', tasks, WED)).toBe(false);
   });
 
+  it('sin NINGUNA hija del día → NO completo (no "verdadero por vacío")', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A', 'B'] }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: THU, status: 'completed' }), // otro día
+      task({ id: 'B', parentTaskId: 'C', dueDate: THU, status: 'completed' }), // otro día
+    ]);
+    // Miércoles no tiene ninguna hija → aunque todas las de otros días estén hechas, NO completo hoy.
+    expect(isContainerCompleteOnDay('C', tasks, WED)).toBe(false);
+  });
+
+  it('contenedor sin subtareas → NO completo (no cuenta como derivado-completo)', () => {
+    const tasks = byId([task({ id: 'C', subtasks: [] })]);
+    expect(isContainerCompleteOnDay('C', tasks, WED)).toBe(false);
+  });
+
   it('clicar el contenedor completa SOLO las hijas del día', () => {
     const tasks = byId([
       task({ id: 'C', subtasks: ['A', 'B'] }),

@@ -243,10 +243,13 @@ export function TaskCard({
     if (inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
   };
 
-  // (b2) FASE 3: el completado de un CONTENEDOR se DERIVA de sus hijas del día (no del status guardado,
-  // que son los 92 huérfanos). Para hojas (o sin día conocido) sigue siendo el status propio de la fila.
-  const rowCompleted = (hasSubtasks && dayForTotals)
-    ? isContainerCompleteOnDay(task.id, allTasksMap, dayForTotals)
+  // (b2) FASE 3: el completado de un CONTENEDOR se DERIVA de sus hijas — NUNCA de su propio status
+  // guardado (son los 92 huérfanos). CON día (Mi Día): las hijas DE ESE DÍA. SIN día (Bloques y demás,
+  // que no es un día concreto): TODAS sus hijas (isTaskCompleted). Una HOJA sí usa su propio status.
+  const rowCompleted = hasSubtasks
+    ? (dayForTotals
+        ? isContainerCompleteOnDay(task.id, allTasksMap, dayForTotals)
+        : isTaskCompleted(task.id, allTasksMap))
     : task.status === 'completed';
 
   // Una tarea COMPLETADA es un hecho cerrado: no se edita desde la fila (sesión 15). Las columnas de

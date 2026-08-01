@@ -1964,6 +1964,16 @@ reabrir SOLO las hijas del día** (`childrenToToggleOnDay` ya existe; falta mate
 ([utils.ts:24-28](utils.ts)) YA deriva el completado del contenedor de sus hijas (todas, sin filtrar por día) → el
 trabajo de (b3)/(c) sobre filtros/contadores es hacer esa derivación **por día**, no crearla.
 
+**🩹 FIX b2 (sesión 16): el contenedor NUNCA lee su propio `status` guardado en el render.** Bug detectado por la
+usuaria en **Bloques**: "Poner fechas varias laboral" salía tachado (status guardado) con una hija pendiente, porque
+`dayForTotals` solo se pasaba en Mi Día → sin día caía en `task.status`. **Decisiones (fijadas):** (1) contenedor CON
+día → `isContainerCompleteOnDay(día)`; (2) contenedor SIN día (Bloques y vistas que no son un día concreto) → deriva de
+**TODAS** sus hijas (`isTaskCompleted`), nunca del status guardado; (3) hoja → su propio status. **Vacío-verdadero
+cubierto:** `isContainerCompleteOnDay` devuelve `hasDayChild` → **false** si no hay hijas del día (+ tests: sin hijas
+del día → false; sin subtareas → false). Único read del status de contenedor era `rowCompleted` (centralizado); el
+scrim/atenuado ya iba por `locked=rowCompleted`, checkbox/título/raíl también. Semana usa `WeekTaskCard` (no TaskCard);
+Calendario pinta los contenedores como cabecera sin visto → no afectados.
+
 ### 16.8 Especificación: ZONA DE DIAGNÓSTICO — cabecera de Mi Día (para FASE 6)
 
 Sustituye por completo a las tres tarjetas actuales (Pendientes / Pendiente / Registrado): **desaparecen**. NO
