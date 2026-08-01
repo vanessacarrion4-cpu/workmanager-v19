@@ -1834,8 +1834,8 @@ la fila, NO por `opacity` en un ancestro (el opacity cascadea a los popups fixed
 
 ### 16.3 FASE 2 — enumeración con causas (lo que bloquea a diario)
 
-Cada punto: causa localizada, si es no-op silencioso o error tragado, y ficheros. **1, 3, 4, 5 aparcados** (necesitan
-decisiones de la usuaria). **6 hecho** (§16.1). **7 hecho** (§16.2).
+Cada punto: causa localizada, si es no-op silencioso o error tragado, y ficheros. **6 hecho** (§16.1). **7 hecho**
+(§16.2). **2 (B1) HECHO** (sesión 16, §16.11). **Quedan 1, 3, 4, 5 y 8** (ver estados abajo).
 
 1. **Poner recurrencia desde la fila.** El picker existe para hojas no-recurrentes ([TaskCard.tsx:621](TaskCard.tsx)),
    pero su `onChange` pre-pone `isTemplate:true`, que **salta el bloque de conversión** manual→plantilla de
@@ -1856,11 +1856,13 @@ decisiones de la usuaria). **6 hecho** (§16.1). **7 hecho** (§16.2).
    que completar. No-op silencioso. De fondo es decisión de diseño (Bloques es vista de definición).
 6. **Bloques — añadir tarea.** ✅ HECHO (`d8b192e`, §16.1).
 7. **Regresión visual — completadas sin raíl.** ✅ HECHO (`3fff45f`, §16.2).
-8. **Delegadas — añadir tarea.** **Mismo patrón que Bloques** (§16.4): `handleAddTask()` crea una tarea **sin
-   delegación**; DelegadasView solo muestra tareas con `delegation` ([DelegadasView.tsx:141-151](DelegadasView.tsx)) y
-   solo pinta personas con tareas ([:214](DelegadasView.tsx)) → la tarea se crea, se persiste y es **invisible**.
-   No-op aparente. **No es regresión** de la sesión 15 (verificado por diff). Fix: el add de Delegadas debe pasar
-   `defaultPersonId` (doAddTask ya lo soporta), p. ej. la persona del filtro activo. Ficheros: `App.tsx`/`DelegadasView.tsx`.
+8. **Delegadas — añadir tarea.** **Precisado (sesión 16):** el "+" **por persona** YA pasa `person.id`
+   ([DelegadasView.tsx:530](DelegadasView.tsx)) → ese camino funciona. El bug vive en el "+" **GLOBAL** de la
+   `StickyActionBar`: en Delegadas llama a `handleAddTask()` **sin persona** ([App.tsx:442](App.tsx)) → tarea sin
+   delegación → **invisible** (patrón §16.4). **DECISIÓN PENDIENTE de la usuaria:** qué hace el "+" global en Delegadas
+   cuando NO hay filtro de persona activo — (a) usar el filtro activo si lo hay y desactivarlo/ocultarlo si no, (b)
+   quitarlo y dejar solo el "+" por persona, o (c) subir `filterPersonId` a App. `filterPersonId` es estado local de
+   DelegadasView ([:62](DelegadasView.tsx)). Ficheros: `App.tsx`/`DelegadasView.tsx`/`StickyActionBar`.
 
 ### 16.4 FAMILIA de bugs: "crear en una vista con filtro propio que no recibe su contexto"
 
@@ -1958,3 +1960,35 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
 - **FASE 7 — mejoras:** calibración estimado/real · arrastrar lo no completado al día siguiente · deshacer · dependencias
   · búsqueda con filtros · seguimiento en Delegadas · gráfico elegido/impuesto · reflexión mensual · promover serie ·
   atajos · sincronización con cola.
+
+### 16.11 Sesión 16 — B1 (avisos) cerrado · jerarquía a 2 niveles · arrastre lateral APARCADO
+
+- **B1 "que nada falle en silencio" — CERRADO (FASE 2 punto 2).** Bus de avisos `toast.ts` (a nivel de módulo, como
+  `diag`; **agrupación por `key`**: N fallos de un lote = 1 aviso con contador; error pegajoso, warn/no-op
+  auto-desvanece) + `ToastContainer.tsx` (esquina inferior derecha, no pisa el raíl) + `persist.ts`
+  (`persist(query, ctx)` / `reportPersistError(ctx)`: log + toast). Cableados TODOS los dominios de escritura:
+  tareas (`a8e6c7e`), bloques (`719a04d`), lote (`b900e8d`), orden (`df84bfc`), personas/reuniones (`cae00c0`), y el
+  **no-op mudo** (`fc9614d`: completar/borrar/play/marcar-completada-al-registrar/adjuntos/promover-degradar-sin-destino
+  ahora avisan; guardas legítimas quedan mudas — auditoría en el mensaje del commit). Infra en `0f25cfe`, botones de
+  prueba en DiagPanel `8e5385a` (DIAG-TEMP).
+  - **⚠️ Mensaje PROVISIONAL:** "se ve pero puede no haberse guardado" — lo **reescribe el B2 de FASE 3** al revertir
+    el estado local cuando la escritura falla.
+  - **Cabos sueltos de B1 (en el mensaje de `fc9614d`):** (1) `DashboardView.tsx:427` persiste el `order` del
+    reordenado sin pasar por `persist()` — migrar. (2) **Acciones SIN escritura a BD** (tercer agujero, NO arregladas):
+    borrar bloque (`useBlockHandlers.ts:103`, ya FASE 4) · desplegar/plegar TODO un bloque
+    (`useTaskOrdering` handleExpandAllInBlock) · añadir persona desde Delegadas (`DelegadasView` handleAddPerson: solo
+    estado local). (3) Muda a propósito: escritura al array `subtasks` (bug #18, columna inexistente).
+- **Jerarquía LIMITADA A 2 NIVELES** (`0c6baf6`, producción). Verificado en datos reales: 2001 activas → **505 nivel 1,
+  1496 nivel 2, 0 en nivel 3**. El modelo es contenedor+hijas; el nivel 3 solo complicaba totales/completado por
+  derivación de FASE 3. Tope: "+" solo en nivel 1; degradar solo una tarea de nivel-1 **sin hijas**. Guía de sangría
+  subida a 60/50% + sangría uniforme (`6f7b42b`, producción).
+- **Arrastre lateral para cambiar de nivel — APARCADO hasta después de FASE 3 (con plan ya escrito).** Idea: sustituir
+  Framer `Reorder axis=y` por arrastre 2D propio solo en Mi Día; gesto binario (2 niveles); umbral ~40px y
+  `|dx|>|dy|·1.2`; placeholder que resalta el futuro padre; persistir `parent_task_id` + `order`; flechas se quedan de
+  red. **POR QUÉ SE APARCA:** el propio plan exige (a) **materializar las instancias vírgenes antes de escribir** el
+  `parent_task_id` y (b) **renumerar el `order` entre grupos** — y **las dos cosas son justo lo que FASE 3 va a poner
+  en orden** (reconciliación del día, "estado gana", totales). Hacerlo antes sería construir encima de lo torcido. Se
+  retoma con el plan tal cual **cuando FASE 3 esté cerrada**.
+- **FASE 2 restante:** puntos **1** (recurrencia desde la fila — 0 decisiones, bug de enrutado), **3** (Semana), **4**
+  (Calendario, decisión COMPACT), **5** (Bloques recurrentes, decisión de diseño) y **8** (Delegadas, "+" global —
+  decisión pendiente, §16.3-8).
