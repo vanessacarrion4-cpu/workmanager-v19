@@ -635,7 +635,12 @@ export function TaskCard({
                             <RecurrencePickerChip
                               muted
                               value={task.recurrence}
-                              onChange={(rec: any) => onUpdateTask({ ...task, recurrence: rec || undefined, isTemplate: !!rec, dueDate: rec ? null : (task.dueDate || formatLocalISO(new Date())), dueTime: task.dueTime })}
+                              // Punto 1: NO pre-poner isTemplate ni anular dueDate aquí. Solo fijar la
+                              // recurrencia y dejar que handleUpdateTask haga la conversión manual→plantilla
+                              // completa (pone isTemplate, vacía dueDate del template y CREA la 1ª instancia
+                              // del día). Antes, isTemplate:true saltaba esa conversión → template sin instancia
+                              // → la tarea desaparecía del día. Igual que poner la recurrencia desde el modal.
+                              onChange={(rec: any) => onUpdateTask({ ...task, recurrence: rec || undefined })}
                             />
                           </div>
                         );
