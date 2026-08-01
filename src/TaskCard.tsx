@@ -503,12 +503,11 @@ export function TaskCard({
                 Anchos a ojo (primera pasada, para afinar). Columna vacía = en blanco; su punteado
                 clicable aparece solo al pasar el ratón por la fila (o si su desplegable está
                 abierto, vía :has(data-open)). */}
-            {task.status === 'completed' ? (
-              <span className="shrink-0 text-[11px] font-bold dark:text-text-secondary text-text-secondary-light tabular-nums line-through pr-1">
-                {formatMinutes(getTaskEstimatedCombo(task.id, allTasksMap))} → {formatMinutes(totalRegistered)}
-              </span>
-            ) : (
-              <div className="flex items-center shrink-0">
+            {(
+              /* Completadas usan el MISMO raíl §15 que el resto — columnas en su sitio, solo tachadas
+                 (line-through) y atenuadas (opacity-50 de la tarjeta). Antes se pintaba un resumen
+                 mínimo "estimado → registrado" empujado a la derecha (regresión §15). */
+              <div className={`flex items-center shrink-0 ${task.status === 'completed' ? 'line-through' : ''}`}>
                 {/* Suspender — PRIMERA columna del raíl (fija; la tira nunca la alcanza). Suspendida →
                     reloj gris; no suspendida → en blanco, reloj tenue en hover, clic alterna. */}
                 <div className="w-[24px] shrink-0 flex items-center justify-center">
