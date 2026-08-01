@@ -107,6 +107,9 @@ export function useTimerHandlers({
     const targetEntity = subtaskId ? resolveActionTarget(subtaskId, tasks) : task;
     const title = targetEntity?.title || "Tarea sin título";
 
+    // DIAG-TEMP: qué pasa la FILA al pulsar play → distingue si el play era del contenedor o de la hija.
+    diag('timer:START (play pulsado)', { taskId, subtaskId, esSubtarea: !!subtaskId, tituloResuelto: title, tituloContenedor: task?.title });
+
     setActiveTimer({
       entityId: subtaskId || taskId,
       parentTaskId: taskId,
@@ -155,6 +158,9 @@ export function useTimerHandlers({
 
   const handleTimerStopConfirm = useCallback((note: string, markComplete: boolean, timerStopModal: { minutes: number; pendingEntry: any }) => {
     const { minutes, pendingEntry } = timerStopModal;
+
+    // DIAG-TEMP: qué llega al PARAR el cronómetro → si subtaskId es null aquí, el objetivo cae en el contenedor.
+    diag('timer:STOP-confirm', { pendingTaskId: pendingEntry.taskId, pendingSubtaskId: pendingEntry.subtaskId, esSubtarea: !!pendingEntry.subtaskId, markComplete, minutes });
 
     const newEntry: TimeEntry = {
       id: `te-${Date.now()}`,
