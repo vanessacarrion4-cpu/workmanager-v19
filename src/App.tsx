@@ -1101,6 +1101,7 @@ function TimerStopModal({ minutes, taskTitle, onConfirm, onCancel }: {
 }) {
   const [note, setNote] = React.useState('');
   const [markComplete, setMarkComplete] = React.useState(false);
+  const submittingRef = React.useRef(false); // guard anti-doble-envío: no crear dos time_entries con un doble clic
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -1135,7 +1136,7 @@ function TimerStopModal({ minutes, taskTitle, onConfirm, onCancel }: {
         </label>
         <div className="flex gap-3">
           <button onClick={onCancel} className="flex-1 py-4 rounded-2xl text-sm font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light dark:hover:bg-bg-main hover:bg-gray-100 transition-all">Cancelar</button>
-          <button onClick={() => onConfirm(note, markComplete)} className="flex-[2] py-4 bg-gradient-to-r from-turquesa to-azul rounded-2xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-turquesa/20 hover:scale-[1.02] active:scale-95 transition-all">Guardar</button>
+          <button onClick={() => { if (submittingRef.current) return; submittingRef.current = true; onConfirm(note, markComplete); }} className="flex-[2] py-4 bg-gradient-to-r from-turquesa to-azul rounded-2xl text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-turquesa/20 hover:scale-[1.02] active:scale-95 transition-all">Guardar</button>
         </div>
       </motion.div>
     </div>

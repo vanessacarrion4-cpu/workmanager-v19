@@ -4,7 +4,7 @@
  *
  * FIX sesión 10: presets de tiempo muestran estimado de la tarea como valor destacado
  */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Plus, Check, X, Clock, Edit, Trash2, History, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -34,6 +34,8 @@ export function TimerDisplay({ startTime, accumulatedSeconds }: { startTime: str
 
 export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksMap, timeEntries, onAddEntry, onDeleteEntry, onUpdateEntry, onClose, fromModal = false }: any) {
   const [activeTab, setActiveTab] = useState<'register' | 'history'>('register');
+  // Guard anti-doble-envío: un clic rápido doble en "Registrar" no debe crear dos time_entries.
+  const submittingRef = useRef(false);
   const task = subtaskId ? allTasksMap[subtaskId] : allTasksMap[taskId];
   const parentTask = allTasksMap[taskId];
   const hasSubtasks = parentTask?.subtasks && parentTask.subtasks.length > 0;
@@ -153,6 +155,8 @@ export function TimeManagementPanel({ taskId, subtaskId, instanceDate, allTasksM
               {/* Botón registrar */}
               <button
                 onClick={() => {
+                  if (submittingRef.current) return;   // guard anti-doble-envío
+                  submittingRef.current = true;
                   onAddEntry(taskId, subtaskId, newMinutes, newDate, newNote, markComplete);
                   onClose();
                 }}
