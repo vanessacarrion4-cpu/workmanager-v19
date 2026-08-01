@@ -1920,6 +1920,14 @@ definición de "pertenece al día"). **Ningún dato borrado** (684 entradas de t
 cambia la agregación. Impacto medido: contenedores manuales con hijas recurrentes dejan de inflar (ej. "Rutinas mañana"
 sumaba ~75.600m = 51 días en la fila de un día → ahora el día).
 
+**Coherencia entre vistas (a2), medida:** **Semana** ya está acotada al día — muestra estimado vía
+`getTaskMins(task, dayMap)` con el mapa materializado por día ([WeekView.tsx:60-71](WeekView.tsx)) y **no** muestra
+registrado → sin histórico, sin cambio necesario. **Calendario** (variant COMPACT) muestra **solo estimado**
+([TaskCard.tsx:288](TaskCard.tsx)) y hoy sin día → estimado de todas las fechas; **arreglo barato** = pasar
+`dayForTotals={selectedDay}` (una línea, el día ya existe). **Bloques** es vista de DEFINICIÓN (plantillas → registrado
+0, estimado base): semántica distinta a un día; que no coincida con Mi Día es esperado (definición vs día), no el bug
+del histórico. Pendiente de decisión: hacer el de Calendario ya (antes de b) por coherencia.
+
 **🔴 CASO REAL 30-jul (evidencia de oro, va a (b)/(c) como TEST — sale de datos reales):** en "Pago nóminas" el 30-jul
 hay **10 hijas-excepción, todas con `parent_task_id=NULL`** (8 completadas + 2 pendientes: "Pago NGD" y "Pago NGD
 Botigues"), y **NO existe instancia del contenedor ese día** (el contenedor no tiene recurrencia propia). El filtro
@@ -1929,6 +1937,9 @@ de la lista aunque el contador (que cuenta hojas) diga "2 pendientes".** Graveda
 (no un número raro, sino una tarea que no está). **DOS tests a fijar:** (1) un contenedor con ≥1 hija PENDIENTE del día
 NO se considera completo; (2) "ocultar completadas" / la reconciliación **no** debe hacer desaparecer un contenedor con
 hijas pendientes del día (reproducir la forma huérfana exacta). El (1) es (b); el (2) es (c).
+**⚠️ EXPECTATIVA: el SÍNTOMA (tareas pendientes escondidas) NO se arregla en (b) — se arregla en (c).** La causa es
+huérfanas-sin-contenedor (reconciliación), no completado mal derivado. El orden b→c se mantiene (c es el más
+peligroso, entrar con todo verificado), pero ese síntoma sigue VIVO hasta el último paso. No darlo por resuelto antes.
 
 **🧵 HILO DE DATOS (mover-y-reconciliar, NO tocar aún):** al **mover** una tarea, su fila-excepción queda con
 `parent_task_id=NULL` (patrón B4-cambio-2) y al leer se **re-anida por la plantilla** (`getVisibleSubtasksForDay` CASO 1).
