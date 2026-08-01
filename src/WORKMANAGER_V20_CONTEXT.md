@@ -257,6 +257,11 @@ El padre NO lleva: hora, recurrencia, etiqueta, fecha, delegación.
 
 ### 7.4 Zona de diagnóstico superior (VERSIÓN FINAL acordada)
 
+> ⚠️ **SUSTITUIDA (sesión 15).** Esta versión ya NO es la buena → ver la especificación vigente en **§16.8**.
+> Contradice lo acordado en dos puntos: (1) lleva el `✓ 35m mejor` comparando **registrado contra estimado**,
+> comparación que la usuaria **ya no quiere**; (2) usa los colores **viejos** de core/ad-hoc en vez de los
+> definitivos de §15.4 (core `#22C68D`, ad-hoc `#F8AE17`). **No implementar desde aquí.**
+
 Reemplaza las 3 tarjetas de stats actuales. **Con aire, no apelotonada.**
 Navegación de fecha arriba (‹ Miércoles 15 julio › + 📅 salto a fecha).
 
@@ -1778,3 +1783,177 @@ archivo. Tapa solo la generación NUEVA; la limpieza de lo legado queda pendient
 5. **Dos decisiones abiertas:**
    - **Qué cuenta el contador de tareas** (contador rosa de hijas): definir exactamente qué incluye.
    - **El hueco delante del título en Mi Día:** decidir si compensa para la alineación de la hora, o se quita.
+
+---
+
+## 16. Estado real y backlog (sesión 15)
+
+El documento iba por detrás (al día hasta la sesión 14). Esta sección recoge el estado real y el backlog
+ordenado por fases. **Todo lo de la sesión 15 está EN PRODUCCIÓN** (master, Vercel auto-deploy).
+
+### 16.1 Qué se cerró en la sesión 15 (en producción)
+
+- **Fila del título — borrador local** (`b667a85`+`2322dc4`): `TitleField` con borrador local; guardar solo en
+  Enter/blur; escribir ya no expulsa del campo. Con test de regresión.
+- **Fuga `inst-inst-`** (`3047e64`): normalización con `templateIdFromInstanceId` en las 5 bases de
+  `handleUpdateTask` (síncrono + async/DB). Tapa la generación de basura nueva.
+- **Suspenso = flag puro** (`bc9f20d`): `handleUpdateTask({onHoldOnly})` escribe solo `on_hold` conservando
+  id/fecha; suspender ya no re-fecha ni descoloca al contenedor.
+- **Bloque A — rescate centralizado** (`fdd774e`): `resolveActionTarget(id, tasks)` en `instanceEngine` (fila real
+  → excepción persistida bajo otro id, **nunca la plantilla** → instancia virgen materializada). Aplicado a
+  `handleManualTimeEntry`/`handleTimerStopConfirm`/`handleStartTimer`/adjuntos, y centralizados Edit/Delete. **Arregla
+  el completado desde el panel de tiempo** (era no-op sobre instancias virtuales). +7 tests.
+- **Filtro de Bloques** (`2dd03d8`): ocultar completadas por defecto + persistir el toggle.
+- **Guard anti-doble-envío** (`f1ab001`): registrar tiempo y parar cronómetro no crean dos entradas.
+- **Completadas** (`3fff45f`+`aaade80`+`6de87b6`+`5a2495f`+`2fe0135`): usan el raíl §15 (tachadas/atenuadas);
+  regla "no editable" en fila **y modal** → ver **§16.2**.
+- **Bloques — añadir al bloque abierto** (`d8b192e`): botón propio en BlocksView con `selectedBlock.id`.
+- **Instrumentación DIAG-TEMP** (`e173067`+`4225207`+`30edc67`): traza de completar y de cronómetro, panel flotante
+  copiable. **TEMPORAL — quitar con `git revert` cuando la usuaria lo diga; NO quitar todavía.**
+
+### 16.2 Regla de las tareas COMPLETADAS (fila + modal)
+
+**Principio: se bloquea ESCRIBIR VALORES, no interactuar.** Una tarea cerrada es precisamente la que se abre para
+mirar cosas. Vale IGUAL en la fila y en el modal — **el modal obedece la misma regla que la fila** (antes era la
+puerta de atrás; que no vuelva a serlo).
+
+**Vivos en una completada:** abrir/descargar adjuntos · entrar en subtareas · desplegar la recurrencia (consultar
+cuándo se repite, sin editar la regla) · **tiempo registrado** (editable) · casilla (reabrir) · editar/borrar del `···`.
+**NOTAS = excepción explícita:** editables aunque la tarea esté completada — son un **cuaderno**, no un valor de la
+tarea. (Dejado escrito en el código para que no se re-bloquee.)
+
+**Bloqueado:** tipo · bloque · estimado · hora · fecha · etiquetas · delegación · recurrencia (la regla) · añadir/quitar
+subtareas y adjuntos · editar subtareas · suspenso · play · `+` · subir/bajar nivel.
+
+**Técnica (importante):** NO bloquear el contenedor entero (mata la consulta). Se bloquea **por elemento**. En la fila,
+helper `railCol(filled)` (lleno → `pointer-events-none`; vacío → en blanco). El atenuado va por **scrim `::after`** en
+la fila, NO por `opacity` en un ancestro (el opacity cascadea a los popups fixed y los deja translúcidos — mismo caso
+§14.1.1). En el modal, `disabled`/`readOnly`/`pointer-events-none` por elemento; los de consulta (abrir/entrar) se hacen
+**siempre visibles** en completadas (no ocultos en hover). El botón del visto **no cierra**: cambia el estado en el sitio
+(reabrir → desbloquea; completar → bloquea) y su tooltip dice qué hará. Ficheros: `TaskCard.tsx`, `TaskModal.tsx`.
+
+### 16.3 FASE 2 — enumeración con causas (lo que bloquea a diario)
+
+Cada punto: causa localizada, si es no-op silencioso o error tragado, y ficheros. **1, 3, 4, 5 aparcados** (necesitan
+decisiones de la usuaria). **6 hecho** (§16.1). **7 hecho** (§16.2).
+
+1. **Poner recurrencia desde la fila.** El picker existe para hojas no-recurrentes ([TaskCard.tsx:621](TaskCard.tsx)),
+   pero su `onChange` pre-pone `isTemplate:true`, que **salta el bloque de conversión** manual→plantilla de
+   `handleUpdateTask` ([useTaskCRUD.ts:558-561](useTaskCRUD.ts), exige `!isTemplate` y crea la 1ª instancia). En
+   instancias/plantillas la fila muestra etiqueta gris de solo-lectura (sin picker). — No-op silencioso. Ficheros:
+   `TaskCard.tsx` (+`useTaskCRUD.ts`). *(Menos certeza sin reproducir — confirmar al arreglar.)*
+2. **B1 — que nada falle en silencio.** No es un bug con causa única; es el trabajo del toast. Contexto: todas las
+   escrituras son fire-and-forget con `.then(({error})=>console.error)` (tragado); los no-op (`resolveActionTarget`
+   null) son mudos. Ficheros: componente/hook de toast + los puntos de escritura.
+3. **Semana — mover/promover/degradar.** Semana usa un `WeekTaskCard` propio ([WeekView.tsx:566](WeekView.tsx)) que
+   solo cablea `onToggle`+`onEdit`; los controles **no están renderizados**. Función ausente. Ficheros: `WeekView.tsx`.
+   *(Ver también §16.6 — decisión de estructura.)*
+4. **Calendario — falta el icono de completar.** El día renderiza `variant="COMPACT"` ([CalendarView.tsx:461](CalendarView.tsx));
+   la variante COMPACT ([TaskCard.tsx:254-275](TaskCard.tsx)) no pinta casilla. Función ausente en COMPACT. **Antes de
+   tocar:** saber qué otras vistas usan COMPACT (añadir la casilla las cambia todas — lo decide la usuaria).
+5. **Bloques — completar recurrentes.** Bloques muestra plantillas (excluye instancias, [BlocksView.tsx:159](BlocksView.tsx));
+   el check va a `onToggleRule` ([App.tsx:570-573](App.tsx)), que **no completa nada** (§16.6). No hay instancia-del-día
+   que completar. No-op silencioso. De fondo es decisión de diseño (Bloques es vista de definición).
+6. **Bloques — añadir tarea.** ✅ HECHO (`d8b192e`, §16.1).
+7. **Regresión visual — completadas sin raíl.** ✅ HECHO (`3fff45f`, §16.2).
+8. **Delegadas — añadir tarea.** **Mismo patrón que Bloques** (§16.4): `handleAddTask()` crea una tarea **sin
+   delegación**; DelegadasView solo muestra tareas con `delegation` ([DelegadasView.tsx:141-151](DelegadasView.tsx)) y
+   solo pinta personas con tareas ([:214](DelegadasView.tsx)) → la tarea se crea, se persiste y es **invisible**.
+   No-op aparente. **No es regresión** de la sesión 15 (verificado por diff). Fix: el add de Delegadas debe pasar
+   `defaultPersonId` (doAddTask ya lo soporta), p. ej. la persona del filtro activo. Ficheros: `App.tsx`/`DelegadasView.tsx`.
+
+### 16.4 FAMILIA de bugs: "crear en una vista con filtro propio que no recibe su contexto"
+
+**Delegadas y Bloques son el MISMO fallo, no dos sueltos.** En ambos: la tarea se crea, se persiste, y **no aparece**
+porque la vista filtra por un dato que la tarea nueva no tiene — el **bloque** en Bloques, la **persona** en Delegadas.
+**Regla general:** *cualquier vista futura con filtro propio tendrá el mismo problema si su botón de crear no le pasa su
+contexto.* Al añadir una vista con filtro, el `onAddTask` debe inyectar ese contexto (bloque, persona, etiqueta…) en la
+tarea nueva, o la creación será un no-op invisible.
+
+### 16.5 `selectedBlockId` — código muerto + PREGUNTA ABIERTA (FASE 5)
+
+**Hallazgo:** `selectedBlockId` ([App.tsx:50](App.tsx)) **nunca se setea** (`setSelectedBlockId` solo en la declaración)
+→ siempre `null`. **Lo lee solo** `doAddTask` ([useTaskCRUD.ts:278](useTaskCRUD.ts)): `finalBlockId = selectedBlockId ||
+blocks[0]`. Como es siempre null, **toda tarea de nivel-1 sin bloque explícito cae en `blocks[0]` (el primer bloque)**.
+
+- **Acción decidida:** **borrar la variable** (recomendado). Se ejecuta **al empezar la próxima sesión**, en su propio
+  commit. NO hoy. (Borrarla no cambia el comportamiento actual: ya es siempre `blocks[0]`.)
+- **⚠️ PREGUNTA ABIERTA (FASE 5), la decide la usuaria antes de tocarlo:** como esa variable siempre es nula, **toda
+  tarea creada sin bloque explícito, Mi Día incluido, acaba en el primer bloque de la lista.** Eso **nadie lo ha
+  decidido nunca**. Borrar la variable NO debe congelar ese comportamiento como "así es la app". Decisión pendiente:
+  **una tarea creada en Mi Día, ¿debe caer en el primer bloque o quedarse sin bloque?**
+
+### 16.6 Hallazgos separados (documentados como bug/decisión propia)
+
+- **`onToggleRule` no hace nada** ([App.tsx:570-573](App.tsx)): `isActive: prev[id].isActive !== false` devuelve el
+  **mismo** valor que ya había. Ese botón **ni completa la ocurrencia, ni activa/desactiva la regla** — no hace nada en
+  ningún caso. Es su propio bug, separado del punto 5.
+- **Semana usa un `WeekTaskCard` propio** en vez del `TaskCard` normal ([WeekView.tsx:566](WeekView.tsx)): el rediseño de
+  fila de §15 **nunca ha llegado a Semana**, y cualquier cambio futuro de fila hay que hacerlo **dos veces**. No es un
+  bug: es una **decisión de estructura pendiente** (unificar Semana con el TaskCard normal, o asumir el doble mantenimiento).
+
+### 16.7 Evidencia para FASE 3 — totales del contenedor (bug de reconciliación)
+
+En Mi Día, el contenedor **"Rutinas Mañana"** muestra **0m de estimado y 40m de registrado**, mientras su hija
+**"Ingresos Tiendas"** tiene **15m estimados y 5m registrados**. Un contenedor no puede sumar 0m de estimado con una
+hija de 15m, y el registrado (40m) apunta a que **está sumando hijas de otros días**. Evidencia del **bug de totales del
+contenedor** de FASE 3 (la reconciliación mal hecha entre el mapa materializado y `tasks` crudo — el "estado gana" leaky
+de `activeDayMap`, [App.tsx:160-165](App.tsx)). **FASE 3 = tests primero** (el "estado gana" legítimo: una excepción
+completada/movida/borrada de hoy debe ganar sobre la instancia regenerada).
+
+### 16.8 Especificación: ZONA DE DIAGNÓSTICO — cabecera de Mi Día (para FASE 6)
+
+Sustituye por completo a las tres tarjetas actuales (Pendientes / Pendiente / Registrado): **desaparecen**. NO
+implementar ahora, y **no antes de que la FASE 3 esté cerrada** (si el conjunto del día sigue contaminado, esta cabecera
+mostraría los mismos números incorrectos con mejor tipografía). Sustituye a §7.4.
+
+- **Sin caja.** No es una tarjeta, es el principio de la página: contenido directo sobre el fondo, al mismo margen que
+  las filas de tarea. Sin borde, sin sombra, sin fondo blanco.
+- **Fila principal (izq→der):** etiqueta pequeña **"FALTAN"** y debajo, en grande y negrita fuerte, el **nº de tareas
+  pendientes** · a su lado **"19 hechas de 70"** en texto pequeño y, debajo, el **pendiente en horas** en azul · empujado
+  a la derecha, **"Registrado hoy"** (todo el tiempo registrado del día, esté la tarea completada o no) y **"Completado"**
+  (estimado solo de las tareas cerradas), con etiquetas que dejen claro que son **dos medidas distintas, no una
+  comparación** · al final, enlace **"Desglose"** con su flecha.
+- **Barra de progreso** a todo el ancho justo debajo, con el % del día completado en **turquesa**. Hace de separador con
+  la lista (sin línea divisoria adicional).
+- **Desglose plegable**, cerrado por defecto, que **recuerda entre recargas** si se dejó abierto (en `localStorage`, es
+  preferencia de UI, no un campo nuevo): por **tipo** (core/ad-hoc, en tiempo, cada uno con su punto de color) y por
+  **bloque** (en tiempo, de más a menos, cada uno con su barrita). Todo en una o dos líneas compactas, no en tarjetas.
+- **Reglas de cálculo:**
+  - El nº de **pendientes** cuenta **hojas** (sueltas + hijas). **Los contenedores NO cuentan** (son carpetas, no trabajo).
+  - Las **horas pendientes** suman exactamente ese mismo conjunto de hojas.
+  - **hechas, faltan, total** se calculan sobre ese mismo conjunto → **hechas + faltan = total, siempre**.
+  - El pendiente **NO** descuenta el tiempo ya registrado en tareas abiertas.
+  - **"Registrado hoy"** cuenta todo el tiempo registrado en el día **con independencia del estado** de la tarea, y es el
+    **único** contador que se calcula **por fecha de registro**; todo lo demás se calcula sobre **las filas del día**.
+- **Requisito de espacio:** debe ocupar **bastante menos alto** que las tres tarjetas actuales (~180px). Medio motivo del
+  cambio es recuperar espacio vertical para ver más tareas.
+
+### 16.9 Hueco en la cabecera del bloque (Bloques) → FASE 6
+
+El espacio vacío en la cabecera del bloque **no** viene del botón global retirado (ese vivía en `StickyActionBar`, la
+barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del nombre lleva `flex-1`
+([BlocksView.tsx:243](BlocksView.tsx)) y se estira. Va con el **rediseño de Bloques de FASE 6**; no se toca ahora.
+
+### 16.10 Orden de trabajo por fases
+
+- **FASE 2 — lo que me bloquea a diario:** §16.3 (puntos 1,3,4,5 + Delegadas). Con B1 (avisos, §16.3-2) para que nada
+  falle en silencio.
+- **FASE 3 — modelo de datos, TESTS PRIMERO:** la reconciliación en cuarentena (hijas de otros días, subtareas duplicadas
+  con el tipo cambiado, totales que no cuadran entre vistas — §16.7); el contenedor que se marca completo mirando
+  subtareas de otros días; el total registrado que no filtra por bloque activo; diagnóstico de los contadores de
+  cabecera. Dos principios: (a) el tiempo nunca se registra sobre un contenedor (su tiempo = suma de hijas); (b) un
+  contenedor no tiene estado de completado propio, está completo por derivación cuando sus hijas **del día** lo están, y
+  clicar su casilla completa esas hijas — **solo las del día** (con el bug de otros días vivo, cerraría cosas de meses
+  atrás). Tests del "estado gana" verdes antes de tocar.
+- **FASE 4 — persistencia:** borrar bloque no persiste · adjuntos no persisten · tiempos descuadran al recargar ·
+  reordenar recurrente cambia todos los días · escritura innecesaria en cada carga (§16.1 de la sesión 14 / repairs) ·
+  desplegar todo no refresca · conteos SQL + limpieza legada (§15.7) · borrar la columna de prioridad.
+- **FASE 5 — creación:** tarea vacía que se persiste + guard de título vacío · encadenado con Enter · ruido en consola al
+  arrancar Mi Día · **borrar `selectedBlockId`** (§16.5) + **pregunta abierta** Mi Día→primer bloque (§16.5).
+- **FASE 6 — diseño:** zona de diagnóstico (§16.8, sustituye §7.4) · Tanda 3 paneles flotantes · Tanda 4 barrido de
+  visibilidad · Tanda 5 Delegadas/Bloques/Carga · icono de calendario en la fila · avisos propios en vez de los del
+  navegador · hueco cabecera Bloques (§16.9) · unificar Semana con el TaskCard normal (§16.6).
+- **FASE 7 — mejoras:** calibración estimado/real · arrastrar lo no completado al día siguiente · deshacer · dependencias
+  · búsqueda con filtros · seguimiento en Delegadas · gráfico elegido/impuesto · reflexión mensual · promover serie ·
+  atajos · sincronización con cola.
