@@ -783,7 +783,7 @@ export function TaskCard({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className={`border-l-2 dark:border-border-main/20 border-border-main-light/20 space-y-0 ${level === 1 ? "ml-5 pl-3" : "ml-7 pl-4"}`}
+              className={`border-l-2 dark:border-border-main/60 border-border-main-light/50 space-y-0 ml-5 pl-3`}
             >
               {hasSubtasks && (
                 <Reorder.Group 
