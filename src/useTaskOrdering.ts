@@ -221,6 +221,13 @@ export function useTaskOrdering({
   }, [tasks, setTasks]);
 
   const handleDemoteTask = useCallback((taskId: string) => {
+    // Tope de 2 niveles (modelo contenedor+hijas; hoy no hay ninguna tarea en nivel 3 — verificado en datos).
+    // Degradar solo vale para una tarea de nivel-1 SIN hijas: si ya es hija (parentTaskId) pasaria a nivel-3,
+    // y si es un contenedor con hijas, las arrastraria a nivel-3. En ambos casos se aborta.
+    {
+      const st = tasks[taskId];
+      if (!st || st.parentTaskId || (st.subtasks || []).some((sid: string) => tasks[sid] && !tasks[sid].isDeleted)) return;
+    }
     // ── B5a: degradar una tarea ONE-OFF dentro de un contenedor recurrente (instancia VIRTUAL) ──
     // El nuevo padre visible (hermano de arriba en el DÍA MATERIALIZADO — lo que ve la usuaria, no
     // `tasks` crudo) puede ser `inst-K-D`, una instancia que NO existe como fila. Escribir

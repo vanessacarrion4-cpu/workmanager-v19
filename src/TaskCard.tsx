@@ -716,7 +716,9 @@ export function TaskCard({
                       {task.parentTaskId && !locked && (
                         <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onPromote(task.id); }} title="Subir un nivel" className="w-6 h-6 flex items-center justify-center rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-turquesa transition-all"><ArrowUpLeft size={13} /></button>
                       )}
-                      {!locked && (
+                      {/* Tope 2 niveles: solo una tarea de nivel-1 SIN hijas puede degradarse (pasaria a nivel-2).
+                          Una hija (nivel-2) o un contenedor con hijas quedarian en nivel-3 → oculto. */}
+                      {!task.parentTaskId && !hasSubtasks && !locked && (
                         <button onClick={(e) => { e.stopPropagation(); setStripOpen(false); onDemote(task.id); }} title="Bajar un nivel" className="w-6 h-6 flex items-center justify-center rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-azul transition-all"><ArrowDownRight size={13} /></button>
                       )}
                       </div>
@@ -727,7 +729,7 @@ export function TaskCard({
                     la izquierda de los puntos (que están a su izquierda), así que por GEOMETRÍA nunca lo alcanza.
                     Solo contenedores y sueltas, nunca hijas. Color: #2DD4BF → #14B8A6 en hover de FILA. */}
                 <div className="w-[26px] shrink-0 flex items-center justify-center">
-                  {level < 3 && !locked && (hasSubtasks || (parentBlockId == null && !task.parentTaskId)) && (
+                  {level < 2 && !locked && (hasSubtasks || (parentBlockId == null && !task.parentTaskId)) && (
                     <button
                       onClick={(e) => { e.stopPropagation(); if (onAddTask) onAddTask(task.id, task.blockId); }}
                       title="Añadir subtarea"
