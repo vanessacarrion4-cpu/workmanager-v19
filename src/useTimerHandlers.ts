@@ -10,6 +10,7 @@ import { Task, TimeEntry } from './types';
 import { supabase } from './supabaseClient';
 import { formatLocalISO } from './dateUtils';
 import { resolveActionTarget } from './instanceEngine'; // rescate centralizado: resuelve/materializa la instancia virtual
+import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mudo
 import { diag } from './diag'; // DIAG-TEMP (sesión 15): quitar con el revert del commit de diagnóstico
 
 interface ActiveTimer {
@@ -103,7 +104,7 @@ export function useTimerHandlers({
     }
 
     const task = resolveActionTarget(taskId, tasks);
-    if (!task) return;
+    if (!task) { toast.warn('No encuentro esa tarea para iniciar el cronómetro. Recarga e inténtalo.'); return; }
     const targetEntity = subtaskId ? resolveActionTarget(subtaskId, tasks) : task;
     const title = targetEntity?.title || "Tarea sin título";
 
@@ -179,6 +180,7 @@ export function useTimerHandlers({
       const t = resolveActionTarget(targetId, tasks); // rescate: materializa la instancia virtual si solo existe en memoria
       const completedAt = diagComplete('cronómetro-stop', targetId, t, { taskId: pendingEntry.taskId, subtaskId: pendingEntry.subtaskId, minutes }); // DIAG-TEMP
       if (t) handleUpdateTask({ ...t, status: 'completed', completedAt });
+      else toast.warn('El tiempo se ha registrado, pero no he podido marcar la tarea como completada. Recarga e inténtalo.');
     }
 
     supabase.from('time_entries').insert({
@@ -223,6 +225,7 @@ export function useTimerHandlers({
       const t = resolveActionTarget(targetId, tasks); // rescate: materializa la instancia virtual si solo existe en memoria
       const completedAt = diagComplete('panel manual', targetId, t, { taskId, subtaskId, minutes, date }); // DIAG-TEMP
       if (t) handleUpdateTask({ ...t, status: 'completed', completedAt });
+      else toast.warn('El tiempo se ha registrado, pero no he podido marcar la tarea como completada. Recarga e inténtalo.');
     }
 
     supabase.from('time_entries').insert({
@@ -272,7 +275,7 @@ export function useTimerHandlers({
       createdAt: new Date().toISOString()
     };
     const task = resolveActionTarget(taskId, tasks);
-    if (!task) return;
+    if (!task) { toast.warn('El archivo se subió, pero no he podido adjuntarlo a la tarea. Recarga e inténtalo.'); return; }
     const updatedAttachments = [...(task.attachments || []), attachment];
     handleUpdateTaskFn({ ...task, attachments: updatedAttachments });
   }, [tasks]);
@@ -280,7 +283,7 @@ export function useTimerHandlers({
   const handleDeleteAttachment = useCallback(async (taskId: string, attachmentId: string, path: string, handleUpdateTaskFn: (task: Task) => void) => {
     await supabase.storage.from('task-attachments').remove([path]);
     const task = resolveActionTarget(taskId, tasks);
-    if (!task) return;
+    if (!task) { toast.warn('No he podido quitar el adjunto de la tarea. Recarga e inténtalo.'); return; }
     const updatedAttachments = (task.attachments || []).filter((a: any) => a.id !== attachmentId);
     handleUpdateTaskFn({ ...task, attachments: updatedAttachments });
   }, [tasks]);

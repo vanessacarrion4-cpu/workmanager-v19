@@ -12,7 +12,8 @@ import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { formatLocalISO } from './dateUtils';
 import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById, resolveActionTarget } from './instanceEngine';
-import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan en vez de morir en consola
+import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
+import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mudo en vez de morir en consola
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -123,9 +124,10 @@ export function useTaskCRUD({
     }
     if (!task) {
       console.error('[STATUS] Tarea no encontrada:', taskId);
+      toast.warn('No encuentro esa tarea para completarla. Recarga e inténtalo de nuevo.');
       return;
     }
-    if (task.isDeleted) return; // guard: no togglear (ni resucitar) una instancia borrada
+    if (task.isDeleted) return; // guard legítima (muda): no togglear ni resucitar una instancia borrada
 
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
     const timestamp = new Date().toISOString();
@@ -726,7 +728,7 @@ export function useTaskCRUD({
   const handleDeleteTask = useCallback((taskId: string) => {
     const updatedTasks = { ...tasks };
     const task = updatedTasks[taskId];
-    if (!task) return;
+    if (!task) { toast.warn('No encuentro esa tarea para borrarla. Recarga e inténtalo.'); return; }
 
     if (task.parentTaskId && updatedTasks[task.parentTaskId]) {
       updatedTasks[task.parentTaskId] = {

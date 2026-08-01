@@ -10,6 +10,7 @@ import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { materializeDay, templateIdFromInstanceId } from './instanceEngine';
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
+import { toast } from './toast'; // Avisos (B1): no-op silencioso (no se puede promover/degradar) deja de ser mudo
 
 /**
  * B5a: fila-excepción (mismo shape validado en cambio-2, useTaskCRUD) para MATERIALIZAR una
@@ -168,7 +169,8 @@ export function useTaskOrdering({
     // Va fuera y no dentro de setTasks a propósito: bajo StrictMode el updater corre 2×,
     // así que la escritura a Supabase no puede vivir ahí (patrón anti-#6).
     const outerTask = tasks[taskId];
-    if (!outerTask || !outerTask.parentTaskId) return;
+    if (!outerTask) { toast.warn('No encuentro esa tarea para subirla de nivel.'); return; }
+    if (!outerTask.parentTaskId) { toast.warn('Esta tarea ya está en el nivel superior.'); return; }
     const outerParent = tasks[outerTask.parentTaskId];
     if (!outerParent) return;
     const grandParentId = outerParent.parentTaskId || null;
@@ -295,9 +297,9 @@ export function useTaskOrdering({
         .map(t => t.id);
     }
     const outerIdx = outerSiblingIds.indexOf(taskId);
-    if (outerIdx <= 0) return;
+    if (outerIdx <= 0) { toast.warn('No hay ninguna tarea encima bajo la que colocar esta.'); return; }
     const aboveTaskId = outerSiblingIds[outerIdx - 1];
-    if (!tasks[aboveTaskId]) return;
+    if (!tasks[aboveTaskId]) { toast.warn('No hay una tarea encima válida bajo la que colocar esta.'); return; }
     const timestamp = new Date().toISOString();
 
     setTasks(prev => {
