@@ -19,7 +19,7 @@ import {
   isTaskCompleted, isTaskRepetitive, getTaskEstimatedCombo,
   getTaskEstimatedPending, getTaskRegisteredCombo, formatMinutes
 } from './utils';
-import { containerEstimatedForDay, containerRegisteredForDay } from './fase3Contracts'; // (a2) FASE 3: totales de contenedor por día
+import { containerEstimatedForDay, containerRegisteredForDay, isContainerCompleteOnDay } from './fase3Contracts'; // FASE 3: totales + completado derivado del contenedor
 import { getTagColor } from './helpers';
 import { TitleField } from './TitleField';
 import {
@@ -243,10 +243,16 @@ export function TaskCard({
     if (inlineEditingTaskId === task.id) setInlineEditingTaskId(null);
   };
 
+  // (b2) FASE 3: el completado de un CONTENEDOR se DERIVA de sus hijas del día (no del status guardado,
+  // que son los 92 huérfanos). Para hojas (o sin día conocido) sigue siendo el status propio de la fila.
+  const rowCompleted = (hasSubtasks && dayForTotals)
+    ? isContainerCompleteOnDay(task.id, allTasksMap, dayForTotals)
+    : task.status === 'completed';
+
   // Una tarea COMPLETADA es un hecho cerrado: no se edita desde la fila (sesión 15). Las columnas de
   // datos se muestran pero NO son clicables (sin afordancia de hover, sin cursor de mano); las vacías
   // quedan en blanco. Vivos solo: tiempo registrado, casilla (reabrir), ··· (modal/borrar).
-  const locked = task.status === 'completed';
+  const locked = rowCompleted;
   // Clase del envoltorio de una columna del raíl: lleno → visible (bloqueado si completada); vacío →
   // en blanco si completada, o punteado en hover si no.
   const railCol = (filled: boolean) =>
@@ -442,17 +448,17 @@ export function TaskCard({
                   ? selectedTaskIds.has(task.id)
                     ? 'bg-azul border-2 border-azul text-white shadow-md shadow-azul/30'
                     : 'dark:bg-bg-main bg-white border-2 border-azul/40 text-transparent hover:border-azul hover:bg-azul/10'
-                  : task.status === 'completed'
+                  : rowCompleted
                     ? 'bg-turquesa border-2 border-turquesa text-white shadow-sm'
                     : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-turquesa'
               }`}
-              title={selectionMode ? (selectedTaskIds.has(task.id) ? 'Deseleccionar' : 'Seleccionar') : (task.status === 'completed' ? 'Marcar pendiente' : 'Completar')}
+              title={selectionMode ? (selectedTaskIds.has(task.id) ? 'Deseleccionar' : 'Seleccionar') : (rowCompleted ? 'Marcar pendiente' : 'Completar')}
             >
               {selectionMode
                 ? selectedTaskIds.has(task.id)
                   ? <Check size={11} strokeWidth={3} />
                   : null
-                : task.status === 'completed'
+                : rowCompleted
                   ? <Check size={11} strokeWidth={3} />
                   : null
               }
@@ -493,8 +499,8 @@ export function TaskCard({
               onStartEdit={enterTitleEdit}
               onCommit={commitTitle}
               onCancel={cancelTitle}
-              inputClassName={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none flex-1 min-w-0 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${task.status === 'completed' ? 'line-through' : ''}`}
-              spanClassName={`text-[13px] font-black min-w-0 truncate capitalize cursor-text ${task.status === 'completed' ? 'line-through dark:text-white/60 text-text-main-light/60' : (!task.title ? 'italic font-medium dark:text-text-secondary/40 text-text-secondary-light/40' : 'dark:text-white text-text-main-light')}`}
+              inputClassName={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none flex-1 min-w-0 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${rowCompleted ? 'line-through' : ''}`}
+              spanClassName={`text-[13px] font-black min-w-0 truncate capitalize cursor-text ${rowCompleted ? 'line-through dark:text-white/60 text-text-main-light/60' : (!task.title ? 'italic font-medium dark:text-text-secondary/40 text-text-secondary-light/40' : 'dark:text-white text-text-main-light')}`}
             />
               {/* Icono adjuntos */}
               {task.attachments && task.attachments.length > 0 && (
@@ -536,7 +542,7 @@ export function TaskCard({
               /* Completadas usan el MISMO raíl §15 que el resto — columnas en su sitio, solo tachadas
                  (line-through) y atenuadas (opacity-50 de la tarjeta). Antes se pintaba un resumen
                  mínimo "estimado → registrado" empujado a la derecha (regresión §15). */
-              <div className={`flex items-center shrink-0 ${task.status === 'completed' ? 'line-through' : ''}`}>
+              <div className={`flex items-center shrink-0 ${rowCompleted ? 'line-through' : ''}`}>
                 {/* Suspender — PRIMERA columna del raíl (fija; la tira nunca la alcanza). Suspendida →
                     reloj gris; no suspendida → en blanco, reloj tenue en hover, clic alterna. */}
                 <div className="w-[24px] shrink-0 flex items-center justify-center">
