@@ -11,6 +11,7 @@ import { supabase } from './supabaseClient';
 import { resolveTaskId, materializeDay } from './instanceEngine';
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan (agrupadas por lote)
 import { shouldDegradeToNormal } from './fase3Contracts'; // §16.16: contenedor vaciado en lote → tarea normal
+import { toast } from './toast'; // §16.16 (3): avisar cuando un contenedor deja de serlo
 
 interface UseBulkActionsOptions {
   tasks: Record<string, Task>;
@@ -214,6 +215,8 @@ export function useBulkActions({
     realIds.forEach(id => { const p = tasks[id]?.parentTaskId; if (p) affectedParents.add(p); });
     Object.values(virginObjs).forEach(o => { if (o.parentTaskId) affectedParents.add(o.parentTaskId); });
     const degradedIds = [...affectedParents].filter(pid => shouldDegradeToNormal(pid, afterDelete));
+    // §16.16 (3): avisar de cada contenedor que deja de serlo (sin fecha desaparece de la vista).
+    degradedIds.forEach(pid => toast.warn(`«${afterDelete[pid]?.title || 'sin título'}» ya no es un contenedor (se quedó sin tareas); ahora es una tarea normal sin fecha.`));
 
     setTasks(prev => {
       const next = { ...prev };

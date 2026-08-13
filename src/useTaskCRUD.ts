@@ -783,8 +783,11 @@ export function useTaskCRUD({
     // y vuelve a tarea normal (se le quita isTemplate). Fuente de los "contenedores vaciados sin degradar".
     const degradedIds: string[] = [];
     if (task.parentTaskId && shouldDegradeToNormal(task.parentTaskId, updatedTasks)) {
-      updatedTasks[task.parentTaskId] = { ...updatedTasks[task.parentTaskId], isTemplate: false, modifiedAt: new Date().toISOString() };
+      const p = updatedTasks[task.parentTaskId];
+      updatedTasks[task.parentTaskId] = { ...p, isTemplate: false, modifiedAt: new Date().toISOString() };
       degradedIds.push(task.parentTaskId);
+      // §16.16 (3): sin fecha desaparece de la vista → no dejar que se vaya en silencio.
+      toast.warn(`«${p.title || 'sin título'}» ya no es un contenedor (se quedó sin tareas); ahora es una tarea normal sin fecha.`);
     }
 
     setTasks(updatedTasks);
