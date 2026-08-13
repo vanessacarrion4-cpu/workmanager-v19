@@ -2108,3 +2108,27 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
 **Reglas de datos ya decididas (NO tocar):** el tiempo sobre contenedores (4 entradas/116m) NO se borra (deja de contar, se queda). Los 92 "completados" guardados NO se limpian (el código deja de leerlos; el test lo garantiza).
 
 **Tests:** 69 verdes, 1 ROJO a propósito (`reconcileDay`, se pone verde en (c)). DIAG-TEMP sigue puesto (no quitar aún).
+
+### 16.13 Reglas y pendientes decididos (sesión 17) — aún no implementados salvo lo indicado
+
+**REGLA DEFINITIVA DEL CONTENEDOR — vista CON día vs vista SIN día:**
+- **Con día (Mi Día, Semana, Calendario):** un contenedor **aparece solo si tiene ≥1 hija de ESE día**, y está **completo cuando todas sus hijas de ese día lo están**. **Manda el día siempre**, incluidos los contenedores que mezclan hijas recurrentes y sueltas. (Es lo que ya calcula `isContainerCompleteOnDay` + `belongsToDay`; falta terminar de cablearlo en b3/c y en Semana/Calendario si algún día muestran visto de contenedor.)
+- **Sin día (Bloques):** no hay día → está **completo cuando no le queda ninguna hija pendiente**, sin mirar fechas (`isTaskCompleted` sobre todas las hijas). Nunca se lee el `status` guardado del contenedor.
+
+**BLOQUES = LISTA DE DEFINICIÓN, una línea por regla:** en Bloques se muestra **solo la plantilla** (una fila por regla), NO sus ocurrencias. Las ocurrencias se consultan por el **icono de información** de la fila, que ya las muestra bien (estimado vs real por ocurrencia). *(Confirmar en implementación que no se cuela ninguna instancia en la lista de Bloques.)*
+
+**PENDIENTES sueltos (asignar a su fase):**
+- **Checkbox que falta en las filas completadas** — revisar por qué una fila completada no muestra su casilla en algún caso. *(FASE 6 diseño / o bug de fila.)*
+- **Ancho máximo del contenido, centrado, ~1.200px** — el contenido no debe estirarse a todo el ancho en pantallas grandes. *(FASE 6 diseño.)*
+- **Crear tarea dentro de un contenedor → el cursor se coloca en el título** (edición inline lista para escribir). *(FASE 5 creación.)*
+- **Aviso "¿convertir en contenedor?" con el botón "Sí" enfocado** → confirmar con Enter. *(FASE 5 creación.)*
+
+### 16.14 MÉTODO DE REPARTO DE TIEMPO (sesión 17) — cómo trabajar a partir de ahora
+
+**El recurso escaso es el tiempo de la usuaria, no el del asistente.** Por tanto:
+- **Encadenar todo lo que NO se ve:** tests, funciones internas, consultas, documentación, migraciones mecánicas. No parar entre ellas.
+- **Parar solo cuando algo cambie la PANTALLA o los DATOS de la usuaria.**
+- **Decidir el asistente** lo que tenga respuesta obvia y contarlo después. Si hay **dos caminos razonables**, **aparcarlo** y seguir con lo independiente.
+- **Pararse de verdad SOLO si:** (1) habría que borrar/modificar datos de la usuaria de forma irreversible; (2) el cambio afecta a bastantes más elementos de los previstos; (3) la premisa del punto resulta falsa; (4) no se logra dejar los tests en verde; (5) el arreglo obliga a salir del alcance de la fase; (6) se rompe algo que funcionaba.
+- **Al acabar cada FASE, informe con:** qué se hizo y con qué commit · qué decidió el asistente solo · qué aparcó · qué cambia de aspecto o de número y cuánto · la lista concreta de lo que la usuaria tiene que mirar.
+- **Sigue vigente:** solo commitea el asistente, un commit por bloque, build+tests sí / navegador solo si lo pide, master=producción a la par y decir siempre commiteado-vs-producción, DIAG-TEMP no se quita.
