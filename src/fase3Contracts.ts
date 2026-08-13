@@ -100,19 +100,6 @@ export function reconcileDay(day: string, allTasks: Record<string, Task>): Recor
 }
 
 /**
- * §16.16 — Un contenedor que se queda SIN HIJAS deja de ser contenedor y vuelve a tarea normal.
- * true si `containerId` es un contenedor vaciable (isTemplate, SIN pauta) que ya no tiene ninguna hija
- * no borrada por `parentTaskId` → hay que quitarle `isTemplate`. Una REGLA recurrente (con pauta) nunca degrada.
- */
-export function shouldDegradeToNormal(containerId: string, allTasks: Record<string, Task>): boolean {
-  const c = allTasks[containerId];
-  if (!c || !c.isTemplate) return false;
-  if (c.recurrence && (c.recurrence as any).frequency) return false; // regla recurrente, no contenedor
-  const hasChild = Object.values(allTasks).some((t) => t && !t.isDeleted && t.parentTaskId === containerId);
-  return !hasChild;
-}
-
-/**
  * §16.16 — Invariante del modelo: isTemplate = regla recurrente XOR contenedor. Devuelve un MOTIVO
  * (string) si el estado es inválido, o null si es válido o no es plantilla. NO bloquea; el llamador avisa.
  *  - pauta + hijas de contenedor  → inválido (una regla no puede ser contenedor)
@@ -128,30 +115,3 @@ export function validateTemplate(task: Task, allTasks: Record<string, Task>): st
   return null;
 }
 
-/**
- * §16.16 — Contenedor de un hijo: por `parentTaskId` (hijo manual) o, si es null, por la plantilla del
- * hijo (`templateId` → esa plantilla-hija tiene `parentTaskId` = contenedor). Cubre hijas recurrentes
- * con `parentTaskId=null` (anidan por plantilla).
- */
-export function containerOfChild(child: Task | null | undefined, allTasks: Record<string, Task>): string | null {
-  if (!child) return null;
-  if (child.parentTaskId) return child.parentTaskId;
-  if (child.templateId) return allTasks[child.templateId]?.parentTaskId || null;
-  return null;
-}
-
-/**
- * §16.16 — Reducer COMPARTIDO por TODOS los caminos de borrado (handleDeleteTask, lote, borrado de
- * instancia recurrente en App). Dado el hijo recién borrado y el mapa YA con ese hijo marcado borrado,
- * devuelve el parche de degradación del contenedor si procede, o null. Al vaciar, el contenedor deja de
- * serlo (`isTemplate:false`) Y su `status` vuelve a `pending` (un contenedor vaciado NO está completo —
- * si no, al quedar sin hijas se pinta como hoja y arrastra su status viejo → salía tachado).
- */
-export function containerDegradeAfterDelete(
-  deletedChild: Task | null | undefined, tasksAfterDelete: Record<string, Task>,
-): { id: string; isTemplate: false; status: 'pending' } | null {
-  const cid = containerOfChild(deletedChild, tasksAfterDelete);
-  if (!cid) return null;
-  if (!shouldDegradeToNormal(cid, tasksAfterDelete)) return null;
-  return { id: cid, isTemplate: false, status: 'pending' };
-}

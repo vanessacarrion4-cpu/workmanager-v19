@@ -14,7 +14,7 @@ import { formatLocalISO } from './dateUtils';
 import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById, resolveActionTarget } from './instanceEngine';
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
 import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mudo en vez de morir en consola
-import { validateTemplate, containerDegradeAfterDelete } from './fase3Contracts'; // §16.16: degradar contenedor vaciado + invariante regla/contenedor
+import { validateTemplate } from './fase3Contracts'; // §16.16: invariante regla recurrente / contenedor
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -779,28 +779,13 @@ export function useTaskCRUD({
       if (t.id !== taskId) delete updatedTasks[t.id];
     });
 
-    // §16.16: si al borrar la última hija el contenedor se queda vacío, deja de ser contenedor
-    // y vuelve a tarea normal (se le quita isTemplate). Fuente de los "contenedores vaciados sin degradar".
-    // §16.16: si al borrar la última hija el contenedor se queda vacío, degrada a tarea normal.
-    // containerOfChild localiza el contenedor aunque la hija tenga parent_task_id=null (recurrentes,
-    // por plantilla). Al degradar: isTemplate:false Y status:'pending' (un contenedor vaciado NO está
-    // completo — si no, al quedar sin hijas se pinta como hoja y arrastra su status viejo → tachado).
-    const degradedIds: string[] = [];
-    const degr = containerDegradeAfterDelete(task, updatedTasks);
-    if (degr) {
-      const p = updatedTasks[degr.id];
-      updatedTasks[degr.id] = { ...p, isTemplate: false, status: 'pending', modifiedAt: new Date().toISOString() };
-      degradedIds.push(degr.id);
-      toast.warn(`«${p.title || 'sin título'}» ya no es un contenedor (se quedó sin tareas); ahora es una tarea normal sin fecha.`);
-    }
-
+    // §16.16 (modelo corregido): "ser contenedor" se DERIVA de tener hijas, no es un estado guardado.
+    // Al borrar la última hija no hay conversión que revertir: la tarea deja de agruparse como contenedor
+    // sola, porque las vistas leen subtasks.length (no una marca). No se toca isTemplate ni el status aquí.
     setTasks(updatedTasks);
 
     (async () => {
       const timestamp = new Date().toISOString();
-      for (const pid of degradedIds) {
-        persist(supabase.from('tasks').update({ is_template: false, status: 'pending', modified_at: timestamp }).eq('id', pid), { verbo: 'guardar', titulo: updatedTasks[pid]?.title });
-      }
       for (const t of idsToDelete) {
         try {
           if (t.templateId) {

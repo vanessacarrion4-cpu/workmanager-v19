@@ -12,10 +12,7 @@ import {
   isContainerCompleteOnDay,
   childrenToToggleOnDay,
   reconcileDay,
-  shouldDegradeToNormal,
   validateTemplate,
-  containerOfChild,
-  containerDegradeAfterDelete,
 } from './fase3Contracts';
 import { groupTasksByTag } from './filters';
 
@@ -145,42 +142,6 @@ describe('FASE 3 · reconciliación del día sin fuga', () => {
 });
 
 // =========================================================================
-// (b2) Degradación: contenedor vaciado vuelve a tarea normal (§16.16)
-// =========================================================================
-describe('FASE 3 · degradación de contenedor vaciado (§16.16)', () => {
-  it('contenedor (isTemplate, sin pauta) sin hijas → degradar', () => {
-    const tasks = byId([task({ id: 'C', isTemplate: true, subtasks: [] })]);
-    expect(shouldDegradeToNormal('C', tasks)).toBe(true);
-  });
-
-  it('con hija borrada como única hija → degradar (las borradas no cuentan)', () => {
-    const tasks = byId([
-      task({ id: 'C', isTemplate: true, subtasks: ['A'] }),
-      task({ id: 'A', parentTaskId: 'C', isDeleted: true }),
-    ]);
-    expect(shouldDegradeToNormal('C', tasks)).toBe(true);
-  });
-
-  it('con al menos una hija viva → NO degradar', () => {
-    const tasks = byId([
-      task({ id: 'C', isTemplate: true, subtasks: ['A'] }),
-      task({ id: 'A', parentTaskId: 'C' }),
-    ]);
-    expect(shouldDegradeToNormal('C', tasks)).toBe(false);
-  });
-
-  it('regla recurrente (con pauta) → NO degradar aunque no tenga hijas', () => {
-    const tasks = byId([task({ id: 'C', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } })]);
-    expect(shouldDegradeToNormal('C', tasks)).toBe(false);
-  });
-
-  it('tarea normal (no template) → NO degradar', () => {
-    const tasks = byId([task({ id: 'C' })]);
-    expect(shouldDegradeToNormal('C', tasks)).toBe(false);
-  });
-});
-
-// =========================================================================
 // (b3) Invariante del modelo: isTemplate = regla XOR contenedor (§16.16)
 // =========================================================================
 describe('FASE 3 · invariante regla XOR contenedor (§16.16)', () => {
@@ -249,44 +210,5 @@ describe('FASE 3 · campos muertos del contenedor (§16.16)', () => {
     const groups = groupTasksByTag([tasks['C']], tasks, WED, { hideCompleted: false, hideDelegatedNoTag: false });
     expect(groups.focus.some((g: any) => g.task.id === 'C')).toBe(true);   // aparece por la hija (focus)
     expect(groups.espera.some((g: any) => g.task.id === 'C')).toBe(false); // NO por la suya (espera)
-  });
-});
-
-// =========================================================================
-// (arreglo vaciado) camino REAL de borrado: localizar contenedor (incl. parent_task_id=null)
-// y degradar con status:'pending'. Reducer compartido por handleDeleteTask y lote.
-// =========================================================================
-describe('FASE 3 · vaciado: containerOfChild + degradación con status pending (§16.16)', () => {
-  it('containerOfChild: hija MANUAL → por parent_task_id', () => {
-    const tasks = byId([task({ id: 'C', isTemplate: true, subtasks: ['A'] }), task({ id: 'A', parentTaskId: 'C' })]);
-    expect(containerOfChild(tasks['A'], tasks)).toBe('C');
-  });
-
-  it('containerOfChild: hija RECURRENTE con parent_task_id=null → por la plantilla (templateId→padre)', () => {
-    const tasks = byId([
-      task({ id: 'C', isTemplate: true, subtasks: ['tpl'] }),
-      task({ id: 'tpl', parentTaskId: 'C', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
-      task({ id: 'inst-tpl-2026-07-15', templateId: 'tpl', parentTaskId: null, dueDate: WED }), // instancia huérfana
-    ]);
-    expect(containerOfChild(tasks['inst-tpl-2026-07-15'], tasks)).toBe('C'); // resuelve por tpl.parentTaskId
-  });
-
-  it('borrar la ÚLTIMA hija → degrada el contenedor a tarea normal con status PENDING', () => {
-    // Mapa YA con la hija marcada borrada (como lo pasan los caminos reales).
-    const tasks = byId([
-      task({ id: 'C', isTemplate: true, subtasks: ['A'], status: 'completed' }), // status viejo engañoso
-      task({ id: 'A', parentTaskId: 'C', isDeleted: true }),
-    ]);
-    const patch = containerDegradeAfterDelete(tasks['A'], tasks);
-    expect(patch).toEqual({ id: 'C', isTemplate: false, status: 'pending' }); // status vuelve a pending → no tachado
-  });
-
-  it('borrar una hija pero queda otra viva → NO degrada', () => {
-    const tasks = byId([
-      task({ id: 'C', isTemplate: true, subtasks: ['A', 'B'] }),
-      task({ id: 'A', parentTaskId: 'C', isDeleted: true }),
-      task({ id: 'B', parentTaskId: 'C' }),
-    ]);
-    expect(containerDegradeAfterDelete(tasks['A'], tasks)).toBeNull();
   });
 });
