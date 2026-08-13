@@ -2148,6 +2148,11 @@ bloqueando (b3).** Investigación/estado de recurrencia → §16.15 y §16.16.
   **Nunca** engancharla al hook de fin de turno (saltaría en cada respuesta). Requiere **Remote Control emparejado** para
   llegar al móvil; si no, la notificación llega solo al escritorio. Mensaje corto: qué fase, si acabó o se paró, y si
   algo espera respuesta de la usuaria.
+- **TEST DEL CAMINO REAL, no solo del helper:** un arreglo que **cambia lo que se ve en pantalla** NO se da por cerrado
+  con tests del helper puro; hace falta un test que ejerza el **camino real** (o el reducer compartido que ese camino
+  usa). **Ejemplo:** el bug del vaciado — `shouldDegradeToNormal` estaba verde, pero **nadie lo llamaba** en el borrado
+  real (instancia recurrente por otra ruta; y aun en la ruta buena faltaba `status:'pending'`) → en pantalla el
+  contenedor salía tachado. Se cerró con `containerDegradeAfterDelete` (reducer compartido) + sus tests (`7e52d88`).
 
 ### 16.15 Recurrencia: ciclo de vida y estado de los datos (investigación sesión 17, NO arreglado)
 
@@ -2210,9 +2215,10 @@ hijas de contenedor. Si tiene hijas por `parent_task_id`, NO es rotura: es un co
 - **Recuento definitivo del cambio de aspecto (§0):** **25** contenedores (no ~21): 1 a pendiente ("Poner fechas varias
   laboral", confirmado), 24 a tachado (proyectos terminados). Lista completa por bloque entregada en el chat.
 
-**DECISIÓN ABIERTA (la decide la usuaria):** "recurrencia ⇒ `task_type` **core**" es un **default IMPLÍCITO**, nadie lo
-decidió: el selector muestra core cuando hay recurrencia y no hay tipo explícito (`TaskModal.tsx:302`) y al persistir cae
-en `task_type || 'core'`. Pendiente: ¿se queda así (repetitiva = core) o debe elegirse el tipo aparte?
+**✅ DECISIÓN TOMADA (sesión 17): "recurrencia ⇒ `task_type` core por defecto, pero EDITABLE".** El default implícito se
+queda (repetitiva = core, `TaskModal.tsx:302` + `task_type || 'core'`), y el tipo **es editable** en fila y modal
+(`TaskTypeChip` no tiene lógica de disabled/readonly) y **persiste** (`onUpdateTask({taskType})`; verificado: 4
+contenedores con tipo≠core lo confirman). Ya NO es decisión abierta.
 
 **VISTA DE CARGA (`WorkloadView`):** mira hacia atrás Y hacia delante. **Tres tramos:** pasado = `time_entries` reales;
 presente = instancias materializadas (12 meses); futuro +12 meses = cálculo desde las plantillas. Filas = tareas,
@@ -2232,9 +2238,28 @@ hijas**) · etiqueta · prioridad (no se usa en la app) · play ni registro manu
 **hijas del día**, no al contenedor (hoy contradictorio: el visto va por día pero el clic cierra cualquier fecha; se
 cierra en (c), §16.12).
 
-**CICLO DE VIDA — ✅ IMPLEMENTADO (`71f499f`, sesión 17): un contenedor que se queda SIN HIJAS deja de ser contenedor y
-vuelve a tarea normal (huérfana).** Al borrar la última hija, `handleDeleteTask` le quita `isTemplate`
-(`shouldDegradeToNormal`). Era lo que dejaba "contenedores vaciados" como plantillas rotas.
+**CICLO DE VIDA — ✅ IMPLEMENTADO (`71f499f`+`7e52d88`, sesión 17): un contenedor que se queda SIN HIJAS deja de ser
+contenedor y vuelve a tarea normal (huérfana).** Al borrar la última hija se le quita `isTemplate` Y se pone
+`status:'pending'`. Era lo que dejaba "contenedores vaciados" como plantillas rotas (y tachadas).
+
+**CAMINOS DE BORRADO Y CUÁLES DEGRADAN (investigado + arreglado, sesión 17):**
+
+| Camino | Función | ¿Degrada? |
+|---|---|---|
+| Tarea/subtarea normal o **regla-hija** (fila `···` / modal) | `handleDeleteTaskRequest → handleDeleteTask` | **SÍ** (`7e52d88`) |
+| **Lote** | `bulkDeleteTasks` | **SÍ** (`5c019d1`+`7e52d88`) |
+| **Instancia recurrente** (fila → "¿este día?") | handler de App ([App.tsx:958](App.tsx)) | **N/A** — borrar UNA ocurrencia NO vacía el contenedor (la regla-hija permanece), así que no puede degradar ahí |
+| Serie recurrente ("toda la serie") | handler de App ([:984](App.tsx)) | **N/A** — desactiva la regla (no la borra); el contenedor no queda vacío |
+
+Antes solo `handleDeleteTask`+lote degradaban, y **solo por `parent_task_id`**; `containerOfChild` ahora localiza el
+contenedor también cuando la hija tiene `parent_task_id=null` (recurrentes, por plantilla).
+
+**🔑 HALLAZGO — el "fallback a HOJA" (por qué salía tachado):** cuando un contenedor se queda sin hijas,
+`hasSubtasks = realSubtasks.length>0` pasa a **false** ([TaskCard.tsx:128-129](TaskCard.tsx)) → la fila se pinta **como
+una HOJA**, y una hoja usa `rowCompleted = task.status === 'completed'`. Con el `status` viejo `'completed'` → **tachado**,
+en AMBAS vistas (la derivación por/sin día NI se llama). Por eso degradar no bastaba: hay que **poner `status:'pending'`**
+al vaciar (`7e52d88`). *(Aparte: `isTaskCompleted` con 0 hijas NO da vacuidad-verdadera — guard `length>0` → cae a
+`status`; mismo efecto.)*
 
 **CIERRES DE MODELO (sesión 17):** invariante regla XOR contenedor cableado como **aviso** en `handleUpdateTask`
 (`validateTemplate` + `toast.warn`, `4de1ca1`); fix del **modal** (`4bfa51d`); **tests de campo muerto** que ponen rojo
@@ -2269,6 +2294,5 @@ si se lee el estimado/registrado/etiquetas propios del contenedor (`da8481e`). T
   solo puede entrar por la **suma de sus hijas**. **Comprobar que no se proyecta dos veces (contenedor + hijas) ni
   desaparece.** No tocar ahora.
 
-**DECISIÓN ABIERTA (crece, pendiente de la usuaria):** el default implícito "recurrencia ⇒ `task_type` **core**"
-(§16.15) **también aplica al CONTENEDOR** si tiene tipo (hay 4 contenedores con tipo≠core hoy). ¿El tipo del contenedor
-se decide aparte o hereda el default? Pendiente.
+**✅ DECISIÓN TOMADA (sesión 17):** el default "recurrencia ⇒ core" **también aplica al CONTENEDOR**, pero su tipo es
+**EDITABLE y persiste** igual que cualquier tarea (4 contenedores con tipo≠core lo confirman). Ya NO es decisión abierta.
