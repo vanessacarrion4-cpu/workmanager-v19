@@ -113,6 +113,22 @@ export function reconcileDay(day: string, allTasks: Record<string, Task>): Recor
  *  - solo pauta propia / solo hijas → válido (regla pura / contenedor, aloje o no reglas recurrentes).
  */
 /**
+ * §16.16 (b3) — Completado de una tarea EN UN DÍA: un CONTENEDOR (tiene hijas reales) se deriva por las
+ * hijas de ESE día (`isContainerCompleteOnDay`); una HOJA por su propio `status`. Es el ÚNICO criterio de
+ * completado para filtros y contadores en vistas CON día (Mi Día). Antes Mi Día usaba `isTaskCompleted`
+ * (TODAS las hijas de cualquier día) → un contenedor con las hijas de hoy hechas pero con hijas pendientes
+ * de otro día NO se ocultaba al "ocultar completadas". Ignora ids `inst-…` (instancias generadas).
+ */
+export function isCompletedForDay(taskId: string, allTasks: Record<string, Task>, day: string): boolean {
+  const t = allTasks[taskId];
+  if (!t) return false;
+  const realChildren = (t.subtasks || []).filter((id) => !id.startsWith('inst-') && allTasks[id] && !allTasks[id]!.isDeleted);
+  return realChildren.length > 0
+    ? isContainerCompleteOnDay(taskId, allTasks, day)
+    : t.status === 'completed';
+}
+
+/**
  * §16.16 — Al togglear el completado, SOLO las HOJAS escriben su propio `status`. Un CONTENEDOR (tarea con
  * hijas) NUNCA escribe el suyo: su completado se DERIVA de las hijas (mismo principio que `isContainerCompleteOnDay`
  * / `isTaskCompleted`). Sin esto, al vaciar el contenedor se pinta como hoja y arrastra un `status:'completed'`

@@ -14,6 +14,7 @@ import {
   reconcileDay,
   validateTemplate,
   writesOwnStatusOnToggle,
+  isCompletedForDay,
 } from './fase3Contracts';
 import { groupTasksByTag } from './filters';
 import { isTaskCompleted } from './utils';
@@ -254,5 +255,41 @@ describe('FASE 3 · el contenedor no escribe su status propio (§16.16, caso a)'
     // (el dato legado se normaliza aparte, bloque 2).
     const vaciadoLimpio = byId([task({ id: 'C', subtasks: [], status: 'pending' })]);
     expect(isTaskCompleted('C', vaciadoLimpio)).toBe(false);
+  });
+});
+
+// =========================================================================
+// (b3) Completado POR DÍA para filtros/contadores (§16.16). FORMA REAL: contenedores isTemplate:FALSE.
+// El caso que cambia en pantalla: "ocultar completadas" en Mi Día ahora mira el día, no todas las hijas.
+// =========================================================================
+describe('FASE 3 · (b3) completado por día para "ocultar completadas" (§16.16)', () => {
+  it('hijas de HOY hechas + una hija de OTRO día pendiente → completo HOY (antes NO se ocultaba)', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A', 'B'] }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED, status: 'completed' }),
+      task({ id: 'B', parentTaskId: 'C', dueDate: THU, status: 'pending' }), // otro día
+    ]);
+    expect(isCompletedForDay('C', tasks, WED)).toBe(true);  // por día → se oculta
+    expect(isTaskCompleted('C', tasks)).toBe(false);        // criterio viejo (todas) → NO se ocultaba
+  });
+
+  it('una hija de HOY pendiente → NO completo HOY (se muestra)', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A'] }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED, status: 'pending' }),
+    ]);
+    expect(isCompletedForDay('C', tasks, WED)).toBe(false);
+  });
+
+  it('sin ninguna hija HOY → NO completo (no cuenta como completo por vacío)', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A'] }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: THU, status: 'completed' }),
+    ]);
+    expect(isCompletedForDay('C', tasks, WED)).toBe(false);
+  });
+
+  it('hoja → por su propio status', () => {
+    expect(isCompletedForDay('L', byId([task({ id: 'L', dueDate: WED, status: 'completed' })]), WED)).toBe(true);
   });
 });

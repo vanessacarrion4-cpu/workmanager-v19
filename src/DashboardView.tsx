@@ -14,8 +14,9 @@ import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion
 import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { isTaskCompleted, getTaskEstimatedCombo, formatMinutes } from './utils';
+import { getTaskEstimatedCombo, formatMinutes } from './utils';
 import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
+import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completado POR DÍA para el filtro "ocultar completadas"
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
 
@@ -144,7 +145,9 @@ export function DashboardView({
   }, [tasks, activeDate, blocks, allTasksMap]);
 
   const filteredDayTasks = useMemo(() => {
-    let result = dayTasks.filter((t: Task) => !hideCompleted || !isTaskCompleted(t.id, allTasksMap));
+    // §16.16 (b3): "ocultar completadas" usa el completado POR DÍA. Un contenedor con las hijas de HOY
+    // hechas se oculta aunque tenga hijas pendientes de otro día (antes usaba isTaskCompleted = todas).
+    let result = dayTasks.filter((t: Task) => !hideCompleted || !isCompletedForDay(t.id, allTasksMap, activeDate));
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter((t: Task) => {
