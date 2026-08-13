@@ -1,9 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// FASE 3 — tests en ROJO (tests primero). Fijan el comportamiento correcto que el
-// TRATAMIENTO debe cumplir. HOY FALLAN a propósito (fase3Contracts.ts son stubs con
-// el comportamiento actual incorrecto). Cuando el tratamiento implemente las funciones,
-// pasarán a verde. Si alguien regresa (p.ej. vuelve a leer el status guardado del
-// contenedor), volverán a rojo.
+// FASE 3 — contratos del modelo (§16.16). La mayoría YA están implementados y cableados;
+// `reconcileDay` sigue en STUB (rojo a propósito) hasta (c). Estos tests fijan el
+// comportamiento correcto y se ponen ROJOS si alguien regresa (p.ej. si el código vuelve a
+// leer el status/estimado/etiquetas propios de un contenedor).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
 import { Task } from './types';
@@ -13,6 +12,7 @@ import {
   isContainerCompleteOnDay,
   childrenToToggleOnDay,
   reconcileDay,
+  shouldDegradeToNormal,
 } from './fase3Contracts';
 
 // 2026-07-13 Lun · 07-15 Mié · 07-16 Jue
@@ -137,5 +137,41 @@ describe('FASE 3 · reconciliación del día sin fuga', () => {
     const map = reconcileDay(WED, tasks);
     expect(map['X']).toBeDefined();
     expect(map['Y']).toBeUndefined();
+  });
+});
+
+// =========================================================================
+// (b2) Degradación: contenedor vaciado vuelve a tarea normal (§16.16)
+// =========================================================================
+describe('FASE 3 · degradación de contenedor vaciado (§16.16)', () => {
+  it('contenedor (isTemplate, sin pauta) sin hijas → degradar', () => {
+    const tasks = byId([task({ id: 'C', isTemplate: true, subtasks: [] })]);
+    expect(shouldDegradeToNormal('C', tasks)).toBe(true);
+  });
+
+  it('con hija borrada como única hija → degradar (las borradas no cuentan)', () => {
+    const tasks = byId([
+      task({ id: 'C', isTemplate: true, subtasks: ['A'] }),
+      task({ id: 'A', parentTaskId: 'C', isDeleted: true }),
+    ]);
+    expect(shouldDegradeToNormal('C', tasks)).toBe(true);
+  });
+
+  it('con al menos una hija viva → NO degradar', () => {
+    const tasks = byId([
+      task({ id: 'C', isTemplate: true, subtasks: ['A'] }),
+      task({ id: 'A', parentTaskId: 'C' }),
+    ]);
+    expect(shouldDegradeToNormal('C', tasks)).toBe(false);
+  });
+
+  it('regla recurrente (con pauta) → NO degradar aunque no tenga hijas', () => {
+    const tasks = byId([task({ id: 'C', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } })]);
+    expect(shouldDegradeToNormal('C', tasks)).toBe(false);
+  });
+
+  it('tarea normal (no template) → NO degradar', () => {
+    const tasks = byId([task({ id: 'C' })]);
+    expect(shouldDegradeToNormal('C', tasks)).toBe(false);
   });
 });

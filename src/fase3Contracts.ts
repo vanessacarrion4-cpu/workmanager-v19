@@ -1,13 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// FASE 3 — CONTRATOS (tests primero).
-//
-// Estas funciones fijan el comportamiento CORRECTO que la FASE 3 debe cumplir. Están
-// implementadas a propósito como STUBS que reproducen el comportamiento ACTUAL (incorrecto),
-// para que sus tests (fase3Contracts.test.ts) salgan en ROJO ahora.
-//
-// El TRATAMIENTO (que revisa la usuaria ANTES de tocar el modelo) reemplazará estos cuerpos
-// por la implementación real y las integrará en la app (utils/App/useTaskCRUD). NADA de la app
-// las usa todavía: añadir este fichero NO cambia el comportamiento de producción.
+// FASE 3 — CONTRATOS DEL MODELO (§16.16). Funciones puras que fijan el comportamiento
+// correcto (contenedor vs regla, totales/completado por día, degradación, invariante).
+// La mayoría YA están implementadas y cableadas en la app (TaskCard/useTaskCRUD).
+// EXCEPCIÓN: `reconcileDay` sigue en STUB a propósito (su test está ROJO) hasta (c).
 // ─────────────────────────────────────────────────────────────────────────────
 import { Task } from './types';
 import { getTaskRegisteredSelf } from './utils';
@@ -102,4 +97,17 @@ export function reconcileDay(day: string, allTasks: Record<string, Task>): Recor
   for (const inst of materializeDay(day, allTasks)) map[inst.id] = inst;
   for (const t of Object.values(allTasks)) if (!t.isDeleted) map[t.id] = t; // STUB: fuga de otros días
   return map;
+}
+
+/**
+ * §16.16 — Un contenedor que se queda SIN HIJAS deja de ser contenedor y vuelve a tarea normal.
+ * true si `containerId` es un contenedor vaciable (isTemplate, SIN pauta) que ya no tiene ninguna hija
+ * no borrada por `parentTaskId` → hay que quitarle `isTemplate`. Una REGLA recurrente (con pauta) nunca degrada.
+ */
+export function shouldDegradeToNormal(containerId: string, allTasks: Record<string, Task>): boolean {
+  const c = allTasks[containerId];
+  if (!c || !c.isTemplate) return false;
+  if (c.recurrence && (c.recurrence as any).frequency) return false; // regla recurrente, no contenedor
+  const hasChild = Object.values(allTasks).some((t) => t && !t.isDeleted && t.parentTaskId === containerId);
+  return !hasChild;
 }

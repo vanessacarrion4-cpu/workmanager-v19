@@ -14,6 +14,7 @@ import { formatLocalISO } from './dateUtils';
 import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById, resolveActionTarget } from './instanceEngine';
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
 import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mudo en vez de morir en consola
+import { shouldDegradeToNormal } from './fase3Contracts'; // §16.16: degradar contenedor vaciado a tarea normal
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -772,10 +773,22 @@ export function useTaskCRUD({
     idsToDelete.forEach(t => {
       if (t.id !== taskId) delete updatedTasks[t.id];
     });
+
+    // §16.16: si al borrar la última hija el contenedor se queda vacío, deja de ser contenedor
+    // y vuelve a tarea normal (se le quita isTemplate). Fuente de los "contenedores vaciados sin degradar".
+    const degradedIds: string[] = [];
+    if (task.parentTaskId && shouldDegradeToNormal(task.parentTaskId, updatedTasks)) {
+      updatedTasks[task.parentTaskId] = { ...updatedTasks[task.parentTaskId], isTemplate: false, modifiedAt: new Date().toISOString() };
+      degradedIds.push(task.parentTaskId);
+    }
+
     setTasks(updatedTasks);
 
     (async () => {
       const timestamp = new Date().toISOString();
+      for (const pid of degradedIds) {
+        persist(supabase.from('tasks').update({ is_template: false, modified_at: timestamp }).eq('id', pid), { verbo: 'guardar', titulo: updatedTasks[pid]?.title });
+      }
       for (const t of idsToDelete) {
         try {
           if (t.templateId) {
