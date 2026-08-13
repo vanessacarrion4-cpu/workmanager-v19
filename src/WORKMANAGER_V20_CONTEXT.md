@@ -2074,9 +2074,12 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
   Movidos/descartados: **3** Semana (mover → arrastre post-FASE 3; promover/degradar → descartado, se hace en Mi Día) ·
   **4** Calendario icono completar → FASE DE DISEÑO (rediseño del Calendario). Detalle por punto en §16.3.
 
-### 16.12 PUNTO DE RETOMADA (fin de la sesión 16) — FASE 3 en curso
+### 16.12 PUNTO DE RETOMADA (sesión 17) — FASE 3 en curso
 
 **Dónde estamos: FASE 3, principio (a) cerrado, principio (b) hecho hasta el VISUAL. Todo en producción, nada a medias.**
+**⚠️ La sesión 17 NO tocó la app** — solo documentación (§16.13/16.14/16.15 + memoria). El estado de CÓDIGO es el de la
+sesión 16 (último commit de app: `55a69df`). **Sigue pendiente la validación de la usuaria (Bloques/Mi Día, ~21
+contenedores) y esa validación SIGUE bloqueando (b3).** Investigación de recurrencia de la sesión 17 → §16.15.
 
 **✅ CERRADO y en producción:**
 - **(a) entera** — el tiempo nunca se registra sobre un contenedor + totales por día:
@@ -2093,8 +2096,8 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
 - **Bloques**: "Poner fechas varias laboral" debe salir SIN tachar (hija pendiente). ~21 de 102 contenedores cambian de aspecto (1 a pendiente, 20 proyectos viejos a tachado) — un puñado, no media vista. Si ve muchos más o cambios raros → pedir recuento antes de seguir.
 - **Mi Día**: los mismos 21, ninguno más.
 
-**❌ FALTA (mañana, con la cabeza fresca):**
-- **(b3)** — filtros/contadores por día. `isTaskCompleted` YA deriva de las hijas (todas); (b3) es hacerlo POR DÍA. **Es el paso donde algo puede desaparecer de la vista → validar con calma.**
+**❌ FALTA (lo siguiente, tras la validación pendiente):**
+- **(b3)** — filtros/contadores por día. `isTaskCompleted` YA deriva de las hijas (todas); (b3) es hacerlo POR DÍA. **Es el paso donde algo puede desaparecer de la vista → validar con calma.** BLOQUEADO hasta que la usuaria valide Bloques/Mi Día.
 - **(c) COMPLETA** — reconciliación del día sin fuga (`reconcileDay`, el único test aún ROJO). Es el paso más peligroso; entrar con (a)/(b) verificados.
 
 **🔴 EN (c) SE CIERRA, SÍ O SÍ:**
@@ -2132,3 +2135,60 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
 - **Pararse de verdad SOLO si:** (1) habría que borrar/modificar datos de la usuaria de forma irreversible; (2) el cambio afecta a bastantes más elementos de los previstos; (3) la premisa del punto resulta falsa; (4) no se logra dejar los tests en verde; (5) el arreglo obliga a salir del alcance de la fase; (6) se rompe algo que funcionaba.
 - **Al acabar cada FASE, informe con:** qué se hizo y con qué commit · qué decidió el asistente solo · qué aparcó · qué cambia de aspecto o de número y cuánto · la lista concreta de lo que la usuaria tiene que mirar.
 - **Sigue vigente:** solo commitea el asistente, un commit por bloque, build+tests sí / navegador solo si lo pide, master=producción a la par y decir siempre commiteado-vs-producción, DIAG-TEMP no se quita.
+- **AVISO AL MÓVIL al cerrar/parar fase:** usar `PushNotification` (herramienta INTEGRADA de Claude Code, sin cuenta ni
+  instalación), disparada **a mano como último paso** al cerrar una fase o al pararse por uno de los 6 motivos.
+  **Nunca** engancharla al hook de fin de turno (saltaría en cada respuesta). Requiere **Remote Control emparejado** para
+  llegar al móvil; si no, la notificación llega solo al escritorio. Mensaje corto: qué fase, si acabó o se paró, y si
+  algo espera respuesta de la usuaria.
+
+### 16.15 Recurrencia: ciclo de vida y estado de los datos (investigación sesión 17, NO arreglado)
+
+**CICLO DE VIDA DE UNA RECURRENTE (en cristiano):**
+- Al poner recurrencia, la tarea se convierte en **PLANTILLA = la regla** (`isTemplate:true`, `dueDate:null`). Guarda
+  título, bloque, estimado, etiquetas y la **pauta** (`recurrence`). No es una tarea de un día.
+- Las **ocurrencias** de cada día son **VIRTUALES**: no existen como fila; las genera al vuelo `materializeDay`/`occursOn`.
+- Una ocurrencia pasa a **FILA REAL** (excepción, `inst-<plantilla>-<fecha>`) **solo cuando actúas sobre ella**:
+  completar, mover, registrar tiempo o editar → `upsert`.
+- **Mover** → excepción con `due_date`=día nuevo y `parent_task_id=null` (huérfana; se re-anida al leer por plantilla).
+  **Completar** → excepción `status=completed` que "gana" sobre la regeneración.
+- Relación: cada fila real se une a su regla por `template_id`; la **regla** tiene la `recurrence`, las **instancias**
+  tienen `recurrence=null` + `template_id`.
+
+**LOS TRES CAMINOS DE CREACIÓN:**
+
+| Camino | Bloque donde acaba | Qué se ve en Bloques | Tipo |
+|---|---|---|---|
+| **Mi Día** (`doAddTask`) | `blocks[0]` (primer bloque, §16.5) | la plantilla | core por defecto |
+| **Bloques** (`handleAddRule`) | el bloque donde pulsas | la plantilla, pero **NACE SIN PAUTA** (`recurrence=null`) hasta editarla | core por defecto |
+| **Modal** (`TaskModal`) | el bloque de la tarea | la plantilla | core por defecto |
+
+**NÚMEROS REALES (medición sesión 17, 2026-08-13):** 133 plantillas (`is_template`, no borradas):
+- **101** con pauta válida (`recurrence.frequency`).
+- **32** "RECURRENTE sin pauta" (`recurrence=null`). De esas: **21 son contenedores manuales legítimos** (tienen hijas —
+  `is_template` se usa TAMBIÉN como flag de "proyecto/contenedor", no solo recurrente) y **11 están de verdad ROTAS**
+  (sin pauta y sin ninguna ocurrencia → salen como "RECURRENTE" y no generan nada).
+- **Duplicados:** 5 grupos mismo título+bloque (10 filas: "Margenes", "Ingresos ", "Bancos ", "Gestión campaña",
+  "Cierre Propias " — ojo espacios finales en varios) + 2 grupos mismo título+padre (4 filas). Poco volumen.
+- **Origen (por `created_at`):** repartido abr–jul 2026, pico en mayo (19). Varias de las 11 rotas tienen `id` con forma
+  `inst-…-fecha` pero `is_template:true` = una instancia "ascendida" a plantilla sin pauta (huella del bug del picker).
+
+**FIRMA EN DATOS DEL ESTADO ROTO:** `is_template:true` + `recurrence:null` + **sin hijas** (`subtasks` vacío / sin filas
+con ese `template_id`). Si tiene hijas, NO es rotura: es un contenedor manual (proyecto).
+
+**AGUJEROS ABIERTOS (por qué limpiar ahora es tirar el trabajo):**
+- **(a)** `TaskModal.tsx:562-564` — al activar recurrencia pre-pone `isTemplate:true`, que **se salta la conversión** de
+  `handleUpdateTask` (la que crea la 1ª instancia). Es el **mismo patrón** que ya se cerró en la FILA con `c0bb09d`;
+  **aquí sigue vivo**.
+- **(b)** `handleAddRule` (Bloques) crea plantillas **sin pauta** hasta que se editan; si se dejan a medias, quedan
+  "RECURRENTE sin generar".
+- **(c)** **No hay guard** que impida guardar una plantilla sin pauta ni instancias.
+- **CONCLUSIÓN EXPLÍCITA:** limpiar los datos ANTES de cerrar (a) y (c) **es tirar el trabajo** — se vuelve a llenar por
+  el modal y por Bloques. Primero cerrar los agujeros (aplicar el fix de la fila al modal + guard), luego limpiar.
+
+**DECISIÓN ABIERTA (la decide la usuaria):** "recurrencia ⇒ `task_type` **core**" es un **default IMPLÍCITO**, nadie lo
+decidió: el selector muestra core cuando hay recurrencia y no hay tipo explícito (`TaskModal.tsx:302`) y al persistir cae
+en `task_type || 'core'`. Pendiente: ¿se queda así (repetitiva = core) o debe elegirse el tipo aparte?
+
+**VISTA DE CARGA (`WorkloadView`):** mira hacia atrás Y hacia delante. **Tres tramos:** pasado = `time_entries` reales;
+presente = instancias materializadas (12 meses); futuro +12 meses = cálculo desde las plantillas. Filas = tareas,
+columnas = meses (expandibles a semana/día). Capacidad **8h/día, 40h/semana** (solo laborables); color por % de carga.
