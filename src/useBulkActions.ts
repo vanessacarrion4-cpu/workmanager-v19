@@ -10,6 +10,7 @@ import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { resolveTaskId, materializeDay } from './instanceEngine';
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan (agrupadas por lote)
+import { shouldDegradeToNormal } from './fase3Contracts'; // §16.16: contenedor vaciado en lote → tarea normal
 
 interface UseBulkActionsOptions {
   tasks: Record<string, Task>;
@@ -203,12 +204,24 @@ export function useBulkActions({
       if (obj?.subtasks?.length) obj.subtasks.forEach((subId: string) => addTarget(subId));
     });
 
+    // §16.16: al vaciar contenedores de golpe, los que se queden sin hijas vivas dejan de ser contenedor
+    // (se les quita isTemplate). Se proyecta el estado tras el borrado FUERA del updater (anti-StrictMode)
+    // para decidir qué degradar y persistirlo. Fuente probable de las "8 rotas" (vaciar de golpe sin degradar).
+    const afterDelete: Record<string, Task> = { ...tasks };
+    realIds.forEach(id => { if (afterDelete[id]) afterDelete[id] = { ...afterDelete[id], isDeleted: true }; });
+    Object.values(virginObjs).forEach(o => { afterDelete[o.id] = { ...(afterDelete[o.id] || o), isDeleted: true } as Task; });
+    const affectedParents = new Set<string>();
+    realIds.forEach(id => { const p = tasks[id]?.parentTaskId; if (p) affectedParents.add(p); });
+    Object.values(virginObjs).forEach(o => { if (o.parentTaskId) affectedParents.add(o.parentTaskId); });
+    const degradedIds = [...affectedParents].filter(pid => shouldDegradeToNormal(pid, afterDelete));
+
     setTasks(prev => {
       const next = { ...prev };
       realIds.forEach(id => { if (next[id]) next[id] = { ...next[id], isDeleted: true, modifiedAt: timestamp }; });
       Object.values(virginObjs).forEach(o => {
         next[o.id] = { ...o, isDeleted: true, isException: true, existsInSupabase: true, modifiedAt: timestamp } as Task;
       });
+      degradedIds.forEach(pid => { if (next[pid]) next[pid] = { ...next[pid], isTemplate: false, modifiedAt: timestamp }; });
       return next;
     });
 
@@ -245,6 +258,9 @@ export function useBulkActions({
         created_at: o.createdAt || timestamp,
         modified_at: timestamp,
       }, { onConflict: 'id' }), { verbo: 'borrar', titulo: o.title });
+    });
+    degradedIds.forEach(pid => {
+      persist(supabase.from('tasks').update({ is_template: false, modified_at: timestamp }).eq('id', pid), { verbo: 'guardar', titulo: afterDelete[pid]?.title });
     });
 
     setSelectedTaskIds(new Set());
