@@ -2018,7 +2018,7 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
   cabecera. Dos principios: (a) el tiempo nunca se registra sobre un contenedor (su tiempo = suma de hijas); (b) un
   contenedor no tiene estado de completado propio, está completo por derivación cuando sus hijas **del día** lo están, y
   clicar su casilla completa esas hijas — **solo las del día** (con el bug de otros días vivo, cerraría cosas de meses
-  atrás). Tests del "estado gana" verdes antes de tocar.
+  atrás). Tests del "estado gana" verdes antes de tocar. **(a) y (b) son APLICACIONES del MODELO → §16.16.**
   - **DATOS DE MIGRACIÓN (sesión 16, decidido por la usuaria):**
     - **Tiempo registrado sobre contenedores: NO se borra.** Son **4 entradas · 116 min (1h 56m)**, de meses atrás
       (la mayor 90m en "Lluis Corbera Bankinter"). Es **trabajo real**: cuando el principio (a) entre, **dejarán de
@@ -2114,7 +2114,7 @@ contenedores) y esa validación SIGUE bloqueando (b3).** Investigación de recur
 
 ### 16.13 Reglas y pendientes decididos (sesión 17) — aún no implementados salvo lo indicado
 
-**REGLA DEFINITIVA DEL CONTENEDOR — vista CON día vs vista SIN día:**
+**REGLA DEFINITIVA DEL CONTENEDOR — vista CON día vs vista SIN día** *(aplicación del MODELO, §16.16):*
 - **Con día (Mi Día, Semana, Calendario):** un contenedor **aparece solo si tiene ≥1 hija de ESE día**, y está **completo cuando todas sus hijas de ese día lo están**. **Manda el día siempre**, incluidos los contenedores que mezclan hijas recurrentes y sueltas. (Es lo que ya calcula `isContainerCompleteOnDay` + `belongsToDay`; falta terminar de cablearlo en b3/c y en Semana/Calendario si algún día muestran visto de contenedor.)
 - **Sin día (Bloques):** no hay día → está **completo cuando no le queda ninguna hija pendiente**, sin mirar fechas (`isTaskCompleted` sobre todas las hijas). Nunca se lee el `status` guardado del contenedor.
 
@@ -2192,3 +2192,51 @@ en `task_type || 'core'`. Pendiente: ¿se queda así (repetitiva = core) o debe 
 **VISTA DE CARGA (`WorkloadView`):** mira hacia atrás Y hacia delante. **Tres tramos:** pasado = `time_entries` reales;
 presente = instancias materializadas (12 meses); futuro +12 meses = cálculo desde las plantillas. Filas = tareas,
 columnas = meses (expandibles a semana/día). Capacidad **8h/día, 40h/semana** (solo laborables); color por % de carga.
+
+### 16.16 MODELO: qué es un contenedor y qué es una regla (sesión 17) — REGLA DEL MODELO, manda sobre las fases
+
+`isTemplate:true` significa DOS cosas **EXCLUYENTES**: **regla recurrente** O **contenedor**. Nunca las dos.
+Los principios **(a) y (b) del §16.10** y las reglas del **§16.13** son **APLICACIONES de este modelo**.
+
+**Un CONTENEDOR NO tiene:** recurrencia · fecha · tiempo (ni estimado ni registrado propios; su tiempo = **suma de las
+hijas**) · etiqueta · prioridad (no se usa en la app) · play ni registro manual · estado de completado propio (su
+`status` guardado **NO se lee nunca**) · contenedores dentro (**jerarquía de 2 niveles**, `0c6baf6`).
+**Un CONTENEDOR SÍ tiene:** título · bloque · tipo (core / no core) · hijas.
+
+**Completado = DERIVADO:** con día → hijas de ESE día; sin día (Bloques) → todas. Clicar su casilla completa las
+**hijas del día**, no al contenedor (hoy contradictorio: el visto va por día pero el clic cierra cualquier fecha; se
+cierra en (c), §16.12).
+
+**CICLO DE VIDA (NUEVO, no estaba escrito): un contenedor que se queda SIN HIJAS deja de ser contenedor y vuelve a ser
+una tarea normal (huérfana).** Al borrar la última hija hay que **quitarle `isTemplate`**. Falta implementarlo (fase por
+asignar); es lo que deja "contenedores vaciados" como plantillas rotas.
+
+**RECUENTO DEL MODELO (medición sesión 17, 2026-08-13; SOLO LECTURA):**
+- 133 plantillas: 101 con pauta · 32 sin pauta → **23 contenedores legítimos + 9 ROTAS**. *(Corrige el "21/11" del
+  §16.15, que contaba `template_id` (ocurrencias de una regla) como hijas; lo correcto es `parent_task_id`.)*
+- **Regla XOR se CUMPLE en datos: 0 plantillas con pauta Y hijas-de-contenedor a la vez.**
+- **9 ROTAS** (`is_template:true` + `recurrence:null` + sin hijas): **1** con id `inst-…-fecha` (ascendida por el bug del
+  picker) · **8** SIN esa forma. **Confirma la sospecha: solo 1 de 9 viene del bug; las otras 8 no.** Títulos de las 8:
+  "Possible reunió Candidata", "Ver calificación de cuentas", "Publicar propias y preparar mensuales fisicas",
+  "Veure situació Lucia per trucada", "Veure feed Back clara Sibils Lucia", "verificar la presentación de las CCAA",
+  "Ënviar documentos firmados a auditores", "Recoger la documentación encuadernada de los auditores". Pueden ser
+  contenedores vaciados sin degradar O reglas creadas sin pauta; los datos por sí solos no lo distinguen. **No tocar.**
+- **23 contenedores legítimos — incumplimientos del modelo:** recurrencia **0** · fecha **0** · etiquetas **0** ·
+  prioridad **0** (limpio) · estimado propio **2** · registrado propio **1** · tipo≠core **4**. Poco; NO bloquea (motivo
+  3 no aplica). *(El tiempo sobre contenedores —4 entradas/116m— NO se borra, ya decidido.)*
+
+**Campos que el contenedor GUARDA pero IGNORA (comprobado en código):**
+- **Estimado propio:** WRITTEN pero IGNORADO — el chip es `readonly` para contenedores y su `onChange` solo escribe si
+  `!hasSubtasks` ([TaskCard.tsx:569-576](TaskCard.tsx)); lo mostrado = suma de hijas. Los 2 con estimado propio = resto
+  histórico invisible.
+- **Etiquetas propias:** WRITTEN pero IGNORADAS — el chip de etiqueta no se pinta para contenedores
+  ([TaskCard.tsx:699-701](TaskCard.tsx)); la agrupación por tag usa las etiquetas de las HIJAS.
+
+**ABIERTO — fase por asignar:**
+- **Vista de Carga proyecta 12 meses desde plantillas.** Si el contenedor no tiene fecha ni estimado propio, en Carga
+  solo puede entrar por la **suma de sus hijas**. **Comprobar que no se proyecta dos veces (contenedor + hijas) ni
+  desaparece.** No tocar ahora.
+
+**DECISIÓN ABIERTA (crece, pendiente de la usuaria):** el default implícito "recurrencia ⇒ `task_type` **core**"
+(§16.15) **también aplica al CONTENEDOR** si tiene tipo (hay 4 contenedores con tipo≠core hoy). ¿El tipo del contenedor
+se decide aparte o hereda el default? Pendiente.
