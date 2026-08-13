@@ -142,15 +142,18 @@ describe('FASE 3 · reconciliación del día sin fuga', () => {
 });
 
 // =========================================================================
-// (b3) Invariante del modelo: isTemplate = regla XOR contenedor (§16.16)
+// (b3) Coherencia de la marca isTemplate (§16.16, modelo corregido): la marca es REGLA recurrente o
+// LLAVE del motor para un contenedor que aloja reglas. Un contenedor que aloja reglas es VÁLIDO;
+// `hasOwnPauta` mira la pauta PROPIA de la tarea, no la de sus hijas. Solo son inválidas: pauta propia
+// + hijas (ambiguo) y plantilla inerte (ni pauta propia ni hijas).
 // =========================================================================
-describe('FASE 3 · invariante regla XOR contenedor (§16.16)', () => {
-  it('regla (pauta, sin hijas) → válido', () => {
+describe('FASE 3 · coherencia de la marca isTemplate (§16.16)', () => {
+  it('regla (pauta propia, sin hijas) → válido', () => {
     const tasks = byId([task({ id: 'R', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } })]);
     expect(validateTemplate(tasks['R'], tasks)).toBeNull();
   });
 
-  it('contenedor (hijas, sin pauta) → válido', () => {
+  it('contenedor (hijas, sin pauta propia) → válido', () => {
     const tasks = byId([
       task({ id: 'C', isTemplate: true, subtasks: ['A'] }),
       task({ id: 'A', parentTaskId: 'C' }),
@@ -158,7 +161,7 @@ describe('FASE 3 · invariante regla XOR contenedor (§16.16)', () => {
     expect(validateTemplate(tasks['C'], tasks)).toBeNull();
   });
 
-  it('pauta Y hijas a la vez → INVÁLIDO', () => {
+  it('pauta PROPIA Y hijas a la vez → INVÁLIDO', () => {
     const tasks = byId([
       task({ id: 'X', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' }, subtasks: ['A'] }),
       task({ id: 'A', parentTaskId: 'X' }),

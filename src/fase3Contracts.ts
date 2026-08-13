@@ -100,18 +100,24 @@ export function reconcileDay(day: string, allTasks: Record<string, Task>): Recor
 }
 
 /**
- * §16.16 — Invariante del modelo: isTemplate = regla recurrente XOR contenedor. Devuelve un MOTIVO
- * (string) si el estado es inválido, o null si es válido o no es plantilla. NO bloquea; el llamador avisa.
- *  - pauta + hijas de contenedor  → inválido (una regla no puede ser contenedor)
- *  - ni pauta ni hijas            → inválido (plantilla inerte, no genera nada)
- *  - solo pauta / solo hijas      → válido
+ * §16.16 (modelo corregido) — "Ser contenedor" NO es un estado: se DERIVA de tener hijas. `isTemplate:true`
+ * marca una REGLA recurrente (genera instancias de sí misma) o, como LLAVE DEL MOTOR, un contenedor que
+ * ALOJA reglas recurrentes (son sus hijas las que tienen pauta). Un contenedor que aloja reglas es VÁLIDO
+ * — eso es lo que hacían mal el texto y los tests anteriores (asumían contenedor XOR regla).
+ * Devuelve un MOTIVO (string) si la MARCA es incoherente, o null si es coherente o no es plantilla.
+ * `hasOwnPauta` mira la pauta PROPIA de la tarea, no la de sus hijas. NO bloquea; el llamador avisa.
+ *  - pauta propia + hijas          → inválido: una regla genera instancias de sí misma; con hijas no se
+ *                                     sabe qué son (las instancias serían las tareas reales, no un contenedor).
+ *  - ni pauta propia ni hijas      → inválido: plantilla inerte (la marca no genera ni agrupa nada).
+ *                                     Es el "cabo" de vaciar un contenedor que alojaba reglas.
+ *  - solo pauta propia / solo hijas → válido (regla pura / contenedor, aloje o no reglas recurrentes).
  */
 export function validateTemplate(task: Task, allTasks: Record<string, Task>): string | null {
   if (!task || !task.isTemplate) return null;
-  const hasPauta = !!(task.recurrence && (task.recurrence as any).frequency);
+  const hasOwnPauta = !!(task.recurrence && (task.recurrence as any).frequency);
   const hasChildren = Object.values(allTasks).some((t) => t && !t.isDeleted && t.parentTaskId === task.id);
-  if (hasPauta && hasChildren) return 'una regla recurrente no puede tener hijas de contenedor';
-  if (!hasPauta && !hasChildren) return 'plantilla sin pauta ni hijas: no genera nada';
+  if (hasOwnPauta && hasChildren) return 'una tarea con pauta propia no puede además tener hijas: sus instancias serían las tareas reales, no un contenedor';
+  if (!hasOwnPauta && !hasChildren) return 'plantilla inerte: marcada como plantilla pero sin pauta propia ni hijas (no genera ni agrupa nada)';
   return null;
 }
 
