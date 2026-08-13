@@ -15,6 +15,7 @@ import {
   shouldDegradeToNormal,
   validateTemplate,
 } from './fase3Contracts';
+import { groupTasksByTag } from './filters';
 
 // 2026-07-13 Lun · 07-15 Mié · 07-16 Jue
 const WED = '2026-07-15';
@@ -210,5 +211,41 @@ describe('FASE 3 · invariante regla XOR contenedor (§16.16)', () => {
   it('tarea normal (no template) → null (no aplica)', () => {
     const tasks = byId([task({ id: 'N' })]);
     expect(validateTemplate(tasks['N'], tasks)).toBeNull();
+  });
+});
+
+// =========================================================================
+// (b4) Campos MUERTOS del contenedor (§16.16): se guardan pero se IGNORAN.
+// Rojo si alguien vuelve a leer el estimado/registrado/etiquetas PROPIOS del contenedor.
+// =========================================================================
+describe('FASE 3 · campos muertos del contenedor (§16.16)', () => {
+  it('estimado: se IGNORA el estimado propio del contenedor (se usa la suma de hijas)', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A'], estimatedMinutes: 999 }), // estimado propio engañoso
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED, estimatedMinutes: 15 }),
+    ]);
+    expect(containerEstimatedForDay('C', tasks, WED)).toBe(15); // 15, NO 999 ni 1014
+  });
+
+  it('registrado: se IGNORA el tiempo registrado sobre el propio contenedor', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A'] }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED }),
+    ]);
+    const entries = [
+      { taskId: 'C', subtaskId: null, date: WED, duration: 999 }, // sobre el contenedor
+      { taskId: 'A', subtaskId: null, date: WED, duration: 10 },  // sobre la hija
+    ];
+    expect(containerRegisteredForDay('C', tasks, entries, WED)).toBe(10); // 10, NO 999 ni 1009
+  });
+
+  it('etiquetas: el contenedor se agrupa por las etiquetas de las HIJAS, no por las suyas', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A'], tags: ['espera'] as any }),         // etiqueta propia engañosa
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED, tags: ['focus'] as any }),
+    ]);
+    const groups = groupTasksByTag([tasks['C']], tasks, WED, { hideCompleted: false, hideDelegatedNoTag: false });
+    expect(groups.focus.some((g: any) => g.task.id === 'C')).toBe(true);   // aparece por la hija (focus)
+    expect(groups.espera.some((g: any) => g.task.id === 'C')).toBe(false); // NO por la suya (espera)
   });
 });
