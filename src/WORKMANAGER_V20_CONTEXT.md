@@ -2100,12 +2100,12 @@ bloqueando (b3).** Investigación/estado de recurrencia → §16.15 y §16.16.
   `handleAddRule` opción B — no crea plantillas sin pauta (`ced422a`); tests de campo muerto (`da8481e`). Recuperadas
   2 tareas de auditoría (degradadas + fecha de hoy, cambio de datos acotado).
 
-**⏳ PENDIENTE DE VALIDACIÓN DE LA USUARIA (antes de seguir):**
-- **Bloques / Mi Día**: **25** contenedores cambian de aspecto (1 a pendiente — "Poner fechas varias laboral" — y 24 a
-  tachado, proyectos terminados). Lista completa por bloque en el chat de la sesión 17 y resumida en §16.16.
+**✅ VALIDACIÓN DE LA USUARIA — HECHA:** los **25** contenedores que cambiaban de aspecto son **CORRECTOS** (tareas ya
+completadas). Validado en pantalla. **(b3) DESBLOQUEADO.**
 
-**❌ FALTA (lo siguiente, tras la validación pendiente):**
-- **(b3)** — filtros/contadores por día. `isTaskCompleted` YA deriva de las hijas (todas); (b3) es hacerlo POR DÍA. **Es el paso donde algo puede desaparecer de la vista → validar con calma.** BLOQUEADO hasta que la usuaria valide Bloques/Mi Día.
+**❌ FALTA (lo siguiente):**
+- **(b3) — SIGUIENTE, ya desbloqueado:** filtros/contadores por día. `isTaskCompleted` YA deriva de las hijas (todas);
+  (b3) es hacerlo POR DÍA. **Es el paso donde algo puede desaparecer de la vista → validar con calma.**
 - **(c) COMPLETA** — reconciliación del día sin fuga (`reconcileDay`, el único test aún ROJO). Es el paso más peligroso; entrar con (a)/(b) verificados.
 
 **🔴 EN (c) SE CIERRA, SÍ O SÍ:**
@@ -2261,6 +2261,20 @@ en AMBAS vistas (la derivación por/sin día NI se llama). Por eso degradar no b
 al vaciar (`7e52d88`). *(Aparte: `isTaskCompleted` con 0 hijas NO da vacuidad-verdadera — guard `length>0` → cae a
 `status`; mismo efecto.)*
 
+**BORRADO DE UNA SERIE = CORTARLA EN EL TIEMPO (dictado por la usuaria, sesión 17):** una regla recurrente **NO se
+borra, se corta**. **Hacia delante:** deja de generar ocurrencias (pone fecha fin). **Hacia atrás:** las instancias ya
+generadas **se mantienen ÍNTEGRAS** — con su tiempo, movimientos, etiquetas y excepciones; son **hechos consumados y no
+se tocan NUNCA**. Si la regla se crea y se corta **el mismo día**, no hay pasado que conservar → *parece* que se borra
+entera, pero es **la misma operación**. **Poner fecha fin desde el editor es esa misma operación por otro camino.**
+El botón que hoy dice "borrar la serie" describe mal la acción (la termina, no la borra) → renombrar, FASE 6 (§16.17).
+
+**PREGUNTAS ABIERTAS sobre el corte de serie (NO investigar ahora):**
+1. ¿"borrar la serie" y "poner fecha fin hoy" ejecutan **el mismo código**?
+2. ¿una regla cortada **sigue apareciendo en Bloques** para poder llegar a su histórico?
+3. ¿se puede **quitar la fecha fin y reabrir** una regla cortada?
+4. ¿alguna de las **7 rotas** tiene fecha fin? — si la tiene, NO es un contenedor vaciado sino una **serie cortada el día
+   de su creación** (otra causa distinta).
+
 **CIERRES DE MODELO (sesión 17):** invariante regla XOR contenedor cableado como **aviso** en `handleUpdateTask`
 (`validateTemplate` + `toast.warn`, `4de1ca1`); fix del **modal** (`4bfa51d`); **tests de campo muerto** que ponen rojo
 si se lee el estimado/registrado/etiquetas propios del contenedor (`da8481e`). Tests del modelo: 82 verdes, 1 rojo
@@ -2296,3 +2310,27 @@ si se lee el estimado/registrado/etiquetas propios del contenedor (`da8481e`). T
 
 **✅ DECISIÓN TOMADA (sesión 17):** el default "recurrencia ⇒ core" **también aplica al CONTENEDOR**, pero su tipo es
 **EDITABLE y persiste** igual que cualquier tarea (4 contenedores con tipo≠core lo confirman). Ya NO es decisión abierta.
+
+### 16.17 APARCADO POR FASE (fin sesión 17) — se acabó la excavación
+
+**Modo (dictado por la usuaria):** se terminó la excavación. **No arreglar nada más** de lo que fue saliendo; queda
+aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.**
+
+- **FASE 3 (b3 + c):** nada nuevo — el vaciado ya está cerrado (`7e52d88`). Pendiente: **(b3)** filtros/contadores por
+  día (desbloqueado, §16.12) y **(c)** reconciliación sin fuga (`reconcileDay`, test rojo) con la contradicción del
+  clic, el síntoma del 30-jul, el toggle "solo el día" y la fecha de inicio de recurrencia (§16.12).
+- **FASE 4 (persistencia y limpieza legada) — NO tocar aún:**
+  - **45 filas con `template_id` huérfano** (apunta a algo que no es plantilla), **mayormente basura `inst-inst-…`** del
+    leak viejo. Largamente inofensivas (se pintan una vez, sin regeneración). Limpieza legada.
+  - **7 rotas restantes** (`is_template:true` + `recurrence:null` + sin hijas) — de las 9, ya recuperadas 2 (auditoría).
+  - **Duplicados:** 5 grupos mismo título+bloque (ojo **espacios finales**: "Ingresos ", "Bancos ", "Cierre Propias "…)
+    + 2 grupos mismo título+padre.
+  - **Instancia suelta `inst-t-1785433862534-2026-08-24`** ("Ënviar", cuya plantilla ya se degradó). La fecha 24-ago la
+    usuaria la da por buena; el residuo se limpia en FASE 4.
+- **FASE 5 (creación):** el **chip de pauta en la fila se revela al pasar el ratón** (como los demás chips vacíos del
+  raíl). **Decidir** si en una regla **recién creada** debe estar **siempre visible**. Es **diseño, no bug**.
+- **FASE 6 (diseño):**
+  - El botón **"borrar la serie"** en realidad la **termina** (corta de ese día en adelante, conserva el histórico) →
+    **el nombre no describe la acción**; renombrar. (Comportamiento en §16.16.)
+  - **Aviso de la vista de Carga:** que un contenedor **no se proyecte dos veces** (contenedor + hijas) **ni desaparezca**
+    (§16.16 abierto). Comprobar al rediseñar Carga.
