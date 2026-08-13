@@ -2328,6 +2328,20 @@ incoherentes *pauta propia + hijas* y *plantilla inerte* (ni pauta propia ni hij
   diferencia de los otros 3, **NO está guardado por test** y **sí hay quien lo escribe**; pendiente de decisión.
 - (Los 3 tests de campo muerto se ponen ROJOS si alguien vuelve a leer el estimado/registrado/etiquetas propios; los datos NO se borran.)
 
+**COBERTURA DE TESTS — qué está PROBADO de verdad y qué se dio por probado (bloque 5, sesión 18; antes de (c)):**
+- ✅ **PROBADO en la forma REAL** (`isTemplate:false`, la mayoría — 75 de 98): principio (a) totales por día (2 tests) ·
+  principio (b) completado derivado, incl. la trampa "status:'completed' guardado CON hijas → no se lee" (7 tests) ·
+  (b4) campos muertos estimado/registrado/etiquetas (3 tests). La DERIVACIÓN de (a) y (b) está bien cubierta.
+- ❌ **NO probado, y es justo el caso (a):** la transición **contenedor vaciado → hoja → se lee su `status`**. **Ningún
+  test** afirma "un contenedor vaciado NO sale tachado". Los tests (b4) cubren estimado/registrado/etiquetas pero **no el
+  `status`** ni el caso sin hijas. Es el hueco que provocó lo que la usuaria vio.
+- ❌ **Los 9 tests de degradación (ya quitados)** construían el contenedor como `isTemplate:true` (la forma minoritaria,
+  23 de 98) → verdes probando algo que casi no existe, y mudos en la mayoría manual. Ejemplo de "dado por probado".
+- ❌ **Sin cobertura:** un contenedor con hija RECURRENTE atravesando el vaciado / el borrado de serie por el handler de
+  App (el "cabo" de la tabla de borrado). El camino real de recurrentes nunca se prueba aquí.
+- **Recomendación antes de (c):** o se **normaliza el dato** (bloque 2) o se **arregla el fallback-a-hoja** (una ex-tarea
+  sin hijas no debería leer un `status` viejo de cuando era contenedor) y se añade un test en la forma `isTemplate:false`.
+
 **ABIERTO — fase por asignar:**
 - **Vista de Carga proyecta 12 meses desde plantillas.** Si el contenedor no tiene fecha ni estimado propio, en Carga
   solo puede entrar por la **suma de sus hijas**. **Comprobar que no se proyecta dos veces (contenedor + hijas) ni
