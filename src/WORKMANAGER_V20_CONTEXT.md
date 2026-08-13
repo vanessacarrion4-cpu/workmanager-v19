@@ -2104,8 +2104,13 @@ bloqueando (b3).** Investigación/estado de recurrencia → §16.15 y §16.16.
 completadas). Validado en pantalla. **(b3) DESBLOQUEADO.**
 
 **❌ FALTA (lo siguiente):**
-- **(b3) — SIGUIENTE, ya desbloqueado:** filtros/contadores por día. `isTaskCompleted` YA deriva de las hijas (todas);
-  (b3) es hacerlo POR DÍA. **Es el paso donde algo puede desaparecer de la vista → validar con calma.**
+- **(b3) ✅ HECHO (`ff4643b`, sesión 18):** el filtro "ocultar completadas" de Mi Día usa el completado POR DÍA
+  (`isCompletedForDay`: contenedor → `isContainerCompleteOnDay` del día; hoja → su status). Antes `DashboardView`
+  re-aplicaba `hideCompleted` con `isTaskCompleted` (TODAS las hijas). `filterTasksForDay` y `getStatsForDay` ya eran
+  día-scoped (sin cambio); Semana/Calendario no filtran completado de contenedor. **Cambio de aspecto (validar con
+  calma):** SOLO en Mi Día y SOLO con "ocultar completadas" ACTIVO — un contenedor cuyas hijas de HOY están todas hechas
+  ahora DESAPARECE aunque tenga hijas pendientes de otro día. Con el filtro apagado no cambia nada. **Techo del impacto:
+  56 contenedores** (los que tienen hijas mixtas completa+pendiente); el número real por día es un subconjunto.
 - **(c) COMPLETA** — reconciliación del día sin fuga (`reconcileDay`, el único test aún ROJO). Es el paso más peligroso; entrar con (a)/(b) verificados.
 
 **🔴 EN (c) SE CIERRA, SÍ O SÍ:**
@@ -2355,9 +2360,9 @@ incoherentes *pauta propia + hijas* y *plantilla inerte* (ni pauta propia ni hij
 **Modo (dictado por la usuaria):** se terminó la excavación. **No arreglar nada más** de lo que fue saliendo; queda
 aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.**
 
-- **FASE 3 (b3 + c):** nada nuevo — el vaciado ya está cerrado (`7e52d88`). Pendiente: **(b3)** filtros/contadores por
-  día (desbloqueado, §16.12) y **(c)** reconciliación sin fuga (`reconcileDay`, test rojo) con la contradicción del
-  clic, el síntoma del 30-jul, el toggle "solo el día" y la fecha de inicio de recurrencia (§16.12).
+- **FASE 3 (c):** **(b3) YA HECHO** (`ff4643b`, filtro por día en Mi Día). Pendiente **(c)** reconciliación sin fuga
+  (`reconcileDay`, test rojo) con la contradicción del clic, el síntoma del 30-jul, el toggle "solo el día" y la fecha de
+  inicio de recurrencia (§16.12). *(La degradación de la sesión 17 se ELIMINÓ en la 18, `2dbada5`: no había conversión.)*
 - **FASE 4 (persistencia y limpieza legada) — NO tocar aún:**
   - **45 filas con `template_id` huérfano** (apunta a algo que no es plantilla), **mayormente basura `inst-inst-…`** del
     leak viejo. Largamente inofensivas (se pintan una vez, sin regeneración). Limpieza legada.
