@@ -2175,15 +2175,17 @@ contenedores) y esa validación SIGUE bloqueando (b3).** Investigación de recur
 **FIRMA EN DATOS DEL ESTADO ROTO:** `is_template:true` + `recurrence:null` + **sin hijas** (`subtasks` vacío / sin filas
 con ese `template_id`). Si tiene hijas, NO es rotura: es un contenedor manual (proyecto).
 
-**AGUJEROS ABIERTOS (por qué limpiar ahora es tirar el trabajo):**
-- **(a)** `TaskModal.tsx:562-564` — al activar recurrencia pre-pone `isTemplate:true`, que **se salta la conversión** de
-  `handleUpdateTask` (la que crea la 1ª instancia). Es el **mismo patrón** que ya se cerró en la FILA con `c0bb09d`;
-  **aquí sigue vivo**.
-- **(b)** `handleAddRule` (Bloques) crea plantillas **sin pauta** hasta que se editan; si se dejan a medias, quedan
-  "RECURRENTE sin generar".
-- **(c)** **No hay guard** que impida guardar una plantilla sin pauta ni instancias.
-- **CONCLUSIÓN EXPLÍCITA:** limpiar los datos ANTES de cerrar (a) y (c) **es tirar el trabajo** — se vuelve a llenar por
-  el modal y por Bloques. Primero cerrar los agujeros (aplicar el fix de la fila al modal + guard), luego limpiar.
+**AGUJEROS (estado tras sesión 17):**
+- **(a) ✅ CERRADO (`4bfa51d`):** `TaskModal` ya NO pre-pone `isTemplate:true` al activar recurrencia (mismo fix que la
+  fila `c0bb09d`); ahora fija solo la pauta y `handleUpdateTask` hace la conversión (crea la 1ª instancia).
+- **(b) SIGUE ABIERTO (no tocado, por decisión):** `handleAddRule` (Bloques) crea plantillas **sin pauta** hasta que se
+  editan; si se dejan a medias, quedan "RECURRENTE sin generar". Es el que aún puede rellenar.
+- **(c) ✅ HECHO como AVISO (`4de1ca1`):** `validateTemplate` + `toast.warn` en `handleUpdateTask` avisan si una plantilla
+  queda inválida (pauta+hijas, o ni pauta ni hijas). No bloquea (decisión de la usuaria). No es un guard duro.
+- **Degradación al vaciar ✅ (`71f499f`):** un contenedor sin hijas pierde `isTemplate` (era la fuente de 8 de las 9 rotas).
+- **CONCLUSIÓN (actualizada):** cerrados (a) y (c)-aviso + la degradación, el rellenado por el modal y por vaciado está
+  tapado. **Queda (b)** (Bloques sin pauta): si se limpian las 9 rotas, (b) aún podría regenerar alguna hasta que se
+  cierre. **Limpieza NO hecha** (pendiente de la usuaria); cuando se haga, cerrar antes (b).
 
 **DECISIÓN ABIERTA (la decide la usuaria):** "recurrencia ⇒ `task_type` **core**" es un **default IMPLÍCITO**, nadie lo
 decidió: el selector muestra core cuando hay recurrencia y no hay tipo explícito (`TaskModal.tsx:302`) y al persistir cae
@@ -2207,9 +2209,14 @@ hijas**) · etiqueta · prioridad (no se usa en la app) · play ni registro manu
 **hijas del día**, no al contenedor (hoy contradictorio: el visto va por día pero el clic cierra cualquier fecha; se
 cierra en (c), §16.12).
 
-**CICLO DE VIDA (NUEVO, no estaba escrito): un contenedor que se queda SIN HIJAS deja de ser contenedor y vuelve a ser
-una tarea normal (huérfana).** Al borrar la última hija hay que **quitarle `isTemplate`**. Falta implementarlo (fase por
-asignar); es lo que deja "contenedores vaciados" como plantillas rotas.
+**CICLO DE VIDA — ✅ IMPLEMENTADO (`71f499f`, sesión 17): un contenedor que se queda SIN HIJAS deja de ser contenedor y
+vuelve a tarea normal (huérfana).** Al borrar la última hija, `handleDeleteTask` le quita `isTemplate`
+(`shouldDegradeToNormal`). Era lo que dejaba "contenedores vaciados" como plantillas rotas.
+
+**CIERRES DE MODELO (sesión 17):** invariante regla XOR contenedor cableado como **aviso** en `handleUpdateTask`
+(`validateTemplate` + `toast.warn`, `4de1ca1`); fix del **modal** (`4bfa51d`); **tests de campo muerto** que ponen rojo
+si se lee el estimado/registrado/etiquetas propios del contenedor (`da8481e`). Tests del modelo: 82 verdes, 1 rojo
+(`reconcileDay`, sigue en (c)).
 
 **RECUENTO DEL MODELO (medición sesión 17, 2026-08-13; SOLO LECTURA):**
 - 133 plantillas: 101 con pauta · 32 sin pauta → **23 contenedores legítimos + 9 ROTAS**. *(Corrige el "21/11" del
@@ -2225,12 +2232,14 @@ asignar); es lo que deja "contenedores vaciados" como plantillas rotas.
   prioridad **0** (limpio) · estimado propio **2** · registrado propio **1** · tipo≠core **4**. Poco; NO bloquea (motivo
   3 no aplica). *(El tiempo sobre contenedores —4 entradas/116m— NO se borra, ya decidido.)*
 
-**Campos que el contenedor GUARDA pero IGNORA (comprobado en código):**
+**Campos que el contenedor GUARDA pero IGNORA (comprobado en código + GARANTIZADO por test `da8481e`):**
 - **Estimado propio:** WRITTEN pero IGNORADO — el chip es `readonly` para contenedores y su `onChange` solo escribe si
   `!hasSubtasks` ([TaskCard.tsx:569-576](TaskCard.tsx)); lo mostrado = suma de hijas. Los 2 con estimado propio = resto
   histórico invisible.
 - **Etiquetas propias:** WRITTEN pero IGNORADAS — el chip de etiqueta no se pinta para contenedores
   ([TaskCard.tsx:699-701](TaskCard.tsx)); la agrupación por tag usa las etiquetas de las HIJAS.
+- **Registrado propio:** IGNORADO — `containerRegisteredForDay` no cuenta el tiempo sobre el propio contenedor.
+- (Los 3 tests de campo muerto se ponen ROJOS si alguien vuelve a leer estos campos propios; los datos NO se borran.)
 
 **ABIERTO — fase por asignar:**
 - **Vista de Carga proyecta 12 meses desde plantillas.** Si el contenedor no tiene fecha ni estimado propio, en Carga
