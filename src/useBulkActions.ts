@@ -10,7 +10,7 @@ import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { resolveTaskId, materializeDay } from './instanceEngine';
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan (agrupadas por lote)
-import { shouldDegradeToNormal } from './fase3Contracts'; // §16.16: contenedor vaciado en lote → tarea normal
+import { shouldDegradeToNormal, containerOfChild } from './fase3Contracts'; // §16.16: contenedor vaciado en lote → tarea normal
 import { toast } from './toast'; // §16.16 (3): avisar cuando un contenedor deja de serlo
 
 interface UseBulkActionsOptions {
@@ -212,8 +212,8 @@ export function useBulkActions({
     realIds.forEach(id => { if (afterDelete[id]) afterDelete[id] = { ...afterDelete[id], isDeleted: true }; });
     Object.values(virginObjs).forEach(o => { afterDelete[o.id] = { ...(afterDelete[o.id] || o), isDeleted: true } as Task; });
     const affectedParents = new Set<string>();
-    realIds.forEach(id => { const p = tasks[id]?.parentTaskId; if (p) affectedParents.add(p); });
-    Object.values(virginObjs).forEach(o => { if (o.parentTaskId) affectedParents.add(o.parentTaskId); });
+    realIds.forEach(id => { const c = containerOfChild(tasks[id], tasks); if (c) affectedParents.add(c); });
+    Object.values(virginObjs).forEach(o => { const c = containerOfChild(o, tasks); if (c) affectedParents.add(c); });
     const degradedIds = [...affectedParents].filter(pid => shouldDegradeToNormal(pid, afterDelete));
     // §16.16 (3): avisar de cada contenedor que deja de serlo (sin fecha desaparece de la vista).
     degradedIds.forEach(pid => toast.warn(`«${afterDelete[pid]?.title || 'sin título'}» ya no es un contenedor (se quedó sin tareas); ahora es una tarea normal sin fecha.`));
@@ -224,7 +224,8 @@ export function useBulkActions({
       Object.values(virginObjs).forEach(o => {
         next[o.id] = { ...o, isDeleted: true, isException: true, existsInSupabase: true, modifiedAt: timestamp } as Task;
       });
-      degradedIds.forEach(pid => { if (next[pid]) next[pid] = { ...next[pid], isTemplate: false, modifiedAt: timestamp }; });
+      // status:'pending' al degradar (un contenedor vaciado no está completo; si no, se pinta como hoja tachada).
+      degradedIds.forEach(pid => { if (next[pid]) next[pid] = { ...next[pid], isTemplate: false, status: 'pending', modifiedAt: timestamp }; });
       return next;
     });
 
@@ -263,7 +264,7 @@ export function useBulkActions({
       }, { onConflict: 'id' }), { verbo: 'borrar', titulo: o.title });
     });
     degradedIds.forEach(pid => {
-      persist(supabase.from('tasks').update({ is_template: false, modified_at: timestamp }).eq('id', pid), { verbo: 'guardar', titulo: afterDelete[pid]?.title });
+      persist(supabase.from('tasks').update({ is_template: false, status: 'pending', modified_at: timestamp }).eq('id', pid), { verbo: 'guardar', titulo: afterDelete[pid]?.title });
     });
 
     setSelectedTaskIds(new Set());

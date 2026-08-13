@@ -14,7 +14,7 @@ import { formatLocalISO } from './dateUtils';
 import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById, resolveActionTarget } from './instanceEngine';
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
 import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mudo en vez de morir en consola
-import { shouldDegradeToNormal, validateTemplate } from './fase3Contracts'; // §16.16: degradar contenedor vaciado + invariante regla/contenedor
+import { validateTemplate, containerDegradeAfterDelete } from './fase3Contracts'; // §16.16: degradar contenedor vaciado + invariante regla/contenedor
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -781,12 +781,16 @@ export function useTaskCRUD({
 
     // §16.16: si al borrar la última hija el contenedor se queda vacío, deja de ser contenedor
     // y vuelve a tarea normal (se le quita isTemplate). Fuente de los "contenedores vaciados sin degradar".
+    // §16.16: si al borrar la última hija el contenedor se queda vacío, degrada a tarea normal.
+    // containerOfChild localiza el contenedor aunque la hija tenga parent_task_id=null (recurrentes,
+    // por plantilla). Al degradar: isTemplate:false Y status:'pending' (un contenedor vaciado NO está
+    // completo — si no, al quedar sin hijas se pinta como hoja y arrastra su status viejo → tachado).
     const degradedIds: string[] = [];
-    if (task.parentTaskId && shouldDegradeToNormal(task.parentTaskId, updatedTasks)) {
-      const p = updatedTasks[task.parentTaskId];
-      updatedTasks[task.parentTaskId] = { ...p, isTemplate: false, modifiedAt: new Date().toISOString() };
-      degradedIds.push(task.parentTaskId);
-      // §16.16 (3): sin fecha desaparece de la vista → no dejar que se vaya en silencio.
+    const degr = containerDegradeAfterDelete(task, updatedTasks);
+    if (degr) {
+      const p = updatedTasks[degr.id];
+      updatedTasks[degr.id] = { ...p, isTemplate: false, status: 'pending', modifiedAt: new Date().toISOString() };
+      degradedIds.push(degr.id);
       toast.warn(`«${p.title || 'sin título'}» ya no es un contenedor (se quedó sin tareas); ahora es una tarea normal sin fecha.`);
     }
 
@@ -795,7 +799,7 @@ export function useTaskCRUD({
     (async () => {
       const timestamp = new Date().toISOString();
       for (const pid of degradedIds) {
-        persist(supabase.from('tasks').update({ is_template: false, modified_at: timestamp }).eq('id', pid), { verbo: 'guardar', titulo: updatedTasks[pid]?.title });
+        persist(supabase.from('tasks').update({ is_template: false, status: 'pending', modified_at: timestamp }).eq('id', pid), { verbo: 'guardar', titulo: updatedTasks[pid]?.title });
       }
       for (const t of idsToDelete) {
         try {

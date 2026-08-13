@@ -127,3 +127,31 @@ export function validateTemplate(task: Task, allTasks: Record<string, Task>): st
   if (!hasPauta && !hasChildren) return 'plantilla sin pauta ni hijas: no genera nada';
   return null;
 }
+
+/**
+ * §16.16 — Contenedor de un hijo: por `parentTaskId` (hijo manual) o, si es null, por la plantilla del
+ * hijo (`templateId` → esa plantilla-hija tiene `parentTaskId` = contenedor). Cubre hijas recurrentes
+ * con `parentTaskId=null` (anidan por plantilla).
+ */
+export function containerOfChild(child: Task | null | undefined, allTasks: Record<string, Task>): string | null {
+  if (!child) return null;
+  if (child.parentTaskId) return child.parentTaskId;
+  if (child.templateId) return allTasks[child.templateId]?.parentTaskId || null;
+  return null;
+}
+
+/**
+ * §16.16 — Reducer COMPARTIDO por TODOS los caminos de borrado (handleDeleteTask, lote, borrado de
+ * instancia recurrente en App). Dado el hijo recién borrado y el mapa YA con ese hijo marcado borrado,
+ * devuelve el parche de degradación del contenedor si procede, o null. Al vaciar, el contenedor deja de
+ * serlo (`isTemplate:false`) Y su `status` vuelve a `pending` (un contenedor vaciado NO está completo —
+ * si no, al quedar sin hijas se pinta como hoja y arrastra su status viejo → salía tachado).
+ */
+export function containerDegradeAfterDelete(
+  deletedChild: Task | null | undefined, tasksAfterDelete: Record<string, Task>,
+): { id: string; isTemplate: false; status: 'pending' } | null {
+  const cid = containerOfChild(deletedChild, tasksAfterDelete);
+  if (!cid) return null;
+  if (!shouldDegradeToNormal(cid, tasksAfterDelete)) return null;
+  return { id: cid, isTemplate: false, status: 'pending' };
+}
