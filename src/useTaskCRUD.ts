@@ -851,7 +851,10 @@ export function useTaskCRUD({
       createdAt: new Date().toISOString(),
       modifiedAt: new Date().toISOString(),
       isTemplate: true,
-      isActive: true
+      isActive: true,
+      // §16.16 (b): nace CON pauta por defecto (diaria, desde hoy) → regla VÁLIDA desde el inicio,
+      // nunca una plantilla "sin pauta" inerte. El usuario ajusta la pauta en el editor que se abre.
+      recurrence: { frequency: 'daily', startDate: formatLocalISO(new Date()) }
     };
     setTasks(prev => ({ ...prev, [id]: newTemplate }));
     setEditingRuleId(id);
