@@ -2076,10 +2076,14 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
 
 ### 16.12 PUNTO DE RETOMADA (sesión 17) — FASE 3 en curso
 
-**Dónde estamos: FASE 3, principio (a) cerrado, principio (b) hecho hasta el VISUAL. Todo en producción, nada a medias.**
-**⚠️ La sesión 17 NO tocó la app** — solo documentación (§16.13/16.14/16.15 + memoria). El estado de CÓDIGO es el de la
-sesión 16 (último commit de app: `55a69df`). **Sigue pendiente la validación de la usuaria (Bloques/Mi Día, ~21
-contenedores) y esa validación SIGUE bloqueando (b3).** Investigación de recurrencia de la sesión 17 → §16.15.
+**Dónde estamos: FASE 3. Principio (a) CERRADO; (b) hecho hasta el VISUAL; + el trabajo de MODELO (§16.16) cerrado.
+Todo en producción, nada a medias.** *(Nota: aquí (a)/(b)/(c) son los PRINCIPIOS de FASE 3; los agujeros de recurrencia
+se renombraron a R1/R2/R3 en §16.15 para no chocar.)*
+**La sesión 17 SÍ tocó la app** (7 commits): `4bfa51d` fix modal · `71f499f`+`5c019d1` degradar contenedor vaciado
+(normal+lote) · `1456610` aviso al degradar · `4de1ca1` guard-aviso · `da8481e` tests campo muerto · `b1fbe7c`→`ced422a`
+handleAddRule opción B. **Último commit de app: `ced422a`.** **Tests: 82 verdes, 1 rojo a propósito** (`reconcileDay`,
+cierra en (c)). **Sigue pendiente la validación de la usuaria (Bloques/Mi Día, 25 contenedores) y esa validación SIGUE
+bloqueando (b3).** Investigación/estado de recurrencia → §16.15 y §16.16.
 
 **✅ CERRADO y en producción:**
 - **(a) entera** — el tiempo nunca se registra sobre un contenedor + totales por día:
@@ -2091,10 +2095,14 @@ contenedores) y esa validación SIGUE bloqueando (b3).** Investigación de recur
 - **(b1)+(b2 visual)** — completado del contenedor DERIVADO de las hijas, NUNCA de su `status` guardado:
   - Con día → hijas del día; sin día (Bloques) → todas las hijas (`isTaskCompleted`); hoja → su status.
   - Vacío-verdadero cubierto (`hasDayChild`). Fix del bug de Bloques incluido (`55a69df`).
+- **MODELO (§16.16):** contenedor vaciado → degrada a tarea normal (normal `71f499f` + lote `5c019d1`, con aviso
+  `1456610`); invariante regla XOR contenedor como AVISO en `handleUpdateTask` (`4de1ca1`); fix del modal (`4bfa51d`);
+  `handleAddRule` opción B — no crea plantillas sin pauta (`ced422a`); tests de campo muerto (`da8481e`). Recuperadas
+  2 tareas de auditoría (degradadas + fecha de hoy, cambio de datos acotado).
 
 **⏳ PENDIENTE DE VALIDACIÓN DE LA USUARIA (antes de seguir):**
-- **Bloques**: "Poner fechas varias laboral" debe salir SIN tachar (hija pendiente). ~21 de 102 contenedores cambian de aspecto (1 a pendiente, 20 proyectos viejos a tachado) — un puñado, no media vista. Si ve muchos más o cambios raros → pedir recuento antes de seguir.
-- **Mi Día**: los mismos 21, ninguno más.
+- **Bloques / Mi Día**: **25** contenedores cambian de aspecto (1 a pendiente — "Poner fechas varias laboral" — y 24 a
+  tachado, proyectos terminados). Lista completa por bloque en el chat de la sesión 17 y resumida en §16.16.
 
 **❌ FALTA (lo siguiente, tras la validación pendiente):**
 - **(b3)** — filtros/contadores por día. `isTaskCompleted` YA deriva de las hijas (todas); (b3) es hacerlo POR DÍA. **Es el paso donde algo puede desaparecer de la vista → validar con calma.** BLOQUEADO hasta que la usuaria valide Bloques/Mi Día.
@@ -2159,40 +2167,46 @@ contenedores) y esa validación SIGUE bloqueando (b3).** Investigación de recur
 | Camino | Bloque donde acaba | Qué se ve en Bloques | Tipo |
 |---|---|---|---|
 | **Mi Día** (`doAddTask`) | `blocks[0]` (primer bloque, §16.5) | la plantilla | core por defecto |
-| **Bloques** (`handleAddRule`) | el bloque donde pulsas | la plantilla, pero **NACE SIN PAUTA** (`recurrence=null`) hasta editarla | core por defecto |
+| **Bloques** (`handleAddRule`) | el bloque donde pulsas | **NO nace como plantilla** (opción B, `ced422a`): tarea normal visible en Bloques; se vuelve regla al ponerle pauta | según su tipo |
 | **Modal** (`TaskModal`) | el bloque de la tarea | la plantilla | core por defecto |
 
 **NÚMEROS REALES (medición sesión 17, 2026-08-13):** 133 plantillas (`is_template`, no borradas):
 - **101** con pauta válida (`recurrence.frequency`).
-- **32** "RECURRENTE sin pauta" (`recurrence=null`). De esas: **21 son contenedores manuales legítimos** (tienen hijas —
-  `is_template` se usa TAMBIÉN como flag de "proyecto/contenedor", no solo recurrente) y **11 están de verdad ROTAS**
-  (sin pauta y sin ninguna ocurrencia → salen como "RECURRENTE" y no generan nada).
+- **32** "RECURRENTE sin pauta" (`recurrence=null`). De esas: **23 son contenedores manuales legítimos** (tienen hijas por
+  `parent_task_id` — `is_template` se usa TAMBIÉN como flag de "proyecto/contenedor", no solo recurrente) y **9 están de
+  verdad ROTAS** (sin pauta y sin hijas por `parent_task_id` → salen como "RECURRENTE" y no generan nada). *(Corrige el
+  21/11 anterior, que contaba `template_id` —ocurrencias de una regla— como hijas; lo correcto es `parent_task_id`.)*
 - **Duplicados:** 5 grupos mismo título+bloque (10 filas: "Margenes", "Ingresos ", "Bancos ", "Gestión campaña",
   "Cierre Propias " — ojo espacios finales en varios) + 2 grupos mismo título+padre (4 filas). Poco volumen.
-- **Origen (por `created_at`):** repartido abr–jul 2026, pico en mayo (19). Varias de las 11 rotas tienen `id` con forma
-  `inst-…-fecha` pero `is_template:true` = una instancia "ascendida" a plantilla sin pauta (huella del bug del picker).
+- **Origen (por `created_at`):** repartido abr–jul 2026, pico en mayo (19). De las 9 rotas, **solo 1** tiene `id` con
+  forma `inst-…-fecha` (`is_template:true` = instancia "ascendida" por el bug del picker); **las otras 8 no** (§16.16).
 
-**FIRMA EN DATOS DEL ESTADO ROTO:** `is_template:true` + `recurrence:null` + **sin hijas** (`subtasks` vacío / sin filas
-con ese `template_id`). Si tiene hijas, NO es rotura: es un contenedor manual (proyecto).
+**FIRMA EN DATOS DEL ESTADO ROTO:** `is_template:true` + `recurrence:null` + **sin hijas** = ninguna fila NO borrada con
+`parent_task_id` = ella. **OJO: NO usar `template_id` para "hijas"** — `template_id` son las OCURRENCIAS de una regla, no
+hijas de contenedor. Si tiene hijas por `parent_task_id`, NO es rotura: es un contenedor manual (proyecto).
 
-**AGUJEROS (estado tras sesión 17):**
-- **(a) ✅ CERRADO (`4bfa51d`):** `TaskModal` ya NO pre-pone `isTemplate:true` al activar recurrencia (mismo fix que la
+**AGUJEROS DE RECURRENCIA — R1/R2/R3 (renombrados para NO chocar con los principios (a)/(b)/(c) de FASE 3):**
+- **R1 ✅ CERRADO (`4bfa51d`):** `TaskModal` ya NO pre-pone `isTemplate:true` al activar recurrencia (mismo fix que la
   fila `c0bb09d`); ahora fija solo la pauta y `handleUpdateTask` hace la conversión (crea la 1ª instancia).
-- **(b) ✅ CERRADO (`b1fbe7c`):** `handleAddRule` (Bloques) ahora crea la regla **con pauta por defecto** (diaria, hoy) →
-  nunca deja una plantilla "sin pauta" inerte. Elección opción A (nacer con pauta) sobre B (no marcar isTemplate hasta
-  tener pauta), que dejaría una tarea huérfana sin fecha invisible si se abandona.
-- **(c) ✅ HECHO como AVISO (`4de1ca1`):** `validateTemplate` + `toast.warn` en `handleUpdateTask` avisan si una plantilla
+- **R2 ✅ CERRADO (`ced422a`, opción B):** `handleAddRule` (Bloques) ya **NO crea una plantilla**: crea una tarea NORMAL
+  (visible en Bloques como "manual"); se vuelve regla al ponerle pauta en el editor. Se eligió B sobre A tras comprobar
+  que Bloques SÍ muestra tareas normales (no las esconde) y que A dejaba una regla diaria que ensucia Mi Día cada día.
+  *(Revierte el default-daily `b1fbe7c`.)*
+- **R3 ✅ HECHO como AVISO (`4de1ca1`):** `validateTemplate` + `toast.warn` en `handleUpdateTask` avisan si una plantilla
   queda inválida (pauta+hijas, o ni pauta ni hijas). No bloquea (decisión de la usuaria). No es un guard duro.
-- **Degradación al vaciar ✅ (`71f499f` normal + `5c019d1` en LOTE):** un contenedor sin hijas pierde `isTemplate` (era la
-  fuente de las 8 rotas por vaciado); ahora también al vaciar en lote. **Aviso al degradar** (`1456610`).
-- **CONCLUSIÓN (actualizada):** los tres agujeros (a)(b)(c) + degradación (normal y lote) están **cerrados**. El rellenado
-  por modal, Bloques y vaciado está tapado. **Ahora limpiar las 9 rotas ya NO se vuelve a llenar** — pero **la limpieza
-  sigue SIN hacer** (pendiente de la usuaria).
-- **Verificación #4 (`b1fbe7c`, solo lectura):** la conversión de recurrencia deja la **plantilla SIN fecha**
-  (`isTemplate:true, dueDate:null`, useTaskCRUD:563-565) → el fix del modal NO viola el modelo. En datos hay **5
-  plantillas con fecha pegada** ("Ver calificación de cuentas", "Veure situació Lucia per trucada", "verificar la
-  presentación de las CCAA", "Ënviar documentos firmados a auditores", "Recoger la documentación encuadernada…"): todas
-  `recurrence:null`, **son rotas preexistentes** (están entre las 9), NO vienen del fix. No tocadas.
+- **Degradación al vaciar ✅ (`71f499f` normal + `5c019d1` en LOTE, aviso `1456610`):** un contenedor sin hijas pierde
+  `isTemplate`. Es una **posible** fuente de las rotas por vaciado; **los datos no distinguen** vaciado-sin-degradar de
+  regla-creada-sin-pauta (§16.16). Ahora también degrada al vaciar en lote.
+- **CONCLUSIÓN (actualizada):** R1+R2+R3 + degradación (normal y lote) **cerrados**. El rellenado por modal, Bloques y
+  vaciado está tapado. **Ahora limpiar las 9 rotas ya NO se vuelve a llenar** — pero **la limpieza sigue SIN hacer**
+  (pendiente de la usuaria).
+- **Verificación (solo lectura):** la conversión de recurrencia deja la **plantilla SIN fecha** (`isTemplate:true,
+  dueDate:null`, useTaskCRUD:563-565) → el fix del modal NO viola el modelo. En datos había **5 plantillas con fecha
+  pegada**, todas `recurrence:null` y entre las 9 rotas (preexistentes, NO del fix):
+  - **2 RECUPERADAS** (degradadas a tarea normal + fecha de hoy 2026-08-13): "Ënviar documentos firmados a auditores"
+    (`t-1785433862534`) y "Recoger la documentación encuadernada de los auditores" (`t-1785433874822`). **⚠️ "Ënviar"
+    tiene además una instancia suelta `inst-t-1785433862534-2026-08-24` (no tocada) → aparecerá también el 24-ago.**
+  - **3 sin tocar:** "Ver calificación de cuentas", "Veure situació Lucia per trucada", "verificar la presentación de las CCAA".
 - **Recuento definitivo del cambio de aspecto (§0):** **25** contenedores (no ~21): 1 a pendiente ("Poner fechas varias
   laboral", confirmado), 24 a tachado (proyectos terminados). Lista completa por bloque entregada en el chat.
 
