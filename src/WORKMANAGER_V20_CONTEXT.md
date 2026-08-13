@@ -2178,14 +2178,23 @@ con ese `template_id`). Si tiene hijas, NO es rotura: es un contenedor manual (p
 **AGUJEROS (estado tras sesión 17):**
 - **(a) ✅ CERRADO (`4bfa51d`):** `TaskModal` ya NO pre-pone `isTemplate:true` al activar recurrencia (mismo fix que la
   fila `c0bb09d`); ahora fija solo la pauta y `handleUpdateTask` hace la conversión (crea la 1ª instancia).
-- **(b) SIGUE ABIERTO (no tocado, por decisión):** `handleAddRule` (Bloques) crea plantillas **sin pauta** hasta que se
-  editan; si se dejan a medias, quedan "RECURRENTE sin generar". Es el que aún puede rellenar.
+- **(b) ✅ CERRADO (`b1fbe7c`):** `handleAddRule` (Bloques) ahora crea la regla **con pauta por defecto** (diaria, hoy) →
+  nunca deja una plantilla "sin pauta" inerte. Elección opción A (nacer con pauta) sobre B (no marcar isTemplate hasta
+  tener pauta), que dejaría una tarea huérfana sin fecha invisible si se abandona.
 - **(c) ✅ HECHO como AVISO (`4de1ca1`):** `validateTemplate` + `toast.warn` en `handleUpdateTask` avisan si una plantilla
   queda inválida (pauta+hijas, o ni pauta ni hijas). No bloquea (decisión de la usuaria). No es un guard duro.
-- **Degradación al vaciar ✅ (`71f499f`):** un contenedor sin hijas pierde `isTemplate` (era la fuente de 8 de las 9 rotas).
-- **CONCLUSIÓN (actualizada):** cerrados (a) y (c)-aviso + la degradación, el rellenado por el modal y por vaciado está
-  tapado. **Queda (b)** (Bloques sin pauta): si se limpian las 9 rotas, (b) aún podría regenerar alguna hasta que se
-  cierre. **Limpieza NO hecha** (pendiente de la usuaria); cuando se haga, cerrar antes (b).
+- **Degradación al vaciar ✅ (`71f499f` normal + `5c019d1` en LOTE):** un contenedor sin hijas pierde `isTemplate` (era la
+  fuente de las 8 rotas por vaciado); ahora también al vaciar en lote. **Aviso al degradar** (`1456610`).
+- **CONCLUSIÓN (actualizada):** los tres agujeros (a)(b)(c) + degradación (normal y lote) están **cerrados**. El rellenado
+  por modal, Bloques y vaciado está tapado. **Ahora limpiar las 9 rotas ya NO se vuelve a llenar** — pero **la limpieza
+  sigue SIN hacer** (pendiente de la usuaria).
+- **Verificación #4 (`b1fbe7c`, solo lectura):** la conversión de recurrencia deja la **plantilla SIN fecha**
+  (`isTemplate:true, dueDate:null`, useTaskCRUD:563-565) → el fix del modal NO viola el modelo. En datos hay **5
+  plantillas con fecha pegada** ("Ver calificación de cuentas", "Veure situació Lucia per trucada", "verificar la
+  presentación de las CCAA", "Ënviar documentos firmados a auditores", "Recoger la documentación encuadernada…"): todas
+  `recurrence:null`, **son rotas preexistentes** (están entre las 9), NO vienen del fix. No tocadas.
+- **Recuento definitivo del cambio de aspecto (§0):** **25** contenedores (no ~21): 1 a pendiente ("Poner fechas varias
+  laboral", confirmado), 24 a tachado (proyectos terminados). Lista completa por bloque entregada en el chat.
 
 **DECISIÓN ABIERTA (la decide la usuaria):** "recurrencia ⇒ `task_type` **core**" es un **default IMPLÍCITO**, nadie lo
 decidió: el selector muestra core cuando hay recurrencia y no hay tipo explícito (`TaskModal.tsx:302`) y al persistir cae
