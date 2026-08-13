@@ -13,6 +13,7 @@ import {
   childrenToToggleOnDay,
   reconcileDay,
   shouldDegradeToNormal,
+  validateTemplate,
 } from './fase3Contracts';
 
 // 2026-07-13 Lun · 07-15 Mié · 07-16 Jue
@@ -173,5 +174,41 @@ describe('FASE 3 · degradación de contenedor vaciado (§16.16)', () => {
   it('tarea normal (no template) → NO degradar', () => {
     const tasks = byId([task({ id: 'C' })]);
     expect(shouldDegradeToNormal('C', tasks)).toBe(false);
+  });
+});
+
+// =========================================================================
+// (b3) Invariante del modelo: isTemplate = regla XOR contenedor (§16.16)
+// =========================================================================
+describe('FASE 3 · invariante regla XOR contenedor (§16.16)', () => {
+  it('regla (pauta, sin hijas) → válido', () => {
+    const tasks = byId([task({ id: 'R', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } })]);
+    expect(validateTemplate(tasks['R'], tasks)).toBeNull();
+  });
+
+  it('contenedor (hijas, sin pauta) → válido', () => {
+    const tasks = byId([
+      task({ id: 'C', isTemplate: true, subtasks: ['A'] }),
+      task({ id: 'A', parentTaskId: 'C' }),
+    ]);
+    expect(validateTemplate(tasks['C'], tasks)).toBeNull();
+  });
+
+  it('pauta Y hijas a la vez → INVÁLIDO', () => {
+    const tasks = byId([
+      task({ id: 'X', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' }, subtasks: ['A'] }),
+      task({ id: 'A', parentTaskId: 'X' }),
+    ]);
+    expect(validateTemplate(tasks['X'], tasks)).not.toBeNull();
+  });
+
+  it('ni pauta ni hijas → INVÁLIDO (plantilla inerte)', () => {
+    const tasks = byId([task({ id: 'Z', isTemplate: true })]);
+    expect(validateTemplate(tasks['Z'], tasks)).not.toBeNull();
+  });
+
+  it('tarea normal (no template) → null (no aplica)', () => {
+    const tasks = byId([task({ id: 'N' })]);
+    expect(validateTemplate(tasks['N'], tasks)).toBeNull();
   });
 });

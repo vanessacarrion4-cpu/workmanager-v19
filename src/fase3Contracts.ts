@@ -111,3 +111,19 @@ export function shouldDegradeToNormal(containerId: string, allTasks: Record<stri
   const hasChild = Object.values(allTasks).some((t) => t && !t.isDeleted && t.parentTaskId === containerId);
   return !hasChild;
 }
+
+/**
+ * §16.16 — Invariante del modelo: isTemplate = regla recurrente XOR contenedor. Devuelve un MOTIVO
+ * (string) si el estado es inválido, o null si es válido o no es plantilla. NO bloquea; el llamador avisa.
+ *  - pauta + hijas de contenedor  → inválido (una regla no puede ser contenedor)
+ *  - ni pauta ni hijas            → inválido (plantilla inerte, no genera nada)
+ *  - solo pauta / solo hijas      → válido
+ */
+export function validateTemplate(task: Task, allTasks: Record<string, Task>): string | null {
+  if (!task || !task.isTemplate) return null;
+  const hasPauta = !!(task.recurrence && (task.recurrence as any).frequency);
+  const hasChildren = Object.values(allTasks).some((t) => t && !t.isDeleted && t.parentTaskId === task.id);
+  if (hasPauta && hasChildren) return 'una regla recurrente no puede tener hijas de contenedor';
+  if (!hasPauta && !hasChildren) return 'plantilla sin pauta ni hijas: no genera nada';
+  return null;
+}

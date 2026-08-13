@@ -14,7 +14,7 @@ import { formatLocalISO } from './dateUtils';
 import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById, resolveActionTarget } from './instanceEngine';
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
 import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mudo en vez de morir en consola
-import { shouldDegradeToNormal } from './fase3Contracts'; // §16.16: degradar contenedor vaciado a tarea normal
+import { shouldDegradeToNormal, validateTemplate } from './fase3Contracts'; // §16.16: degradar contenedor vaciado + invariante regla/contenedor
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -428,6 +428,11 @@ export function useTaskCRUD({
       }
       return;
     }
+
+    // §16.16: guard del invariante regla XOR contenedor. AVISA (no bloquea) si la plantilla queda
+    // en estado inválido: pauta+hijas a la vez, o ni pauta ni hijas (plantilla inerte).
+    const templateIssue = validateTemplate(updatedTask, tasks);
+    if (templateIssue) toast.warn(`Estado inválido de «${updatedTask.title || 'sin título'}»: ${templateIssue}.`);
 
     const isException = updatedTask.templateId &&
       updatedTask.instanceDate &&
