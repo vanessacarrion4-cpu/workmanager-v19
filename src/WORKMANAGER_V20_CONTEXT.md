@@ -2302,8 +2302,19 @@ incoherentes *pauta propia + hijas* y *plantilla inerte* (ni pauta propia ni hij
   (`isTemplate:true` con hijas) — es decir, los contenedores-que-alojan-reglas — **NO los contenedores**. Coincide
   exactamente (23) porque es el mismo censo mal etiquetado. **El número real de contenedores es 98, no 23.** El criterio
   "plantilla = contenedor" era la premisa equivocada; el correcto es "tiene ≥1 hija viva", con o sin marca.
-- **Nota sobre las "9 rotas":** dato caducado. Tras implementar (a)/(b), la batería tiene **1 sola roja** (`reconcileDay`
-  STUB). Las "9 rotas" eran de un estado anterior del código, no del actual.
+- **"9 ROTAS" (filas de datos) reclasificadas bajo el modelo corregido — bloque 4, sesión 18:** son filas
+  `is_template:true` + sin pauta propia + sin hijas vivas. Quedan **7** (2 ya recuperadas en auditoría). Bajo el modelo
+  corregido **todas son PLANTILLAS INERTES** (la marca no genera ni agrupa nada; `validateTemplate` las marca). **La
+  "premisa mala" NO cambia que estén rotas — cambia su ETIQUETA:** el recuento anterior las llamó "contenedores vaciados
+  sin degradar", concepto que ya no existe (no hay degradación; una tarea sin hijas simplemente no es contenedor). El
+  arreglo real no es degradar: es **quitarles la marca** (vuelven a tarea normal y reaparecen en Mi Día). Clasificación:
+  **1** es instancia ascendida por el bug del picker (`inst-t-1778162405700-2026-05-08` "Gestión campaña", `template_id`
+  puesto); **6** son filas normales con marca espuria ("Possible reunió Candidata", "Publicar propias…", "Veure situació
+  Lucia" [completed+fecha], "Veure feed Back clara…", "verificar la presentación de las CCAA", "Ver calificación de
+  cuentas"). **Todas → limpieza FASE 4 (§16.17). No tocar ahora.**
+- **Rojas de TEST (distinto de las rotas de datos):** la batería tiene **1 sola roja** (`reconcileDay` STUB, (c)). No hubo
+  nunca 9 tests rojos; los 9 tests de degradación eran VERDES probando la forma minoritaria (`isTemplate:true`) y se
+  quitaron en el bloque 1.
 
 **Campos que el contenedor GUARDA pero IGNORA (comprobado en código + GARANTIZADO por test `da8481e`):**
 - **Estimado propio:** WRITTEN pero IGNORADO — el chip es `readonly` para contenedores y su `onChange` solo escribe si
