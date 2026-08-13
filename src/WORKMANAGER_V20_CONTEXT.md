@@ -2347,7 +2347,43 @@ incoherentes *pauta propia + hijas* y *plantilla inerte* (ni pauta propia ni hij
 - **Recomendación antes de (c):** o se **normaliza el dato** (bloque 2) o se **arregla el fallback-a-hoja** (una ex-tarea
   sin hijas no debería leer un `status` viejo de cuando era contenedor) y se añade un test en la forma `isTemplate:false`.
 
+**🔴 CASCADA DE COMPLETADO — daño en datos, hallazgo sesión 18 (2026-08-13/14):** clicar el checkbox de un contenedor
+marca **el contenedor Y TODAS sus hijas de TODOS los días** de golpe (`handleToggleStatus`→`toggleRecursive` recorre
+`subtasks` sin filtrar por día). Conducta viva desde hace **meses**. Marca como completadas hijas que **no** estaban
+hechas → **trabajo abierto que aparece como hecho**.
+- **FIRMA EN DATOS:** las hijas de un mismo padre con `completed_at` **idéntico al milisegundo** = marcadas juntas por una
+  cascada (una acción, un `timestamp`). Ejemplo de referencia: "Tema De Anna Cardona" (`t-1786466725521`), 6 hijas todas
+  `2026-08-13T16:17:30.007`; 4 estaban pendientes de verdad, 2 hechas.
+- **NO SE PUEDE DISTINGUIR LO FALSO DE LO REAL POR DATOS:** la cascada re-sella a todas por igual → `completed_at`
+  idéntico; `actual_minutes=0`, sin time_entries, sin notas en las 6. **La única fuente de verdad es la usuaria.**
+- **ALCANCE (medido, SUELO no techo):** **38 hijas en 7 contenedores** con la huella (Salmerón 10, Tema 6, Ivan 5, Cierre
+  Propias 3, Selecció RRHH/Montse Vidal/Lineas de vida en grupos de 2, algunos **duplicados**). Fechas: **mayo→agosto
+  2026**. Es SUELO: **una cascada de una sola hija NO deja huella** (no hay dos `completed_at` iguales que comparar), así
+  que puede haber más falsos completados no detectables.
+- **NO lo causó el código de la sesión 18** (la conducta es de meses). Pero **normalizar los 6 padres (bloque 2) SACÓ el
+  daño a la luz**: un contenedor con status propio `completed` se ocultaba en Bloques (el contador usa el status propio);
+  al ponerlo `pending` reapareció con sus hijas tachadas.
+- **GRIFO (por qué sigue abierto):** el arreglo de la sesión 18 quitó que se escriba el status **propio** del contenedor,
+  pero **NO** la cascada a las hijas (eso se pidió: "marca las hijas"). Cerrar bien = "solo las hijas del día" = **(c)**:
+  `handleToggleStatus` es compartido y tiene un único `activeDate` (no el día de la vista); el checkbox existe también en
+  Bloques (día-less, ahí debe ser todas); Semana/Calendario tienen día por celda; y las hijas recurrentes del día hay que
+  materializarlas. Provisional posible (sin (c)): no cascar a hijas de fecha **futura**. **Pendiente de decisión.**
+- **REVERSIÓN:** las 38 están listadas para que la usuaria marque cuáles eran pendientes; reversión exacta con su marca.
+  Los 6 padres siguen `pending` (normalización aplicada, verificada), pero sus hijas siguen `completed`.
+
+**⚠️ LECCIÓN DE MÉTODO (sesión 18):** normalizar los 6 padres fue **atacar la capa equivocada**. El `status` propio del
+contenedor es **campo muerto mientras tenga hijas** (el completado se DERIVA de las hijas), así que tocarlo no cambió el
+tachado —que sale de las hijas—. **Antes de limpiar un dato, comprobar en qué CAPA se lee de verdad** (aquí: se leía de
+las hijas, no del campo del padre). Misma familia que el "status guardado que no se lee" del §16.10.
+
 **ABIERTO — fase por asignar:**
+- **Contador vs tachado con criterios distintos (hallazgo sesión 18):** en Bloques el contador de cabecera
+  (`coreTasks+adhocTasks`, [BlocksView.tsx:250](BlocksView.tsx)) cuenta tareas top-level por su **status PROPIO**
+  (`hideCompleted && status==='completed'`), sin contar hijas y sin derivar; el **tachado** de la fila se **DERIVA** de las
+  hijas ([TaskCard.tsx:251](TaskCard.tsx)). Por eso se ve "1 tarea" con 7 filas todas tachadas. Unificar criterio. No es
+  urgente; no tocar ahora.
+- **Grifo "clic contenedor = solo hijas del día":** cerrar en (c) (ver CASCADA arriba). Provisional posible mientras tanto
+  (no cascar a hijas futuras), pendiente de decisión de la usuaria.
 - **Vista de Carga proyecta 12 meses desde plantillas.** Si el contenedor no tiene fecha ni estimado propio, en Carga
   solo puede entrar por la **suma de sus hijas**. **Comprobar que no se proyecta dos veces (contenedor + hijas) ni
   desaparece.** No tocar ahora.
