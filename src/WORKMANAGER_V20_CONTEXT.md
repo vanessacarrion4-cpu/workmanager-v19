@@ -2224,75 +2224,86 @@ contenedores con tipo≠core lo confirman). Ya NO es decisión abierta.
 presente = instancias materializadas (12 meses); futuro +12 meses = cálculo desde las plantillas. Filas = tareas,
 columnas = meses (expandibles a semana/día). Capacidad **8h/día, 40h/semana** (solo laborables); color por % de carga.
 
-### 16.16 MODELO: qué es un contenedor y qué es una regla (sesión 17) — REGLA DEL MODELO, manda sobre las fases
+### 16.16 MODELO: qué es un contenedor y qué es una regla — REGLA DEL MODELO, manda sobre las fases (CORREGIDO sesión 18)
 
-`isTemplate:true` significa DOS cosas **EXCLUYENTES**: **regla recurrente** O **contenedor**. Nunca las dos.
-Los principios **(a) y (b) del §16.10** y las reglas del **§16.13** son **APLICACIONES de este modelo**.
+**PREMISA CORREGIDA (dictado por la usuaria, sesión 18):** ser contenedor **NO es un estado guardado**: es una
+**CONSECUENCIA de tener hijas**. Una tarea no *se crea* contenedor; se **hace** contenedor cuando se le pone una hija
+debajo y **deja** de serlo cuando se le quita la última. No hay marca que guardar ni conversión que ejecutar —
+**exactamente igual que el completado del contenedor se DERIVA y nunca se lee de su campo guardado.** Es el mismo
+principio; en la sesión 17 se nos escapó y se construyó una "degradación" que revertía una conversión que nunca ocurría.
 
-**Un CONTENEDOR NO tiene:** recurrencia · fecha · tiempo (ni estimado ni registrado propios; su tiempo = **suma de las
-hijas**) · etiqueta · prioridad (no se usa en la app) · play ni registro manual · estado de completado propio (su
-`status` guardado **NO se lee nunca**) · contenedores dentro (**jerarquía de 2 niveles**, `0c6baf6`).
+**Qué significa `isTemplate:true` (y qué NO):** marca una **REGLA recurrente** (genera instancias de sí misma) O, como
+**LLAVE DEL MOTOR**, un **contenedor que ALOJA reglas recurrentes** (para que `materializeDay`/`generateInstances`
+desciendan a generar las instancias de sus hijas — el motor solo procesa `isTemplate===true`, [utils.ts:85](utils.ts)).
+**`isTemplate` NUNCA significa "esto es un contenedor".** "Contenedor" se deriva SIEMPRE de tener hijas
+(`subtasks.length>0`): [filters.ts:217](filters.ts), [BlocksView.tsx:196](BlocksView.tsx),
+`hasSubtasks` [TaskCard.tsx:129](TaskCard.tsx).
+
+**Un CONTENEDOR NO tiene** (todo derivado o ignorado): recurrencia propia · fecha · tiempo propio (su tiempo = **suma de
+las hijas**) · etiqueta propia · prioridad · play/registro manual · **estado de completado propio (su `status` guardado
+NO se lee mientras tenga hijas)** · contenedores dentro (**jerarquía de 2 niveles**, `0c6baf6`).
 **Un CONTENEDOR SÍ tiene:** título · bloque · tipo (core / no core) · hijas.
 
 **Completado = DERIVADO:** con día → hijas de ESE día; sin día (Bloques) → todas. Clicar su casilla completa las
 **hijas del día**, no al contenedor (hoy contradictorio: el visto va por día pero el clic cierra cualquier fecha; se
 cierra en (c), §16.12).
 
-**CICLO DE VIDA — ✅ IMPLEMENTADO (`71f499f`+`7e52d88`, sesión 17): un contenedor que se queda SIN HIJAS deja de ser
-contenedor y vuelve a tarea normal (huérfana).** Al borrar la última hija se le quita `isTemplate` Y se pone
-`status:'pending'`. Era lo que dejaba "contenedores vaciados" como plantillas rotas (y tachadas).
+**CICLO DE VIDA — no hay degradación (CORREGIDO sesión 18, `2dbada5`):** vaciar un contenedor **no dispara ninguna
+conversión**. Al borrar la última hija, `parent.subtasks` se vacía y **la tarea deja de agruparse como contenedor sola**,
+porque todas las vistas derivan de `subtasks.length`. Se **ELIMINÓ** la maquinaria de degradación de la sesión 17
+(`shouldDegradeToNormal`, `containerOfChild`, `containerDegradeAfterDelete` + llamadas en `handleDeleteTask` y
+`bulkDeleteTasks` + toast + 9 tests). **Por qué sobraba:** estaba bloqueada en `isTemplate:true`, así que **NUNCA se
+disparaba para los 75 contenedores manuales (de 98)** — era estructuralmente incapaz de arreglar el bug reportado. Ese
+fue el patrón de los "tres cerrados que no funcionaban" (`71f499f`, `7e52d88`): probaban una forma (`isTemplate:true`)
+que casi no existe en los datos.
 
-**CAMINOS DE BORRADO Y CUÁLES DEGRADAN (investigado + arreglado, sesión 17):**
+**🔑 CAUSA CONFIRMADA del síntoma reportado — caso (a), DATOS, validado en pantalla por la usuaria (sesión 18):** al
+borrar la última hija, **el vaciado visual funciona bien** (subtasks se vacía, el render deriva). Lo que la usuaria vio
+—"la tarea seguía tachada"— es el **fallback a HOJA con `status` viejo**: sin hijas, `hasSubtasks` pasa a `false`
+([TaskCard.tsx:129](TaskCard.tsx)) → la fila se pinta **como HOJA** y una hoja usa `rowCompleted = status==='completed'`.
+Si el contenedor tenía `status:'completed'` guardado → **tachado**. **No es bug de render; es DATO viejo.**
 
-| Camino | Función | ¿Degrada? |
+**🔑 QUIÉN ESCRIBE ese `status:'completed'` en un contenedor (reportado sesión 18, NO arreglado):**
+- **`handleToggleStatus` (el checkbox):** `toggleRecursive` escribe el status **propio del contenedor** además de recorrer
+  las hijas ([useTaskCRUD.ts:137-149](useTaskCRUD.ts) + persist :217). Es la fuente principal.
+- **Bulk-complete:** `bulkUpdateTasks({status:'completed'})` ([App.tsx:461](App.tsx), [BlocksView.tsx:430](BlocksView.tsx)).
+- Es **campo muerto mientras tenga hijas** (nadie lo lee), pero es la **mina** que estalla al vaciar. Si el completado se
+  deriva y nunca se lee, **nadie debería escribirlo**. Pendiente de decisión de la usuaria (no arreglado).
+
+**CAMINOS DE BORRADO (el vaciado visual ya lo resuelve la derivación; queda UN cabo):**
+
+| Camino | Función | Vaciado visual |
 |---|---|---|
-| Tarea/subtarea normal o **regla-hija** (fila `···` / modal) | `handleDeleteTaskRequest → handleDeleteTask` | **SÍ** (`7e52d88`) |
-| **Lote** | `bulkDeleteTasks` | **SÍ** (`5c019d1`+`7e52d88`) |
-| **Instancia recurrente** (fila → "¿este día?") | handler de App ([App.tsx:958](App.tsx)) | **N/A** — borrar UNA ocurrencia NO vacía el contenedor (la regla-hija permanece), así que no puede degradar ahí |
-| Serie recurrente ("toda la serie") | handler de App ([:984](App.tsx)) | **N/A** — desactiva la regla (no la borra); el contenedor no queda vacío |
-
-Antes solo `handleDeleteTask`+lote degradaban, y **solo por `parent_task_id`**; `containerOfChild` ahora localiza el
-contenedor también cuando la hija tiene `parent_task_id=null` (recurrentes, por plantilla).
-
-**🔑 HALLAZGO — el "fallback a HOJA" (por qué salía tachado):** cuando un contenedor se queda sin hijas,
-`hasSubtasks = realSubtasks.length>0` pasa a **false** ([TaskCard.tsx:128-129](TaskCard.tsx)) → la fila se pinta **como
-una HOJA**, y una hoja usa `rowCompleted = task.status === 'completed'`. Con el `status` viejo `'completed'` → **tachado**,
-en AMBAS vistas (la derivación por/sin día NI se llama). Por eso degradar no bastaba: hay que **poner `status:'pending'`**
-al vaciar (`7e52d88`). *(Aparte: `isTaskCompleted` con 0 hijas NO da vacuidad-verdadera — guard `length>0` → cae a
-`status`; mismo efecto.)*
+| Tarea/subtarea normal o **regla-hija** (fila `···` / modal) | `handleDeleteTaskRequest → handleDeleteTask` | **OK** — `handleDeleteTask` vacía `parent.subtasks` ([useTaskCRUD.ts:739](useTaskCRUD.ts)); el render deriva |
+| **Lote** | `bulkDeleteTasks` | **OK** — mismo, por derivación |
+| **Instancia recurrente** (fila → "¿este día?") | handler de App ([App.tsx:958](App.tsx)) | **N/A** — borrar UNA ocurrencia no vacía (la regla-hija permanece) |
+| **Serie recurrente** ("toda la serie") | handler de App | **⚠️ CABO** — el handler **NO toca `parent.subtasks`**; si esa era la última hija, el contenedor puede seguir mostrándose como contenedor. Afecta a los 23 con reglas. Abierto |
 
 **BORRADO DE UNA SERIE = CORTARLA EN EL TIEMPO (dictado por la usuaria, sesión 17):** una regla recurrente **NO se
 borra, se corta**. **Hacia delante:** deja de generar ocurrencias (pone fecha fin). **Hacia atrás:** las instancias ya
-generadas **se mantienen ÍNTEGRAS** — con su tiempo, movimientos, etiquetas y excepciones; son **hechos consumados y no
-se tocan NUNCA**. Si la regla se crea y se corta **el mismo día**, no hay pasado que conservar → *parece* que se borra
-entera, pero es **la misma operación**. **Poner fecha fin desde el editor es esa misma operación por otro camino.**
-El botón que hoy dice "borrar la serie" describe mal la acción (la termina, no la borra) → renombrar, FASE 6 (§16.17).
+generadas **se mantienen ÍNTEGRAS**; son **hechos consumados y no se tocan NUNCA**. Si la regla se crea y se corta **el
+mismo día**, no hay pasado que conservar → *parece* que se borra entera, pero es **la misma operación**. **Poner fecha
+fin desde el editor es esa misma operación por otro camino.** El botón "borrar la serie" describe mal la acción (la
+termina, no la borra) → renombrar, FASE 6 (§16.17).
 
-**PREGUNTAS ABIERTAS sobre el corte de serie (NO investigar ahora):**
-1. ¿"borrar la serie" y "poner fecha fin hoy" ejecutan **el mismo código**?
-2. ¿una regla cortada **sigue apareciendo en Bloques** para poder llegar a su histórico?
-3. ¿se puede **quitar la fecha fin y reabrir** una regla cortada?
-4. ¿alguna de las **7 rotas** tiene fecha fin? — si la tiene, NO es un contenedor vaciado sino una **serie cortada el día
-   de su creación** (otra causa distinta).
+**CIERRES DE MODELO:** invariante cableado como **aviso** en `handleUpdateTask` (`validateTemplate` + `toast.warn`,
+`4de1ca1`); `validateTemplate` **reescrito** (`308a935`, sesión 18): un contenedor **SÍ puede alojar reglas** — solo son
+incoherentes *pauta propia + hijas* y *plantilla inerte* (ni pauta propia ni hijas). Fix del **modal** (`4bfa51d`);
+**tests de campo muerto** (`da8481e`). Tests del modelo tras sesión 18: **77 verdes, 1 rojo** (`reconcileDay` STUB, (c)).
 
-**CIERRES DE MODELO (sesión 17):** invariante regla XOR contenedor cableado como **aviso** en `handleUpdateTask`
-(`validateTemplate` + `toast.warn`, `4de1ca1`); fix del **modal** (`4bfa51d`); **tests de campo muerto** que ponen rojo
-si se lee el estimado/registrado/etiquetas propios del contenedor (`da8481e`). Tests del modelo: 82 verdes, 1 rojo
-(`reconcileDay`, sigue en (c)).
-
-**RECUENTO DEL MODELO (medición sesión 17, 2026-08-13; SOLO LECTURA):**
-- 133 plantillas: 101 con pauta · 32 sin pauta → **23 contenedores legítimos + 9 ROTAS**. *(Corrige el "21/11" del
-  §16.15, que contaba `template_id` (ocurrencias de una regla) como hijas; lo correcto es `parent_task_id`.)*
-- **Regla XOR se CUMPLE en datos: 0 plantillas con pauta Y hijas-de-contenedor a la vez.**
-- **9 ROTAS** (`is_template:true` + `recurrence:null` + sin hijas): **1** con id `inst-…-fecha` (ascendida por el bug del
-  picker) · **8** SIN esa forma. **Confirma la sospecha: solo 1 de 9 viene del bug; las otras 8 no.** Títulos de las 8:
-  "Possible reunió Candidata", "Ver calificación de cuentas", "Publicar propias y preparar mensuales fisicas",
-  "Veure situació Lucia per trucada", "Veure feed Back clara Sibils Lucia", "verificar la presentación de las CCAA",
-  "Ënviar documentos firmados a auditores", "Recoger la documentación encuadernada de los auditores". Pueden ser
-  contenedores vaciados sin degradar O reglas creadas sin pauta; los datos por sí solos no lo distinguen. **No tocar.**
-- **23 contenedores legítimos — incumplimientos del modelo:** recurrencia **0** · fecha **0** · etiquetas **0** ·
-  prioridad **0** (limpio) · estimado propio **2** · registrado propio **1** · tipo≠core **4**. Poco; NO bloquea (motivo
-  3 no aplica). *(El tiempo sobre contenedores —4 entradas/116m— NO se borra, ya decidido.)*
+**RECUENTO REAL DEL MODELO (medición sesión 18, 2026-08-13; paginado 2827 filas / 2071 vivas; SOLO LECTURA):**
+- **98 CONTENEDORES REALES** (tarea con ≥1 hija viva por `parent_task_id`) = **75 sin marca** (`isTemplate:false`) +
+  **23 con marca** (`isTemplate:true`, **todas alojan hijas recurrentes** → la marca es la llave del motor, no "estado").
+- **101 reglas puras** (pauta propia, sin hijas).
+- **6 contenedores con `status:'completed'` guardado** (la mina del fallback-a-hoja): "Lluis Corbera Bankinter",
+  "Salmerón ver opciones", "Ivan Transporte", "Pagos Trimestrales", "Poner fechas varias laboral", "Tema De Anna
+  Cardona". Normalizar a `pending` = bloque 2 (pendiente de OK de la usuaria).
+- **⚠️ POR QUÉ EL "23 contenedores legítimos" DEL RECUENTO ANTERIOR ERA ENGAÑOSO:** medía las **plantillas marcadas**
+  (`isTemplate:true` con hijas) — es decir, los contenedores-que-alojan-reglas — **NO los contenedores**. Coincide
+  exactamente (23) porque es el mismo censo mal etiquetado. **El número real de contenedores es 98, no 23.** El criterio
+  "plantilla = contenedor" era la premisa equivocada; el correcto es "tiene ≥1 hija viva", con o sin marca.
+- **Nota sobre las "9 rotas":** dato caducado. Tras implementar (a)/(b), la batería tiene **1 sola roja** (`reconcileDay`
+  STUB). Las "9 rotas" eran de un estado anterior del código, no del actual.
 
 **Campos que el contenedor GUARDA pero IGNORA (comprobado en código + GARANTIZADO por test `da8481e`):**
 - **Estimado propio:** WRITTEN pero IGNORADO — el chip es `readonly` para contenedores y su `onChange` solo escribe si
@@ -2301,7 +2312,10 @@ si se lee el estimado/registrado/etiquetas propios del contenedor (`da8481e`). T
 - **Etiquetas propias:** WRITTEN pero IGNORADAS — el chip de etiqueta no se pinta para contenedores
   ([TaskCard.tsx:699-701](TaskCard.tsx)); la agrupación por tag usa las etiquetas de las HIJAS.
 - **Registrado propio:** IGNORADO — `containerRegisteredForDay` no cuenta el tiempo sobre el propio contenedor.
-- (Los 3 tests de campo muerto se ponen ROJOS si alguien vuelve a leer estos campos propios; los datos NO se borran.)
+- **Status propio:** IGNORADO **mientras tenga hijas** (el completado se DERIVA, `isContainerCompleteOnDay`), pero
+  `handleToggleStatus`/bulk-complete **sí lo escriben** → es la mina del fallback-a-hoja al vaciar (ver arriba). A
+  diferencia de los otros 3, **NO está guardado por test** y **sí hay quien lo escribe**; pendiente de decisión.
+- (Los 3 tests de campo muerto se ponen ROJOS si alguien vuelve a leer el estimado/registrado/etiquetas propios; los datos NO se borran.)
 
 **ABIERTO — fase por asignar:**
 - **Vista de Carga proyecta 12 meses desde plantillas.** Si el contenedor no tiene fecha ni estimado propio, en Carga
