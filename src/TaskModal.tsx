@@ -557,12 +557,14 @@ export function TaskModal({
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Activar repetición</span>
                         <button
-                          onClick={() => setLocalTask(prev => ({
-                            ...prev,
-                            recurrence: prev.recurrence ? undefined : { frequency: 'daily', startDate: prev.dueDate || formatLocalISO(new Date()) },
-                            isTemplate: !prev.recurrence,
-                            dueDate: prev.recurrence ? (prev.dueDate || formatLocalISO(new Date())) : null
-                          }))}
+                          onClick={() => setLocalTask(prev => prev.recurrence
+                            // Desactivar recurrencia → vuelve a tarea normal (se quita la regla).
+                            ? { ...prev, recurrence: undefined, isTemplate: false, dueDate: prev.dueDate || formatLocalISO(new Date()) }
+                            // Activar: SOLO fijar la pauta. NO pre-poner isTemplate:true — eso saltaba la conversión
+                            // manual→plantilla de handleUpdateTask (crear la 1ª instancia del día), mismo bug ya cerrado
+                            // en la fila con c0bb09d. Se conserva dueDate para que la 1ª instancia aterrice en el día.
+                            : { ...prev, recurrence: { frequency: 'daily', startDate: prev.dueDate || formatLocalISO(new Date()) } }
+                          )}
                           className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                             hasActiveRecurrence ? 'bg-turquesa text-white' : 'dark:bg-bg-secondary bg-gray-200 dark:text-text-secondary text-text-secondary-light'
                           }`}
