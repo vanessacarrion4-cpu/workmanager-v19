@@ -853,11 +853,12 @@ export function useTaskCRUD({
       order: 0,
       createdAt: new Date().toISOString(),
       modifiedAt: new Date().toISOString(),
-      isTemplate: true,
-      isActive: true,
-      // §16.16 (b): nace CON pauta por defecto (diaria, desde hoy) → regla VÁLIDA desde el inicio,
-      // nunca una plantilla "sin pauta" inerte. El usuario ajusta la pauta en el editor que se abre.
-      recurrence: { frequency: 'daily', startDate: formatLocalISO(new Date()) }
+      // §R2 opción B (decisión de la usuaria): NO nace como plantilla. Hasta que tenga pauta es una tarea
+      // NORMAL — visible en Bloques (coreTasks/adhocTasks no exigen isTemplate; cuenta como "manual"). Al poner
+      // la pauta en el editor, handleUpdateTask la convierte en plantilla. Si se abandona, queda una tarea a la
+      // vista (no una plantilla inerte, ni una regla diaria que ensucia Mi Día cada día).
+      isTemplate: false,
+      isActive: true
     };
     setTasks(prev => ({ ...prev, [id]: newTemplate }));
     setEditingRuleId(id);
