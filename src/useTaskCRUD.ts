@@ -14,7 +14,8 @@ import { formatLocalISO } from './dateUtils';
 import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById, resolveActionTarget } from './instanceEngine';
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
 import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mudo en vez de morir en consola
-import { validateTemplate } from './fase3Contracts'; // §16.16: invariante regla recurrente / contenedor
+import { validateTemplate, writesOwnStatusOnToggle } from './fase3Contracts'; // §16.16: invariante + solo las hojas escriben su status
+import { isTaskCompleted } from './utils'; // §16.16: completado del contenedor DERIVADO (dirección del toggle)
 
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
@@ -130,38 +131,47 @@ export function useTaskCRUD({
     }
     if (task.isDeleted) return; // guard legítima (muda): no togglear ni resucitar una instancia borrada
 
-    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
+    // §16.16 (modelo corregido): "ser contenedor" se DERIVA de tener hijas. Al clicar un contenedor se
+    // marcan SOLO las hijas; su `status` propio NO se escribe (es campo muerto y, al vaciarlo, la mina del
+    // fallback-a-hoja → salía tachado, caso a). La DIRECCIÓN (completar/descompletar) también se deriva de
+    // las hijas, no del status propio: si no, al dejar de escribirlo quedaría congelado y no se podría
+    // descompletar. Una HOJA sí usa su propio status (es su única fuente de completado).
+    const currentlyComplete = writesOwnStatusOnToggle(task) ? (task.status === 'completed') : isTaskCompleted(task.id, tasks);
+    const newStatus = currentlyComplete ? 'pending' : 'completed';
     const timestamp = new Date().toISOString();
     const tasksToUpsert: Task[] = [];
 
     const toggleRecursive = (targetTask: Task, status: 'pending' | 'completed') => {
-      const isInstance = !!targetTask.templateId;
-      const isRecurring = !!(targetTask.templateId || targetTask.recurrence);
-      const updated = {
-        ...targetTask,
-        status,
-        isException: isInstance ? true : targetTask.isException,
-        existsInSupabase: true,
-        modifiedAt: timestamp,
-        completedAt: status === 'completed' ? timestamp : undefined,
-        wasRecurring: status === 'completed' && isRecurring ? true : targetTask.wasRecurring,
-      };
-      tasksToUpsert.push(updated);
+      if (writesOwnStatusOnToggle(targetTask)) {
+        // HOJA: escribe su propio status (incl. la instancia recurrente y su original no-plantilla).
+        const isInstance = !!targetTask.templateId;
+        const isRecurring = !!(targetTask.templateId || targetTask.recurrence);
+        tasksToUpsert.push({
+          ...targetTask,
+          status,
+          isException: isInstance ? true : targetTask.isException,
+          existsInSupabase: true,
+          modifiedAt: timestamp,
+          completedAt: status === 'completed' ? timestamp : undefined,
+          wasRecurring: status === 'completed' && isRecurring ? true : targetTask.wasRecurring,
+        });
 
-      if (isInstance && targetTask.templateId && !targetTask.templateId.startsWith('inst-')) {
-        const originalTask = tasks[targetTask.templateId];
-        if (originalTask && !originalTask.isTemplate) {
-          const alreadyAdded = tasksToUpsert.some(t => t.id === originalTask.id);
-          if (!alreadyAdded) {
-            tasksToUpsert.push({
-              ...originalTask,
-              status,
-              modifiedAt: timestamp,
-              completedAt: status === 'completed' ? timestamp : undefined,
-            });
+        if (isInstance && targetTask.templateId && !targetTask.templateId.startsWith('inst-')) {
+          const originalTask = tasks[targetTask.templateId];
+          if (originalTask && !originalTask.isTemplate) {
+            const alreadyAdded = tasksToUpsert.some(t => t.id === originalTask.id);
+            if (!alreadyAdded) {
+              tasksToUpsert.push({
+                ...originalTask,
+                status,
+                modifiedAt: timestamp,
+                completedAt: status === 'completed' ? timestamp : undefined,
+              });
+            }
           }
         }
       }
+      // CONTENEDOR (tiene hijas): NO se escribe su status propio; solo se recurre a las hijas.
 
       (targetTask.subtasks || []).forEach(sid => {
         // B1: las hijas de un contenedor virgen no están en `tasks` → caen a dayMap (materializado).

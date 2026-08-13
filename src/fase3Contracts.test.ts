@@ -13,8 +13,10 @@ import {
   childrenToToggleOnDay,
   reconcileDay,
   validateTemplate,
+  writesOwnStatusOnToggle,
 } from './fase3Contracts';
 import { groupTasksByTag } from './filters';
+import { isTaskCompleted } from './utils';
 
 // 2026-07-13 Lun · 07-15 Mié · 07-16 Jue
 const WED = '2026-07-15';
@@ -213,5 +215,44 @@ describe('FASE 3 · campos muertos del contenedor (§16.16)', () => {
     const groups = groupTasksByTag([tasks['C']], tasks, WED, { hideCompleted: false, hideDelegatedNoTag: false });
     expect(groups.focus.some((g: any) => g.task.id === 'C')).toBe(true);   // aparece por la hija (focus)
     expect(groups.espera.some((g: any) => g.task.id === 'C')).toBe(false); // NO por la suya (espera)
+  });
+});
+
+// =========================================================================
+// (caso a, sesión 18) — el CONTENEDOR no escribe su status propio + transición vaciado → hoja → status.
+// FORMA REAL: contenedores isTemplate:FALSE (75 de 98), la que nunca se probó y la que fallaba en pantalla.
+// =========================================================================
+describe('FASE 3 · el contenedor no escribe su status propio (§16.16, caso a)', () => {
+  it('contenedor (isTemplate:FALSE, con hijas) → NO escribe su status propio al togglear', () => {
+    const c = task({ id: 'C', subtasks: ['A'] }); // SIN isTemplate: la forma real (mayoría)
+    expect(writesOwnStatusOnToggle(c)).toBe(false);
+  });
+
+  it('hoja → SÍ escribe su status propio (es su única fuente de completado)', () => {
+    expect(writesOwnStatusOnToggle(task({ id: 'A', parentTaskId: 'C' }))).toBe(true);
+  });
+
+  it('solo instancias generadas (inst-…) NO cuentan como hijas reales → hoja', () => {
+    expect(writesOwnStatusOnToggle(task({ id: 'C', subtasks: ['inst-x-2026-07-15'] }))).toBe(true);
+  });
+
+  it('TRANSICIÓN caso (a): con hijas el completado se DERIVA (status propio ignorado); al VACIARSE cae a hoja y se lee el status → por eso nadie debe escribirlo', () => {
+    // CON hijas: status propio 'completed' engañoso, pero completa DERIVA (hija pendiente → no completo).
+    const conHijas = byId([
+      task({ id: 'C', subtasks: ['A'], status: 'completed' }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED, status: 'pending' }),
+    ]);
+    expect(writesOwnStatusOnToggle(conHijas['C'])).toBe(false); // no escribe → no siembra la mina
+    expect(isTaskCompleted('C', conHijas)).toBe(false);         // derivado: hija pendiente
+
+    // VACIADO con status viejo 'completed' → HOJA: isTaskCompleted cae al status propio = EL SÍNTOMA.
+    const vaciadoSucio = byId([task({ id: 'C', subtasks: [], status: 'completed' })]);
+    expect(writesOwnStatusOnToggle(vaciadoSucio['C'])).toBe(true); // ya es tarea normal
+    expect(isTaskCompleted('C', vaciadoSucio)).toBe(true);         // ← lee el status viejo → salía tachado
+
+    // ARREGLO: como el contenedor nunca escribe 'completed', al vaciarlo su status es 'pending' → no tachado
+    // (el dato legado se normaliza aparte, bloque 2).
+    const vaciadoLimpio = byId([task({ id: 'C', subtasks: [], status: 'pending' })]);
+    expect(isTaskCompleted('C', vaciadoLimpio)).toBe(false);
   });
 });

@@ -112,6 +112,18 @@ export function reconcileDay(day: string, allTasks: Record<string, Task>): Recor
  *                                     Es el "cabo" de vaciar un contenedor que alojaba reglas.
  *  - solo pauta propia / solo hijas → válido (regla pura / contenedor, aloje o no reglas recurrentes).
  */
+/**
+ * §16.16 — Al togglear el completado, SOLO las HOJAS escriben su propio `status`. Un CONTENEDOR (tarea con
+ * hijas) NUNCA escribe el suyo: su completado se DERIVA de las hijas (mismo principio que `isContainerCompleteOnDay`
+ * / `isTaskCompleted`). Sin esto, al vaciar el contenedor se pinta como hoja y arrastra un `status:'completed'`
+ * viejo → salía TACHADO (caso a, sesión 18). Se ignoran los ids `inst-…` (instancias generadas, no hijas reales).
+ */
+export function writesOwnStatusOnToggle(task: Task): boolean {
+  if (!task) return false;
+  const realChildren = (task.subtasks || []).filter((id) => !id.startsWith('inst-'));
+  return realChildren.length === 0; // hoja → escribe su status; contenedor → no
+}
+
 export function validateTemplate(task: Task, allTasks: Record<string, Task>): string | null {
   if (!task || !task.isTemplate) return null;
   const hasOwnPauta = !!(task.recurrence && (task.recurrence as any).frequency);

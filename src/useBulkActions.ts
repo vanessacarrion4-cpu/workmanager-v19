@@ -53,7 +53,9 @@ export function useBulkActions({
 
   const bulkUpdateTasks = useCallback((updates: Partial<Task>) => {
     const timestamp = new Date().toISOString();
-    const isContainerSafeUpdate = updates.status !== undefined;
+    // §16.16 (modelo corregido): un CONTENEDOR nunca recibe una escritura directa de un campo derivado
+    // (status, tiempo, etc.); se BAJA a las hijas del día. Antes el `status` era la excepción (se escribía
+    // en el propio contenedor) → esa era la segunda fuente de `status:'completed'` en contenedores.
     // C3: resolver instancias recurrentes VÍRGENES (no están en `tasks`) para que entren en el flujo;
     // el path de upsert (más abajo, `templateId && !existsInSupabase`) las materializa como excepción.
     const resolve = createDayResolver(tasks, activeDate);
@@ -65,7 +67,7 @@ export function useBulkActions({
       if (!task) { const o = resolve(id); if (o) { task = o; resolvedById[o.id] = o; } }
       if (!task) return;
       const isContainer = task.subtasks && task.subtasks.length > 0;
-      if (isContainer && !isContainerSafeUpdate) {
+      if (isContainer) {
         // Solo subtareas pendientes del día activo — nunca completadas ni de otro día
         const instanceDate = task.instanceDate || task.dueDate;
         let found = false;
