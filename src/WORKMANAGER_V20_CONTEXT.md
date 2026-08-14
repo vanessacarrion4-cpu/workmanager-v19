@@ -2099,6 +2099,23 @@ revertir `f073ed5`. (El clic no se pudo automatizar por el `confirm()` del tapó
 **ARRANCAR LA FASE SIGUIENTE POR:** decidir FASE 4 (limpieza de datos, plan en §16.17 listo para aprobar) o FASE 5/6
 (creación/diseño). Nada de FASE 3 bloquea. Tests: **95 verdes, 0 rojos.**
 
+**🩺 ¿CUÁNTO FALTA PARA DAR LA APP POR ESTABLE? (inventario honesto, criterio del asistente — cierre sesión 18):**
+- **Lo que DOLÍA a diario (trabajo desapareciendo) — RESUELTO esta sesión:** completar/clicar un contenedor ya no esconde
+  trabajo en silencio (se cerró el escritor del status propio; C1 día-scopea el clic; el tapón B rescata el contenedor
+  borrado con hijas pendientes; el fallback-a-hoja se atajó normalizando datos). *Pendiente de tu validación: el clic de C1.*
+- **🔴 LO ÚNICO que aún DUELE a diario: MOVER un contenedor deja sus hijas atrás** (huérfanas invisibles ese día — la causa
+  *vacated*). Cada vez que muevas un contenedor con hijas, esas hijas se esconden. El tapón B cubre BORRAR, no MOVER. **Es
+  el siguiente arreglo para estabilidad real** (motor, tamaño MEDIO, §16.17). Hasta entonces: mover contenedores es el gesto
+  a evitar. Es lo más grave que queda.
+- **Molestias menores, NO dolor diario:** clic de contenedor en Semana/Calendario aún togglea todos los días (solo si
+  completas ahí); contador "1 tarea/7 filas" en Bloques (cosmético); el chip de recurrencia solo desde el modal (FASE 5).
+- **Higiene invisible, NO duele:** FASE 4 (7 rotas, 1 dup Soriano, 64 filas `inst-inst-` basura, 1 instancia suelta) —
+  clutter que no se ve; conviene limpiar pero no urge. Optimización de desmarcado y purga de completadas: cosmético.
+- **Diseño/pulido (FASE 6), NO funcional:** modal de papelera, renombrar "borrar la serie", calendario sin retroceso de
+  mes, aviso de Carga, ancho máximo.
+- **VEREDICTO:** tras validar el clic de C1, para el uso diario "no perder trabajo" la app está **casi estable** — con UN
+  agujero real: **mover contenedores**. Ese es el trabajo que separa "casi" de "estable". Lo demás es limpieza y pulido.
+
 ---
 *(Historia de sesión 17, ya superada por la 18 — ver inventario de desactualizado abajo):*
 *(Nota: (a)/(b)/(c) son los PRINCIPIOS de FASE 3; los agujeros de recurrencia se renombraron a R1/R2/R3 en §16.15.)*
