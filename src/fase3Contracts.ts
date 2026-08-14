@@ -89,13 +89,27 @@ export function childrenToToggleOnDay(containerId: string, allTasks: Record<stri
 }
 
 /**
- * Reconciliación sin fuga: el mapa del día X NO debe incluir filas cuyo día ≠ X.
- * STUB actual: el "estado gana" leaky de activeDayMap — materializeDay + overlay de TODO `tasks`.
+ * §16.12 (C3, opción B) — Mapa del día SIN FUGA. El STUB anterior overlayaba TODO `tasks` (fuga inerte de
+ * otros días). Semántica precisa: se CONSERVA una fila si —
+ *   1. es una instancia materializada del día (`materializeDay`),
+ *   2. PERTENECE al día (`belongsToDay`: `dueDate`/`instanceDate` === day),
+ *   3. es un CONTENEDOR (tiene ≥1 hija viva), aunque no tenga fecha propia — `belongsToDay` da false para
+ *      un contenedor sin fecha, así que un filtro ingenuo los borraría y ESCONDERÍA contenedores del día,
+ *   4. es una PLANTILLA (`isTemplate`) — `filterTasksForDay` hace `allTasksMap[templateId]` para decidir si
+ *      una instancia se muestra; sin la plantilla en el mapa esa búsqueda fallaría.
+ * Se DESCARTA solo lo realmente sobrante: HOJAS DATADAS de otro día, sin hijas y sin ser plantilla.
+ *
+ * ⚠️ NO CABLEADO en `activeDayMap` todavía (decisión de la usuaria: opción B). Es un helper-contrato con
+ * test hasta que se cablee con validación en pantalla. Ver §16.12 (pendiente bloqueante) y sus 2 riesgos.
  */
 export function reconcileDay(day: string, allTasks: Record<string, Task>): Record<string, Task> {
   const map: Record<string, Task> = {};
-  for (const inst of materializeDay(day, allTasks)) map[inst.id] = inst;
-  for (const t of Object.values(allTasks)) if (!t.isDeleted) map[t.id] = t; // STUB: fuga de otros días
+  for (const inst of materializeDay(day, allTasks)) map[inst.id] = inst; // 1
+  for (const t of Object.values(allTasks)) {
+    if (!t || t.isDeleted) continue;
+    const hasLiveChild = (t.subtasks || []).some((sid) => allTasks[sid] && !allTasks[sid]!.isDeleted);
+    if (belongsToDay(t, day) || hasLiveChild || t.isTemplate) map[t.id] = t; // 2, 3, 4
+  }
   return map;
 }
 

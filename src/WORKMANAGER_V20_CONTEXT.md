@@ -2111,7 +2111,20 @@ completadas). Validado en pantalla. **(b3) DESBLOQUEADO.**
   calma):** SOLO en Mi Día y SOLO con "ocultar completadas" ACTIVO — un contenedor cuyas hijas de HOY están todas hechas
   ahora DESAPARECE aunque tenga hijas pendientes de otro día. Con el filtro apagado no cambia nada. **Techo del impacto:
   56 contenedores** (los que tienen hijas mixtas completa+pendiente); el número real por día es un subconjunto.
-- **(c) COMPLETA** — reconciliación del día sin fuga (`reconcileDay`, el único test aún ROJO). Es el paso más peligroso; entrar con (a)/(b) verificados.
+- **C3 — `reconcileDay` IMPLEMENTADO + TEST VERDE, pero ⚠️ NO CABLEADO (opción B, sesión 18):** la función-contrato ya
+  hace el mapa sin fuga con semántica precisa (día + contenedores sin fecha + plantillas; descarta solo hojas datadas de
+  otro día) y su test cubre la forma real `isTemplate:false`. Batería **90 verdes, 0 rojos** (era el último rojo). **Queda
+  como HELPER SIN LLAMAR a propósito** — la usuaria eligió B para no tocar el render sin validar en pantalla.
+  **PENDIENTE BLOQUEANTE para cerrar C3 = cablearlo en `activeDayMap` ([App.tsx:161-166](App.tsx)):** sustituir el overlay
+  `Object.values(tasks).forEach(t => map[t.id]=t)` por `reconcileDay(activeDate, tasks)`. **Antes de cablear, los 2 riesgos
+  que encontró el paso-0 (por eso no se cabló a ciegas):**
+  1. **Plantillas:** `filterTasksForDay` hace `allTasksMap[t.templateId]` ([filters.ts:156](filters.ts)) para decidir si
+     una instancia se muestra. `reconcileDay` YA conserva las plantillas, así que el cableado no debería romperlo — **pero
+     verificar en pantalla** que ninguna instancia cambia de visibilidad.
+  2. **Contenedores sin fecha:** `belongsToDay` da false para ellos; `reconcileDay` los conserva por "tiene hijas", así que
+     no deberían desaparecer — **verificar en pantalla** que siguen saliendo con su hija del día.
+  Al cablear, medir: filas en el mapa antes (~2071 / 1015 de otros días) vs después, y confirmar que **nada desaparece de
+  la vista** (por construcción no debería, pero es display → lo valida la usuaria).
 
 **🔴 EN (c) SE CIERRA, SÍ O SÍ:**
 - **Contradicción viva del clic:** el VISTO del contenedor ya va por el día, pero CLICARLO sigue cerrando hijas de cualquier fecha (`toggleRecursive` sin tocar). Pantalla y acción dicen cosas distintas. (c) alinea: clic = solo hijas del día (`childrenToToggleOnDay` ya existe; falta materializar).

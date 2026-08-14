@@ -130,17 +130,56 @@ describe('FASE 3 · principio (b) — completado derivado del contenedor', () =>
 });
 
 // =========================================================================
-// Reconciliación sin fuga: el mapa del día X no incluye filas de otro día.
+// (C3, opción B) reconcileDay SIN FUGA — FORMA REAL (contenedores isTemplate:FALSE, 75 de 98).
+// Conserva: día + contenedores (sin fecha) + plantillas; descarta solo hojas datadas de otro día.
+// NO cableado en activeDayMap (pendiente §16.12).
 // =========================================================================
-describe('FASE 3 · reconciliación del día sin fuga', () => {
-  it('el mapa del día X excluye una fila cuyo día es distinto', () => {
+describe('FASE 3 · reconcileDay sin fuga (C3, §16.12)', () => {
+  it('excluye una HOJA datada de otro día (isTemplate:false, sin hijas) — la fuga inerte', () => {
     const tasks = byId([
       task({ id: 'X', dueDate: WED }),
       task({ id: 'Y', dueDate: THU }),
     ]);
     const map = reconcileDay(WED, tasks);
-    expect(map['X']).toBeDefined();
-    expect(map['Y']).toBeUndefined();
+    expect(map['X']).toBeDefined();   // del día → se queda
+    expect(map['Y']).toBeUndefined(); // otro día, hoja sin hijas → fuera
+  });
+
+  it('CONSERVA un contenedor isTemplate:FALSE SIN fecha propia con hija de hoy (un filtro por belongsToDay lo borraría)', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A'] }),                    // contenedor sin fecha, SIN isTemplate (forma real)
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED }),
+    ]);
+    const map = reconcileDay(WED, tasks);
+    expect(map['C']).toBeDefined(); // contenedor conservado aunque belongsToDay(C)=false
+    expect(map['A']).toBeDefined(); // hija del día
+  });
+
+  it('contenedor isTemplate:false cuyas hijas son de OTRO día: el contenedor se conserva, la hoja de otro día NO', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A'] }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: THU }),    // hija de otro día
+    ]);
+    const map = reconcileDay(WED, tasks);
+    expect(map['C']).toBeDefined();   // tiene hijas → se conserva (candidato estructural)
+    expect(map['A']).toBeUndefined(); // hoja de otro día → fuera
+  });
+
+  it('conserva las PLANTILLAS (isTemplate) aunque no sean del día — filterTasksForDay hace allTasksMap[templateId]', () => {
+    const tasks = byId([
+      task({ id: 'R', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+    ]);
+    const map = reconcileDay(WED, tasks);
+    expect(map['R']).toBeDefined();
+  });
+
+  it('un contenedor vacío (0 hijas vivas), isTemplate:false y sin fecha → NO se conserva (ya no es contenedor)', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A'] }),
+      task({ id: 'A', parentTaskId: 'C', isDeleted: true }),  // única hija borrada
+    ]);
+    const map = reconcileDay(WED, tasks);
+    expect(map['C']).toBeUndefined(); // sin hija viva, sin fecha, no plantilla → fuera
   });
 });
 
