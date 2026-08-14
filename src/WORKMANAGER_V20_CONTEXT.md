@@ -2653,8 +2653,10 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
 - **FASE 3 (c):** **(b3) YA HECHO** (`ff4643b`, filtro por día en Mi Día). Pendiente **(c)** reconciliación sin fuga
   (`reconcileDay`, test rojo) con la contradicción del clic, el síntoma del 30-jul, el toggle "solo el día" y la fecha de
   inicio de recurrencia (§16.12). *(La degradación de la sesión 17 se ELIMINÓ en la 18, `2dbada5`: no había conversión.)*
-- **FASE 4 (persistencia y limpieza legada) — PLAN MEDIDO sesión 18 (SOLO LECTURA, nada ejecutado; para aprobar de un
-  vistazo). Ojo: los números del doc estaban desactualizados; los reales, abajo.**
+- **FASE 4 (persistencia y limpieza legada) — PLAN MEDIDO sesión 18, RE-CONFIRMADO al cierre (SOLO LECTURA, nada
+  ejecutado; para aprobar de un vistazo). Números re-medidos hoy: IDÉNTICOS — G1=7 rotas (mismos ids), G2=1 grupo real
+  (Soriano), G3=64 (`inst-inst-`=29), G4=la suelta sigue viva (`inst-t-1785433862534-2026-08-24`, pending, due 08-24).
+  Los cambios de datos de la sesión (reversión 22 · normalización 6 · completar 2) NO afectaron a estos grupos.**
 
   **G1 · 7 plantillas rotas** (`is_template:true`, sin pauta propia, sin hijas vivas → invisibles en Mi Día por el filtro
   `!isTemplate`). IDs: `inst-t-1778162405700-2026-05-08` ("Gestión campaña", forma inst = ascendida por bug picker) ·
