@@ -2555,6 +2555,15 @@ tachado —que sale de las hijas—. **Antes de limpiar un dato, comprobar en qu
 las hijas, no del campo del padre). Misma familia que el "status guardado que no se lee" del §16.10.
 
 **ABIERTO — fase por asignar:**
+- **🔑 MOVER UN CONTENEDOR NO SE LLEVA SUS HIJAS (hallazgo sesión 18, causa raíz de las huérfanas *vacated*):** al mover
+  la instancia de un contenedor de día A→B (excepción `instanceDate=A, dueDate=B`), sus hijas de A **se quedan en A** como
+  huérfanas (`parent_task_id=null`, su contenedor ya no se materializa en A) → invisibles. Es lo que creó el caso de
+  "Cierre Propias" 07-22 y **volverá a pasar cada vez que se mueva un contenedor con hijas ese día**.
+  **Impresión de tamaño: MEDIO.** No es un one-liner: el handler de mover (App recurrence / `handleUpdateTask`) tendría
+  que, al mover un contenedor-día, **arrastrar las hijas resueltas de ese día al día destino** (crear/actualizar sus
+  excepciones a `dueDate=B`). Está en la zona frágil del motor de recurrencia (excepciones/materialización), pero acotado
+  (enumerar las hijas del día + re-datar). **Ubicación sugerida: junto a C1/C2 en FASE 3 (c)** o un mini-bloque de
+  "mover recurrentes" propio; no es diseño (FASE 6), es motor.
 - **Contador vs tachado con criterios distintos (hallazgo sesión 18):** en Bloques el contador de cabecera
   (`coreTasks+adhocTasks`, [BlocksView.tsx:250](BlocksView.tsx)) cuenta tareas top-level por su **status PROPIO**
   (`hideCompleted && status==='completed'`), sin contar hijas y sin derivar; el **tachado** de la fila se **DERIVA** de las
@@ -2627,3 +2636,5 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
     **el nombre no describe la acción**; renombrar. (Comportamiento en §16.16.)
   - **Aviso de la vista de Carga:** que un contenedor **no se proyecte dos veces** (contenedor + hijas) **ni desaparezca**
     (§16.16 abierto). Comprobar al rediseñar Carga.
+  - **Calendario "Ir a fecha" de Mi Día no retrocede de mes (hallazgo sesión 18):** solo muestra el mes actual; para ir a
+    julio hacen falta ~23 clics en la flecha de día anterior. Añadir navegación de mes (‹ mes ›). Sin prioridad.
