@@ -2576,6 +2576,14 @@ las hijas, no del campo del padre). Misma familia que el "status guardado que no
   excepciones a `dueDate=B`). Está en la zona frágil del motor de recurrencia (excepciones/materialización), pero acotado
   (enumerar las hijas del día + re-datar). **Ubicación sugerida: junto a C1/C2 en FASE 3 (c)** o un mini-bloque de
   "mover recurrentes" propio; no es diseño (FASE 6), es motor.
+- **Optimización del DESMARCADO (fuera de C1, decisión sesión 18):** al desmarcar una hija recurrente, en vez de dejar la
+  excepción en `pending` (idéntica al default derivado → fila redundante), **borrar la excepción** y volver a virtual. No
+  baja el volumen de completadas (esas son historial que la usuaria quiere conservar), pero evita acumular filas `pending`
+  basura (parte de las 32 huérfanas pendientes salió de esto). Tamaño PEQUEÑO (rama en el path de uncomplete). Independiente
+  de C1.
+- **Limpieza periódica de completadas viejas (si algún día hace falta):** ~150 filas-excepción/mes de ocurrencias
+  completadas (histórico, se conserva a propósito). Si el volumen molesta a largo plazo, una purga por antigüedad (p.ej.
+  completadas > N meses) en FASE 4, NUNCA dejar de escribir el completado (se perdería el rastro). Sin prioridad.
 - **Contador vs tachado con criterios distintos (hallazgo sesión 18):** en Bloques el contador de cabecera
   (`coreTasks+adhocTasks`, [BlocksView.tsx:250](BlocksView.tsx)) cuenta tareas top-level por su **status PROPIO**
   (`hideCompleted && status==='completed'`), sin contar hijas y sin derivar; el **tachado** de la fila se **DERIVA** de las
