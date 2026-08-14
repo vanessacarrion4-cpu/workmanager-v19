@@ -2217,6 +2217,15 @@ la "Ënviar documentos firmados a auditores")**. Lista completa (título/fecha/i
    de un contenedor recurrente ([App.tsx:958-979](App.tsx)). Entierra el **contenedor entero + todas sus hijas** de ese
    día. **169 en total; 1 con trabajo vivo** (Verduras vivas, 4 pendientes hoy). **Tapado con el TAPÓN B** (abajo).
 
+**✅ C2 CERRADO (sesión 18). Números finales: 615 huérfanas = 583 histórico (completadas, no trabajo) + 32 pendientes;
+de las 32 → 26 se VEN (self-nest por plantilla) + 4 rescatadas por el TAPÓN B (Verduras, `e7724ee`) + 2 completadas
+(«Publicar a coordinadores» y «Sacar copias» de julio, superadas por su ocurrencia de agosto que ya está a la vista;
+opción 3, se completan para dejar rastro en el histórico, no se borran). Trabajo escondido restante: 0.**
+**LO QUE PERDÍA TRABAJO NO ERA EL ORFANATO** (las instancias se re-anclan por plantilla; nada se perdía por el
+`parent_task_id=null`) — **lo perdían la SUPRESIÓN de contenedor (borrar→este día) y el VACATED (mover el contenedor)**.
+Medio día se creyó lo contrario; queda escrito para no volver a creerlo. El bug de fondo que genera *vacated* ("mover un
+contenedor no se lleva sus hijas") queda aparcado en §16.17 (motor, tamaño MEDIO) para arreglarlo en (c).
+
 **🔁 C2 REPLANTEADO tras medir (enfoque, sesión 18) — el orfanato NO es el problema que parecía:**
 - **"Parar la fuga" (dejar de escribir `parent_task_id=null`) NO recupera nada y NO hay que hacerlo — pero OJO, el nulo NO
   es campo muerto (corrección sesión 18):** es **intencionado** (comentarios useTaskCRUD 198/405/683: "null; materializeDay
