@@ -292,6 +292,31 @@ describe('materializeDay', () => {
     expect(child!.parentTaskId).toBe('inst-t-cont-2026-07-15'); // por plantilla, NO 'BASURA-WRONG'
     expect(day.some(t => t.id === 'inst-t-cont-2026-07-15')).toBe(true); // el contenedor materializa y lo aloja
   });
+
+  // C1 (§16.16, sesión 18) — SELECCIÓN día-scoped para un contenedor MIXTO isTemplate:true (manual del día +
+  // recurrente del día + manual de OTRO día): materializeDay(D) resuelve SOLO las hijas de D (manual y
+  // recurrente), nunca la manual de otro día. Es el conjunto que C1 togglea para las plantillas.
+  it('C1 selección (contenedor MIXTO isTemplate:true): materializeDay(D) da manual+recurrente de D, NO la manual de otro día', () => {
+    const tasks = byId([
+      task({ id: 'C', isTemplate: true, subtasks: ['man-wed', 'rec', 'man-thu'] }),
+      task({ id: 'man-wed', parentTaskId: 'C', isTemplate: false, dueDate: WED }),                                   // manual del día
+      task({ id: 'rec', parentTaskId: 'C', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }), // recurrente (ocurre WED)
+      task({ id: 'man-thu', parentTaskId: 'C', isTemplate: false, dueDate: THU }),                                   // manual de OTRO día
+    ]);
+    const day = materializeDay(WED, tasks);
+    const cont = day.find(t => t.templateId === 'C');
+    expect(cont).toBeDefined();
+    const childIds = day.filter(t => t.parentTaskId === cont!.id).map(t => t.id);
+    expect(childIds).toContain('man-wed');                          // manual del día ✓
+    expect(childIds.some(id => id.startsWith('inst-rec'))).toBe(true); // recurrente del día ✓
+    expect(childIds).not.toContain('man-thu');                      // manual de otro día NO
+    // Y en THU: sale la manual de THU, no la de WED
+    const dayThu = materializeDay(THU, tasks);
+    const contThu = dayThu.find(t => t.templateId === 'C');
+    const thuIds = dayThu.filter(t => t.parentTaskId === contThu!.id).map(t => t.id);
+    expect(thuIds).toContain('man-thu');
+    expect(thuIds).not.toContain('man-wed');
+  });
 });
 
 // =========================================================================

@@ -332,3 +332,19 @@ describe('FASE 3 · (b3) completado por día para "ocultar completadas" (§16.16
     expect(isCompletedForDay('L', byId([task({ id: 'L', dueDate: WED, status: 'completed' })]), WED)).toBe(true);
   });
 });
+
+// =========================================================================
+// (C1) selección día-scoped para contenedor MANUAL (isTemplate:false): el clic togglea SOLO las hijas del día.
+// Para el contenedor con hijas recurrentes (isTemplate:true) la selección va por materializeDay (ver instanceEngine.test).
+// =========================================================================
+describe('FASE 3 · (C1) contenedor manual: togglear solo las hijas del día (§16.16)', () => {
+  it('childrenToToggleOnDay da SOLO la hija del día, no la de otro día', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A', 'B'] }),                       // contenedor manual (isTemplate:false)
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED }),           // hija de hoy
+      task({ id: 'B', parentTaskId: 'C', dueDate: THU }),           // hija de otro día
+    ]);
+    expect(childrenToToggleOnDay('C', tasks, WED)).toEqual(['A']);  // marcar/desmarcar en WED → solo A
+    expect(childrenToToggleOnDay('C', tasks, THU)).toEqual(['B']);  // en THU → solo B
+  });
+});

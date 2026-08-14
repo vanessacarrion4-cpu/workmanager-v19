@@ -443,23 +443,30 @@ export function TaskCard({
                   // C1: subtasks del objeto RENDERIZADO (materializado) — cubre contenedor virgen.
                   onToggleTaskSelection(task.id, task.subtasks || []);
                 } else {
-                  // §16.16 (tapón hasta (c)): clicar un contenedor cascadea a TODAS sus hijas de TODOS
-                  // los días. Antes lo hacía en silencio → completaba trabajo no hecho (cascada). Aviso con
-                  // el nº de subtareas afectadas. No cambia la lógica ni materializa nada; solo pide confirmar.
+                  // §16.16 (tapón): clicar un contenedor marca varias subtareas de golpe → pide confirmar.
+                  // C1: con día de la vista (dayForTotals, Mi Día) solo se tocan las hijas de ESE día
+                  // (`subtasksForGroup`); sin día (Bloques) se tocan TODAS. El mensaje refleja cuál es el caso.
                   if (hasSubtasks) {
-                    const countLeaves = (id: string, seen: Set<string> = new Set()): number => {
-                      if (seen.has(id)) return 0; seen.add(id);
-                      const t = allTasksMap[id]; if (!t || t.isDeleted) return 0;
-                      const kids = (t.subtasks || []).filter((s: string) => !s.startsWith('inst-'));
-                      return kids.length === 0 ? 1 : kids.reduce((a: number, k: string) => a + countLeaves(k, seen), 0);
-                    };
-                    const n = (task.subtasks || []).filter((s: string) => !s.startsWith('inst-')).reduce((a: number, k: string) => a + countLeaves(k), 0);
+                    const dayScoped = !!dayForTotals;
+                    let n: number;
+                    if (dayScoped) {
+                      n = (subtasksForGroup || task.subtasks || []).filter((s: string) => !s.startsWith('inst-')).length;
+                    } else {
+                      const countLeaves = (id: string, seen: Set<string> = new Set()): number => {
+                        if (seen.has(id)) return 0; seen.add(id);
+                        const t = allTasksMap[id]; if (!t || t.isDeleted) return 0;
+                        const kids = (t.subtasks || []).filter((s: string) => !s.startsWith('inst-'));
+                        return kids.length === 0 ? 1 : kids.reduce((a: number, k: string) => a + countLeaves(k, seen), 0);
+                      };
+                      n = (task.subtasks || []).filter((s: string) => !s.startsWith('inst-')).reduce((a: number, k: string) => a + countLeaves(k), 0);
+                    }
+                    const ambito = dayScoped ? 'de este día' : 'de TODOS los días';
                     const msg = rowCompleted
-                      ? `¿Marcar «${task.title || 'sin título'}» y sus ${n} subtarea${n !== 1 ? 's' : ''} como pendientes?`
-                      : `¿Completar «${task.title || 'sin título'}» y sus ${n} subtarea${n !== 1 ? 's' : ''} (de TODOS los días)?`;
+                      ? `¿Marcar «${task.title || 'sin título'}» y sus ${n} subtarea${n !== 1 ? 's' : ''} ${ambito} como pendientes?`
+                      : `¿Completar «${task.title || 'sin título'}» y sus ${n} subtarea${n !== 1 ? 's' : ''} (${ambito})?`;
                     if (n > 0 && !confirm(msg)) return;
                   }
-                  onToggleStatus(task.id);
+                  onToggleStatus(task.id, dayForTotals);
                 }
               }}
               className={`w-5 h-5 rounded-md flex items-center justify-center transition-all duration-150 shrink-0 ${
