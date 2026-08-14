@@ -2189,10 +2189,17 @@ el contenedor no se materializa en su fecha o el anclaje no cuadra, caen entre d
 contenedor (todos tipo plantilla-que-materializa): **Cierre Central Rec 10 · Cierre Propias 8 · Verduras vivas 4 · Gestión
 campaña 3 · Test Recurrent B1 3 (fixture 2028) · Pagos del mes FINCA 1 · Montse Vidal 1 · Cierre Anual 1 (inst-…-2026-08-24,
 la "Ënviar documentos firmados a auditores")**. Lista completa (título/fecha/id) entregada a la usuaria en el informe.
-- **⚠️ ANOMALÍA APARCADA (no tocar, decide la usuaria):** el conteo pasó de **25 → 32** durante la sesión, y al menos una
-  instancia de "Cierre Propias" que quedó `completed` en la cascada de las 21:44 aparece ahora `pending` (mismo id). Causa
-  no confirmada (posible actividad de la app / rollover de fecha a 08-14 / re-materialización). **Flag para revisar antes
-  de C2; no lo he tocado.**
+- **✅ ANOMALÍA 25→32 RESUELTA (confirmada con datos, sesión 18):** las nuevas huérfanas salen del **uso normal de la app
+  por la usuaria** (no de un proceso automático). Cruzando por `modified_at` + comparando la fecha del id (origen) con el
+  `due_date`: **15 de 32 son MOVIDAS** (origen ≠ destino) — hoy 08:04–08:22 seis de "Cierre Propias" movidas 08-08→08-14 y
+  el 13-ago tres de "Cierre Central Rec" 08-12→08-17. **Confirma que MOVER una hija recurrente de día pone
+  `parent_task_id=null`.** PERO **no es solo mover:** 4 "Verduras vivas" + "comentar Blai" de hoy están EN SITIO
+  (`due_date`=fecha del id) y aun así son huérfanas → **cualquier acción sobre una hija recurrente** (completar,
+  descompletar, editar) persiste la excepción con `parent_task_id=null` — el upsert de `handleToggleStatus` escribe
+  `parent_task_id: null` ([useTaskCRUD.ts:188](useTaskCRUD.ts)). **Qué ESCONDE trabajo:** una huérfana solo se vuelve
+  invisible si el re-anclado falla (contenedor no materializado ese día). **MOVER a otro día** es el gesto de riesgo (la
+  aleja del día del contenedor); actuar en sitio la huerfaniza igual pero suele seguir viéndose. **Consejo a la usuaria
+  hasta C2: evitar MOVER subtareas recurrentes de día.**
 - **3 de las 32 son el fixture de test "Test Recurrent B1" (2028)** — basura de pruebas, no trabajo real; van con la
   limpieza de FASE 4, no con C2.
 
