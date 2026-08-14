@@ -1838,7 +1838,11 @@ Cada punto: causa localizada, si es no-op silencioso o error tragado, y ficheros
 Lo que quedaba se resolvió casi todo **decidiendo, no programando**: dos puntos se movieron a diseño / al trabajo del
 arrastre, uno se descartó (no debía existir) y solo quedó un borrado pequeño. Estado por punto abajo.
 
-1. **Poner recurrencia desde la fila.** ✅ **HECHO** (`c0bb09d`, sesión 16). El `onChange` de la fila pre-ponía
+1. **Poner recurrencia desde la fila.** ⚠️ **MATIZADO (sesión 18): el chip NO se puede usar desde la fila en la práctica
+   —ni en Bloques ni en Mi Día—; hay que abrir el MODAL** (aparcado en FASE 5, §16.17). El fix `c0bb09d` de abajo arregló
+   el `onChange` (no pre-poner `isTemplate`), pero eso NO es lo mismo que poder ponerla desde la fila. Contradice el
+   "verificado sesión 11" de §5 (línea ~714, "no existe"). Texto histórico del fix, ya matizado:
+   ✅ **HECHO** (`c0bb09d`, sesión 16). El `onChange` de la fila pre-ponía
    `isTemplate:true`, que **saltaba el bloque de conversión** manual→plantilla de `handleUpdateTask` (exige
    `!isTemplate` y crea la 1ª instancia) → la tarea se volvía plantilla sin instancia del día y **desaparecía**. Fix:
    el `onChange` ahora solo fija `recurrence`; `handleUpdateTask` hace la conversión completa y crea la instancia del
@@ -2095,10 +2099,28 @@ bloqueando (b3).** Investigación/estado de recurrencia → §16.15 y §16.16.
 - **(b1)+(b2 visual)** — completado del contenedor DERIVADO de las hijas, NUNCA de su `status` guardado:
   - Con día → hijas del día; sin día (Bloques) → todas las hijas (`isTaskCompleted`); hoja → su status.
   - Vacío-verdadero cubierto (`hasDayChild`). Fix del bug de Bloques incluido (`55a69df`).
-- **MODELO (§16.16):** contenedor vaciado → degrada a tarea normal (normal `71f499f` + lote `5c019d1`, con aviso
-  `1456610`); invariante regla XOR contenedor como AVISO en `handleUpdateTask` (`4de1ca1`); fix del modal (`4bfa51d`);
-  `handleAddRule` opción B — no crea plantillas sin pauta (`ced422a`); tests de campo muerto (`da8481e`). Recuperadas
-  2 tareas de auditoría (degradadas + fecha de hoy, cambio de datos acotado).
+- **MODELO (§16.16) — ⚠️ ACTUALIZADO sesión 18 (esto de la 17 quedó SUPERADO):** "contenedor vaciado → degrada" y
+  "regla XOR contenedor" **YA NO valen**. La degradación (`71f499f`/`5c019d1`/`1456610`) se **ELIMINÓ** (`2dbada5`): ser
+  contenedor se DERIVA de tener hijas, no había conversión que revertir. `validateTemplate` reescrito (`308a935`): un
+  contenedor SÍ puede alojar reglas. Siguen válidos: fix del modal (`4bfa51d`), `handleAddRule` opción B (`ced422a`),
+  tests de campo muerto (`da8481e`). Ver §16.16 (modelo corregido) y el censo real (98 contenedores).
+
+**⚠️ INVENTARIO DE DESACTUALIZADO TRAS EL CAMBIO DE MODELO (repaso completo, bloque 5 sesión 18).** Lo que sigue en el
+doc quedó SUPERADO por el modelo corregido (§16.16); no lo reescribo entero —es registro histórico— pero aquí está la
+lista para que nadie se fíe de ello:
+- **§16.12 "sesión 17 tocó la app" (~L2091):** lista `71f499f`+`5c019d1` "degradar contenedor vaciado" y `1456610` "aviso
+  al degradar" como hechos. **SUPERADO:** esa maquinaria se ELIMINÓ (`2dbada5`). Quedan válidos `4bfa51d`, `ced422a`, `da8481e`.
+- **§16.14 método, ejemplo del vaciado (~L2211):** cita `shouldDegradeToNormal`/`containerDegradeAfterDelete` (`7e52d88`)
+  como el arreglo. **SUPERADO:** la lección ("test del camino real") SIGUE valiendo, pero el arreglo citado se borró; la
+  causa real era la cascada del checkbox + el escritor del status propio (§16.16), no la degradación.
+- **§16.15 R-section (~L2178-2269):** "133 plantillas → **23 contenedores manuales legítimos + 9 rotas**" y "`isTemplate`
+  se usa TAMBIÉN como flag de contenedor" y "degradación (normal y lote) cerrada". **SUPERADO en 3 cosas:** (1) el nº real
+  de contenedores es **98** (75 sin marca + 23 con marca por hijas recurrentes), el "23" medía los marcados; (2)
+  `isTemplate` **NO** es flag de contenedor —contenedor se deriva de tener hijas—; (3) no hay degradación.
+- **§16.4 pendiente #1 "recurrencia desde la fila ✅ HECHO" (~L1841) vs §5 "no existe" (~L714) vs FASE 5:** contradicción
+  de tres sesiones. **Verdad actual (validada):** el chip NO se puede usar desde la fila (ni Bloques ni Mi Día); hay que
+  abrir el modal (FASE 5, §16.17). Ya matizado inline en ambos.
+- **§16.15 "R2/R3 + degradación cerrados" (~L2263):** R1/R2/R3 siguen, pero "degradación cerrada" **SUPERADO** (eliminada).
 
 **✅ VALIDACIÓN DE LA USUARIA — HECHA:** los **25** contenedores que cambiaban de aspecto son **CORRECTOS** (tareas ya
 completadas). Validado en pantalla. **(b3) DESBLOQUEADO.**
