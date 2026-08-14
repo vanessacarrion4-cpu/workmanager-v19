@@ -2117,7 +2117,11 @@ completadas). Validado en pantalla. **(b3) DESBLOQUEADO.**
 - **Contradicción viva del clic:** el VISTO del contenedor ya va por el día, pero CLICARLO sigue cerrando hijas de cualquier fecha (`toggleRecursive` sin tocar). Pantalla y acción dicen cosas distintas. (c) alinea: clic = solo hijas del día (`childrenToToggleOnDay` ya existe; falta materializar).
 - **Síntoma del 30-jul (tareas pendientes ESCONDIDAS):** hijas huérfanas (`parent_task_id=null` al mover) sin contenedor materializado ese día. NO se arregla en (b); vive hasta (c). Es lo más grave (esconde trabajo).
 - **Toggle "completar-solo-el-día"** (recurrentes necesitan materializar las hijas-instancia del día).
-- **Fecha de inicio de recurrencia** ("hoy real vs día que miro": `startDate` sale de `new Date()` en `RecurrencePickerChip`; debe ser el día que se mira — enhebrar `activeDate`, tocar solo los defaults de recurrencia).
+- **Fecha de inicio de recurrencia (C4) ✅ HECHO Y VALIDADO EN PANTALLA (`f707911`, sesión 18):** `RecurrencePickerChip`
+  recibe `defaultDate` (el día que se mira) y los defaults de la pauta arrancan ahí, no en `new Date()`. Enhebrado desde
+  TaskCard (`dayForTotals=activeDate`) y **desde el modal** (fecha de la tarea). **Validado por la usuaria:** creando la
+  recurrencia **desde el modal**, arranca en el día de la tarea, no en hoy. *(Salvedad, no de C4: el chip NO se puede usar
+  desde la FILA —hay que abrir el modal—; aparcado en FASE 5, ver §16.17.)*
 
 **🧵 Hilo de datos (con (c)/mover):** al mover una tarea, su excepción queda `parent_task_id=null` y al leer se re-anida por plantilla; frágil si el contenedor no está materializado ese día. Es lo que dejó huérfanas las 10 hijas del 30-jul.
 
@@ -2421,8 +2425,11 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
     + 2 grupos mismo título+padre.
   - **Instancia suelta `inst-t-1785433862534-2026-08-24`** ("Ënviar", cuya plantilla ya se degradó). La fecha 24-ago la
     usuaria la da por buena; el residuo se limpia en FASE 4.
-- **FASE 5 (creación):** el **chip de pauta en la fila se revela al pasar el ratón** (como los demás chips vacíos del
-  raíl). **Decidir** si en una regla **recién creada** debe estar **siempre visible**. Es **diseño, no bug**.
+- **FASE 5 (creación) — el chip de recurrencia NO se puede usar desde la FILA (ni en Bloques NI en Mi Día); hay que abrir
+  el MODAL** (corrige el alcance: estaba escrito como si fuera solo de Bloques). Surgió al pasar a la opción B (`ced422a`):
+  la pauta se pone "en el editor". Desde la fila el chip se revela al pasar el ratón pero **no llega a poner la pauta**;
+  desde el modal sí (y con C4 arranca en el día de la tarea). **Decidir** si en la fila debe poder ponerse (y, si sí, si
+  en una regla recién creada el chip está siempre visible). **Es diseño, no bug — no cambia la prioridad, sigue el orden.**
 - **FASE 6 (diseño):**
   - El botón **"borrar la serie"** en realidad la **termina** (corta de ese día en adelante, conserva el histórico) →
     **el nombre no describe la acción**; renombrar. (Comportamiento en §16.16.)
