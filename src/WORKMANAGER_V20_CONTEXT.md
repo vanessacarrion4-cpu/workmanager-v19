@@ -2235,10 +2235,17 @@ la "Ënviar documentos firmados a auditores")**. Lista completa (título/fecha/i
   trabajo) + 32 pendientes. De esas 32: **26 se VEN** (el propio orphan hace materializar su contenedor vía `findLanded` →
   se re-ancla), **4** eran Verduras (ya rescatadas por B), **2 siguen ESCONDIDAS** — contenedor *vacated* (movido) ese día,
   que B no cubre: "Publicar a coordinadores" y "Sacar copias…" bajo "Cierre Propias " el 07-22.
-- **Conclusión: C2 es diminuto.** No es "615 perdidas". El único trabajo real = **extender el tapón a contenedor VACATED
-  con hijas pendientes** (mismo patrón que B, línea 239 en vez de 230) → recupera esas **2**. El orfanato en sí no pierde
-  trabajo (las instancias se re-anclan por plantilla). La conclusión de la usuaria ("C2 es mucho más pequeño") es CORRECTA,
-  pero no por "dejar de escribir el nulo" (ese nulo lo LEE el loader, ver arriba) sino porque casi todo ya se ve y B cubrió lo grande.
+- **Conclusión: C2 es diminuto.** No es "615 perdidas". El orfanato en sí no pierde trabajo (las instancias se re-anclan
+  por plantilla; test guarda `161959c`). La conclusión de la usuaria ("C2 es mucho más pequeño") es CORRECTA, pero no por
+  "dejar de escribir el nulo" (ese nulo lo LEE el loader, ver arriba) sino porque casi todo ya se ve y B cubrió lo grande.
+  Residual escondido de verdad: **2** ("Publicar a coordinadores", "Sacar copias…") bajo "Cierre Propias" el 07-22.
+- **❌ B-vacated (extender el tapón al caso *vacated*) PROBADO Y DESCARTADO (sesión 18):** el sub-contenedor
+  `t-1778694715714-n9oeas4sa` está *vacated* **07-22 → 07-23** y ATERRIZA en 07-23. Resucitarlo en 07-22 (por las 2
+  huérfanas) lo dejaría en 07-22 **y** 07-23 → **DOBLE RENDER** (justo lo que el check de `findVacated` evitaba). La
+  usuaria: "prefiero A-scoped feo a un contenedor duplicado". Código revertido, no comiteado. **DECISIÓN PENDIENTE para
+  las 2:** (A-scoped) mostrar las huérfanas pendientes como fila suelta cuando su contenedor no se materializa ese día
+  —toca `filterTasksForDay` (155-157), más invasivo de lo previsto—; o (data-fix FASE 4) re-apuntar/mover esas 2 al 07-23
+  con su contenedor. Son de un día PASADO (07-22). No tocado hasta decidir.
 
 **⚠️ CORRECCIÓN de mi consejo (importante):** dije "evita mover, completar es seguro" — **FALSO**. (a) Completar es la
 causa dominante del orfanato (540/615). (b) Lo que enterró las 4 de Verduras hoy fue un **BORRADO de un día** (supresión
