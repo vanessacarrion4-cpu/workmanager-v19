@@ -2140,6 +2140,11 @@ lista para que nadie se fíe de ello:
   de tres sesiones. **Verdad actual (validada):** el chip NO se puede usar desde la fila (ni Bloques ni Mi Día); hay que
   abrir el modal (FASE 5, §16.17). Ya matizado inline en ambos.
 - **§16.15 "R2/R3 + degradación cerrados" (~L2263):** R1/R2/R3 siguen, pero "degradación cerrada" **SUPERADO** (eliminada).
+- **DUDOSO/HISTÓRICO — menciones de "(c)" como FUTURO, ahora que (c) está CERRADA (sesión 18); no tocadas, son narrativa
+  vieja:** ~L1946 "el síntoma se arregla en (c)", ~L1967 "falta materializar las hijas del día", ~L2295 "1 rojo... se pone
+  verde en (c) · 69 verdes", ~L2423 "se cierra en (c)". Léanse como historia: (c) = C1/C2/C3/C4, ya cerrada; el motor SÍ
+  materializa el toggle del día (C1, `f073ed5`); tests **95 verdes, 0 rojos**. El síntoma-30-jul (huérfanas por mover)
+  quedó tapado (tapón B) + su causa raíz aparcada en §16.17 ("mover no lleva hijas").
 
 **✅ VALIDACIÓN DE LA USUARIA — HECHA:** los **25** contenedores que cambiaban de aspecto son **CORRECTOS** (tareas ya
 completadas). Validado en pantalla. **(b3) DESBLOQUEADO.**
@@ -2171,9 +2176,11 @@ completadas). Validado en pantalla. **(b3) DESBLOQUEADO.**
 - **ESTADO (fin sesión 18): (c) CERRADA.** C4 ✅ (`f707911`) · C3 ✅ (`26d157e`) · C2 ✅ (`e7724ee`+datos) · **C1 ✅
   IMPLEMENTADO (`f073ed5`)** — clic en contenedor completa solo las hijas del día (rama por tipo). Único pendiente: la
   usuaria valida el CLIC en pantalla (no automatizable por el `confirm()`); render día-scoped + tests verificados.
-- **Contradicción viva del clic (= C1, ABIERTO):** el VISTO del contenedor ya va por el día, pero CLICARLO sigue cerrando hijas de cualquier fecha (`toggleRecursive` sin tocar). Pantalla y acción dicen cosas distintas. (c) alinea: clic = solo hijas del día (`childrenToToggleOnDay` ya existe; falta materializar).
+- **Contradicción del clic (= C1) — ✅ CERRADA (`f073ed5`):** clicar un contenedor ya solo togglea las hijas del día
+  (Mi Día; Bloques sin día → todas). Salvedad: **Semana/Calendario** aún NO enhebran su día de celda al toggle → ahí el
+  clic sigue togglando todas las hijas (viewDay undefined → comportamiento previo). Menor; aparcado (ver §16.17).
 
-**🗺️ MAPA DE C1 (medición sesión 18, SIN CÓDIGO):** clic en contenedor = completar SOLO las hijas del día que se mira.
+**🗺️ MAPA DE C1 — ✅ YA IMPLEMENTADO (`f073ed5`); esto es la nota de diseño previa, histórica:** clic en contenedor = completar SOLO las hijas del día que se mira.
 - **Archivos:** `useTaskCRUD.ts` (`handleToggleStatus`/`toggleRecursive`) + los sitios que llaman al toggle (la casilla en
   [TaskCard.tsx:445](TaskCard.tsx) y el `onToggle`/`onToggleStatus` por vista). Reutiliza la **fontanería de C4**:
   `dayForTotals` = "día de la vista" (activeDate en Mi Día, día de celda en Semana/Calendario, **null en Bloques**).
@@ -2608,8 +2615,10 @@ las hijas, no del campo del padre). Misma familia que el "status guardado que no
   (`hideCompleted && status==='completed'`), sin contar hijas y sin derivar; el **tachado** de la fila se **DERIVA** de las
   hijas ([TaskCard.tsx:251](TaskCard.tsx)). Por eso se ve "1 tarea" con 7 filas todas tachadas. Unificar criterio. No es
   urgente; no tocar ahora.
-- **Grifo "clic contenedor = solo hijas del día":** cerrar en (c) (ver CASCADA arriba). Provisional posible mientras tanto
-  (no cascar a hijas futuras), pendiente de decisión de la usuaria.
+- **Grifo "clic contenedor = solo hijas del día": ✅ CERRADO por C1 (`f073ed5`) en Mi Día.** El tapón de confirmación se
+  MANTIENE (decisión de la usuaria: lo retira ella tras verlo funcionar). **Cabo pendiente:** Semana/Calendario no enhebran
+  su día de celda al toggle → ahí el clic aún togglea todas las hijas (viewDay undefined). Menor; enhebrar `date` de la
+  celda a `onToggle` cuando se retomen esas vistas. Sin prioridad.
 - **Vista de Carga proyecta 12 meses desde plantillas.** Si el contenedor no tiene fecha ni estimado propio, en Carga
   solo puede entrar por la **suma de sus hijas**. **Comprobar que no se proyecta dos veces (contenedor + hijas) ni
   desaparece.** No tocar ahora.
