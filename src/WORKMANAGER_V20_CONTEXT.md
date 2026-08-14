@@ -2078,11 +2078,30 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
   Movidos/descartados: **3** Semana (mover → arrastre post-FASE 3; promover/degradar → descartado, se hace en Mi Día) ·
   **4** Calendario icono completar → FASE DE DISEÑO (rediseño del Calendario). Detalle por punto en §16.3.
 
-### 16.12 PUNTO DE RETOMADA (sesión 17) — FASE 3 en curso
+### 16.12 PUNTO DE RETOMADA — ✅ FASE 3 CERRADA (sesión 18)
 
-**Dónde estamos: FASE 3. Principio (a) CERRADO; (b) hecho hasta el VISUAL; + el trabajo de MODELO (§16.16) cerrado.
-Todo en producción, nada a medias.** *(Nota: aquí (a)/(b)/(c) son los PRINCIPIOS de FASE 3; los agujeros de recurrencia
-se renombraron a R1/R2/R3 en §16.15 para no chocar.)*
+**✅ FASE 3 CERRADA (sesión 18). Todo en producción. Estado final:**
+| Paso | Qué | Commit(s) |
+|---|---|---|
+| (a) | totales del contenedor por día; el tiempo nunca se registra sobre el contenedor | sesión 16 (§16.10) |
+| (b1)+(b2) | completado DERIVADO de las hijas (nunca del status guardado); vaciado visual | sesión 16-18 |
+| (b3) | "ocultar completadas" en Mi Día usa el completado POR DÍA (`isCompletedForDay`) | `ff4643b` |
+| MODELO §16.16 | contenedor = tarea con hijas (DERIVADO, sin marca); degradación ELIMINADA; `validateTemplate` reescrito | `2dbada5`, `308a935` |
+| C4 | la pauta de recurrencia arranca el día que se mira | `f707911` (validado en pantalla) |
+| C3 | `reconcileDay` cableado en `activeDayMap` (mapa del día sin fuga) | `26d157e` (validado: 0 filas desaparecen) |
+| C2 | tapón supresión de contenedor + reversión de 22 + completar 2 varadas; orfanato = no perdía trabajo | `e7724ee` + datos |
+| C1 | clic en contenedor completa SOLO las hijas del día (rama por tipo) | `f073ed5` |
+
+**⏳ ÚNICO pendiente de FASE 3 = validación en pantalla de la usuaria (mañana): el CLIC de C1** — marcar/desmarcar un
+contenedor manual y uno recurrente con hijas de varios días; que solo se toquen las del día. Si algo de otro día se toca,
+revertir `f073ed5`. (El clic no se pudo automatizar por el `confirm()` del tapón; render día-scoped + tests sí verificados.)
+
+**ARRANCAR LA FASE SIGUIENTE POR:** decidir FASE 4 (limpieza de datos, plan en §16.17 listo para aprobar) o FASE 5/6
+(creación/diseño). Nada de FASE 3 bloquea. Tests: **95 verdes, 0 rojos.**
+
+---
+*(Historia de sesión 17, ya superada por la 18 — ver inventario de desactualizado abajo):*
+*(Nota: (a)/(b)/(c) son los PRINCIPIOS de FASE 3; los agujeros de recurrencia se renombraron a R1/R2/R3 en §16.15.)*
 **La sesión 17 SÍ tocó la app** (7 commits): `4bfa51d` fix modal · `71f499f`+`5c019d1` degradar contenedor vaciado
 (normal+lote) · `1456610` aviso al degradar · `4de1ca1` guard-aviso · `da8481e` tests campo muerto · `b1fbe7c`→`ced422a`
 handleAddRule opción B. **Último commit de app: `ced422a`.** **Tests: 82 verdes, 1 rojo a propósito** (`reconcileDay`,
@@ -2149,9 +2168,9 @@ completadas). Validado en pantalla. **(b3) DESBLOQUEADO.**
   la vista** (por construcción no debería, pero es display → lo valida la usuaria).
 
 **🔴 EN (c) SE CIERRA, SÍ O SÍ:**
-- **ESTADO (fin sesión 18):** C4 ✅ · C3 ✅ (`26d157e`) · C2 ✅ (tapón B `e7724ee` + cierre) · **C1 ⏳ MAPEADO PERO NO
-  IMPLEMENTADO — es el ÚNICO paso de (c) que falta.** El "mapa de C1" (abajo) está hecho; el código NO. Clicar un
-  contenedor SIGUE completando hijas de cualquier fecha. No dar C1 por cerrado por tener el mapa.
+- **ESTADO (fin sesión 18): (c) CERRADA.** C4 ✅ (`f707911`) · C3 ✅ (`26d157e`) · C2 ✅ (`e7724ee`+datos) · **C1 ✅
+  IMPLEMENTADO (`f073ed5`)** — clic en contenedor completa solo las hijas del día (rama por tipo). Único pendiente: la
+  usuaria valida el CLIC en pantalla (no automatizable por el `confirm()`); render día-scoped + tests verificados.
 - **Contradicción viva del clic (= C1, ABIERTO):** el VISTO del contenedor ya va por el día, pero CLICARLO sigue cerrando hijas de cualquier fecha (`toggleRecursive` sin tocar). Pantalla y acción dicen cosas distintas. (c) alinea: clic = solo hijas del día (`childrenToToggleOnDay` ya existe; falta materializar).
 
 **🗺️ MAPA DE C1 (medición sesión 18, SIN CÓDIGO):** clic en contenedor = completar SOLO las hijas del día que se mira.
