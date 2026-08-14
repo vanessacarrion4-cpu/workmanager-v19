@@ -2208,6 +2208,27 @@ la "Ënviar documentos firmados a auditores")**. Lista completa (título/fecha/i
 - **3 de las 32 son el fixture de test "Test Recurrent B1" (2028)** — basura de pruebas, no trabajo real; van con la
   limpieza de FASE 4, no con C2.
 
+**🔀 LOS DOS MECANISMOS DE OCULTACIÓN — SEPARADOS Y NOMBRADOS (llevábamos media sesión confundiéndolos, §16.16):**
+1. **ORFANATO (`parent_task_id=null`).** Lo causa **completar, mover o editar** una hija recurrente (el upsert de
+   `handleToggleStatus`/mover/editar escribe `parent_task_id: null`, [useTaskCRUD.ts:188](useTaskCRUD.ts)). **615 filas
+   (540 de completar, 75 de mover), 11–30 nuevas/día.** Esconde la hija SOLO si falla el re-anclaje bajo su contenedor
+   materializado. Es el mecanismo de **C2** (el arreglo entero).
+2. **SUPRESIÓN DE CONTENEDOR (excepción-borrada).** La causa **SOLO** "borrar → este día" desde la **papelera de la fila**
+   de un contenedor recurrente ([App.tsx:958-979](App.tsx)). Entierra el **contenedor entero + todas sus hijas** de ese
+   día. **169 en total; 1 con trabajo vivo** (Verduras vivas, 4 pendientes hoy). **Tapado con el TAPÓN B** (abajo).
+
+**⚠️ CORRECCIÓN de mi consejo (importante):** dije "evita mover, completar es seguro" — **FALSO**. (a) Completar es la
+causa dominante del orfanato (540/615). (b) Lo que enterró las 4 de Verduras hoy fue un **BORRADO de un día** (supresión
+de contenedor), no completar ni mover. (c) **El gesto peligroso concreto es la papelera de una fila recurrente** (→ "este
+día"): suprime todo el subárbol de ese día.
+
+**🩹 TAPÓN B — APLICADO (`e7724ee`, sesión 18):** `materializeDay` ya NO entierra un contenedor con excepción-borrada del
+día si ese día le queda ≥1 hija **pendiente persistida** (`allTasks[c.id]` existe); una ocurrencia recurrente
+auto-generada no resucita un borrado deliberado. Render puro, reversible. Validado en pantalla: **Verduras vivas + sus 4
+tareas reaparecen hoy** (grupo "En espera"), **nada más cambia** (Focus/Dirección/Resto idénticos; pendientes 17→21).
+Tests 92 verdes (regla + control en forma real). **NO arregla el orfanato** — eso es C2. El tapón solo cubre la supresión
+de contenedor.
+
 **Reglas de datos ya decididas (NO tocar):** el tiempo sobre contenedores (4 entradas/116m) NO se borra (deja de contar, se queda). Los 92 "completados" guardados NO se limpian (el código deja de leerlos; el test lo garantiza).
 
 **Tests:** 69 verdes, 1 ROJO a propósito (`reconcileDay`, se pone verde en (c)). DIAG-TEMP sigue puesto (no quitar aún).
@@ -2568,6 +2589,10 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
   desde el modal sí (y con C4 arranca en el día de la tarea). **Decidir** si en la fila debe poder ponerse (y, si sí, si
   en una regla recién creada el chip está siempre visible). **Es diseño, no bug — no cambia la prioridad, sigue el orden.**
 - **FASE 6 (diseño):**
+  - **Modal de la papelera de una fila recurrente (sin prioridad):** debe dejar CLARÍSIMO qué se borra ("este día" vs "la
+    serie") y **avisar si hay hijas pendientes debajo** que se van a enterrar. Es el gesto que hoy suprime un contenedor
+    entero sin avisar (§16.16, "supresión de contenedor"; el tapón B ya evita que entierre trabajo vivo, pero el modal
+    sigue siendo confuso). Diseño, no bug.
   - El botón **"borrar la serie"** en realidad la **termina** (corta de ese día en adelante, conserva el histórico) →
     **el nombre no describe la acción**; renombrar. (Comportamiento en §16.16.)
   - **Aviso de la vista de Carga:** que un contenedor **no se proyecte dos veces** (contenedor + hijas) **ni desaparezca**
