@@ -2138,6 +2138,21 @@ completadas). Validado en pantalla. **(b3) DESBLOQUEADO.**
 
 **🧵 Hilo de datos (con (c)/mover):** al mover una tarea, su excepción queda `parent_task_id=null` y al leer se re-anida por plantilla; frágil si el contenedor no está materializado ese día. Es lo que dejó huérfanas las 10 hijas del 30-jul.
 
+**📏 MEDICIÓN C2 (sesión 18, 2026-08-14; SOLO LECTURA, nada tocado):** huérfanas pendientes = **32** (no 25; ver anomalía
+abajo). Son excepciones con `parent_task_id=null` + `template_id` cuya plantilla es hija de un contenedor. **Por qué no se
+ven:** `filterTasksForDay` las RECHAZA como top-level ([filters.ts:155-157](filters.ts): "si su plantilla tiene padre →
+return false") y, con `parent_task_id=null`, solo aparecen si se re-anidan bajo el contenedor **materializado ese día**; si
+el contenedor no se materializa en su fecha o el anclaje no cuadra, caen entre dos sillas → invisibles. Reparto por
+contenedor (todos tipo plantilla-que-materializa): **Cierre Central Rec 10 · Cierre Propias 8 · Verduras vivas 4 · Gestión
+campaña 3 · Test Recurrent B1 3 (fixture 2028) · Pagos del mes FINCA 1 · Montse Vidal 1 · Cierre Anual 1 (inst-…-2026-08-24,
+la "Ënviar documentos firmados a auditores")**. Lista completa (título/fecha/id) entregada a la usuaria en el informe.
+- **⚠️ ANOMALÍA APARCADA (no tocar, decide la usuaria):** el conteo pasó de **25 → 32** durante la sesión, y al menos una
+  instancia de "Cierre Propias" que quedó `completed` en la cascada de las 21:44 aparece ahora `pending` (mismo id). Causa
+  no confirmada (posible actividad de la app / rollover de fecha a 08-14 / re-materialización). **Flag para revisar antes
+  de C2; no lo he tocado.**
+- **3 de las 32 son el fixture de test "Test Recurrent B1" (2028)** — basura de pruebas, no trabajo real; van con la
+  limpieza de FASE 4, no con C2.
+
 **Reglas de datos ya decididas (NO tocar):** el tiempo sobre contenedores (4 entradas/116m) NO se borra (deja de contar, se queda). Los 92 "completados" guardados NO se limpian (el código deja de leerlos; el test lo garantiza).
 
 **Tests:** 69 verdes, 1 ROJO a propósito (`reconcileDay`, se pone verde en (c)). DIAG-TEMP sigue puesto (no quitar aún).
