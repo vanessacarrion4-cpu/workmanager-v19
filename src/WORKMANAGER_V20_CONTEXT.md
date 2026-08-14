@@ -2374,8 +2374,12 @@ hechas → **trabajo abierto que aparece como hecho**.
   (los datos no distinguían falso de real): Salmerón (10), Ivan (5), Cierre Propias (3), Tema De Anna (4 de 6 —se dejaron
   "Comentar con ella posibilidades" y "Hacer seguimiento despido de Veiga", hechas de verdad). **NO se tocaron** Selecció
   RRHH, Montse Vidal ni Lineas de vida (grupos pequeños de may-jun donde la cascada pudo coincidir con la realidad;
-  además con duplicados). Padres implicados verificados coherentes (todos `pending`; Lluis Corbera y Pagos Trimestrales
-  siguen mostrándose completos por su única hija completada, no incluida en la reversión).
+  además con duplicados). Padres implicados verificados coherentes (todos `pending`).
+- **✅ RESUELTO (criterio de la usuaria, sin dato que lo respalde): Lluis Corbera y Pagos Trimestrales se DEJAN como
+  están.** Cada uno tiene 1 sola hija completada —"Reunió Dilluns 11-5 Confirmada" (Lluis, fecha 2026-05-11) y "Autorizar
+  traspasos para pagos de impuestos" (Pagos, fecha 2026-07-17)—; una cascada de 1 hija no deja huella detectable, así que
+  el dato no distingue si fueron reales o falsas. La usuaria decide que **parecen hechas de verdad** → no se tocan. Queda
+  cerrado por su criterio, no por evidencia en los datos.
 - **🪤 TRAMPA (que volverá): el `completed_at` NO es criterio de pertenencia; el PADRE sí.** Al sacar las 3 de "Cierre
   Propias" por su `completed_at`, el filtro barrió **7 instancias recurrentes** (`inst-…`, `parent=null`) completadas en el
   mismo segundo pero de OTRA plantilla. Filtrar por timestamp mezcla cosas que solo comparten el momento. **Seleccionar
