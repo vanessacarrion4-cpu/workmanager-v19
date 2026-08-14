@@ -2149,7 +2149,10 @@ completadas). Validado en pantalla. **(b3) DESBLOQUEADO.**
   la vista** (por construcción no debería, pero es display → lo valida la usuaria).
 
 **🔴 EN (c) SE CIERRA, SÍ O SÍ:**
-- **Contradicción viva del clic:** el VISTO del contenedor ya va por el día, pero CLICARLO sigue cerrando hijas de cualquier fecha (`toggleRecursive` sin tocar). Pantalla y acción dicen cosas distintas. (c) alinea: clic = solo hijas del día (`childrenToToggleOnDay` ya existe; falta materializar).
+- **ESTADO (fin sesión 18):** C4 ✅ · C3 ✅ (`26d157e`) · C2 ✅ (tapón B `e7724ee` + cierre) · **C1 ⏳ MAPEADO PERO NO
+  IMPLEMENTADO — es el ÚNICO paso de (c) que falta.** El "mapa de C1" (abajo) está hecho; el código NO. Clicar un
+  contenedor SIGUE completando hijas de cualquier fecha. No dar C1 por cerrado por tener el mapa.
+- **Contradicción viva del clic (= C1, ABIERTO):** el VISTO del contenedor ya va por el día, pero CLICARLO sigue cerrando hijas de cualquier fecha (`toggleRecursive` sin tocar). Pantalla y acción dicen cosas distintas. (c) alinea: clic = solo hijas del día (`childrenToToggleOnDay` ya existe; falta materializar).
 
 **🗺️ MAPA DE C1 (medición sesión 18, SIN CÓDIGO):** clic en contenedor = completar SOLO las hijas del día que se mira.
 - **Archivos:** `useTaskCRUD.ts` (`handleToggleStatus`/`toggleRecursive`) + los sitios que llaman al toggle (la casilla en
