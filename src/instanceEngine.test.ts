@@ -275,6 +275,23 @@ describe('materializeDay', () => {
     const day = materializeDay(WED, tasks);
     expect(day.some(t => t.id === 'inst-t-cont-2026-07-15')).toBe(false); // sin trabajo vivo → borrado respetado
   });
+
+  // GUARDA del re-anclado por plantilla (§16.16, sesión 18). El `parent_task_id` GUARDADO de una instancia
+  // NO es la fuente del anidado: se re-ancla por su plantilla (template_id → template.parentTaskId). Si alguien
+  // "para la fuga" haciendo que se confíe en el parent guardado, este test se pone ROJO.
+  it('RE-ANCLADO por plantilla: una instancia con parentTaskId GUARDADO erróneo se ancla por su plantilla, no por el guardado', () => {
+    const tasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', parentTaskId: 't-cont', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      // instancia persistida con parentTaskId ERRÓNEO a propósito: debe IGNORARSE y re-anclarse por template
+      task({ id: 'inst-t-child-2026-07-15', templateId: 't-child', parentTaskId: 'BASURA-WRONG', dueDate: WED, instanceDate: WED, status: 'pending', isException: true }),
+    ]);
+    const day = materializeDay(WED, tasks);
+    const child = day.find(t => t.id === 'inst-t-child-2026-07-15');
+    expect(child).toBeDefined();
+    expect(child!.parentTaskId).toBe('inst-t-cont-2026-07-15'); // por plantilla, NO 'BASURA-WRONG'
+    expect(day.some(t => t.id === 'inst-t-cont-2026-07-15')).toBe(true); // el contenedor materializa y lo aloja
+  });
 });
 
 // =========================================================================
