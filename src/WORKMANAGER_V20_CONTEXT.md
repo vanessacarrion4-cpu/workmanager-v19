@@ -2189,17 +2189,22 @@ el contenedor no se materializa en su fecha o el anclaje no cuadra, caen entre d
 contenedor (todos tipo plantilla-que-materializa): **Cierre Central Rec 10 · Cierre Propias 8 · Verduras vivas 4 · Gestión
 campaña 3 · Test Recurrent B1 3 (fixture 2028) · Pagos del mes FINCA 1 · Montse Vidal 1 · Cierre Anual 1 (inst-…-2026-08-24,
 la "Ënviar documentos firmados a auditores")**. Lista completa (título/fecha/id) entregada a la usuaria en el informe.
-- **✅ ANOMALÍA 25→32 RESUELTA (confirmada con datos, sesión 18):** las nuevas huérfanas salen del **uso normal de la app
-  por la usuaria** (no de un proceso automático). Cruzando por `modified_at` + comparando la fecha del id (origen) con el
-  `due_date`: **15 de 32 son MOVIDAS** (origen ≠ destino) — hoy 08:04–08:22 seis de "Cierre Propias" movidas 08-08→08-14 y
-  el 13-ago tres de "Cierre Central Rec" 08-12→08-17. **Confirma que MOVER una hija recurrente de día pone
-  `parent_task_id=null`.** PERO **no es solo mover:** 4 "Verduras vivas" + "comentar Blai" de hoy están EN SITIO
-  (`due_date`=fecha del id) y aun así son huérfanas → **cualquier acción sobre una hija recurrente** (completar,
-  descompletar, editar) persiste la excepción con `parent_task_id=null` — el upsert de `handleToggleStatus` escribe
-  `parent_task_id: null` ([useTaskCRUD.ts:188](useTaskCRUD.ts)). **Qué ESCONDE trabajo:** una huérfana solo se vuelve
-  invisible si el re-anclado falla (contenedor no materializado ese día). **MOVER a otro día** es el gesto de riesgo (la
-  aleja del día del contenedor); actuar en sitio la huerfaniza igual pero suele seguir viéndose. **Consejo a la usuaria
-  hasta C2: evitar MOVER subtareas recurrentes de día.**
+- **🔴 CORREGIDO (mi consejo anterior estaba AL REVÉS; validado por la usuaria en pantalla, sesión 18): COMPLETAR también
+  esconde, y es la causa dominante.** Censo de huérfanas (`parent_task_id=null`, hija-de-contenedor): **615 totales — 540
+  las creó COMPLETAR, solo 75 mover.** 583 completadas / 32 pendientes (18 movidas / 14 en-sitio). Ritmo del uso normal:
+  **11–30 excepciones-huérfanas nuevas AL DÍA** (hoy 13). Todo `parent_task_id=null` porque el upsert de
+  `handleToggleStatus` lo escribe así ([useTaskCRUD.ts:188](useTaskCRUD.ts)).
+  - **CAUSA EXACTA de la desaparición de "Verduras vivas" hoy (peor que orfanato simple):** existe una excepción a nivel de
+    CONTENEDOR `inst-t-1780303315173-2026-08-14` con **`is_deleted=true`** (creada 08:21 hoy, junto a las 4 hijas pendientes).
+    `materializeDay` línea 230 (`if (findDeletedForDay(...)) continue`) **salta el contenedor entero y sus 4 hijas**. Las
+    hijas, al ser huérfanas (`parent_task_id=null`), tampoco salen como top-level (`filterTasksForDay:155-157` las rechaza).
+    → el contenedor + 4 tareas reales pendientes **invisibles**.
+  - **Sistémico HOY:** 2 contenedores suprimidos por excepción-borrada para 08-14 (**Verduras vivas**, **"rec cont sabado"**).
+    **169 excepciones-borradas a nivel de contenedor** en total (todos los días). No se ha podido confirmar por datos QUÉ
+    clic exacto crea la excepción-borrada del contenedor (completar todas las hijas, o un borrado); el resultado sí está claro.
+  - **REGLA HONESTA: NO hay acción segura sobre subtareas recurrentes de un contenedor.** Completar (lo más frecuente),
+    mover y editar pueden orfanizar/suprimir y esconder trabajo. **Consecuencia: C2 (+ este bug de supresión de contenedor)
+    NO puede esperar detrás de C3.** Es pérdida de trabajo real en el uso diario.
 - **3 de las 32 son el fixture de test "Test Recurrent B1" (2028)** — basura de pruebas, no trabajo real; van con la
   limpieza de FASE 4, no con C2.
 
