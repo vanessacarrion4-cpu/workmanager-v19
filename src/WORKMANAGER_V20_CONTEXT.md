@@ -2400,6 +2400,32 @@ incoherentes *pauta propia + hijas* y *plantilla inerte* (ni pauta propia ni hij
 - **Recomendación antes de (c):** o se **normaliza el dato** (bloque 2) o se **arregla el fallback-a-hoja** (una ex-tarea
   sin hijas no debería leer un `status` viejo de cuando era contenedor) y se añade un test en la forma `isTemplate:false`.
 
+**REPASO COMPLETO DE COBERTURA (bloque 4, sesión 18) — 4 ficheros, 90 verdes / 0 rojos. Qué NO se prueba:**
+- **Forma MINORITARIA (`isTemplate:true`) — dónde es legítima y dónde no:**
+  - `instanceEngine.test.ts` (occursOn/materializeDay/resolve*): fixtures `t-cont`/`t-child` con `isTemplate:true`. **Es
+    CORRECTO** — el motor SOLO procesa `isTemplate:true`; testearlo con plantillas es su dominio, no la trampa minoritaria.
+  - `validateTemplate` (b3): `isTemplate:true` por fuerza (va de la marca). Legítimo.
+- **NO probado EN ABSOLUTO (los huecos reales):**
+  1. **El camino real del toggle — `handleToggleStatus`/`toggleRecursive`.** Solo está probado el HELPER puro
+     `writesOwnStatusOnToggle`; el hook que lo llama (que al clicar un contenedor escribe las HIJAS y no el contenedor, y
+     que deriva la dirección) **no tiene test**. Es EXACTAMENTE el patrón "helper verde, camino real sin probar" (§16.14).
+  2. **`bulkUpdateTasks`** (cascada de status a hijas, arreglada en `0bc1502`) — sin test.
+  3. **El tapón de confirmación** (casilla de contenedor, nº de subtareas, `424d7ac`) — sin test (UI/`confirm`).
+  4. **C4** (`defaultDate` del picker) — sin test unitario; validado en pantalla por la usuaria (modal).
+  5. **`filterTasksForDay`** — sin test DIRECTO, incl. la rama de lookup de plantilla (155-157, el riesgo 1 de C3) y la
+     rama de contenedor sin fecha (174-184). Solo se ejerce indirecto vía `groupTasksByTag`.
+  6. **`getVisibleSubtasksForDay`** — sin test directo.
+  7. **(b3) cableado en `DashboardView`** (`isCompletedForDay` en el filtro 147): el helper sí, el componente no.
+  8. **C2 — hija huérfana ESCONDIDA** (movida, `parent_task_id=null`, contenedor no materializado ese día): el motor
+     prueba "contenedor/instancia MOVIDA" pero **no** el caso de la hija que cae entre dos sillas. Sin cobertura.
+  9. **`reconcileDay` cableado**: la función tiene test, pero **no está cableada** (opción B) → el comportamiento real
+     (activeDayMap sin fuga) no se prueba hasta que se cablee.
+- **Dado por CERRADO con hueco de test:**
+  - **(a):** la derivación de totales está probada; el **cableado en TaskCard** (`dayForTotals`) no.
+  - **(b1)/(b2):** la derivación del completado está probada; el **toggle que ESCRIBE** el completado (#1) y el **render**
+    `rowCompleted` en la transición vaciado→hoja no.
+  - **(b3):** `isCompletedForDay` probado; el filtro real de Mi Día (#7) no.
+
 **🔴 CASCADA DE COMPLETADO — daño en datos, hallazgo sesión 18 (2026-08-13/14):** clicar el checkbox de un contenedor
 marca **el contenedor Y TODAS sus hijas de TODOS los días** de golpe (`handleToggleStatus`→`toggleRecursive` recorre
 `subtasks` sin filtrar por día). Conducta viva desde hace **meses**. Marca como completadas hijas que **no** estaban
