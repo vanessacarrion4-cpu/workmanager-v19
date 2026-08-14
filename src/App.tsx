@@ -14,7 +14,8 @@ import { COLORS } from './constants';
 import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { filterTasksForDay } from './filters';
-import { materializeDay, materializeInstanceById } from './instanceEngine';
+import { materializeInstanceById } from './instanceEngine';
+import { reconcileDay } from './fase3Contracts'; // C3: mapa del día sin fuga (materialize + belongsToDay + contenedores + plantillas)
 import { useSupabase } from './useSupabase';
 import { useTaskCRUD } from './useTaskCRUD';
 import { useTaskOrdering } from './useTaskOrdering';
@@ -158,12 +159,11 @@ export default function App() {
   // Motor V20 (LECTURA): mapa del día activo = instancias materializadas al vuelo + estado, con el
   // ESTADO GANANDO (excepciones persistidas: completadas/movidas/borradas). `materializeDay` genera
   // las ocurrencias recurrentes del día (ya no hay `useGeneration` que las pre-fabrique en el estado).
-  const activeDayMap = useMemo(() => {
-    const map: any = {};
-    for (const inst of materializeDay(activeDate, tasks)) map[inst.id] = inst; // rellena huecos
-    Object.values(tasks).forEach((t: Task) => { if (!t.isDeleted) map[t.id] = t; }); // estado gana
-    return map;
-  }, [tasks, activeDate]);
+  // C3 (sesión 18): mapa del día SIN FUGA. Antes overlayaba TODO `tasks` ("estado gana" leaky); ahora
+  // `reconcileDay` conserva solo lo del día + contenedores (sin fecha) + plantillas (que filterTasksForDay
+  // busca por templateId), y descarta las hojas datadas de otro día. El listado ya filtraba por día, así
+  // que no debería desaparecer nada visible; validado en pantalla.
+  const activeDayMap = useMemo(() => reconcileDay(activeDate, tasks), [tasks, activeDate]);
 
   const dashboardTasks = useMemo(() => {
     const activeBlockIds = new Set(blocks.filter(b => b && b.isActive).map(b => b.id));
