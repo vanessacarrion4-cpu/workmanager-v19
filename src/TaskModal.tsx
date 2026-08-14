@@ -796,6 +796,7 @@ export function TaskModal({
                       {!st.templateId && (!st.subtasks || st.subtasks.length === 0) && (
                         <RecurrencePickerChip
                           value={st.recurrence}
+                          defaultDate={st.dueDate || null} // C4: la pauta arranca en la fecha de la tarea, no hoy
                           onChange={(rec: any) => handleUpdateSubtask(st.id, {
                             recurrence: rec || undefined,
                             isTemplate: !!rec,

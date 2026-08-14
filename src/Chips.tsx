@@ -304,11 +304,15 @@ export function DatePickerChip({ value, onChange, dropUp = false, iconOnly = fal
 }
  
 
-export function RecurrencePickerChip({ value, onChange, muted = false }: any) {
+export function RecurrencePickerChip({ value, onChange, muted = false, defaultDate = null }: any) {
   const [show, setShow] = useState(false);
   const [modalPos, setModalPos] = useState({ top: 0, left: 0 });
   const [localValue, setLocalValue] = useState<any>(value);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  // C4 (§16.12): los defaults de la pauta arrancan en el DÍA QUE SE MIRA (defaultDate: activeDate en Mi Día,
+  // fecha de la tarea en el modal), no en la fecha real de hoy. Fontanería reutilizada luego por C1.
+  const baseDate = defaultDate ? parseLocalISO(defaultDate) : new Date();
+  const baseIso = formatLocalISO(baseDate);
   
   const frequencies = [
     { id: 'daily', label: 'Diaria' },
@@ -350,7 +354,7 @@ export function RecurrencePickerChip({ value, onChange, muted = false }: any) {
       case 'weekly': {
         const daysShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
         if (!weekDays || weekDays.length === 0) {
-          const dStr = startDate || formatLocalISO(new Date());
+          const dStr = startDate || baseIso;
           const d = parseLocalISO(dStr);
           const specDay = (d.getDay() + 6) % 7; // 0=Lunes...6=Domingo
           return `Sem - ${daysShort[specDay]}`;
@@ -358,7 +362,7 @@ export function RecurrencePickerChip({ value, onChange, muted = false }: any) {
         return `Sem - ${weekDays.map((d: number) => daysShort[d]).join(',')}`;
       }
       case 'monthly': {
-        const dayNum = value.monthDay || parseLocalISO(value.startDate || formatLocalISO(new Date())).getDate();
+        const dayNum = value.monthDay || parseLocalISO(value.startDate || baseIso).getDate();
         return `Mensual - Día ${dayNum}`;
       }
       default: return frequency;
@@ -370,7 +374,7 @@ export function RecurrencePickerChip({ value, onChange, muted = false }: any) {
     const next = current.includes(day) 
       ? current.filter((d: number) => d !== day)
       : [...current, day];
-    setLocalValue({ ...(localValue || { frequency: 'weekly', startDate: formatLocalISO(new Date()) }), weekDays: next });
+    setLocalValue({ ...(localValue || { frequency: 'weekly', startDate: baseIso }), weekDays: next });
   };
  
   return (
@@ -419,7 +423,7 @@ export function RecurrencePickerChip({ value, onChange, muted = false }: any) {
                   <button
                     key={f.id}
                     onClick={() => {
-                      const today = new Date();
+                      const today = baseDate; // C4: día que se mira, no hoy real
                       const baseRec = localValue || { frequency: f.id, startDate: formatLocalISO(today) };
                       const updates: any = { frequency: f.id };
                       if (f.id === 'weekly' && (!baseRec.weekDays || baseRec.weekDays.length === 0)) {
@@ -474,7 +478,7 @@ export function RecurrencePickerChip({ value, onChange, muted = false }: any) {
                     min="1"
                     max="31"
                     className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[12px] font-black text-morado outline-none text-center focus:ring-2 focus:ring-morado/20"
-                    value={localValue?.monthDay || parseLocalISO(localValue?.startDate || formatLocalISO(new Date())).getDate()}
+                    value={localValue?.monthDay || parseLocalISO(localValue?.startDate || baseIso).getDate()}
                     onMouseDown={e => e.stopPropagation()}
                     onClick={e => e.stopPropagation()}
                     onFocus={e => e.stopPropagation()}
@@ -499,7 +503,7 @@ export function RecurrencePickerChip({ value, onChange, muted = false }: any) {
                         min="1"
                         max="12"
                         className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[12px] font-black text-morado outline-none text-center focus:ring-2 focus:ring-morado/20"
-                        value={localValue?.yearMonth || new Date().getMonth() + 1}
+                        value={localValue?.yearMonth || baseDate.getMonth() + 1}
                         onChange={e => setLocalValue({ ...localValue, yearMonth: parseInt(e.target.value) || 1 })}
                       />
                     </div>
@@ -510,7 +514,7 @@ export function RecurrencePickerChip({ value, onChange, muted = false }: any) {
                         min="1"
                         max="31"
                         className="w-full dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl px-3 py-2 text-[12px] font-black text-morado outline-none text-center focus:ring-2 focus:ring-morado/20"
-                        value={localValue?.yearDay || new Date().getDate()}
+                        value={localValue?.yearDay || baseDate.getDate()}
                         onChange={e => setLocalValue({ ...localValue, yearDay: parseInt(e.target.value) || 1 })}
                       />
                     </div>
@@ -549,7 +553,7 @@ export function RecurrencePickerChip({ value, onChange, muted = false }: any) {
                       onChange={e => setLocalValue({ ...localValue, endDate: e.target.value || null })}
                       onClick={() => {
                         if (!localValue?.endDate) {
-                          const sixMonthsLater = new Date();
+                          const sixMonthsLater = new Date(baseDate);
                           sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
                           setLocalValue({ ...localValue, endDate: formatLocalISO(sixMonthsLater) });
                         }
@@ -572,7 +576,7 @@ export function RecurrencePickerChip({ value, onChange, muted = false }: any) {
                     setLocalValue(null);
                     setShow(false);
                   } else {
-                    setLocalValue({ frequency: 'daily', startDate: formatLocalISO(new Date()) });
+                    setLocalValue({ frequency: 'daily', startDate: baseIso });
                   }
                 }}
                 className={`w-full text-center py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${value ? 'text-rosa border-rosa/20 hover:bg-rosa/10' : 'text-turquesa border-turquesa/20 hover:bg-turquesa/10'}`}

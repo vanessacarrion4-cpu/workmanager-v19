@@ -680,6 +680,7 @@ export function TaskCard({
                             <RecurrencePickerChip
                               muted
                               value={task.recurrence}
+                              defaultDate={dayForTotals} // C4: la pauta arranca el día que se mira (Mi Día), no hoy
                               // Punto 1: NO pre-poner isTemplate ni anular dueDate aquí. Solo fijar la
                               // recurrencia y dejar que handleUpdateTask haga la conversión manual→plantilla
                               // completa (pone isTemplate, vacía dueDate del template y CREA la 1ª instancia
