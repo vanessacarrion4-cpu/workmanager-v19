@@ -2217,6 +2217,22 @@ la "Ënviar documentos firmados a auditores")**. Lista completa (título/fecha/i
    de un contenedor recurrente ([App.tsx:958-979](App.tsx)). Entierra el **contenedor entero + todas sus hijas** de ese
    día. **169 en total; 1 con trabajo vivo** (Verduras vivas, 4 pendientes hoy). **Tapado con el TAPÓN B** (abajo).
 
+**🔁 C2 REPLANTEADO tras medir (enfoque, sesión 18) — el orfanato NO es el problema que parecía:**
+- **"Parar la fuga" (dejar de escribir `parent_task_id=null`) NO recupera nada y no hay que hacerlo.** El nulo es
+  **intencionado** (comentarios en useTaskCRUD 198/405/683: "null; materializeDay re-anida por templateId") y el parent
+  guardado de una instancia es **INERTE** — `getVisibleSubtasksForDay` (CASO 1) ancla por la PLANTILLA, no por el parent
+  guardado; `materializeDay` fija el parent al renderizar. Cambiar el nulo no cambia qué se ve.
+- **Mover NO "desancla":** TODAS las instancias recurrentes tienen `parent_task_id=null` (no solo las movidas); se anclan
+  por plantilla. Mover solo cambia la fecha; el vínculo (template_id) persiste. No es deuda, es el modelo virtual.
+- **Cuánto hay escondido DE VERDAD ahora (medido, post-tapón B):** de 615 huérfanas → 583 completadas (histórico, no
+  trabajo) + 32 pendientes. De esas 32: **26 se VEN** (el propio orphan hace materializar su contenedor vía `findLanded` →
+  se re-ancla), **4** eran Verduras (ya rescatadas por B), **2 siguen ESCONDIDAS** — contenedor *vacated* (movido) ese día,
+  que B no cubre: "Publicar a coordinadores" y "Sacar copias…" bajo "Cierre Propias " el 07-22.
+- **Conclusión: C2 es diminuto.** No es "615 perdidas". El único trabajo real = **extender el tapón a contenedor VACATED
+  con hijas pendientes** (mismo patrón que B, línea 239 en vez de 230) → recupera esas **2**. El orfanato en sí no pierde
+  trabajo (las instancias se re-anclan por plantilla). La conclusión de la usuaria ("C2 es mucho más pequeño") es CORRECTA,
+  pero no por "dejar de escribir el nulo" (eso es inerte) sino porque casi todo ya se ve y B cubrió lo grande.
+
 **⚠️ CORRECCIÓN de mi consejo (importante):** dije "evita mover, completar es seguro" — **FALSO**. (a) Completar es la
 causa dominante del orfanato (540/615). (b) Lo que enterró las 4 de Verduras hoy fue un **BORRADO de un día** (supresión
 de contenedor), no completar ni mover. (c) **El gesto peligroso concreto es la papelera de una fila recurrente** (→ "este
