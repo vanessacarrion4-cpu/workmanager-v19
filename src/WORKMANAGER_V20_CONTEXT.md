@@ -2363,13 +2363,23 @@ hechas → **trabajo abierto que aparece como hecho**.
 - **NO lo causó el código de la sesión 18** (la conducta es de meses). Pero **normalizar los 6 padres (bloque 2) SACÓ el
   daño a la luz**: un contenedor con status propio `completed` se ocultaba en Bloques (el contador usa el status propio);
   al ponerlo `pending` reapareció con sus hijas tachadas.
-- **GRIFO (por qué sigue abierto):** el arreglo de la sesión 18 quitó que se escriba el status **propio** del contenedor,
-  pero **NO** la cascada a las hijas (eso se pidió: "marca las hijas"). Cerrar bien = "solo las hijas del día" = **(c)**:
-  `handleToggleStatus` es compartido y tiene un único `activeDate` (no el día de la vista); el checkbox existe también en
-  Bloques (día-less, ahí debe ser todas); Semana/Calendario tienen día por celda; y las hijas recurrentes del día hay que
-  materializarlas. Provisional posible (sin (c)): no cascar a hijas de fecha **futura**. **Pendiente de decisión.**
-- **REVERSIÓN:** las 38 están listadas para que la usuaria marque cuáles eran pendientes; reversión exacta con su marca.
-  Los 6 padres siguen `pending` (normalización aplicada, verificada), pero sus hijas siguen `completed`.
+- **GRIFO — TAPÓN APLICADO (`424d7ac`, sesión 18):** clicar la casilla de un contenedor ahora **pide confirmación**
+  mostrando cuántas subtareas va a completar/marcar-pendientes ([TaskCard.tsx:445](TaskCard.tsx)). No cambia la lógica ni
+  materializa nada; corta el daño en el punto exacto (acción masiva sin aviso). El **"solo las hijas del día"** correcto
+  sigue siendo **(c)**: `handleToggleStatus` es compartido con un único `activeDate` (no el día de la vista); el checkbox
+  existe también en Bloques (día-less, ahí debe ser todas); Semana/Calendario tienen día por celda; y las hijas recurrentes
+  del día hay que materializarlas. *(Se descartó el provisional "no cascar a futuras": no cubría el caso real de la usuaria
+  —las 6 de Anna eran de hoy y pendientes— y metía una regla sutil.)*
+- **REVERSIÓN HECHA (sesión 18) — 22 hijas a `pending`+`completed_at:null`, POR CRITERIO DE LA USUARIA, no por dato**
+  (los datos no distinguían falso de real): Salmerón (10), Ivan (5), Cierre Propias (3), Tema De Anna (4 de 6 —se dejaron
+  "Comentar con ella posibilidades" y "Hacer seguimiento despido de Veiga", hechas de verdad). **NO se tocaron** Selecció
+  RRHH, Montse Vidal ni Lineas de vida (grupos pequeños de may-jun donde la cascada pudo coincidir con la realidad;
+  además con duplicados). Padres implicados verificados coherentes (todos `pending`; Lluis Corbera y Pagos Trimestrales
+  siguen mostrándose completos por su única hija completada, no incluida en la reversión).
+- **🪤 TRAMPA (que volverá): el `completed_at` NO es criterio de pertenencia; el PADRE sí.** Al sacar las 3 de "Cierre
+  Propias" por su `completed_at`, el filtro barrió **7 instancias recurrentes** (`inst-…`, `parent=null`) completadas en el
+  mismo segundo pero de OTRA plantilla. Filtrar por timestamp mezcla cosas que solo comparten el momento. **Seleccionar
+  siempre por `parent_task_id` (pertenencia), usar el timestamp solo como firma de "marcadas juntas".**
 
 **⚠️ LECCIÓN DE MÉTODO (sesión 18):** normalizar los 6 padres fue **atacar la capa equivocada**. El `status` propio del
 contenedor es **campo muerto mientras tenga hijas** (el completado se DERIVA de las hijas), así que tocarlo no cambió el
