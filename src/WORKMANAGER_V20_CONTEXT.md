@@ -2128,6 +2128,27 @@ completadas). Validado en pantalla. **(b3) DESBLOQUEADO.**
 
 **🔴 EN (c) SE CIERRA, SÍ O SÍ:**
 - **Contradicción viva del clic:** el VISTO del contenedor ya va por el día, pero CLICARLO sigue cerrando hijas de cualquier fecha (`toggleRecursive` sin tocar). Pantalla y acción dicen cosas distintas. (c) alinea: clic = solo hijas del día (`childrenToToggleOnDay` ya existe; falta materializar).
+
+**🗺️ MAPA DE C1 (medición sesión 18, SIN CÓDIGO):** clic en contenedor = completar SOLO las hijas del día que se mira.
+- **Archivos:** `useTaskCRUD.ts` (`handleToggleStatus`/`toggleRecursive`) + los sitios que llaman al toggle (la casilla en
+  [TaskCard.tsx:445](TaskCard.tsx) y el `onToggle`/`onToggleStatus` por vista). Reutiliza la **fontanería de C4**:
+  `dayForTotals` = "día de la vista" (activeDate en Mi Día, día de celda en Semana/Calendario, **null en Bloques**).
+- **Qué falta, en concreto:**
+  1. **Pasar el día-de-la-vista al toggle.** Hoy `handleToggleStatus` usa el `activeDate` global (uno solo), no el de la
+     vista que clica. En **Bloques (sin día)** el clic debe seguir completando TODAS las hijas → el día llega como `null` y
+     ahí se conserva el comportamiento actual. Es el mismo hilo que C4 (`dayForTotals`), ya montado.
+  2. **`childrenToToggleOnDay` sirve para hijas MANUALES tal cual** (son filas reales, `belongsToDay` acierta). **NO sirve
+     para hijas RECURRENTES:** para una hija recurrente `allTasks[sid]` es la PLANTILLA (sin fecha) → `belongsToDay`=false
+     → la omite. Hay que **materializar** las instancias del día de esas hijas (`materializeDay`) y togglearlas como
+     excepción. `handleToggleStatus` YA tiene un patrón de `dayMap` materializado (para instancias vírgenes,
+     [useTaskCRUD.ts:117-124](useTaskCRUD.ts)) → reutilizable/extensible. Ésa es la única parte "dura".
+- **¿Cuánta materialización?** Solo para contenedores con hijas recurrentes (≈23 de 98); los 75 manuales van con
+  `childrenToToggleOnDay` sin materializar nada.
+- **¿El modelo corregido lo simplifica? SÍ, mucho:** como el contenedor **ya no escribe su status propio** (cerrado
+  sesión 18) y el completado se **deriva**, C1 se reduce a "togglear las hojas del día" — sin sincronizar estado del
+  contenedor, sin dirección leída del campo muerto. `childrenToToggleOnDay` ya da el conjunto manual.
+- **Depende de:** C3 cableado (mapa del día limpio) para que "el día" sea coherente. **El tapón de confirmación
+  (`424d7ac`) se queda** hasta que C1 esté validado (y NO se retira sin la usuaria).
 - **Síntoma del 30-jul (tareas pendientes ESCONDIDAS):** hijas huérfanas (`parent_task_id=null` al mover) sin contenedor materializado ese día. NO se arregla en (b); vive hasta (c). Es lo más grave (esconde trabajo).
 - **Toggle "completar-solo-el-día"** (recurrentes necesitan materializar las hijas-instancia del día).
 - **Fecha de inicio de recurrencia (C4) ✅ HECHO Y VALIDADO EN PANTALLA (`f707911`, sesión 18):** `RecurrencePickerChip`
