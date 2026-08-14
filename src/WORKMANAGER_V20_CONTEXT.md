@@ -2514,14 +2514,42 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
 - **FASE 3 (c):** **(b3) YA HECHO** (`ff4643b`, filtro por día en Mi Día). Pendiente **(c)** reconciliación sin fuga
   (`reconcileDay`, test rojo) con la contradicción del clic, el síntoma del 30-jul, el toggle "solo el día" y la fecha de
   inicio de recurrencia (§16.12). *(La degradación de la sesión 17 se ELIMINÓ en la 18, `2dbada5`: no había conversión.)*
-- **FASE 4 (persistencia y limpieza legada) — NO tocar aún:**
-  - **45 filas con `template_id` huérfano** (apunta a algo que no es plantilla), **mayormente basura `inst-inst-…`** del
-    leak viejo. Largamente inofensivas (se pintan una vez, sin regeneración). Limpieza legada.
-  - **7 rotas restantes** (`is_template:true` + `recurrence:null` + sin hijas) — de las 9, ya recuperadas 2 (auditoría).
-  - **Duplicados:** 5 grupos mismo título+bloque (ojo **espacios finales**: "Ingresos ", "Bancos ", "Cierre Propias "…)
-    + 2 grupos mismo título+padre.
-  - **Instancia suelta `inst-t-1785433862534-2026-08-24`** ("Ënviar", cuya plantilla ya se degradó). La fecha 24-ago la
-    usuaria la da por buena; el residuo se limpia en FASE 4.
+- **FASE 4 (persistencia y limpieza legada) — PLAN MEDIDO sesión 18 (SOLO LECTURA, nada ejecutado; para aprobar de un
+  vistazo). Ojo: los números del doc estaban desactualizados; los reales, abajo.**
+
+  **G1 · 7 plantillas rotas** (`is_template:true`, sin pauta propia, sin hijas vivas → invisibles en Mi Día por el filtro
+  `!isTemplate`). IDs: `inst-t-1778162405700-2026-05-08` ("Gestión campaña", forma inst = ascendida por bug picker) ·
+  `t-1778163662763` ("Possible reunió Candidata") · `t-1778695119129` ("Publicar propias…") · `t-1779785165667` ("Veure
+  situació Lucia", due 06-23) · `t-1781110025441` ("Veure feed Back clara…") · `t-1785430294429` ("verificar CCAA", due
+  08-10) · `t-1785430306417` ("Ver calificación de cuentas", due 08-24).
+  - **Cambio propuesto:** `is_template=false` (quitar la marca espuria) → vuelven a tarea normal y REAPARECEN. La de forma
+    `inst-…` ("Gestión campaña") mejor **borrarla** (es una instancia ascendida, no una tarea real).
+  - **Riesgo:** bajo. Reaparecen tareas que estaban ocultas (las 3 con fecha son trabajo real perdido de vista).
+  - **Si no se hace:** siguen invisibles = trabajo escondido; `validateTemplate` las marca como inertes.
+
+  **G2 · Duplicados — SOLO 1 grupo real** (el doc decía "5+2"; medido: 2a=1, 2b=0). "Soriano" en bloque b3:
+  `t-1778161643849` y `t-1778576136973`.
+  - **Cambio propuesto:** decidir cuál es la buena y borrar/fusionar la otra. **Necesita tu criterio** (mirar cuál tiene
+    hijas/tiempo). No propongo cuál sin que lo veas.
+  - **Riesgo:** medio si se elige mal. **Si no se hace:** dos "Soriano" en b3, confuso.
+
+  **G3 · `template_id` apunta a algo que NO es plantilla** — medido **64** (no 45; **29** son `inst-inst-…`, doble-leak).
+  Son ocurrencias materializadas cuya "plantilla" es a su vez una instancia o ya no existe → basura del leak viejo, no
+  regeneran.
+  - **Cambio propuesto:** borrar, PERO **antes medir su `status`** — no borrar ninguna que sea pendiente y trabajo real.
+    Empezar por las 29 `inst-inst-…` (las más claramente basura).
+  - **Riesgo:** bajo si se filtra por completadas/borrables; **medio** si se borra a ciegas (podría haber alguna pendiente).
+  - **Si no se hace:** inofensivas al render (se pintan una vez, sin regeneración) pero inflan conteos y consultas.
+
+  **G4 · Instancia suelta `inst-t-1785433862534-2026-08-24`** ("Ënviar documentos firmados a auditores", **pending**,
+  due 08-24). Su plantilla `t-1785433862534` ya es tarea normal (recuperada en auditoría). Es una ocurrencia huérfana.
+  - **Cambio propuesto:** borrarla — el trabajo real vive en la tarea normal `t-1785433862534`. **Confirmar** que no es una
+    ocurrencia que quieras conservar (está pendiente y con fecha futura).
+  - **Riesgo:** bajo, pero es pendiente → si esa fecha 24-ago es trabajo real, no borrar. **Si no se hace:** una fila
+    pendiente duplicada de la tarea recuperada.
+
+  *(Todo por id arriba o con patrón medible; ninguna fila tocada. Números corregidos vs el doc viejo: dups 5+2 → 1+0;
+  template_id-huérfano 45 → 64.)*
 - **FASE 5 (creación) — el chip de recurrencia NO se puede usar desde la FILA (ni en Bloques NI en Mi Día); hay que abrir
   el MODAL** (corrige el alcance: estaba escrito como si fuera solo de Bloques). Surgió al pasar a la opción B (`ced422a`):
   la pauta se pone "en el editor". Desde la fila el chip se revela al pasar el ratón pero **no llega a poner la pauta**;
