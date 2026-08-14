@@ -246,6 +246,35 @@ describe('materializeDay', () => {
     expect(Object.keys(allTasks).length).toBe(keysBefore); // sin filas nuevas
     expect(allTasks['inst-t-child-2026-07-15']).toBeUndefined();
   });
+
+  // TAPÓN B (§16.16, sesión 18) — forma REAL de un contenedor con hijas recurrentes (isTemplate:true, la
+  // única forma que materializeDay procesa; los 75 manuales no pasan por aquí). El bug de "Verduras vivas":
+  // "borrar → este día" deja una excepción-borrada de CONTENEDOR que enterraba el subárbol aunque hubiera
+  // hijas pendientes vivas ese día.
+  it('TAPÓN B: excepción-BORRADA del contenedor para el día PERO con hija pendiente ese día → el contenedor SIGUE apareciendo', () => {
+    const tasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', parentTaskId: 't-cont', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      // "borrar → este día" del contenedor: excepción-BORRADA a nivel de contenedor para WED
+      task({ id: 'inst-t-cont-2026-07-15', templateId: 't-cont', parentTaskId: null, dueDate: WED, instanceDate: WED, isDeleted: true, isException: true }),
+      // hija PENDIENTE persistida ese día (huérfana, parent_task_id=null) → trabajo vivo que NO enterrar
+      task({ id: 'inst-t-child-2026-07-15', templateId: 't-child', parentTaskId: null, dueDate: WED, instanceDate: WED, status: 'pending', isException: true }),
+    ]);
+    const day = materializeDay(WED, tasks);
+    expect(day.some(t => t.id === 'inst-t-cont-2026-07-15')).toBe(true);                       // contenedor reaparece
+    expect(day.some(t => t.templateId === 't-child' && t.status !== 'completed')).toBe(true);  // con su hija pendiente
+  });
+
+  it('TAPÓN B (control): excepción-borrada del contenedor + hija COMPLETADA (sin pendientes) → el contenedor SÍ se suprime (borrado respetado)', () => {
+    const tasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+      task({ id: 't-child', parentTaskId: 't-cont', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({ id: 'inst-t-cont-2026-07-15', templateId: 't-cont', parentTaskId: null, dueDate: WED, instanceDate: WED, isDeleted: true, isException: true }),
+      task({ id: 'inst-t-child-2026-07-15', templateId: 't-child', parentTaskId: null, dueDate: WED, instanceDate: WED, status: 'completed', isException: true }),
+    ]);
+    const day = materializeDay(WED, tasks);
+    expect(day.some(t => t.id === 'inst-t-cont-2026-07-15')).toBe(false); // sin trabajo vivo → borrado respetado
+  });
 });
 
 // =========================================================================

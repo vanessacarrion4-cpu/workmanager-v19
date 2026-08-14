@@ -226,8 +226,11 @@ export function materializeDay(dateStr: string, allTasks: Record<string, Task>):
   for (const container of containers) {
     const containerExceptions = exceptionsByTemplate.get(container.id);
 
-    // Contenedor-día borrado por completo → nada.
-    if (findDeletedForDay(containerExceptions, dateStr)) continue;
+    // §16.16 (TAPÓN B, sesión 18): la excepción-BORRADA de contenedor para el día se calcula aquí pero NO
+    // se aplica aún — un contenedor con hijas PENDIENTES vivas ese día NO debe enterrarse (era lo que
+    // ocultaba "Verduras vivas" y sus 4 tareas: "borrar → este día" suprimía el subárbol entero). La
+    // decisión se toma abajo, tras resolver las hijas.
+    const deletedForDay = findDeletedForDay(containerExceptions, dateStr);
 
     // ¿El contenedor viene de una excepción persistida que aterriza hoy?
     const containerLanded = findLanded(containerExceptions, dateStr);
@@ -247,6 +250,8 @@ export function materializeDay(dateStr: string, allTasks: Record<string, Task>):
     // --- Caso contenedor SIN hijos: plantilla recurrente autónoma ---
     // (el check de vacated ya se hizo arriba, unificado para ambas ramas)
     if (childTemplates.length === 0) {
+      // SIN hijas no hay trabajo vivo que enterrar → el día borrado se suprime (comportamiento previo).
+      if (deletedForDay) continue;
       if (containerLanded) {
         result.push({ ...containerLanded, subtasks: [] });
         continue;
@@ -267,6 +272,13 @@ export function materializeDay(dateStr: string, allTasks: Record<string, Task>):
         subtaskIds.push(resolved.id);
       }
     }
+
+    // TAPÓN B: solo se HONRA la excepción-borrada del contenedor si ese día NO le queda ninguna hija
+    // pendiente PERSISTIDA (trabajo real con el que se interactuó: `allTasks[c.id]` existe). Una ocurrencia
+    // recurrente auto-generada (no persistida) NO resucita un contenedor borrado a propósito. Con ≥1 hija
+    // pendiente persistida, el contenedor REAPARECE (no enterrar trabajo vivo — el bug de "Verduras vivas").
+    const hasPendingPersistedChild = resolvedChildren.some(c => c.status !== 'completed' && !!allTasks[c.id]);
+    if (deletedForDay && !hasPendingPersistedChild) continue;
 
     // Si el contenedor tiene hijos pero ninguno aplica hoy (todos movidos/borrados),
     // no se crea un contenedor vacío... salvo que exista una excepción de contenedor.
