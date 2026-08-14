@@ -2523,6 +2523,25 @@ incoherentes *pauta propia + hijas* y *plantilla inerte* (ni pauta propia ni hij
 - **Recomendación antes de (c):** o se **normaliza el dato** (bloque 2) o se **arregla el fallback-a-hoja** (una ex-tarea
   sin hijas no debería leer un `status` viejo de cuando era contenedor) y se añade un test en la forma `isTemplate:false`.
 
+**🎯 COBERTURA POST-FASE 3 — PRIORIZADA POR RIESGO (bloque 3, cierre sesión 18; 95 verdes / 0 rojos). Qué falta, de más a menos peligroso:**
+- **🔴 ALTO — el camino real del toggle `handleToggleStatus` (el hook entero) NO tiene test.** Toda la lógica de C1/C2
+  (rama por tipo de contenedor, dirección por día, selección de hijas del día → upsert) se prueba SOLO por los helpers
+  puros (`materializeDay`, `childrenToToggleOnDay`, `writesOwnStatusOnToggle`, `isCompletedForDay`), NO por el hook. **Los
+  2 bugs de C1 estaban justo en esa capa** (detección de contenedor + rama por plantilla en la instancia renderizada).
+  Es el patrón §16.14 (helper verde, camino real sin probar) y es el WRITE path → un bug toca datos reales. La usuaria
+  valida el clic a mano mañana, pero no hay guarda automática. **Recomendación: test del hook (renderHook o extraer la
+  selección a un helper puro `containerDayChildrenToToggle` y testear los 2 tipos + dirección + desmarcado).**
+- **🟠 MEDIO — `filterTasksForDay` sin test directo:** la rama de lookup de plantilla (155-157, el riesgo 1 de C3) y la de
+  contenedor sin fecha (174-184). Solo se ejerce indirecto vía `groupTasksByTag`.
+- **🟠 MEDIO — `bulkUpdateTasks` (cascada de status a hijas, `0bc1502`)** y el **cableado de C3** (`activeDayMap =
+  reconcileDay`): `reconcileDay` tiene test como helper, pero el cableado solo se verificó en la app una vez (0 filas
+  desaparecen), sin test automático. `bulkUpdateTasks` sin test.
+- **🟡 BAJO — tapón de confirmación** (TaskCard onClick: nº de subtareas, mensaje "de este día" vs "todos", `confirm`),
+  **C4** (`defaultDate` del picker), **cableado (b3) en DashboardView** — verificados en pantalla/uso, sin test unitario.
+- **Nota:** lo bien cubierto (helpers, forma real `isTemplate:false`): (a) totales, (b) completado derivado, (b4) campos
+  muertos, `isCompletedForDay`, `reconcileDay`, `writesOwnStatusOnToggle`, y la SELECCIÓN día-scoped de C1 (mixto vía
+  materializeDay + manual vía childrenToToggleOnDay). El hueco es siempre el mismo: **la integración en hooks/componentes.**
+
 **REPASO COMPLETO DE COBERTURA (bloque 4, sesión 18) — 4 ficheros, 90 verdes / 0 rojos. Qué NO se prueba:**
 - **Forma MINORITARIA (`isTemplate:true`) — dónde es legítima y dónde no:**
   - `instanceEngine.test.ts` (occursOn/materializeDay/resolve*): fixtures `t-cont`/`t-child` con `isTemplate:true`. **Es
