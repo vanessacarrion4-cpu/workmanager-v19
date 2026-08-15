@@ -99,8 +99,8 @@ export function childrenToToggleOnDay(containerId: string, allTasks: Record<stri
  *      una instancia se muestra; sin la plantilla en el mapa esa búsqueda fallaría.
  * Se DESCARTA solo lo realmente sobrante: HOJAS DATADAS de otro día, sin hijas y sin ser plantilla.
  *
- * ⚠️ NO CABLEADO en `activeDayMap` todavía (decisión de la usuaria: opción B). Es un helper-contrato con
- * test hasta que se cablee con validación en pantalla. Ver §16.12 (pendiente bloqueante) y sus 2 riesgos.
+ * ✅ CABLEADO en `activeDayMap` (App.tsx:166) desde la sesión 19. (El comentario previo decía "no cableado";
+ * quedó stale.) Ver §16.12.
  */
 export function reconcileDay(day: string, allTasks: Record<string, Task>): Record<string, Task> {
   const map: Record<string, Task> = {};

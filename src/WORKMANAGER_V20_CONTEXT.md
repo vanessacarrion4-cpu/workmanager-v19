@@ -650,9 +650,9 @@ prueba, y si está bien se sigue.
     al Dashboard (pasos 5–6) haciendo esos handlers instance-aware **una sola vez** para las
     tres vistas. Mientras tanto, recurrentes se gestionan desde **Mi Día**; las tareas
     **manuales** siguen siendo interactivas en Semana y en el drawer del Calendario.
-- **Bugs nuevos detectados** (no arreglar aún): **#18** columna `tasks.subtasks` inexistente
-  (escritura en silencio en `useTaskOrdering.ts:62`; la de `useBulkActions` ya eliminada en
-  `be9eed1`) → resto arreglar en paso 6.
+- **Bugs nuevos detectados:** ~~**#18** columna `tasks.subtasks` inexistente~~ ✅ **RESUELTO (sesión 19, `1342f36`):**
+  la escritura muerta de `useTaskOrdering` eliminada (la de `useBulkActions` ya en `be9eed1`). Impacto real que tuvo:
+  ninguno (el orden persiste por `order`). Ver §16.18.
 - **#20 — Selección/duplicación de CONTENEDORES fuera del estado (instancias virtuales)**
   (detectado por la usuaria 26/07). Reportado: (1) seleccionar un contenedor no selecciona sus
   hijas; (2) seleccionar solo el padre no duplica; (3) padre+hijas → solo duplica las hijas.
@@ -2061,7 +2061,7 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
     reordenado sin pasar por `persist()` — migrar. (2) **Acciones SIN escritura a BD** (tercer agujero, NO arregladas):
     borrar bloque (`useBlockHandlers.ts:103`, ya FASE 4) · desplegar/plegar TODO un bloque
     (`useTaskOrdering` handleExpandAllInBlock) · añadir persona desde Delegadas (`DelegadasView` handleAddPerson: solo
-    estado local). (3) Muda a propósito: escritura al array `subtasks` (bug #18, columna inexistente).
+    estado local). (3) ~~Muda a propósito: escritura al array `subtasks` (bug #18)~~ → ELIMINADA (sesión 19, #18 resuelto).
 - **Jerarquía LIMITADA A 2 NIVELES** (`0c6baf6`, producción). Verificado en datos reales: 2001 activas → **505 nivel 1,
   1496 nivel 2, 0 en nivel 3**. El modelo es contenedor+hijas; el nivel 3 solo complicaba totales/completado por
   derivación de FASE 3. Tope: "+" solo en nivel 1; degradar solo una tarea de nivel-1 **sin hijas**. Guía de sangría
@@ -2103,10 +2103,10 @@ revertir `f073ed5`. (El clic no se pudo automatizar por el `confirm()` del tapó
 - **Lo que DOLÍA a diario (trabajo desapareciendo) — RESUELTO esta sesión:** completar/clicar un contenedor ya no esconde
   trabajo en silencio (se cerró el escritor del status propio; C1 día-scopea el clic; el tapón B rescata el contenedor
   borrado con hijas pendientes; el fallback-a-hoja se atajó normalizando datos). *Pendiente de tu validación: el clic de C1.*
-- **🔴 LO ÚNICO que aún DUELE a diario: MOVER un contenedor deja sus hijas atrás** (huérfanas invisibles ese día — la causa
-  *vacated*). Cada vez que muevas un contenedor con hijas, esas hijas se esconden. El tapón B cubre BORRAR, no MOVER. **Es
-  el siguiente arreglo para estabilidad real** (motor, tamaño MEDIO, §16.17). Hasta entonces: mover contenedores es el gesto
-  a evitar. Es lo más grave que queda.
+- ~~**🔴 LO ÚNICO que aún DUELE a diario: MOVER un contenedor deja sus hijas atrás** (*vacated*)~~ ✅ **RESUELTO (sesión 19,
+  `a8f23d6`, opción A):** al mover un contenedor MANUAL, sus hijas de fila real del día de origen viajan con él
+  (`childrenToMoveWithContainer`, +tests). Ya no se esconden. *(El colapso masivo de fechas es OTRA cosa — el "mover a
+  fecha" en lote, §16.19/§16.20 — y tiene su propio guard.)*
 - **Molestias menores, NO dolor diario:** clic de contenedor en Semana/Calendario aún togglea todos los días (solo si
   completas ahí); contador "1 tarea/7 filas" en Bloques (cosmético); el chip de recurrencia solo desde el modal (FASE 5).
 - **Higiene invisible, NO duele:** FASE 4 (7 rotas, 1 dup Soriano, 64 filas `inst-inst-` basura, 1 instancia suelta) —
@@ -2174,13 +2174,12 @@ completadas). Validado en pantalla. **(b3) DESBLOQUEADO.**
   calma):** SOLO en Mi Día y SOLO con "ocultar completadas" ACTIVO — un contenedor cuyas hijas de HOY están todas hechas
   ahora DESAPARECE aunque tenga hijas pendientes de otro día. Con el filtro apagado no cambia nada. **Techo del impacto:
   56 contenedores** (los que tienen hijas mixtas completa+pendiente); el número real por día es un subconjunto.
-- **C3 — `reconcileDay` IMPLEMENTADO + TEST VERDE, pero ⚠️ NO CABLEADO (opción B, sesión 18):** la función-contrato ya
-  hace el mapa sin fuga con semántica precisa (día + contenedores sin fecha + plantillas; descarta solo hojas datadas de
-  otro día) y su test cubre la forma real `isTemplate:false`. Batería **90 verdes, 0 rojos** (era el último rojo). **Queda
-  como HELPER SIN LLAMAR a propósito** — la usuaria eligió B para no tocar el render sin validar en pantalla.
-  **PENDIENTE BLOQUEANTE para cerrar C3 = cablearlo en `activeDayMap` ([App.tsx:161-166](App.tsx)):** sustituir el overlay
-  `Object.values(tasks).forEach(t => map[t.id]=t)` por `reconcileDay(activeDate, tasks)`. **Antes de cablear, los 2 riesgos
-  que encontró el paso-0 (por eso no se cabló a ciegas):**
+- **C3 — `reconcileDay` ✅ CABLEADO (corrige el "NO CABLEADO" de la sesión 18).** Ya es `activeDayMap = useMemo(() =>
+  reconcileDay(activeDate, tasks), [tasks, activeDate])` en [App.tsx:166](App.tsx) (sustituyó al overlay
+  `Object.values(tasks).forEach(t => map[t.id]=t)`). La función-contrato hace el mapa sin fuga (día + contenedores sin
+  fecha + plantillas; descarta solo hojas datadas de otro día) y tiene test de la forma real `isTemplate:false`. **Los 2
+  riesgos del paso-0 quedaron cubiertos** (plantillas conservadas; sin cambio de visibilidad observado). Histórico de por
+  qué no se cabló a ciegas en su día:**
   1. **Plantillas:** `filterTasksForDay` hace `allTasksMap[t.templateId]` ([filters.ts:156](filters.ts)) para decidir si
      una instancia se muestra. `reconcileDay` YA conserva las plantillas, así que el cableado no debería romperlo — **pero
      verificar en pantalla** que ninguna instancia cambia de visibilidad.
@@ -2662,10 +2661,16 @@ las hijas, no del campo del padre). Misma familia que el "status guardado que no
 **✅ DECISIÓN TOMADA (sesión 17):** el default "recurrencia ⇒ core" **también aplica al CONTENEDOR**, pero su tipo es
 **EDITABLE y persiste** igual que cualquier tarea (4 contenedores con tipo≠core lo confirman). Ya NO es decisión abierta.
 
-### 16.17 APARCADO POR FASE (fin sesión 17) — se acabó la excavación
+### 16.17 APARCADO POR FASE (origen: fin sesión 17)
 
-**Modo (dictado por la usuaria):** se terminó la excavación. **No arreglar nada más** de lo que fue saliendo; queda
-aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.**
+> ⚠️ **NOTA (sesión 19): esta cabecera quedó STALE.** El "se acabó la excavación / no arreglar nada más / el siguiente
+> bloque es (b3)" era el modo de la sesión 17. Desde entonces se cerró FASE 3 (b1/b2/b3/C1-C4), se ejecutó y CERRÓ FASE 4
+> (§16.20), y se arreglaron varios bugs (mixto, mover contenedores, tapón, useBulkActions, #18, #21). El estado vigente y
+> el punto de retomada están en **§16.19 (inventario), §16.20 (FASE 4 cerrada) y §16.21 (FASE 5/6)**. Lo de abajo se
+> conserva como registro por fase; donde diga "pendiente/aparcado", contrástalo con esas tres secciones.
+
+**Modo (histórico, sesión 17):** se terminó la excavación; cada cosa aparcada en su fase. *(El "siguiente bloque es (b3)"
+ya se completó hace tiempo.)*
 
 - **FASE 3 (c):** **(b3) YA HECHO** (`ff4643b`, filtro por día en Mi Día). Pendiente **(c)** reconciliación sin fuga
   (`reconcileDay`, test rojo) con la contradicción del clic, el síntoma del 30-jul, el toggle "solo el día" y la fecha de
@@ -2720,6 +2725,8 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
   - **Estado FASE 4:** cerrada salvo lo que la usuaria dejó explícito → 5 "inst→tarea-normal" aparcadas + la huérfana con
     hija viva. G1/G3-completadas/G3-pendientes-huérfanas/G4 hechas; G2 cerrada por decisión.
   - *(Plan medido original abajo, intacto, como referencia.)*
+- **FASE 4 — ⚠️ este PLAN ya se EJECUTÓ y CERRÓ (ver §16.20 y el bloque "EJECUCIÓN PARCIAL" arriba). Lo de abajo es el plan
+  ORIGINAL de la sesión 18 (SOLO LECTURA entonces), conservado como referencia; NO refleja el estado actual.**
 - **FASE 4 (persistencia y limpieza legada) — PLAN MEDIDO sesión 18, RE-CONFIRMADO al cierre (SOLO LECTURA, nada
   ejecutado; para aprobar de un vistazo). Números re-medidos hoy: IDÉNTICOS — G1=7 rotas (mismos ids), G2=1 grupo real
   (Soriano), G3=64 (`inst-inst-`=29), G4=la suelta sigue viva (`inst-t-1785433862534-2026-08-24`, pending, due 08-24).
