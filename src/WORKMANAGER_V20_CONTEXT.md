@@ -3283,3 +3283,46 @@ en el momento". Comparten el terreno (recurrentes grandes) pero son cosas distin
   array completo, conservando las ocultas (completadas) en su sitio.
 - (c) **No montar 136 items:** en Bloques, un contenedor recurrente no debería listar sus 132 instancias completadas
   (enlaza directamente con la regla de render de §16.26). Con solo 4 reglas visibles, el reorden es trivial y estable.
+
+### 16.26 MAPA — render de Bloques vs regla acordada (sesión 19, sin arreglar)
+
+**Tu regla (dictada esta sesión):**
+- **Contenedores normales:** se ven las subtareas PENDIENTES; las COMPLETADAS ocultas pero accesibles a petición.
+- **Contenedores recurrentes:** se ve la PLANTILLA (regla) y las INSTANCIAS MODIFICADAS que sigan PENDIENTES.
+
+**Lo que dice el DOCUMENTO (§16.13, línea 2332) — OJO, DIVERGE de tu regla:** *"BLOQUES = LISTA DE DEFINICIÓN, una línea
+por regla: se muestra SOLO la plantilla, NO sus ocurrencias. Las ocurrencias se consultan por el icono de información."*
+→ El doc dice **ninguna ocurrencia inline** (ni pendientes ni modificadas); tú dices **plantilla + instancias modificadas
+pendientes**. **No coinciden.** O el doc está viejo/mal escrito, o cambiaste el criterio. **Decídelo** — dejo las dos
+versiones a la vista; no sé cuál es la canónica.
+
+**Lo que hace la APP hoy (medido en código):**
+- **Nivel superior de Bloques** (`BlocksView.tsx:163-189`, `coreTasks`/`adhocTasks`): excluye `parentTaskId` y
+  `templateId` → **una fila por contenedor/regla** ✓ (ninguna instancia sube a nivel raíz). Correcto.
+- **Hijas del contenedor:** `TaskCard` en Bloques recibe `subtasksForGroup=null` → pinta **`task.subtasks` CRUDO**
+  (todas las hijas reconstruidas), filtrado SOLO por el toggle global `hideCompleted` (`TaskCard:851/860`).
+  - **Normal:** pendientes visibles; completadas ocultas con el toggle ON, visibles con OFF → "accesible a petición" SÍ
+    existe, pero es un **toggle GLOBAL del bloque** (`BlocksView:256` "Ver/Ocultar completadas"), no por contenedor; y por
+    el bug "otros días" (§16.17) arrastra completadas de todos los días. **≈ tu regla, con dos matices** (global + otros días).
+  - **Recurrente:** `task.subtasks` = las reglas hijas **+ TODAS las instancias** (p.ej. "Rutinas mañana": 4 reglas + 132
+    completadas). Con el toggle OFF se ven las 132 completadas; con ON se ocultan y quedan las reglas. **La app MUESTRA las
+    ocurrencias** → viola el doc ("solo plantilla") **y** tu regla (no aísla "modificadas pendientes": enseña históricas
+    completadas o nada según el toggle, sin el concepto de "modificada pendiente").
+
+**Dónde diverge, resumen:**
+| | Tu regla | Doc (2332) | App hoy |
+|---|---|---|---|
+| Normal | pendientes + completadas a petición | (no lo detalla) | pendientes; completadas por toggle GLOBAL (+bug otros días) |
+| Recurrente | plantilla + instancias MODIFICADAS pendientes | SOLO plantilla, 0 ocurrencias | plantilla + TODAS las instancias (toggle oculta completadas) |
+
+**Cuántos contenedores afecta:** **24 recurrentes** (donde se ven montañas de instancias: "Rutinas mañana" 136, "Verduras
+vivas" 51, "Pago nóminas" 26…) — es la divergencia gorda. **65 normales** con completadas (para la parte normal; ahí la
+app ya se acerca a tu regla vía el toggle).
+
+**Qué habría que tocar (sin arreglar aún):** en Bloques, dejar de pintar `task.subtasks` CRUDO y construir la lista de
+hijas con semántica de Bloques (un helper tipo `getVisibleSubtasksForBloques(container, allTasks)`):
+- **Normal:** pendientes siempre; completadas solo si se piden (idealmente un "ver completadas (N)" POR contenedor, no el
+  toggle global — enlaza con §16.17 render "otros días").
+- **Recurrente:** las **reglas hijas** (plantillas) + las **excepciones que sigan pendientes**; **NO** las instancias
+  completadas históricas. Esto además arregla de raíz el reorden flaky de §16.25 (de 136 items a ~4).
+- **Antes de tocar: fija la regla canónica** (tu versión vs la del doc), porque cambian el resultado para los recurrentes.
