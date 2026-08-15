@@ -3045,38 +3045,32 @@ nunca hard-delete). Detalle largo arriba (§16.17); esto es el cierre de un vist
 4. **FASE 5 / FASE 6:** tablas de decisión en §16.21 (abajo) — ordenar por valor.
 5. **#1 (exception-move / leak):** solo con la usuaria (plan en §16.18).
 
-### 16.21 FASE 5 y FASE 6 — tablas de decisión (sesión 19, item 5)
+### 16.21 LISTA MAESTRA PARA DECIDIR — todo lo aparcado, ordenado por VALOR (sesión 19, item 4)
 
-Para ordenar por VALOR de un vistazo. **Coste:** S = un rato · M = medio · L = grande. **Pantalla:** ¿cambia lo que ves?
-(sí = necesita tu validación; no = seguro de hacer autónomo). Mi orden sugerido por valor está en la columna #.
+Consolidado de todo lo pendiente estos días, para elegir de un vistazo si entramos en **FASE 5** o **FASE 6** (o técnico).
+**Orden = mi criterio de VALOR** (dolor/beneficio diario), NO por facilidad. **Coste:** S = un rato · M = medio · L = grande.
+**Pantalla:** ¿cambia lo que ves? (sí = necesita tu validación). **NO arranco ninguno sin que me lo digas.**
 
-**FASE 5 — creación**
+| # | Punto | Fase | Qué es | Coste | Qué gano | Pantalla |
+|---|-------|------|--------|-------|----------|----------|
+| 1 | **Recurrentes en otras vistas** (§11.1e/f/g) | FASE 6 | Semana no MUEVE recurrentes · Bloques no COMPLETA recurrentes · Calendario sin icono de completar. Interacción incoherente según la vista. | M | Coherencia diaria: la misma tarea se comporta igual en toda la app | Sí |
+| 2 | **Modal de la papelera de fila recurrente** | FASE 6 | Que deje CLARÍSIMO "este día" vs "la serie" y avise si hay hijas pendientes que se entierran. Es el gesto que más miedo da. | M | Borrar recurrentes sin sustos; menos error | Sí |
+| 3 | **Pauta de recurrencia desde la FILA** | FASE 5 | Hoy solo desde el modal; desde la fila el chip se ve pero no llega a poner la pauta. | M | Crear recurrentes sin abrir el modal (fricción si creas muchas) | Sí |
+| 4 | **Calendario "Ir a fecha" no retrocede de mes** | FASE 6 | Solo muestra el mes actual; para ir a julio, ~23 clics. Añadir ‹ mes ›. | S | Navegar al pasado sin sufrir | Sí |
+| 5 | **#1 exception-move: extraer + test** | Técnico | Origen del leak `inst-inst-`. Blindar con test el camino más frágil. **Solo CONTIGO** (mover instancia en pantalla + diff BD). | M | Menos riesgo de que vuelva el leak | No (refactor) + validación |
+| 6 | **Renombrar "borrar la serie" → "terminar la serie"** | FASE 6 | El botón en realidad la termina (corta de ese día, conserva histórico). El nombre engaña. | S | Menos confusión | Sí (texto) |
+| 7 | **Aviso vista de Carga** | FASE 6 | Que un contenedor no se proyecte dos veces ni desaparezca. Comprobar al rediseñar Carga. | M | Carga fiable | Sí |
+| 8 | **Poda de instancias `inst-` antiguas** | Técnico | Archivar+borrar completadas > 6 meses (plan §16.22). Hoy NO urge (2537 filas). **Con la usuaria.** | M | Frena el crecimiento (arranque del cliente) | No |
+| 9 | **Verificar adjuntos** | Técnico | Claim heredado "no persisten"; sin re-verificar. | S (medir) | Saber si es real y arreglarlo si lo es | No (medir) |
+| 10 | **Tests TIER 2/3 de escritura** (§16.18) | Técnico | Extraer+test bulkDelete/bulkDuplicate/promote/demote/timerStopConfirm/addTask/addRule. | M | Blindar más caminos de escritura | No |
+| 11 | **Limpieza: 29 prunables FK + 14 huérfanas CM11l** (§16.22/§16.23) | Técnico | Basura de test entrelazada por FK. Las 14 son caso de validación de (c) → no tocar aún. | S | Deflaciona conteos | No |
 
-| # | Punto | Qué es | Coste | Ganancia | ¿Cambia pantalla? |
-|---|-------|--------|-------|----------|-------------------|
-| 1 | Pauta desde la FILA | Hoy el chip de recurrencia solo funciona desde el MODAL; desde la fila se ve al pasar el ratón pero no llega a poner la pauta. Decidir si debe poder ponerse en la fila. | M | Crear recurrentes sin abrir el modal (fricción diaria si creas muchas) | Sí |
-
-**FASE 6 — diseño / pulido**
-
-| # | Punto | Qué es | Coste | Ganancia | ¿Cambia pantalla? |
-|---|-------|--------|-------|----------|-------------------|
-| 1 | **Render "otros días"** | En Bloques un contenedor pinta hijas completadas de todos los días (65 contenedores). 3 opciones en §16.17: ocultar+ver-a-petición / día-scopear Bloques / dejarlo. | M | Menos ruido visual diario en Bloques | **Sí (es el punto)** — quieres decidirlo viendo pantalla |
-| 2 | Modal papelera de fila recurrente | Que deje CLARÍSIMO qué se borra ("este día" vs "la serie") y avise si hay hijas pendientes que se entierran. Hoy ese gesto suprime un contenedor entero sin avisar (tapón B ya evita perder trabajo vivo, pero el modal confunde). | M | Evita borrados sorpresa; menos miedo al gesto | Sí |
-| 3 | Renombrar "borrar la serie" | El botón "borrar la serie" en realidad la TERMINA (corta de ese día en adelante, conserva histórico). El nombre engaña. | S | Menos confusión; el nombre describe la acción | Sí (texto) |
-| 4 | Calendario "Ir a fecha" no retrocede de mes | Solo muestra el mes actual; para ir a julio, ~23 clics. Añadir navegación de mes (‹ mes ›). | S | Navegar al pasado sin sufrir | Sí |
-| 5 | Aviso vista de Carga | Que un contenedor no se proyecte dos veces (contenedor + hijas) ni desaparezca. Comprobar al rediseñar Carga. | M | Carga fiable | Sí |
-| 6 | ¿Aviso al mover-lote mezclando días? | El guard ya impide aplastar COMPLETADAS (`a5ed17e`). Queda decidir si además avisar cuando la selección mezcla días de pendientes. Mi opinión: no hace falta, el guard cubre lo que dolía. | S | Marginal (el guard ya protege la historia) | Sí (un confirm) |
-
-**PENDIENTES TÉCNICOS (no son FASE 5/6 pero compiten por tu tiempo):**
-
-| Punto | Qué es | Coste | Ganancia | ¿Cambia pantalla? |
-|-------|--------|-------|----------|-------------------|
-| Validar #21 (reorden recurrentes) | Ya arreglado; reordenar Verduras vivas → recargar → comprobar. | S | Cierra un dolor diario | Sí (validación) |
-| Validar guard mover-lote + clic mixto | Ya hechos; confirmar en pantalla. | S | Cierra 2 pendientes | Sí (validación) |
-| Borrar bloque no persiste | `useBlockHandlers` no escribe el borrado (V). Añadir el delete/soft-delete. | S | Reorganizar bloques sin que reaparezcan | No (solo persistencia) |
-| Verificar adjuntos | Claim heredado "no persisten"; sin re-verificar. | S (medir) | Saber si es real | No (medir) |
-| #1 exception-move (extraer+test) | Origen del leak `inst-inst-`. Solo CONTIGO (mover instancia en pantalla + diff BD). | M | Blindar el punto más frágil con test | No (refactor), pero validación sí |
-| Recurrentes en otras vistas (§11.1e/f/g) | Semana no mueve · Bloques no completa recurrentes · Calendario sin icono. Sin re-verificar hoy. | M | Coherencia entre vistas | Sí |
+**YA RESUELTO estos días (fuera de la lista, pendiente solo tu validación en pantalla donde se indica):** render "otros
+días" → **A implementado** (regla canónica, `getVisibleSubtasksForBloques`; valida Rutinas mañana/Verduras vivas) ·
+reorden recurrentes #21 → **arreglado + validado** · reorden flaky "Rutinas mañana" → **A lo arregla** (de 136 a 4 filas +
+`values` memoizado + merge; re-valida) · guard mover-lote → **validado** · clic mixto → **validado** · borrar bloque →
+**reversible (soft-delete + papelera)** · aviso al borrar contenedor → **hecho** · aviso mover-lote mezcla-días → cubierto
+por el guard (mi opinión: no hace falta un aviso extra).
 
 ### 16.22 SALUD INTERNA / VOLUMEN (sesión 19, item 6) — primera medición, nunca lo habíamos mirado
 
