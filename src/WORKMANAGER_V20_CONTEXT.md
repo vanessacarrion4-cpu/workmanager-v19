@@ -2966,10 +2966,13 @@ heredado del §16, confianza media (no re-verificado hoy). Lo pendiente de TU va
 2. **En BLOQUES, un contenedor pinta sus hijas completadas de TODOS los días** (render "otros días"). Ruido visual diario
    en **65 contenedores** con completadas. En **Mi Día NO pasa** (es día-scoped). Sin arreglar — es tu decisión de
    producto (quieres verlo en pantalla). *(V: la causa es `TaskCard:851/860`, `subtasksForGroup=null` en Bloques.)*
-3. **Borrar un bloque NO se guarda** (V: `useBlockHandlers.ts:108` solo toca estado, no escribe en Supabase). Borras un
-   bloque, recargas y **vuelve con todas sus tareas**. Si reorganizas bloques, es un palo diario. **Arreglable sin tocar
-   pantalla** (añadir el `delete`/soft-delete que falta) → candidato claro, pero es cambio de escritura: lo dejo anotado,
-   no lo hago sin ti (regla del día: no arreglos que cambien pantalla — este no la cambia, pero sí es escritura nueva).
+3. ~~**Borrar un bloque NO se guarda**~~ ✅ **ARREGLADO (sesión 19, item 1).** Ahora `handleDeleteBlock` persiste el
+   borrado (`supabase.from('work_blocks').delete()`); el FK `block_id ON DELETE CASCADE` (verificado en vivo con probes
+   temporales, incl. contenedor+hija) borra sus tareas en la BD → **ninguna hija queda huérfana ni invisible: se van
+   limpias.** +test (`tasksInBlock`). **PERMANENTE** (work_blocks no tiene `is_deleted`; el confirm avisa "no se puede
+   deshacer" y dice cuántas tareas). *Alternativa reversible posible si la quieres: añadir `is_deleted` a work_blocks +
+   soft-delete de tareas, en vez del cascade — pero eso deja el bloque "archivado", que choca con desactivar. Lo dejé como
+   delete real por tu texto "eliminar el bloque y todas sus tareas".*
 
 **TIER B — molesto cuando tocas esa función:**
 4. **Mover en LOTE aplasta las fechas** de todo lo seleccionado (colapsa el día de completadas de días distintos).

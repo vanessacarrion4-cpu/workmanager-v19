@@ -19,6 +19,16 @@ interface UseBlockHandlersOptions {
   setEditingBlockId: (id: string | null) => void;
 }
 
+/**
+ * tasksInBlock — ids de TODAS las tareas de un bloque (helper puro, testeable).
+ * Toda tarea (contenedor, hija, instancia recurrente, excepción) lleva `blockId`, así que un filtro plano
+ * por `blockId` captura la jerarquía entera → al borrar el bloque no queda ninguna hija huérfana. Es el mismo
+ * conjunto que borra la BD por el FK `ON DELETE CASCADE` de `block_id` (verificado en vivo).
+ */
+export function tasksInBlock(blockId: string, tasks: Record<string, Task>): string[] {
+  return Object.values(tasks).filter((t) => t && t.blockId === blockId).map((t) => t.id);
+}
+
 export function useBlockHandlers({
   blocks,
   setBlocks,
@@ -106,17 +116,29 @@ export function useBlockHandlers({
   }, [blocks, setBlocks]);
 
   const handleDeleteBlock = useCallback((id: string) => {
-    if (confirm('¿Eliminar este bloque y todas sus tareas/reglas asociadas?')) {
-      setBlocks(prev => prev.filter(b => b.id !== id));
-      setTasks(prev => {
-        const newTasks = { ...prev };
-        Object.keys(newTasks).forEach(taskId => {
-          if (newTasks[taskId].blockId === id) delete newTasks[taskId];
-        });
-        return newTasks;
+    const block = blocks.find(b => b.id === id);
+    const n = tasksInBlock(id, tasks).length;
+    // Antes NO persistía: borraba de estado y al recargar volvía todo (función a medias). Ahora se borra en
+    // Supabase; el FK `ON DELETE CASCADE` de `block_id` borra sus tareas en la BD (verificado) → nada queda
+    // huérfano. Es PERMANENTE (work_blocks no tiene is_deleted; no hay soft-delete de bloque).
+    if (!confirm(`¿Eliminar el bloque «${block?.name || 'sin nombre'}» y sus ${n} tarea${n !== 1 ? 's' : ''}/reglas? Es PERMANENTE, no se puede deshacer.`)) return;
+
+    setBlocks(prev => prev.filter(b => b.id !== id));
+    setTasks(prev => {
+      const newTasks = { ...prev };
+      Object.keys(newTasks).forEach(taskId => {
+        if (newTasks[taskId].blockId === id) delete newTasks[taskId];
       });
-    }
-  }, [setBlocks, setTasks]);
+      return newTasks;
+    });
+
+    supabase.from('work_blocks').delete().eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('[SUPABASE] Error borrando bloque:', error);
+        reportPersistError({ verbo: 'borrar', titulo: block?.name || undefined, singular: 'el bloque', plural: 'bloques' });
+      }
+    });
+  }, [blocks, tasks, setBlocks, setTasks]);
 
   return {
     handleAddBlock,
