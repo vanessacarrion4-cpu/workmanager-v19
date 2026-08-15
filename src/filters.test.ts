@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
 import { Task } from './types';
-import { filterTasksForDay } from './filters';
+import { filterTasksForDay, getStatsForDay } from './filters';
 import { reconcileDay } from './fase3Contracts';
 
 // 2026-07-15 Mié · 07-16 Jue
@@ -110,5 +110,51 @@ describe('Mi Día real: reconcileDay → filterTasksForDay (cableado C3)', () =>
     const candidates = Object.values(dayMap).filter((t: any) => t && !t.isDeleted && !t.isTemplate) as Task[];
     const ids = filterTasksForDay(candidates, dayMap, BLOCKS, WED, { hideCompleted: false }).map(t => t.id).sort();
     expect(ids).toEqual(['C']);
+  });
+});
+
+describe('getStatsForDay — totales del día (cabecera de Mi Día)', () => {
+  it('tareas simples del día: cuenta, completadas/pendientes y estimados', () => {
+    const ts = [
+      task({ id: 'A', dueDate: WED, estimatedMinutes: 30 }),
+      task({ id: 'B', dueDate: WED, estimatedMinutes: 20, status: 'completed' }),
+    ];
+    const s = getStatsForDay(ts, mapOf(ts), [], WED);
+    expect(s).toMatchObject({
+      total: 2, completed: 1, pending: 1,
+      estimatedTotal: 50, estimatedCompleted: 20, estimatedPending: 30, registered: 0,
+    });
+  });
+
+  it('contenedor: cuenta sus HIJAS-hoja del día, no el contenedor', () => {
+    const ts = [
+      task({ id: 'C', subtasks: ['a', 'b'] }),
+      task({ id: 'a', parentTaskId: 'C', dueDate: WED, estimatedMinutes: 10 }),
+      task({ id: 'b', parentTaskId: 'C', dueDate: WED, estimatedMinutes: 5, status: 'completed' }),
+    ];
+    const s = getStatsForDay([mapOf(ts)['C']], mapOf(ts), [], WED);
+    expect(s).toMatchObject({ total: 2, completed: 1, pending: 1, estimatedTotal: 15 });
+  });
+
+  it('no cuenta hijas de otro día', () => {
+    const ts = [
+      task({ id: 'C', subtasks: ['a', 'b'] }),
+      task({ id: 'a', parentTaskId: 'C', dueDate: WED, estimatedMinutes: 10 }),
+      task({ id: 'b', parentTaskId: 'C', dueDate: THU, estimatedMinutes: 5 }),
+    ];
+    const s = getStatsForDay([mapOf(ts)['C']], mapOf(ts), [], WED);
+    expect(s).toMatchObject({ total: 1, estimatedTotal: 10 });
+  });
+
+  it('registered = suma de time_entries de ESE día', () => {
+    const ts = [task({ id: 'A', dueDate: WED })];
+    const te = [{ date: WED, duration: 25 }, { date: THU, duration: 99 }, { date: WED, duration: 5 }];
+    expect(getStatsForDay(ts, mapOf(ts), te, WED).registered).toBe(30);
+  });
+
+  it('deduplica: la misma hoja pasada dos veces se cuenta una vez', () => {
+    const ts = [task({ id: 'A', dueDate: WED })];
+    const A = mapOf(ts)['A'];
+    expect(getStatsForDay([A, A], mapOf(ts), [], WED).total).toBe(1);
   });
 });
