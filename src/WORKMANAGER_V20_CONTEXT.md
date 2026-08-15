@@ -3249,3 +3249,37 @@ irreversible hoy es el de BLOQUE (item 1b lo hará reversible en cuanto exista `
 >   verificado en el item 3.
 > No es que una corrija a la otra: **23503 es al escribir un FK malo; CASCADE es al borrar el padre.** Operaciones
 > distintas, ambas ciertas.
+
+### 16.25 MAPA — "Rutinas mañana": a veces el reorden de subtareas no agarra (sesión 19, sin arreglar)
+
+**Síntoma:** en "Rutinas mañana", arrastrar una subtarea a veces NO mueve. No siempre.
+
+**Los datos (medido):** "Rutinas mañana" (`t-1778445069239`, contenedor recurrente) tiene **136 hijas** = **4 reglas
+recurrentes pendientes** ("Ingresos tiendas", "Picking", "Márgenes", "Bancos") + **132 instancias completadas históricas**.
+**TODAS con `order=0`** (una con 4). Es el contenedor MÁS GRANDE de la app (§16.22).
+
+**Dónde:** el reorden en Bloques es `TaskCard.tsx:849-868` (Framer Motion `Reorder.Group` sobre
+`(subtasksForGroup || task.subtasks).filter(hideCompleted)`; en Bloques `subtasksForGroup=null` → `task.subtasks`), con
+handler `handleUpdateSubtasksOrder` (`useTaskOrdering.ts:80`).
+
+**Causa probable del "a veces" — tres factores que se combinan:**
+1. **`values` recalculado INLINE en cada render** (línea 851: `.filter(...)` crea un array NUEVO cada vez). `Reorder.Group`
+   de Framer Motion es sensible: si el componente re-renderiza durante el gesto, el `values` cambia de identidad y el
+   arrastre se **resetea** → "no agarra".
+2. **`handleUpdateSubtasksOrder` REEMPLAZA `subtasks`** por los ids VISIBLES (líneas 88-90). Con "ocultar completadas" ON,
+   `onReorder` manda solo las 4 reglas → `subtasks` pasa a `[4]`, **descartando las 132 completadas del estado** → un
+   re-render gordo que descoloca el gesto (y pierde las completadas de memoria hasta recargar).
+3. **136 hijas todas `order=0`:** el volumen (montar/filtrar 136 items) añade churn de render, y los empates a 0 hacen el
+   orden ambiguo (relacionado con #21). Cuantas más hijas, más probable el reset → por eso pasa en "Rutinas mañana" (136)
+   y no en contenedores pequeños → el "a veces".
+
+**Distinto del #21:** #21 era "el reorden no sobrevive a la RECARGA" (ya arreglado y validado). Esto es "el GESTO no agarra
+en el momento". Comparten el terreno (recurrentes grandes) pero son cosas distintas.
+
+**Qué habría que tocar (sin arreglar aún):**
+- (a) **`values` estable:** memoizar la lista filtrada (no `.filter` inline) para que Framer Motion no la vea cambiar salvo
+  por el propio reorden.
+- (b) **`handleUpdateSubtasksOrder` debe FUSIONAR**, no reemplazar: intercalar el nuevo orden de los VISIBLES dentro del
+  array completo, conservando las ocultas (completadas) en su sitio.
+- (c) **No montar 136 items:** en Bloques, un contenedor recurrente no debería listar sus 132 instancias completadas
+  (enlaza directamente con la regla de render de §16.26). Con solo 4 reglas visibles, el reorden es trivial y estable.
