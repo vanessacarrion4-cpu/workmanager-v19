@@ -2774,6 +2774,16 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
     (§16.16 abierto). Comprobar al rediseñar Carga.
   - **Calendario "Ir a fecha" de Mi Día no retrocede de mes (hallazgo sesión 18):** solo muestra el mes actual; para ir a
     julio hacen falta ~23 clics en la flecha de día anterior. Añadir navegación de mes (‹ mes ›). Sin prioridad.
+  - **HALLAZGO DE PRODUCTO (sesión 19, item 5): "mover a fecha" en LOTE aplasta el `due_date` de TODO lo seleccionado.**
+    No es un bug (la reprogramación en lote es útil y buscada), PERO si la selección incluye tareas **completadas de días
+    distintos**, sobrescribe la fecha de cuándo se hicieron. Es la causa del colapso medido (§16.17: 116 filas, 76
+    completadas; la historia real solo sobrevive porque `completed_at` la conserva en 75/76).
+    - **Mi impresión / recomendación (para decidir):** más que un aviso, lo LIMPIO es que **"mover a fecha" NO toque el
+      `due_date` de las tareas COMPLETADas** — mover al futuro algo ya hecho no tiene sentido y es justo lo que borra la
+      historia; las PENDIENTES se mueven libremente (que es la intención real). Si prefieres seguir pudiendo mover también
+      completadas, entonces sí un **aviso solo cuando la selección MEZCLA días e incluye completadas**: "Vas a mover N
+      tareas de X días a [fecha]; Y están completadas y perderán la fecha de cuándo se hicieron. ¿Seguir?". Un aviso que
+      salte siempre sería ruido (reprogramar pendientes a un día es lo normal). **Fase: FASE 6 (diseño). No tocado.**
   - **MAPA — contenedor muestra hijas completadas "de otros días" (sesión 19, SOLO diagnóstico, NO tocado). TÚ DECIDES
     la política.**
     - **Dónde (la capa exacta):** `TaskCard.tsx:851` y `:860`. La lista de hijas que se pinta es
