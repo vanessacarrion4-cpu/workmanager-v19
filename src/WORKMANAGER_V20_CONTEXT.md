@@ -2868,10 +2868,15 @@ handler lógico, no por llamada):
   4. ~~`handleUpdateSubtasksOrder` (bug #18)~~ **RESUELTO (sesión 19, `item 7`).** El `update({ subtasks })` escribía a una
      columna inexistente (confirmado: 400 PGRST204) → fallo mudo, pero **redundante**: el orden ya persiste por el `order`
      de cada hija y `reconstructHierarchy` lo re-ordena en carga. Se eliminó la escritura muerta. **Impacto real que tenía
-     #18: NINGUNO visible** — reordenar subtareas de un contenedor MANUAL siempre funcionó y persistió. · **GAP ADYACENTE
-     APARCADO:** reordenar subtareas de un contenedor **RECURRENTE** puede no sobrevivir a recarga —
-     `reconstructInstanceHierarchy` (useSupabase:61) NO ordena por `order` (a diferencia del path manual). Arreglo = ordenar
-     ahí por `order`; es cambio de la reconstrucción en carga (afecta a todos los recurrentes) → decisión/validación tuya.
+     #18: NINGUNO visible** — reordenar subtareas de un contenedor MANUAL siempre funcionó y persistió.
+     · **GAP ADYACENTE — APARCADO EN FASE 4 (persistencia). Bug #21 (nuevo):** reordenar subtareas de un contenedor
+     **RECURRENTE** no sobrevive a recarga — `reconstructInstanceHierarchy` (useSupabase:61) NO ordena por `order` (a
+     diferencia del path manual `reconstructHierarchy`). **Exposición medida (item 3, sesión 19):** de 99 contenedores
+     vivos, **24 son recurrentes y 22 tienen ≥2 subtareas** (reordenables → afectados). Algunos grandes: "Pago nóminas" (26
+     hijas), "Verduras vivas" (51), "Cierre Central Rec" (16), "Cobros Finca" (10), "Previsional" (9). En manuales el
+     reorden SÍ persiste (67 de 75 tienen ≥2). **Arreglo:** ordenar por `order` en `reconstructInstanceHierarchy`
+     (+ posiblemente en `reconstructExceptionContainerSubtasks`); es cambio de la reconstrucción en carga que afecta a
+     TODOS los recurrentes → validación en pantalla de la usuaria. No autónomo.
 - **TIER 2 — medio:**
   5. `bulkDeleteTasks` (materializa excepción-borrada de vírgenes, `useBulkActions:184`) y `bulkDuplicateTasks`
      (duplicar FK-safe, `:259`; ahí vivió el bug #20). Sin test.
