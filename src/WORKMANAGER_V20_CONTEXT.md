@@ -2838,8 +2838,12 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
       `completed_at` ≠ el sello colapsado → la fecha real de cuándo se hizo es RECUPERABLE). **Solo 1** completada no tiene
       `completed_at` (`t-1777366769600`, created 2026-04-28): ahí el día real se perdió sin remedio; único proxy = `created_at`.
       **Conclusión:** lo que "duele" (cuándo se hizo cada cosa) NO se perdió salvo en 1 fila; lo sobrescrito es el
-      `due_date` planificado, menos valioso. **Si algún día se quiere descolapsar:** re-fechar cada completada a su
-      `completed_at` recupera 75/76; las 40 pendientes se dejan como están. No se toca ahora (decisión de la usuaria).
+      `due_date` planificado, menos valioso.
+    - **DECIDIDO (usuaria, sesión 19): NO se descolapsa.** Razón: la historia real vive en `completed_at` (que es lo que
+      importa); el `due_date` planificado de algo ya hecho no aporta. Re-fechar 75 filas sería riesgo sin premio. **Única
+      fila irrecuperable (anotada por si algún día aparece):** `t-1777366769600` ("created 2026-04-28", due sellado
+      2026-08-10) — completada SIN `completed_at`, su fecha real se perdió sin remedio; único proxy `created_at` (28-abr).
+      Cerrado. Lo que evita que vuelva a pasar es el guard de "mover a fecha" (item 2, §16.18/abajo).
     - **La regla que quiere la usuaria:** "cada hija sale solo el día que le tocaba, completada o no". Alcanzarla NO es un
       cambio de render simple: el `due_date` por-hija ya está machacado (22 contenedores/116 filas) → habría que (a)
       recuperar el día real de cada hija (¿`completed_at`/`created`? decisión de la usuaria) y re-fechar, y ADEMÁS (b)
