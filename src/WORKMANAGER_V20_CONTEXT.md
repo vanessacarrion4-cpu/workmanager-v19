@@ -2670,6 +2670,40 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
 - **FASE 3 (c):** **(b3) YA HECHO** (`ff4643b`, filtro por día en Mi Día). Pendiente **(c)** reconciliación sin fuga
   (`reconcileDay`, test rojo) con la contradicción del clic, el síntoma del 30-jul, el toggle "solo el día" y la fecha de
   inicio de recurrencia (§16.12). *(La degradación de la sesión 17 se ELIMINÓ en la 18, `2dbada5`: no había conversión.)*
+- **FASE 4 — EJECUCIÓN PARCIAL sesión 19 (2026-08-15, autónoma). Criterio: medido + REVERSIBLE = ejecuto;
+  irreversible o pendiente-trabajo-real = APARCO. Toda escritura fue REVERSIBLE (nunca hard-delete): unmark o
+  `is_deleted:true` (se deshace con `is_deleted:false`). Re-medido hoy: G1=7 rotas (mismos ids), G3=64 (41 completadas
+  + 23 pendientes), G4 sigue viva y PENDIENTE.**
+  - **HECHO (G1 · 6 unmarks):** `is_template=false` en las 6 rotas reales `t-…` (`t-1778163662763`, `t-1778695119129`,
+    `t-1779785165667`, `t-1781110025441`, `t-1785430294429`, `t-1785430306417`) → reaparecen como tarea normal. Reversible.
+    **HALLAZGO al ejecutar:** estas 6 NO eran plantillas inertes puras — eran **series recurrentes RETIRADAS** (sin
+    `recurrence.frequency` viva, pero con **63 instancias legacy COMPLETADAS** apuntándolas por `template_id`: 21+2+20+19+1+0,
+    **0 pendientes**). El criterio de "rota" (sin pauta + sin hijas por `parent_task_id`) tenía un punto ciego: no miraba
+    instancias por `template_id`. Consecuencia inofensiva: al hacerlas normales, esas 63 completadas pasan a ser G3
+    (`template_id→no-plantilla`) — por eso G3 subió 64→86. Todas completadas → se pintan una vez en días pasados, no
+    regeneran, no molestan. Las 2 con fecha futura/reciente (`t-1785430294429` due 08-10, `t-1785430306417` due 08-24)
+    reaparecen como pendientes = el trabajo real que se buscaba recuperar. **Reversible** (volver a `is_template=true`).
+  - **HECHO (G1 · phantom):** `inst-t-1778162405700-2026-05-08` ("Gestión campaña", instancia ascendida) → `is_deleted:true`
+    (soft-delete reversible, en vez del hard-delete del plan).
+  - **HECHO (G3 · 41 completadas):** soft-delete (`is_deleted:true`) de las 41 filas `template_id→no-plantilla` con
+    `status='completed'` que existían ANTES del unmark. Verificado antes: NINGUNA tenía hijas vivas pendientes (0) → no
+    orfana nada. Reversible; el histórico se conserva (la fila existe, restaurable). Deflaciona conteos sin pérdida.
+    (Las 63 nuevas G3-completadas que aparecieron por el unmark NO se tocaron; son la historia de las series retiradas —
+    todas completadas, 0 pendientes. Si molestan en conteos, soft-delete reversible con el mismo criterio; lo dejo a tu
+    decisión por ser historial.)
+  - **APARCADO (G3 · 23 pendientes) — decisión de la usuaria:** son `template_id→no-plantilla` pero PENDIENTES; la regla
+    es no borrar pendiente-trabajo-real a ciegas. Muchas son basura de test antigua ("tarea repe sola", "fdad", "preuba
+    de recurrente", "B Bancos/Ingressos/Margenes", "Sub T3" — abril/mayo, plantilla inexistente), PERO otras parecen
+    trabajo real ("Hacer Renta Montse Barber" `inst-t-1780559218671-2026-06-22`, "Hacer Renta Rosa Cambronero"
+    `inst-t-1780559279008-ekfud7gx1-2026-06-22`, "comentar Blai PPV", "Publicar a coordinadores", "Linia de vida pendent
+    pressupo", "Recibir pagos Bego"). **Decide cuáles son basura y cuáles conservar/re-anclar.** Script listo:
+    `scratchpad/fase4-exec.mjs` (imprime la lista) — el borrado de pendientes NO está automatizado a propósito.
+  - **APARCADO (G4) — decisión de la usuaria:** `inst-t-1785433862534-2026-08-24` ("Ënviar documentos firmados a
+    auditores", **pending**, due 08-24). Su tarea real `t-1785433862534` está viva y ahora en **due 08-31** (no 08-24).
+    Como la suelta está PENDIENTE y con fecha distinta a la real, no la toco: **decide** si esa ocurrencia del 24-ago es
+    trabajo que quieres o un duplicado a soft-delete.
+  - **NO TOCADO (G2 · Soriano):** por orden expresa. `t-1778161643849` y `t-1778576136973` siguen ambas vivas.
+  - *(Plan medido original abajo, intacto, como referencia.)*
 - **FASE 4 (persistencia y limpieza legada) — PLAN MEDIDO sesión 18, RE-CONFIRMADO al cierre (SOLO LECTURA, nada
   ejecutado; para aprobar de un vistazo). Números re-medidos hoy: IDÉNTICOS — G1=7 rotas (mismos ids), G2=1 grupo real
   (Soriano), G3=64 (`inst-inst-`=29), G4=la suelta sigue viva (`inst-t-1785433862534-2026-08-24`, pending, due 08-24).
