@@ -42,6 +42,70 @@ function createDayResolver(tasks: Record<string, Task>, activeDate: string) {
   };
 }
 
+/**
+ * bulkEffectiveIds — selección REAL de una acción masiva (camino puro, testeable).
+ *
+ * Para cada id seleccionado: si es HOJA, se incluye tal cual; si es CONTENEDOR, se BAJA a sus hijas
+ * PENDIENTES del día activo (nunca completadas ni de otro día). Devuelve también los objetos resueltos
+ * (instancias recurrentes vírgenes que no están en `tasks`).
+ *
+ * FIX (item 6, mismo bug que b1): una hija MANUAL de un contenedor recurrente/plantilla apunta con su
+ * `parentTaskId` a la INSTANCIA (`id`) **o a la PLANTILLA del contenedor** (`task.templateId`) — ver
+ * `filters.ts` CASO 2 (`container.id || containerTemplateId`). El scan viejo solo miraba `=== id` para las
+ * manuales, así que la hija manual que apuntaba a la plantilla se PERDÍA en la acción masiva. Ahora se
+ * cubren ambas formas. (La rama recurrente por `tmpl.parentTaskId` se mantiene intacta → sin regresión.)
+ */
+export function bulkEffectiveIds(
+  selectedIds: Iterable<string>,
+  tasks: Record<string, Task>,
+  activeDate: string,
+  resolve: (id: string) => Task | undefined,
+): { ids: string[]; resolved: Record<string, Task> } {
+  const effectiveIds = new Set<string>();
+  const resolvedById: Record<string, Task> = {};
+  for (const id of selectedIds) {
+    let task = tasks[id];
+    if (!task) { const o = resolve(id); if (o) { task = o; resolvedById[o.id] = o; } }
+    if (!task) continue;
+    const isContainer = !!(task.subtasks && task.subtasks.length > 0);
+    if (isContainer) {
+      const instanceDate = task.instanceDate || task.dueDate;
+      let found = false;
+      Object.values(tasks).forEach((t: Task) => {
+        if (t.isDeleted) return;
+        if (t.status === 'completed') return; // ← NUNCA mover completadas
+        // subtarea MANUAL del día: su parentTaskId apunta a la INSTANCIA (id) o a la PLANTILLA del
+        // contenedor (task.templateId). Antes solo se miraba `=== id` → la que apuntaba a la plantilla se perdía.
+        if ((t.parentTaskId === id || (!!task!.templateId && t.parentTaskId === task!.templateId)) && t.dueDate === activeDate) {
+          effectiveIds.add(t.id); found = true; return;
+        }
+        // instancia recurrente del día activo
+        if (t.templateId && instanceDate) {
+          const tmpl = tasks[t.templateId];
+          if (tmpl && tmpl.parentTaskId === id && t.dueDate === activeDate) {
+            effectiveIds.add(t.id); found = true; return;
+          }
+          if (task!.templateId) {
+            if (tmpl && tmpl.parentTaskId === task!.templateId && t.dueDate === activeDate) {
+              effectiveIds.add(t.id); found = true; return;
+            }
+          }
+        }
+      });
+      // fallback: subtareas directas pendientes sin fecha (subtareas de templates)
+      if (!found && task.subtasks) {
+        task.subtasks.forEach((subId: string) => {
+          const sub = tasks[subId];
+          if (sub && !sub.isDeleted && sub.status !== 'completed') effectiveIds.add(subId);
+        });
+      }
+    } else {
+      effectiveIds.add(id);
+    }
+  }
+  return { ids: [...effectiveIds], resolved: resolvedById };
+}
+
 export function useBulkActions({
   tasks,
   setTasks,
@@ -59,49 +123,9 @@ export function useBulkActions({
     // C3: resolver instancias recurrentes VÍRGENES (no están en `tasks`) para que entren en el flujo;
     // el path de upsert (más abajo, `templateId && !existsInSupabase`) las materializa como excepción.
     const resolve = createDayResolver(tasks, activeDate);
-    const resolvedById: Record<string, Task> = {};
-
-    const effectiveIds = new Set<string>();
-    selectedTaskIds.forEach(id => {
-      let task = tasks[id];
-      if (!task) { const o = resolve(id); if (o) { task = o; resolvedById[o.id] = o; } }
-      if (!task) return;
-      const isContainer = task.subtasks && task.subtasks.length > 0;
-      if (isContainer) {
-        // Solo subtareas pendientes del día activo — nunca completadas ni de otro día
-        const instanceDate = task.instanceDate || task.dueDate;
-        let found = false;
-        Object.values(tasks).forEach((t: Task) => {
-          if (t.isDeleted) return;
-          if (t.status === 'completed') return; // ← NUNCA mover completadas
-          // subtarea directa del día activo
-          if (t.parentTaskId === id && t.dueDate === activeDate) {
-            effectiveIds.add(t.id); found = true; return;
-          }
-          // instancia recurrente del día activo
-          if (t.templateId && instanceDate) {
-            const tmpl = tasks[t.templateId];
-            if (tmpl && tmpl.parentTaskId === id && t.dueDate === activeDate) {
-              effectiveIds.add(t.id); found = true; return;
-            }
-            if (task.templateId) {
-              if (tmpl && tmpl.parentTaskId === task.templateId && t.dueDate === activeDate) {
-                effectiveIds.add(t.id); found = true; return;
-              }
-            }
-          }
-        });
-        // fallback: subtareas directas pendientes sin fecha (subtareas de templates)
-        if (!found && task.subtasks) {
-          task.subtasks.forEach((subId: string) => {
-            const sub = tasks[subId];
-            if (sub && !sub.isDeleted && sub.status !== 'completed') effectiveIds.add(subId);
-          });
-        }
-      } else {
-        effectiveIds.add(id);
-      }
-    });
+    // §16.16 + item 6: la selección vive en `bulkEffectiveIds` (helper PURO, testeado — camino real).
+    const { ids: effectiveIdList, resolved: resolvedById } = bulkEffectiveIds(selectedTaskIds, tasks, activeDate, resolve);
+    const effectiveIds = new Set<string>(effectiveIdList);
 
     setTasks(prev => {
       const next = { ...prev };
