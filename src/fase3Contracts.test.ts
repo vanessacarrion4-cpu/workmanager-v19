@@ -15,6 +15,7 @@ import {
   validateTemplate,
   writesOwnStatusOnToggle,
   isCompletedForDay,
+  containerDayToggle,
 } from './fase3Contracts';
 import { groupTasksByTag } from './filters';
 import { isTaskCompleted } from './utils';
@@ -346,5 +347,77 @@ describe('FASE 3 · (C1) contenedor manual: togglear solo las hijas del día (§
     ]);
     expect(childrenToToggleOnDay('C', tasks, WED)).toEqual(['A']);  // marcar/desmarcar en WED → solo A
     expect(childrenToToggleOnDay('C', tasks, THU)).toEqual(['B']);  // en THU → solo B
+  });
+});
+
+// =========================================================================
+// (C1) containerDayToggle — EL CAMINO REAL del clic (handleToggleStatus lo LLAMA). Los 2 bugs de C1 vivían
+// en esta selección. Cubre los dos tipos de contenedor + el mixto, marcar/desmarcar, y que no toque otro día.
+// =========================================================================
+describe('FASE 3 · (C1) containerDayToggle: selección real del clic (§16.16)', () => {
+  const idsOf = (r: any) => (r ? r.children.map((c: any) => c.id).sort() : null);
+
+  it('contenedor MANUAL (isTemplate:false): togglea solo la hija del día; dirección=completar si hay pendiente', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A', 'B'] }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED, status: 'pending' }),
+      task({ id: 'B', parentTaskId: 'C', dueDate: THU, status: 'pending' }), // otro día
+    ]);
+    const r = containerDayToggle(tasks['C'], tasks, WED)!;
+    expect(idsOf(r)).toEqual(['A']);        // solo la de WED, no B
+    expect(r.status).toBe('completed');     // hay pendiente → marcar
+  });
+
+  it('contenedor MANUAL: si la hija del día ya está completa → dirección=desmarcar (pending)', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['A'] }),
+      task({ id: 'A', parentTaskId: 'C', dueDate: WED, status: 'completed' }),
+    ]);
+    expect(containerDayToggle(tasks['C'], tasks, WED)!.status).toBe('pending');
+  });
+
+  it('contenedor TEMPLATE (isTemplate:true) con hija recurrente + manual de otro día: solo la recurrente del día', () => {
+    const tasks = byId([
+      task({ id: 'C', isTemplate: true, subtasks: ['rec', 'man-thu'] }),
+      task({ id: 'rec', parentTaskId: 'C', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({ id: 'man-thu', parentTaskId: 'C', isTemplate: false, dueDate: THU }),
+    ]);
+    const r = containerDayToggle(tasks['C'], tasks, WED)!;
+    expect(idsOf(r)).toEqual(['inst-rec-2026-07-15']); // instancia recurrente de WED, NO man-thu
+  });
+
+  it('contenedor MIXTO (template): manual del día + recurrente del día + manual de OTRO día → solo las 2 de WED', () => {
+    const tasks = byId([
+      task({ id: 'C', isTemplate: true, subtasks: ['man-wed', 'rec', 'man-thu'] }),
+      task({ id: 'man-wed', parentTaskId: 'C', isTemplate: false, dueDate: WED }),
+      task({ id: 'rec', parentTaskId: 'C', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      task({ id: 'man-thu', parentTaskId: 'C', isTemplate: false, dueDate: THU }),
+    ]);
+    const r = containerDayToggle(tasks['C'], tasks, WED)!;
+    expect(idsOf(r)).toEqual(['inst-rec-2026-07-15', 'man-wed']); // WED manual + WED recurrente; NO man-thu
+  });
+
+  it('DESMARCAR mixto: si TODAS las del día están completas → pending; y sigue sin tocar otro día', () => {
+    const tasks = byId([
+      task({ id: 'C', isTemplate: true, subtasks: ['man-wed', 'rec', 'man-thu'] }),
+      task({ id: 'man-wed', parentTaskId: 'C', isTemplate: false, dueDate: WED, status: 'completed' }),
+      task({ id: 'rec', parentTaskId: 'C', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+      // excepción persistida COMPLETADA de la recurrente en WED (para que "todas las del día" estén completas)
+      task({ id: 'inst-rec-2026-07-15', templateId: 'rec', parentTaskId: null, dueDate: WED, instanceDate: WED, status: 'completed', isException: true }),
+      task({ id: 'man-thu', parentTaskId: 'C', isTemplate: false, dueDate: THU, status: 'completed' }),
+    ]);
+    const r = containerDayToggle(tasks['C'], tasks, WED)!;
+    expect(idsOf(r)).toEqual(['inst-rec-2026-07-15', 'man-wed']); // solo WED
+    expect(r.status).toBe('pending');                              // todas WED completas → desmarcar
+  });
+
+  it('sin día (Bloques) → null (el hook usa el camino de todas las hijas)', () => {
+    const tasks = byId([task({ id: 'C', subtasks: ['A'] }), task({ id: 'A', parentTaskId: 'C', dueDate: WED })]);
+    expect(containerDayToggle(tasks['C'], tasks, null)).toBeNull();
+  });
+
+  it('hoja (sin hijas) → null', () => {
+    const tasks = byId([task({ id: 'L', dueDate: WED })]);
+    expect(containerDayToggle(tasks['L'], tasks, WED)).toBeNull();
   });
 });

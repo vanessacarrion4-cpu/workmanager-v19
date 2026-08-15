@@ -154,6 +154,46 @@ export function writesOwnStatusOnToggle(task: Task): boolean {
   return realChildren.length === 0; // hoja → escribe su status; contenedor → no
 }
 
+/**
+ * §16.16 (C1) — SELECCIÓN día-scoped al clicar un CONTENEDOR: qué hijas se togglean ese día y en qué
+ * dirección. Es el CAMINO REAL: `handleToggleStatus` llama a esta función (no es un helper aislado). Los 2
+ * bugs de C1 vivían aquí, por eso se extrae y se testea directamente.
+ *  - Devuelve null si no procede la rama C1 (no hay día de vista, o `task` no es contenedor) → el llamador
+ *    usa el camino de hoja / Bloques (todas las hijas).
+ *  - Tipo de contenedor por su PLANTILLA (`allTasks[templateId||id].isTemplate`), NO por `task.isTemplate`:
+ *    en Mi Día un contenedor recurrente se renderiza como su INSTANCIA (isTemplate:false).
+ *      · isTemplate:true  → `materializeDay(D)` (cubre manual + recurrente del día), filtrado por relación de plantilla.
+ *      · isTemplate:false → `childrenToToggleOnDay(D)` (hijas manuales reales del día).
+ *  - Dirección: si TODAS las hijas del día están completas → 'pending' (desmarcar); si no → 'completed'.
+ * NO incluye el contenedor (su completado se DERIVA). Nunca toca hijas de otro día (materializeDay/childrenToToggleOnDay son día-scoped).
+ */
+export function containerDayToggle(
+  task: Task | null | undefined,
+  allTasks: Record<string, Task>,
+  viewDay: string | null | undefined,
+): { children: Task[]; status: 'pending' | 'completed' } | null {
+  if (!task || !viewDay) return null;
+  const containerTmplId = task.templateId || task.id;
+  const containerTmpl = allTasks[containerTmplId];
+  const isContainerNode = ((task.subtasks || []).length > 0) || ((containerTmpl?.subtasks || []).length > 0);
+  if (!isContainerNode) return null;
+
+  let children: Task[] = [];
+  if (containerTmpl && containerTmpl.isTemplate) {
+    // materializeDay(D) pone `parentTaskId` = id de la instancia del contenedor a TODAS sus hijas del día
+    // (manual por case-4 y recurrente por case-5/landed). Filtrar por ESO, no por `templateId` — las hijas
+    // MANUALES no tienen templateId y el filtro viejo las excluía (bug del mixto, cazado por este test).
+    const dmArr = materializeDay(viewDay, allTasks);
+    const contInst = dmArr.find((c) => c.templateId === containerTmplId); // la instancia del contenedor
+    const contInstId = contInst ? contInst.id : `inst-${containerTmplId}-${viewDay}`;
+    children = dmArr.filter((c) => c.parentTaskId === contInstId);
+  } else {
+    children = childrenToToggleOnDay(task.id, allTasks, viewDay).map((id) => allTasks[id]).filter(Boolean) as Task[];
+  }
+  const currentlyComplete = children.length > 0 && children.every((c) => c.status === 'completed');
+  return { children, status: currentlyComplete ? 'pending' : 'completed' };
+}
+
 export function validateTemplate(task: Task, allTasks: Record<string, Task>): string | null {
   if (!task || !task.isTemplate) return null;
   const hasOwnPauta = !!(task.recurrence && (task.recurrence as any).frequency);

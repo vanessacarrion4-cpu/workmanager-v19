@@ -14,7 +14,7 @@ import { formatLocalISO } from './dateUtils';
 import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById, resolveActionTarget } from './instanceEngine';
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
 import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mudo en vez de morir en consola
-import { validateTemplate, writesOwnStatusOnToggle, childrenToToggleOnDay } from './fase3Contracts'; // §16.16: invariante + toggle día-scoped (C1)
+import { validateTemplate, writesOwnStatusOnToggle, containerDayToggle } from './fase3Contracts'; // §16.16: invariante + selección día-scoped del toggle (C1)
 import { isTaskCompleted } from './utils'; // §16.16: completado del contenedor DERIVADO (dirección del toggle)
 
 interface UseTaskCRUDOptions {
@@ -184,30 +184,12 @@ export function useTaskCRUD({
     //  - isTemplate:false → childrenToToggleOnDay(D) (hijas manuales reales del día).
     // La dirección se deriva de esas hijas del día (todas hechas → desmarca; si no → marca). Cada hija pasa por
     // toggleRecursive → el upsert de siempre (la recurrente virtual se persiste como excepción del día).
-    // ¿ES CONTENEDOR? Se mira por su PLANTILLA o por sus subtasks (incluye ids `inst-` de hijas recurrentes) —
-    // NO por `writesOwnStatusOnToggle`, que filtra `inst-` y tomaría un contenedor recurrente por hoja. En Mi Día
-    // un contenedor `isTemplate:true` se renderiza como su INSTANCIA (isTemplate:false), así que el TIPO se decide
-    // por la plantilla `tasks[templateId||id].isTemplate`, no por `task.isTemplate` (que en la instancia es false).
-    const containerTmplId = task.templateId || task.id;
-    const containerTmpl = tasks[containerTmplId];
-    const isContainerNode = ((task.subtasks || []).length > 0) || ((containerTmpl?.subtasks || []).length > 0);
-
-    if (isContainerNode && viewDay) {
-      const isTemplateContainer = !!(containerTmpl && containerTmpl.isTemplate);
-      let dayChildren: Task[] = [];
-      if (isTemplateContainer) {
-        // Contenedor con hijas recurrentes → materializeDay(D) (cubre manual + recurrente del día). Filtra por
-        // la relación de PLANTILLA (parentTaskId de la plantilla-hija === plantilla-contenedor), robusto ante ids.
-        const dm: Record<string, Task> = {};
-        for (const inst of materializeDay(viewDay, tasks)) dm[inst.id] = inst;
-        dayChildren = Object.values(dm).filter(c => c.templateId && tasks[c.templateId] && tasks[c.templateId]!.parentTaskId === containerTmplId);
-      } else {
-        // Contenedor manual → hijas manuales reales del día.
-        dayChildren = childrenToToggleOnDay(task.id, tasks, viewDay).map(id => tasks[id]).filter(Boolean) as Task[];
-      }
-      const currentlyComplete = dayChildren.length > 0 && dayChildren.every(c => c.status === 'completed');
-      const dayStatus: 'pending' | 'completed' = currentlyComplete ? 'pending' : 'completed';
-      dayChildren.forEach(child => toggleRecursive(child, dayStatus)); // NO se togglea el contenedor (su completado se deriva)
+    // §16.16 C1: la SELECCIÓN día-scoped (qué hijas del día + dirección) vive en `containerDayToggle` (helper
+    // puro, testeado — el camino real, lo llama este hook). Aquí solo se EJECUTA el resultado por el upsert de
+    // siempre. Si devuelve null → no es rama C1 (hoja, o contenedor sin día/Bloques) → camino previo.
+    const c1 = containerDayToggle(task, tasks, viewDay);
+    if (c1) {
+      c1.children.forEach(child => toggleRecursive(child, c1.status)); // NO se togglea el contenedor (su completado se deriva)
     } else {
       // Hoja, o contenedor SIN día (Bloques) → comportamiento previo: dirección por status propio (hoja) o
       // por todas las hijas (contenedor sin día); toggleRecursive recorre todas las subtareas.
