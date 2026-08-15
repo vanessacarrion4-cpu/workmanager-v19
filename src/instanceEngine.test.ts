@@ -123,6 +123,24 @@ describe('occursOn', () => {
 // materializeDay
 // =========================================================================
 
+// Invariante de seguridad del filtro de carga (item 2, sesión 19): SOLO una fila borrada con
+// is_exception:true suprime una ocurrencia (indexExceptionsByTemplate exige isException). Una borrada
+// SIN is_exception no hace nada → es seguro NO cargarla.
+describe('carga: borrada sin is_exception es inerte (justifica no cargarla)', () => {
+  const base = () => [
+    task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),
+    task({ id: 't-child', isTemplate: true, recurrence: { frequency: 'daily', startDate: '2026-01-01' } }),
+  ];
+  it('borrada CON is_exception (marcador) → suprime la ocurrencia', () => {
+    const tasks = byId([...base(), task({ id: 'inst-t-child-2026-07-15', templateId: 't-child', isException: true, isDeleted: true, dueDate: WED })]);
+    expect(materializeDay(WED, tasks).find(t => t.templateId === 't-child')).toBeUndefined();
+  });
+  it('borrada SIN is_exception → NO suprime (se ignora) → la ocurrencia sigue apareciendo', () => {
+    const tasks = byId([...base(), task({ id: 'inst-t-child-2026-07-15', templateId: 't-child', isException: false, isDeleted: true, dueDate: WED })]);
+    expect(materializeDay(WED, tasks).find(t => t.templateId === 't-child')).toBeDefined();
+  });
+});
+
 describe('materializeDay', () => {
   it('contenedor con hijo recurrente diario → genera contenedor + hijo pending', () => {
     const allTasks = byId([

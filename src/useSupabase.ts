@@ -274,7 +274,13 @@ export function useSupabase({
           const { data, error } = await supabase
             .from('tasks')
             .select('*')
-            .or('template_id.is.null,is_exception.eq.true')
+            // No cargar las BORRADAS que NO son marcadores. Un marcador de borrado (que materializeDay lee
+            // para suprimir una ocurrencia) SIEMPRE tiene is_exception:true — `indexExceptionsByTemplate` solo
+            // indexa filas con `templateId && isException`, así que una borrada sin is_exception NUNCA suprime
+            // nada (y `reconstruct*` la ignora por isDeleted). Antes: `template_id.is.null,is_exception.eq.true`
+            // traía esas borradas inútiles (~281 hoy, creciendo). Ahora: exception (incl. marcadores borrados)
+            // O manual/plantilla VIVA. Verificado: se conservan los 478 marcadores. (item 2, sesión 19)
+            .or('is_exception.eq.true,and(template_id.is.null,is_deleted.eq.false)')
             .range(from, from + PAGE_SIZE - 1);
           if (error) { tasksError = error; break; }
           if (!data || data.length === 0) break;

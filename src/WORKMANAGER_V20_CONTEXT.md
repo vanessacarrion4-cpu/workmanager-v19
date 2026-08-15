@@ -3103,7 +3103,11 @@ borradas** (de las que 295 son prunables = puro lastre). No hay ventana por fech
 - **Podar/archivar `inst-` completadas antiguas** (> N meses) SIN perder el rastro de completado (regla ya anotada: nunca
   dejar de escribir el completado). Es el lever de mayor impacto en volumen. Riesgo: medio (tocar histórico) → con la usuaria.
 - **Hard-delete de las 295 prunables** (borradas que NO son marcadores funcionales) — reduce lastre sin tocar nada vivo. S.
-- **Filtrar `is_deleted` en la carga salvo marcadores** — cargar solo las 478 borradas-marcador, no las 295 muertas. S/M.
+- ~~**Filtrar `is_deleted` en la carga salvo marcadores**~~ ✅ **HECHO (item 2, sesión 19, `useSupabase.ts`).** La carga
+  pasó de `template_id.is.null,is_exception.eq.true` a `is_exception.eq.true OR and(template_id.is.null,is_deleted.eq.false)`.
+  Deja de traer las borradas SIN `is_exception` (**~281 hoy, creciendo**): son inertes — `indexExceptionsByTemplate` solo
+  indexa `templateId && isException`, así que una borrada sin `is_exception` nunca suprime nada (test que lo fija). Los 478
+  marcadores (borrada + is_exception) se siguen cargando. Payload: **2797 → 2520 filas** (−10%, y el ahorro crece con el histórico).
 - **Ventana por fecha en la carga** (traer reciente + plantillas, generar el resto on-demand) — el arreglo de fondo si el
   volumen molesta. L, refactor de carga → con validación.
 - **Partir los 2 contenedores gigantes** (decisión de producto/organización, no técnica).
