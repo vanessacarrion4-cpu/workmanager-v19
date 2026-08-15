@@ -98,14 +98,13 @@ export function useTaskOrdering({
       return updated;
     });
 
-    const parentDbId = parentId.startsWith('inst-') ? (tasks[parentId]?.templateId || parentId) : parentId;
-    // Bug #18 (columna `subtasks` inexistente en BD): esta escritura SIEMPRE devuelve error.
-    // NO se cablea a un aviso a propósito: saltaría un toast rojo en CADA reordenación de subtareas,
-    // cuando el reorden SÍ persiste por los update({order}) de abajo. Queda muda hasta resolver #18.
-    supabase.from('tasks').update({ subtasks: subtaskIds }).eq('id', parentDbId).then(({ error }) => {
-      if (error) console.error('[ORDER] Error saving parent subtasks array:', error);
-    });
-
+    // Bug #18 RESUELTO (sesión 19): se elimina el `update({ subtasks })`. La columna `subtasks` NO existe
+    // en la tabla (`subtasks` se RECONSTRUYE en carga desde `parent_task_id`), así que esa escritura SIEMPRE
+    // devolvía 400 (PGRST204) — un fallo mudo e inútil. El orden de subtareas ya PERSISTE por el `order` de
+    // cada hija (abajo): en carga, `reconstructHierarchy` ordena el array por ese `order`. No se pierde nada.
+    // GAP ADYACENTE (distinto, aparcado en §16.17): los contenedores RECURRENTES usan
+    // `reconstructInstanceHierarchy`, que NO ordena por `order` → reordenar sus hijas puede no sobrevivir a
+    // una recarga. Es un cambio de la reconstrucción en carga, no de aquí.
     subtaskIds.forEach((subId, order) => {
       const sub = tasks[subId];
       if (!sub) return;

@@ -2828,8 +2828,13 @@ handler lógico, no por llamada):
   3. `handleDeleteTask` (`useTaskCRUD:794`) borrado recursivo **+** el handler de "borrar → este día" de recurrentes
      (`App.tsx:958-979`, escribe excepción `is_deleted`). Es la **supresión de contenedor** (§16.16). `materializeDay`
      tapón B está testeado; el **camino de escritura** que crea la excepción, no.
-  4. `handleUpdateSubtasksOrder` (`useTaskOrdering:80`) — **rota conocida (bug #18):** escribe a `tasks.subtasks`, columna
-     inexistente → **falla en silencio**. Un test del camino real lo dejaría en rojo (documenta la rotura) sin tocar prod.
+  4. ~~`handleUpdateSubtasksOrder` (bug #18)~~ **RESUELTO (sesión 19, `item 7`).** El `update({ subtasks })` escribía a una
+     columna inexistente (confirmado: 400 PGRST204) → fallo mudo, pero **redundante**: el orden ya persiste por el `order`
+     de cada hija y `reconstructHierarchy` lo re-ordena en carga. Se eliminó la escritura muerta. **Impacto real que tenía
+     #18: NINGUNO visible** — reordenar subtareas de un contenedor MANUAL siempre funcionó y persistió. · **GAP ADYACENTE
+     APARCADO:** reordenar subtareas de un contenedor **RECURRENTE** puede no sobrevivir a recarga —
+     `reconstructInstanceHierarchy` (useSupabase:61) NO ordena por `order` (a diferencia del path manual). Arreglo = ordenar
+     ahí por `order`; es cambio de la reconstrucción en carga (afecta a todos los recurrentes) → decisión/validación tuya.
 - **TIER 2 — medio:**
   5. `bulkDeleteTasks` (materializa excepción-borrada de vírgenes, `useBulkActions:184`) y `bulkDuplicateTasks`
      (duplicar FK-safe, `:259`; ahí vivió el bug #20). Sin test.
