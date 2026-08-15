@@ -2966,13 +2966,22 @@ heredado del §16, confianza media (no re-verificado hoy). Lo pendiente de TU va
 2. **En BLOQUES, un contenedor pinta sus hijas completadas de TODOS los días** (render "otros días"). Ruido visual diario
    en **65 contenedores** con completadas. En **Mi Día NO pasa** (es día-scoped). Sin arreglar — es tu decisión de
    producto (quieres verlo en pantalla). *(V: la causa es `TaskCard:851/860`, `subtasksForGroup=null` en Bloques.)*
-3. ~~**Borrar un bloque NO se guarda**~~ ✅ **ARREGLADO (sesión 19, item 1).** Ahora `handleDeleteBlock` persiste el
-   borrado (`supabase.from('work_blocks').delete()`); el FK `block_id ON DELETE CASCADE` (verificado en vivo con probes
-   temporales, incl. contenedor+hija) borra sus tareas en la BD → **ninguna hija queda huérfana ni invisible: se van
-   limpias.** +test (`tasksInBlock`). **PERMANENTE** (work_blocks no tiene `is_deleted`; el confirm avisa "no se puede
-   deshacer" y dice cuántas tareas). *Alternativa reversible posible si la quieres: añadir `is_deleted` a work_blocks +
-   soft-delete de tareas, en vez del cascade — pero eso deja el bloque "archivado", que choca con desactivar. Lo dejé como
-   delete real por tu texto "eliminar el bloque y todas sus tareas".*
+3. **Borrar un bloque:** persiste desde el item 1 (`758359e`, hard cascade). **La usuaria pidió hacerlo REVERSIBLE**
+   (soft-delete) — es la única operación de la app que destruye sin vuelta atrás. **BLOQUEADO POR ESQUEMA (item 1b,
+   sesión 19):** requiere añadir la columna `is_deleted` a `work_blocks`, y eso es DDL (`ALTER TABLE`) que **NO se puede
+   ejecutar desde la API REST** (PostgREST no hace DDL; el repo no tiene carpeta de migraciones ni supabase CLI). Por eso
+   **NO cambié el código** (escribir `is_deleted` a una columna inexistente fallaría en silencio, como el bug #18).
+   - **SQL que tiene que correr la usuaria** (Supabase → SQL editor), es aditivo y de bajo riesgo:
+     ```sql
+     ALTER TABLE work_blocks ADD COLUMN is_deleted boolean NOT NULL DEFAULT false;
+     ```
+   - **Código que aplicaré en cuanto la columna exista** (listo): (a) `handleDeleteBlock` → en vez de
+     `work_blocks.delete()`, `update({ is_deleted:true })` en el bloque **y** `update({ is_deleted:true })` en sus tareas
+     (soft, recuperable — ya no dependemos del cascade); (b) la carga de bloques (`useSupabase`, `from('work_blocks')`)
+     añade `.eq('is_deleted', false)` para no traer los borrados; (c) las tareas del bloque borrado ya no se cargan (el
+     filtro del item 2 + su `is_deleted:true`). Recuperar = poner `is_deleted:false` en el bloque y sus tareas.
+   - **Estado:** esperando que la usuaria corra el SQL; entonces se implementa y publica. (No es "arriesgado" el cambio en
+     sí — es aditivo — solo que no tengo forma de ejecutar DDL desde aquí.)
 
 **TIER B — molesto cuando tocas esa función:**
 4. **Mover en LOTE aplasta las fechas** de todo lo seleccionado (colapsa el día de completadas de días distintos).
