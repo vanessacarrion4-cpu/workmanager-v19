@@ -2710,8 +2710,8 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
        (subtarea, bloque activo). Borrar la ocurrencia = seguro, la tarea real se queda.
     5. **"Hacer Renta Rosa Cambronero"** `inst-t-1780559279008-ekfud7gx1-2026-06-22` → tarea real **VIVA y VISIBLE**.
        Borrar la ocurrencia = seguro, la tarea real se queda.
-    **Resumen: las 5 son borrables sin perder trabajo real.** Script listo `scratchpad/fase4-item1-2.mjs` (añadir estos ids).
-    Esperando tu OK para el soft-delete.
+    **Resumen: las 5 son borrables sin perder trabajo real.** ✅ **HECHO (soft-delete reversible de las 5, aprobado por la
+    usuaria; `scratchpad/item2-cinco.mjs`).** Con esto G3 queda cerrada salvo lo que la usuaria decida sobre el colapso.
   - **CERRADO (G2 · Soriano) — decisión de la usuaria: las dos se quedan.** `t-1778161643849` y `t-1778576136973` NO son
     duplicados: cada una tiene su información. **LECCIÓN de criterio:** "mismo título + mismo bloque" **no basta** para
     detectar duplicados — la usuaria tiene tareas legítimas que se llaman igual. El detector de dups (G2, `fase4-plan.mjs`
@@ -2822,6 +2822,14 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
       `due_date` de TODO lo seleccionado a esa fecha; si seleccionas hijas de días distintos, pierden su día. No es un bug
       del motor; es la acción haciendo lo que dice. (Aparte: valorar si seleccionar un CONTENEDOR debería arrastrar sus
       hijas del día al reprogramar — hoy sí lo hace.)
+    - **¿Cuánta historia se perdió? — MEDIDO (item 2, sesión 19).** De las **116 filas colapsadas: 76 COMPLETADAS + 40
+      PENDIENTES.** En las pendientes el colapso es inofensivo (reprogramar era la intención). En las completadas la fecha
+      es historia — y **la historia se conserva en `completed_at`: 75 de las 76** tienen `completed_at` (66 con
+      `completed_at` ≠ el sello colapsado → la fecha real de cuándo se hizo es RECUPERABLE). **Solo 1** completada no tiene
+      `completed_at` (`t-1777366769600`, created 2026-04-28): ahí el día real se perdió sin remedio; único proxy = `created_at`.
+      **Conclusión:** lo que "duele" (cuándo se hizo cada cosa) NO se perdió salvo en 1 fila; lo sobrescrito es el
+      `due_date` planificado, menos valioso. **Si algún día se quiere descolapsar:** re-fechar cada completada a su
+      `completed_at` recupera 75/76; las 40 pendientes se dejan como están. No se toca ahora (decisión de la usuaria).
     - **La regla que quiere la usuaria:** "cada hija sale solo el día que le tocaba, completada o no". Alcanzarla NO es un
       cambio de render simple: el `due_date` por-hija ya está machacado (22 contenedores/116 filas) → habría que (a)
       recuperar el día real de cada hija (¿`completed_at`/`created`? decisión de la usuaria) y re-fechar, y ADEMÁS (b)
