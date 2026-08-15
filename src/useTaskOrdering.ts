@@ -85,11 +85,20 @@ export function useTaskOrdering({
         return prev;
       }
       const updated = { ...prev };
+      // A (sesión 19): FUSIONAR, no reemplazar. `subtaskIds` son solo las hijas VISIBLES reordenadas (en Bloques,
+      // p.ej. las 4 reglas; las completadas/ocultas no vienen). Se intercalan en los huecos visibles del array
+      // completo, conservando las ocultas en su sitio → no se pierden las completadas del estado.
+      const existingSubs = existing.subtasks || [];
+      const visSet = new Set(subtaskIds);
+      let vi = 0;
+      const merged = existingSubs.map((id: string) => (visSet.has(id) ? subtaskIds[vi++] : id));
+      for (const id of subtaskIds) if (!existingSubs.includes(id)) merged.push(id); // defensivo: ids nuevos
       updated[parentId] = {
         ...existing,
-        subtasks: subtaskIds,
+        subtasks: merged,
         modifiedAt: new Date().toISOString()
       };
+      // order: solo a las visibles reordenadas (no re-escribir order de las ocultas — evita tocar 132 completadas).
       subtaskIds.forEach((subId, order) => {
         if (updated[subId]) {
           updated[subId] = { ...updated[subId], order };

@@ -167,7 +167,10 @@ export function BlocksManagerView({
       if (t.parentTaskId) return false;
       if (t.templateId) return false;
       if (t.isDeleted) return false;
-      if (hideCompleted && t.status === 'completed') return false;
+      // A (sesión 19): un CONTENEDOR (con hijas) NUNCA se oculta por "completado" — debe seguir viéndose para
+      // poder abrir su "ver completadas". Solo se ocultan las HOJAS completadas.
+      const isContainer = !!(t.subtasks && t.subtasks.length > 0);
+      if (hideCompleted && t.status === 'completed' && !isContainer) return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
       if (type !== 'core') return false;
       return taskMatchesSearch(t, searchQuery);
@@ -181,7 +184,8 @@ export function BlocksManagerView({
       if (t.parentTaskId) return false;
       if (t.templateId) return false;
       if (t.isDeleted) return false;
-      if (hideCompleted && t.status === 'completed') return false;
+      const isContainer = !!(t.subtasks && t.subtasks.length > 0);
+      if (hideCompleted && t.status === 'completed' && !isContainer) return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
       if (type !== 'adhoc') return false;
       return taskMatchesSearch(t, searchQuery);
@@ -310,6 +314,7 @@ export function BlocksManagerView({
                     forceExpanded={expandedIds.has(t.id) ? true : false}
                     onToggleExpand={handleLocalToggleExpand}
                     hideCompleted={hideCompleted}
+                    blocksMode={true}
                     selectionMode={selectionMode}
                     selectedTaskIds={selectedTaskIds}
                     onToggleTaskSelection={onToggleTaskSelection}
@@ -383,6 +388,7 @@ export function BlocksManagerView({
                     forceExpanded={expandedIds.has(t.id) ? true : false}
                     onToggleExpand={handleLocalToggleExpand}
                     hideCompleted={hideCompleted}
+                    blocksMode={true}
                     selectionMode={selectionMode}
                     selectedTaskIds={selectedTaskIds}
                     onToggleTaskSelection={onToggleTaskSelection}

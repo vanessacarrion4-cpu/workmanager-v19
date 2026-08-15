@@ -158,3 +158,56 @@ describe('getStatsForDay — totales del día (cabecera de Mi Día)', () => {
     expect(getStatsForDay([A, A], mapOf(ts), [], WED).total).toBe(1);
   });
 });
+
+import { getVisibleSubtasksForBloques, hiddenCompletedCountForBloques } from './filters';
+
+describe('getVisibleSubtasksForBloques (regla canónica de Bloques)', () => {
+  it('NORMAL: pendientes sí; completadas solo a petición', () => {
+    const ts = [
+      task({ id: 'C', subtasks: ['a', 'b'] }),
+      task({ id: 'a', parentTaskId: 'C', status: 'pending', order: 0 }),
+      task({ id: 'b', parentTaskId: 'C', status: 'completed', order: 1 }),
+    ];
+    const m = mapOf(ts);
+    expect(getVisibleSubtasksForBloques(m['C'], m, false)).toEqual(['a']);
+    expect(getVisibleSubtasksForBloques(m['C'], m, true)).toEqual(['a', 'b']);
+    expect(hiddenCompletedCountForBloques(m['C'], m)).toBe(1);
+  });
+
+  it('NORMAL con TODO completado ("cierre eam"): 0 visibles pero hiddenCompletedCount>0', () => {
+    const ts = [
+      task({ id: 'C', subtasks: ['a', 'b'] }),
+      task({ id: 'a', parentTaskId: 'C', status: 'completed' }),
+      task({ id: 'b', parentTaskId: 'C', status: 'completed' }),
+    ];
+    const m = mapOf(ts);
+    expect(getVisibleSubtasksForBloques(m['C'], m, false)).toEqual([]);
+    expect(hiddenCompletedCountForBloques(m['C'], m)).toBe(2);
+  });
+
+  it('RECURRENTE: regla + instancia modificada pendiente; completadas históricas NO (ni a petición)', () => {
+    const ts = [
+      task({ id: 'C', isTemplate: true, subtasks: ['rule', 'instDone', 'instPend'] }),
+      task({ id: 'rule', isTemplate: true, parentTaskId: 'C', order: 0 }),
+      task({ id: 'instDone', templateId: 'rule', isException: true, status: 'completed', order: 1 }),
+      task({ id: 'instPend', templateId: 'rule', isException: true, status: 'pending', order: 2 }),
+    ];
+    const m = mapOf(ts);
+    expect(getVisibleSubtasksForBloques(m['C'], m, false)).toEqual(['rule', 'instPend']);
+    expect(getVisibleSubtasksForBloques(m['C'], m, true)).toEqual(['rule', 'instPend']); // histórica completada nunca inline
+    expect(hiddenCompletedCountForBloques(m['C'], m)).toBe(0); // la histórica va por el icono info, no por este toggle
+  });
+
+  it('RECURRENTE MIXTO: hija manual pendiente sí; manual completada a petición', () => {
+    const ts = [
+      task({ id: 'C', isTemplate: true, subtasks: ['rule', 'manP', 'manC'] }),
+      task({ id: 'rule', isTemplate: true, parentTaskId: 'C', order: 0 }),
+      task({ id: 'manP', parentTaskId: 'C', status: 'pending', order: 1 }),
+      task({ id: 'manC', parentTaskId: 'C', status: 'completed', order: 2 }),
+    ];
+    const m = mapOf(ts);
+    expect(getVisibleSubtasksForBloques(m['C'], m, false)).toEqual(['rule', 'manP']);
+    expect(getVisibleSubtasksForBloques(m['C'], m, true)).toEqual(['rule', 'manP', 'manC']);
+    expect(hiddenCompletedCountForBloques(m['C'], m)).toBe(1);
+  });
+});

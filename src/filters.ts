@@ -120,6 +120,61 @@ function getVisibleSubtasksForDay(
   }).sort((a: Task, b: Task) => (a.order ?? 999) - (b.order ?? 999));
 }
 
+/**
+ * getVisibleSubtasksForBloques — hijas a PINTAR de un contenedor en la vista BLOQUES (regla canónica §16.13,
+ * fijada por la usuaria, sesión 19). Deja de pintar `task.subtasks` crudo (que traía TODAS las instancias).
+ *
+ * - **Contenedor NORMAL:** subtareas PENDIENTES; las COMPLETADAS solo si `showCompleted` (a petición, por contenedor).
+ * - **Contenedor RECURRENTE** (es plantilla o aloja reglas): la PLANTILLA/regla (hijas `isTemplate`) + las instancias
+ *   MODIFICADAS que sigan PENDIENTES (`templateId + isException + !completed`) + hijas MANUALES pendientes. Las
+ *   ocurrencias completadas históricas NO (se consultan por el icono de información).
+ *
+ * Ordena por `order`. Puro. `hiddenCompletedCount` (abajo) da el nº para el "ver completadas (N)".
+ */
+export function getVisibleSubtasksForBloques(
+  container: Task,
+  allTasksMap: Record<string, Task>,
+  showCompleted: boolean = false
+): string[] {
+  const childIds = container.subtasks || [];
+  const isRecurring = !!container.isTemplate || childIds.some((id) => {
+    const c = allTasksMap[id];
+    return !!c && (c.isTemplate || !!c.recurrence);
+  });
+  const out: string[] = [];
+  for (const id of childIds) {
+    const c = allTasksMap[id];
+    if (!c || c.isDeleted) continue;
+    if (isRecurring) {
+      if (c.isTemplate) { out.push(id); continue; }                 // la regla/plantilla hija
+      if (c.templateId) {                                            // instancia
+        if (c.isException && c.status !== 'completed') out.push(id); // modificada + pendiente
+        continue;                                                    // completada histórica / virgen → fuera
+      }
+      // hija MANUAL de un contenedor recurrente (mixto): pendiente sí; completada a petición
+      if (c.status !== 'completed') out.push(id);
+      else if (showCompleted) out.push(id);
+    } else {
+      if (c.status !== 'completed') out.push(id);                    // normal: pendiente
+      else if (showCompleted) out.push(id);                         // completada a petición
+    }
+  }
+  return out.sort((a, b) => ((allTasksMap[a]?.order ?? 999) - (allTasksMap[b]?.order ?? 999)));
+}
+
+/**
+ * Nº de hijas COMPLETADAS ocultas de un contenedor en Bloques (para el "ver completadas (N)"). Solo cuenta las
+ * que el "ver completadas" REVELARÍA: en normal, las completadas; en recurrente, las MANUALES completadas (las
+ * ocurrencias históricas van por el icono de info, no por este toggle).
+ */
+export function hiddenCompletedCountForBloques(container: Task, allTasksMap: Record<string, Task>): number {
+  const visible = new Set(getVisibleSubtasksForBloques(container, allTasksMap, true));
+  const shown = new Set(getVisibleSubtasksForBloques(container, allTasksMap, false));
+  let n = 0;
+  for (const id of visible) if (!shown.has(id)) n++;
+  return n;
+}
+
 // ─────────────────────────────────────────────
 // FUNCIÓN PRINCIPAL: filterTasksForDay
 // ─────────────────────────────────────────────

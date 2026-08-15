@@ -3,7 +3,7 @@
  * Componente principal de tarjeta de tarea.
  * Soporta variantes COMPACT y FULL, selección, timer, recurrencia, etc.
  */
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Edit, Trash2, Check, X, Clock, RefreshCw, GripVertical,
   Paperclip, Maximize2, Minimize2, ArrowUpLeft, ArrowDownRight,
@@ -20,6 +20,7 @@ import {
   getTaskEstimatedPending, getTaskRegisteredCombo, formatMinutes
 } from './utils';
 import { containerEstimatedForDay, containerRegisteredForDay, isContainerCompleteOnDay, containerDayToggle } from './fase3Contracts'; // FASE 3: totales + completado derivado del contenedor + selección real del día (tapón)
+import { getVisibleSubtasksForBloques, hiddenCompletedCountForBloques } from './filters'; // A (sesión 19): render de Bloques por regla canónica
 import { getTagColor } from './helpers';
 import { TitleField } from './TitleField';
 import {
@@ -88,6 +89,7 @@ export function TaskCard({
   rootTaskId = null,
   hideCompleted = false,
   subtasksForGroup = null,
+  blocksMode = false, // A (sesión 19): en Bloques las hijas se pintan con getVisibleSubtasksForBloques + "ver completadas" por contenedor
   forceExpanded = null,
   onAddPerson = null,
   onRenamePerson = null,
@@ -128,6 +130,22 @@ export function TaskCard({
   const realSubtasks = (task.subtasks || []).filter((id: string) => !id.startsWith('inst-'));
   const hasSubtasks = (realSubtasks.length > 0) || (subtasksForGroup && subtasksForGroup.length > 0);
   const isExpanded = forceExpanded !== null ? forceExpanded : (task.isExpanded ?? true);
+
+  // A (sesión 19): "ver completadas" POR CONTENEDOR (solo Bloques). No global → abrir uno no llena los demás.
+  const [showCompletedChildren, setShowCompletedChildren] = useState(false);
+  // Lista de hijas a PINTAR (memoizada → `values` estable para Framer Motion Reorder, arregla el arrastre flaky):
+  //  - Bloques: getVisibleSubtasksForBloques (regla canónica) con el "ver completadas" local.
+  //  - Mi Día / resto: (subtasksForGroup || task.subtasks) filtrado por el hideCompleted global (comportamiento previo).
+  const renderChildIds = useMemo(() => {
+    if (blocksMode) return getVisibleSubtasksForBloques(task, allTasksMap, showCompletedChildren);
+    const base = subtasksForGroup || task.subtasks || [];
+    return base.filter((sid: string) => {
+      if (!hideCompleted) return true;
+      const s = allTasksMap[sid];
+      return !s || s.status !== 'completed';
+    });
+  }, [blocksMode, showCompletedChildren, subtasksForGroup, task, allTasksMap, hideCompleted]);
+  const hiddenCompletedCount = blocksMode ? hiddenCompletedCountForBloques(task, allTasksMap) : 0;
 
   // Highlight helper: resalta el texto coincidente con fondo amarillo
   const HighlightText = ({ text }: { text: string }) => {
@@ -851,25 +869,14 @@ export function TaskCard({
               exit={{ opacity: 0, height: 0 }}
               className={`border-l-2 dark:border-border-main/60 border-border-main-light/50 space-y-0 ml-5 pl-3`}
             >
-              {hasSubtasks && (
-                <Reorder.Group 
-                  axis="y" 
-                  values={(subtasksForGroup || task.subtasks).filter((sid: string) => {
-                    if (!hideCompleted) return true;
-                    const sub = allTasksMap[sid];
-                    if (!sub) return true;
-                    return sub.status !== 'completed';
-                  })}
+              {hasSubtasks && renderChildIds.length > 0 && (
+                <Reorder.Group
+                  axis="y"
+                  values={renderChildIds}
                   onReorder={(newIds: string[]) => onReorderSubtasks(task.id, newIds)}
                   className="space-y-0 divide-y dark:divide-border-main/20 divide-border-main-light/20"
                 >
-                  {(subtasksForGroup || task.subtasks)
-                    .filter((subId: string) => {
-                      if (!hideCompleted) return true;
-                      const sub = allTasksMap[subId];
-                      if (!sub) return true;
-                      return sub.status !== 'completed';
-                    })
+                  {renderChildIds
                     .map((subId: string, idx: number, visibleSubs: string[]) => (
                     <Reorder.Item key={subId} value={subId} as="div" whileDrag={{ scale: 1.01, zIndex: 50, boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }} style={{ cursor: 'grab' }}>
                       <TaskCard
@@ -907,6 +914,7 @@ export function TaskCard({
                         level={level + 1}
                         rootTaskId={currentRootId}
                         hideCompleted={hideCompleted}
+                        blocksMode={blocksMode}
                         inMeeting={inMeeting}
                         meetingItems={meetingItems}
                         onUpdateMeetingItems={onUpdateMeetingItems}
@@ -952,6 +960,17 @@ export function TaskCard({
                     </Reorder.Item>
                   ))}
                 </Reorder.Group>
+              )}
+
+              {/* A (sesión 19): "ver completadas (N)" POR CONTENEDOR. Aparece si hay completadas ocultas — así un
+                  contenedor con TODO completado (p.ej. "cierre eam") NO parece vacío: se ve que hay contenido oculto. */}
+              {blocksMode && (hiddenCompletedCount > 0 || showCompletedChildren) && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowCompletedChildren(v => !v); }}
+                  className="ml-1 mt-1 mb-1 text-[10px] font-bold uppercase tracking-wide dark:text-text-secondary text-text-secondary-light hover:text-turquesa transition-colors"
+                >
+                  {showCompletedChildren ? '▾ ocultar completadas' : `▸ ver completadas (${hiddenCompletedCount})`}
+                </button>
               )}
 
             </motion.div>
