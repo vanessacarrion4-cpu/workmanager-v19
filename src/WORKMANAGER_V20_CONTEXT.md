@@ -2946,3 +2946,45 @@ handler lógico, no por llamada):
 **Recomendación de orden (cuando toque, es trabajo de código real → no autónomo):** 1 → 2 → 3 → 4. Los cuatro comparten
 el mismo gesto: extraer la lógica pura de selección/construcción-de-ids a un helper y testear ESE helper por el camino que
 el hook llama de verdad (como se hizo con `containerDayToggle`). Del 2 y el 4 hay además fix pendiente (bug real).
+
+### 16.19 INVENTARIO HONESTO — qué falla HOY si trabajas con normalidad (sesión 19, item 1)
+
+Priorizado por lo que **duele a diario**, no por lo fácil de arreglar. "V" = verificado en código esta sesión; "H" = claim
+heredado del §16, confianza media (no re-verificado hoy). Lo pendiente de TU validación en pantalla va marcado.
+
+**TIER A — te muerde a diario / cada vez que usas la función:**
+1. **Reorden de subtareas en contenedores RECURRENTES no persistía a la recarga** (#21). Afecta **22 de 24** recurrentes,
+   incluidos "Verduras vivas" (51 subtareas) y "Pago nóminas" (26). **ARREGLADO esta sesión (`36eea43`), PENDIENTE tu
+   validación en pantalla.** Hasta que valides, trátalo como resuelto.
+2. **En BLOQUES, un contenedor pinta sus hijas completadas de TODOS los días** (render "otros días"). Ruido visual diario
+   en **65 contenedores** con completadas. En **Mi Día NO pasa** (es día-scoped). Sin arreglar — es tu decisión de
+   producto (quieres verlo en pantalla). *(V: la causa es `TaskCard:851/860`, `subtasksForGroup=null` en Bloques.)*
+3. **Borrar un bloque NO se guarda** (V: `useBlockHandlers.ts:108` solo toca estado, no escribe en Supabase). Borras un
+   bloque, recargas y **vuelve con todas sus tareas**. Si reorganizas bloques, es un palo diario. **Arreglable sin tocar
+   pantalla** (añadir el `delete`/soft-delete que falta) → candidato claro, pero es cambio de escritura: lo dejo anotado,
+   no lo hago sin ti (regla del día: no arreglos que cambien pantalla — este no la cambia, pero sí es escritura nueva).
+
+**TIER B — molesto cuando tocas esa función:**
+4. **Mover en LOTE aplasta las fechas** de todo lo seleccionado (colapsa el día de completadas de días distintos).
+   **Guard añadido esta sesión (`a5ed17e`), PENDIENTE tu validación.** Antes de validar, evita mover en lote mezclando días.
+5. **Poner pauta de recurrencia desde la FILA no funciona** (FASE 5): hay que abrir el modal. Fricción al crear recurrentes.
+6. **Recurrentes desde otras vistas** (H, §11.1e/f/g): Semana no mueve recurrentes · Bloques no completa recurrentes ·
+   Calendario sin icono de completar. Interacción incompleta según la vista.
+7. **Clic en contenedor MIXTO** (manual + recurrente): el conteo del tapón y la selección real ya coinciden
+   (`e481508`) y el toggle marca también las manuales (`fa6cc69`). **PENDIENTE tu validación** (era justo el caso no probado).
+
+**TIER C — cosmético / raro / sin pérdida de trabajo:**
+8. **due_date colapsado** en 22 contenedores/116 filas: histórico, DECIDIDO no tocar (la historia real vive en
+   `completed_at`, 75/76). No es un blocker.
+9. **Calendario "Ir a fecha" no retrocede de mes**: para ir a julio, ~23 clics en la flecha. Molestia al navegar atrás.
+
+**Persistencia — estado real (corrige el §16, que sonaba peor):**
+- **Entradas de tiempo: SÍ persisten** (V: `useTimerHandlers` insert/update/delete escriben). El viejo "tiempos
+  descuadran al recargar" es, si acaso, un tema de AGREGACIÓN/combo en el contenedor, no de guardado. Confianza media →
+  a re-verificar en pantalla si lo notas.
+- **Borrar bloque: NO persiste** (V, punto 3).
+- **Adjuntos (H):** no re-verificado hoy; el §16 lo marcaba como no-persistente. Pendiente de comprobar.
+
+**Lo que NO está roto (para tranquilidad):** el motor de instancias (materializeDay/reconcileDay), el completado por día
+(toggle C1), mover un contenedor MANUAL con sus hijas (b2), las acciones masivas sobre contenedores (b1/item6), el leak
+`inst-inst-` (contenido: **1 fila** en toda la BD). 141 tests verdes.
