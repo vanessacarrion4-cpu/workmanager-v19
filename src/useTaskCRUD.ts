@@ -17,6 +17,41 @@ import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mu
 import { validateTemplate, writesOwnStatusOnToggle, containerDayToggle, childrenToMoveWithContainer } from './fase3Contracts'; // §16.16: invariante + selección día-scoped del toggle (C1) + arrastre de hijas al mover contenedor (b2)
 import { isTaskCompleted } from './utils'; // §16.16: completado del contenedor DERIVADO (dirección del toggle)
 
+/**
+ * collectDeletableTasks — el CONJUNTO que borra `handleDeleteTask` (camino real, puro, testeable).
+ * (item 4, extracción de TIER 1 #3, comportamiento idéntico al inline anterior.)
+ *
+ * = la tarea + TODAS sus subtareas (recursivo) **más**, si es una PLANTILLA de nivel superior
+ * (`isTemplate && !templateId`), sus instancias/excepciones: filas con `templateId === taskId`, y filas
+ * cuyo `templateId` apunta a una plantilla-hija de esta (borrar la serie arrastra sus ocurrencias).
+ * PURA: no muta el mapa ni escribe; `handleDeleteTask` aplica el borrado (estado + Supabase) sobre esta lista.
+ */
+export function collectDeletableTasks(taskId: string, tasks: Record<string, Task>): Task[] {
+  const out: Task[] = [];
+  const seen = new Set<string>();
+  const collect = (id: string) => {
+    const t = tasks[id];
+    if (!t || seen.has(id)) return;
+    seen.add(id);
+    out.push(t);
+    (t.subtasks || []).forEach(collect);
+  };
+  collect(taskId);
+
+  const task = tasks[taskId];
+  if (task && task.isTemplate && !task.templateId) {
+    for (const t of Object.values(tasks)) {
+      if (!t || seen.has(t.id)) continue;
+      if (t.templateId === taskId) { out.push(t); seen.add(t.id); continue; }
+      if (t.templateId) {
+        const tTemplate = tasks[t.templateId];
+        if (tTemplate && tTemplate.parentTaskId === taskId) { out.push(t); seen.add(t.id); }
+      }
+    }
+  }
+  return out;
+}
+
 interface UseTaskCRUDOptions {
   tasks: Record<string, Task>;
   setTasks: React.Dispatch<React.SetStateAction<Record<string, Task>>>;
@@ -810,29 +845,9 @@ export function useTaskCRUD({
       delete updatedTasks[id];
     };
 
-    const idsToDelete: Task[] = [];
-    const collectRecursive = (id: string) => {
-      const t = updatedTasks[id];
-      if (!t) return;
-      idsToDelete.push(t);
-      t.subtasks.forEach(sid => collectRecursive(sid));
-    };
-    collectRecursive(taskId);
-
-    if (task.isTemplate && !task.templateId) {
-      Object.values(updatedTasks).forEach((t: Task) => {
-        if (!t || idsToDelete.find(d => d.id === t.id)) return;
-        if (t.templateId === taskId) {
-          idsToDelete.push(t);
-        }
-        if (t.templateId) {
-          const tTemplate = updatedTasks[t.templateId];
-          if (tTemplate && tTemplate.parentTaskId === taskId) {
-            idsToDelete.push(t);
-          }
-        }
-      });
-    }
+    // item 4 (#3): el CONJUNTO a borrar vive en `collectDeletableTasks` (puro, testeado — camino real).
+    // El borrado del mapa (removeRecursive + deletes) y el bucle de persistencia siguen idénticos.
+    const idsToDelete: Task[] = collectDeletableTasks(taskId, updatedTasks);
 
     removeRecursive(taskId);
     idsToDelete.forEach(t => {

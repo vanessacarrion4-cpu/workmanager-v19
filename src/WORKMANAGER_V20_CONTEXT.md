@@ -2855,16 +2855,18 @@ handler lógico, no por llamada):
   #1/#3 EXIGE extraer lógica inline del hook a helper puro (patrón b1/b2/item6) = **tocar el camino real** → APARCADO por
   regla del día (no autónomo). Cuando quieras, es un rato: son extracciones mecánicas + su test.
 - **TIER 1 — alto (estado derivado / contenedor / recurrencia / borrado silencioso):**
-  1. **APARCADO (exige extracción).** `handleUpdateTask` — rama **excepción-move** (`inst-inst-`, `useTaskCRUD:~478-535` y
-     async `~670-720`) y **detach recurrente** (parent→null). Origen histórico del leak `inst-inst-`. Los cores puros
-     (`templateIdFromInstanceId`) están testeados; la CONSTRUCCIÓN de ids es inline → extraer a helper puro
-     (`exceptionMoveIds(oldParent, child, newDate)`) y testear. El arrastre de contenedor (b2) ya tiene test.
+  1. **APARCADO (exige extracción, ALTO riesgo) — item 4, decisión de no tocar autónomo.** `handleUpdateTask` — rama
+     **excepción-move** (`inst-inst-`) y **detach recurrente** (parent→null). Origen histórico del leak `inst-inst-`. Un
+     `applyExceptionMove(map, updatedTask)` puro lo testearía, pero reescribe la secuencia de escritura más delicada de la
+     app → riesgo de reintroducir el leak, no validable en navegador. Core puro (`templateIdFromInstanceId`) ya testeado;
+     arrastre de contenedor (b2) también. **Hacer CON la usuaria delante** (o con diff de BD antes/después de un move).
   2. ✅ **HECHO (`item 6`).** `bulkUpdateTasks` — selección extraída a `bulkEffectiveIds` (puro), arreglado el bug de la
      hija manual perdida (mismo `templateId` que b1) y 5 tests. Sin regresión en el caso recurrente.
-  3. **APARCADO (exige extracción).** `handleDeleteTask` (`useTaskCRUD:~800`) borrado recursivo **+** handler "borrar →
-     este día" (`App.tsx:~958`, escribe excepción `is_deleted` = **supresión de contenedor**, §16.16). La lectura
-     (`materializeDay` tapón B) está testeada; el **camino de escritura** es inline → extraer la recolección recursiva de
-     ids y la construcción de la fila-excepción a helpers puros y testear.
+  3. ✅/◐ **PARCIAL (`item 4`).** `handleDeleteTask` — el CONJUNTO a borrar (recursivo + fan-out de plantilla) extraído a
+     `collectDeletableTasks` (puro, +5 tests); la cirugía del mapa y el bucle de persistencia intactos (mismo set, sin
+     cambio de comportamiento). **PENDIENTE (aparcado):** el handler "borrar → este día" de recurrentes (`App.tsx:~958`,
+     escribe excepción `is_deleted` = supresión de contenedor) sigue inline; extraer `buildDeletedExceptionRow` es
+     construcción de objeto (bajo riesgo) → se puede cerrar cuando toque.
   4. ~~`handleUpdateSubtasksOrder` (bug #18)~~ **RESUELTO (sesión 19, `item 7`).** El `update({ subtasks })` escribía a una
      columna inexistente (confirmado: 400 PGRST204) → fallo mudo, pero **redundante**: el orden ya persiste por el `order`
      de cada hija y `reconstructHierarchy` lo re-ordena en carga. Se eliminó la escritura muerta. **Impacto real que tenía
