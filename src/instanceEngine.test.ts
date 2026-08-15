@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { occursOn, materializeDay, resolveTaskId, materializeInstanceById, templateIdFromInstanceId, resolveActionTarget } from './instanceEngine';
+import { occursOn, belongsToDay, materializeDay, resolveTaskId, materializeInstanceById, templateIdFromInstanceId, resolveActionTarget } from './instanceEngine';
 import { Task } from './types';
 
 // Fechas ancla (verificadas): 2026-07-15 es MIÉRCOLES.
@@ -33,6 +33,27 @@ function task(partial: Partial<Task> & { id: string }): Task {
 function byId(tasks: Task[]): Record<string, Task> {
   return Object.fromEntries(tasks.map(t => [t.id, t]));
 }
+
+// =========================================================================
+// belongsToDay — ancla de "qué día se pinta cada fila" (dueDate manda sobre instanceDate).
+// Foundational: filterTasksForDay / getVisibleSubtasksForDay / childrenToToggleOnDay lo usan.
+// =========================================================================
+describe('belongsToDay', () => {
+  it('pertenece por dueDate', () => {
+    expect(belongsToDay(task({ id: 'a', dueDate: WED }), WED)).toBe(true);
+    expect(belongsToDay(task({ id: 'a', dueDate: WED }), THU)).toBe(false);
+  });
+  it('sin dueDate cae a instanceDate', () => {
+    expect(belongsToDay(task({ id: 'a', dueDate: null, instanceDate: WED } as any), WED)).toBe(true);
+  });
+  it('dueDate MANDA sobre instanceDate (una excepción movida se ancla en su nuevo día)', () => {
+    expect(belongsToDay(task({ id: 'a', dueDate: THU, instanceDate: WED } as any), THU)).toBe(true);
+    expect(belongsToDay(task({ id: 'a', dueDate: THU, instanceDate: WED } as any), WED)).toBe(false);
+  });
+  it('sin fecha alguna → nunca pertenece (un contenedor sin fecha no se filtra por aquí)', () => {
+    expect(belongsToDay(task({ id: 'a' }), WED)).toBe(false);
+  });
+});
 
 // =========================================================================
 // occursOn

@@ -2818,16 +2818,22 @@ por un camino que **ningún test recorre de verdad**. Con el hook de selección 
 **Caminos de escritura SIN test del camino real, priorizados por riesgo** (117 escrituras en 14 archivos; agrupadas por
 handler lógico, no por llamada):
 
+- **Actualización sesión 19 (items 4/6/7/8):** suite ahora en **127 verdes**. Cerrados de TIER 1: #2 (bulk, `item 6`,
+  `bulkEffectiveIds` extraído+testeado+arreglado) y #4 (#18, `item 7`, escritura muerta eliminada). Cores puros de #1/#3
+  ya testeados (`resolveTaskId`, `templateIdFromInstanceId`, `belongsToDay`, `materializeDay`, tapón B). Lo que queda de
+  #1/#3 EXIGE extraer lógica inline del hook a helper puro (patrón b1/b2/item6) = **tocar el camino real** → APARCADO por
+  regla del día (no autónomo). Cuando quieras, es un rato: son extracciones mecánicas + su test.
 - **TIER 1 — alto (estado derivado / contenedor / recurrencia / borrado silencioso):**
-  1. `handleUpdateTask` — rama **excepción-move** (`inst-inst-`, `useTaskCRUD:468-528` y async `652-707`) y
-     **detach recurrente** (parent→null, `536-572`). Es el origen histórico del leak `inst-inst-`. El arrastre de
-     contenedor (b2) sí tiene test; estas dos ramas NO. *Testeable extrayendo la construcción de ids a helper puro.*
-  2. `bulkUpdateTasks` / `useBulkActions:54-113` — la selección `effectiveIds`. **Bug sospechado ya (auditoría b1):** una
-     hija MANUAL de un contenedor recurrente/plantilla seleccionado como instancia se pierde (mismo patrón `templateId`
-     que arreglamos en el toggle). *Extraer `effectiveIds` a helper puro lo testea y prepara el fix.*
-  3. `handleDeleteTask` (`useTaskCRUD:794`) borrado recursivo **+** el handler de "borrar → este día" de recurrentes
-     (`App.tsx:958-979`, escribe excepción `is_deleted`). Es la **supresión de contenedor** (§16.16). `materializeDay`
-     tapón B está testeado; el **camino de escritura** que crea la excepción, no.
+  1. **APARCADO (exige extracción).** `handleUpdateTask` — rama **excepción-move** (`inst-inst-`, `useTaskCRUD:~478-535` y
+     async `~670-720`) y **detach recurrente** (parent→null). Origen histórico del leak `inst-inst-`. Los cores puros
+     (`templateIdFromInstanceId`) están testeados; la CONSTRUCCIÓN de ids es inline → extraer a helper puro
+     (`exceptionMoveIds(oldParent, child, newDate)`) y testear. El arrastre de contenedor (b2) ya tiene test.
+  2. ✅ **HECHO (`item 6`).** `bulkUpdateTasks` — selección extraída a `bulkEffectiveIds` (puro), arreglado el bug de la
+     hija manual perdida (mismo `templateId` que b1) y 5 tests. Sin regresión en el caso recurrente.
+  3. **APARCADO (exige extracción).** `handleDeleteTask` (`useTaskCRUD:~800`) borrado recursivo **+** handler "borrar →
+     este día" (`App.tsx:~958`, escribe excepción `is_deleted` = **supresión de contenedor**, §16.16). La lectura
+     (`materializeDay` tapón B) está testeada; el **camino de escritura** es inline → extraer la recolección recursiva de
+     ids y la construcción de la fila-excepción a helpers puros y testear.
   4. ~~`handleUpdateSubtasksOrder` (bug #18)~~ **RESUELTO (sesión 19, `item 7`).** El `update({ subtasks })` escribía a una
      columna inexistente (confirmado: 400 PGRST204) → fallo mudo, pero **redundante**: el orden ya persiste por el `order`
      de cada hija y `reconstructHierarchy` lo re-ordena en carga. Se eliminó la escritura muerta. **Impacto real que tenía
