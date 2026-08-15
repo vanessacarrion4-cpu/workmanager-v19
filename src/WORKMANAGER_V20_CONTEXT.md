@@ -1,5 +1,11 @@
 # WorkManager v20 — Documento de Contexto Completo
 
+> ⛔️⛔️ **AVISO CRÍTICO (sesión 19) — NO BORRAR BLOQUES HASTA NUEVO AVISO.** HOY, borrar un bloque es **DESTRUCTIVO E
+> IRREVERSIBLE**: `handleDeleteBlock` hace un `DELETE` FÍSICO del bloque y el FK `ON DELETE CASCADE` **borra físicamente
+> TODAS sus tareas y subtareas** (árbol entero, verificado). No hay papelera ni forma de recuperarlo. **No borres ningún
+> bloque** hasta que esté el soft-delete reversible (item 1b, §16.19 punto 3 — pendiente de correr 2 líneas de SQL).
+> *(Borrar un CONTENEDOR sí es seguro: es soft-delete recuperable. El peligro es SOLO el bloque.)*
+
 > Usar este documento al inicio de cada sesión de desarrollo para dar contexto completo al asistente.
 > Última actualización: 26/07/2026 (sesión 11 — #1 promote/demote cerrado; plan del PASO FINAL fijado)
 >
@@ -3226,6 +3232,13 @@ las re-ancla o las trata bien. No soft-deletear, no borrar, no re-anclar a mano.
 
 **Resumen para tu tranquilidad:** borrar un contenedor en la app = soft, recuperable, sin sueltas. El único borrado
 irreversible hoy es el de BLOQUE (item 1b lo hará reversible en cuanto exista `work_blocks.is_deleted`).
+
+> **RE-VERIFICADO con probe (sesión 19):** repliqué `handleDeleteTask` (UPDATE `is_deleted=true` en contenedor + hija) →
+> las filas SIGUEN en la BD y `is_deleted=false` las RESTAURA → **soft, reversible**. Contraste: un `DELETE` físico del
+> contenedor sí borra la hija por cascade (la app no lo hace). **AÑADIDO (item 2 de esta ronda, código):** borrar un
+> contenedor ahora AVISA con el número de subtareas que se lleva (`handleDeleteTaskRequest`, igual que el tapón del
+> checkbox): `«X» y sus N subtareas`; para una hoja (N=0) no pregunta. Cuenta = `collectDeletableTasks` (mismo conjunto que
+> borra el hook).
 
 > **DOS VERDADES DISTINTAS sobre `parent_task_id` (punto 5, sesión 19 — NO se sustituyen, conviven):**
 > - **ESCRIBIR** un `parent_task_id` que apunta a una fila INEXISTENTE (INSERT/UPDATE) → **error `23503`** ("violates

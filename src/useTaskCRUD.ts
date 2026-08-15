@@ -132,6 +132,11 @@ export function useTaskCRUD({
         handleDeleteTask(effectiveId);
       }
     } else {
+      // Aviso igual que el tapón del checkbox: borrar un CONTENEDOR se lleva sus subtareas (soft-delete
+      // recursivo, recuperable en BD; pero silencioso). Se cuenta con `collectDeletableTasks` (mismo conjunto
+      // que borra el hook) menos la propia tarea. Para una HOJA (n=0) no se pregunta.
+      const n = task ? collectDeletableTasks(effectiveId, tasks).length - 1 : 0;
+      if (n > 0 && !confirm(`¿Borrar «${task?.title || 'sin título'}» y sus ${n} subtarea${n !== 1 ? 's' : ''}?`)) return;
       handleDeleteTask(effectiveId);
     }
   }, [tasks, dashboardTasks, setRecurrenceAction, setTasks]);
