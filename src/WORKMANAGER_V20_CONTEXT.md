@@ -3102,7 +3102,13 @@ borradas** (de las que 295 son prunables = puro lastre). No hay ventana por fech
 **Levers (NO ejecutados — para cuando decidas; varios exigen tu criterio):**
 - **Podar/archivar `inst-` completadas antiguas** (> N meses) SIN perder el rastro de completado (regla ya anotada: nunca
   dejar de escribir el completado). Es el lever de mayor impacto en volumen. Riesgo: medio (tocar histórico) → con la usuaria.
-- **Hard-delete de las 295 prunables** (borradas que NO son marcadores funcionales) — reduce lastre sin tocar nada vivo. S.
+- ~~**Hard-delete de las 295 prunables**~~ ◐ **HECHO EN PARTE (item 3, sesión 19): 266 borradas de 295.** Verificado antes:
+  0 son marcadores (marcador = `is_exception && template_id`). **PERO 29 estaban referenciadas como `parent_task_id` por
+  otras filas** (`parent_task_id` tiene FK) → borrarlas habría dado 23503 / orfanado hijas → **APARCADAS.** Hard-deleted
+  solo las 266 sin referencias entrantes (tasks: 2803→2537). **HALLAZGO relacionado:** esas 29 son padres de **14 filas
+  VIVAS** cuyo `parent_task_id` apunta a un padre BORRADO = **orfanas vivas ya existentes** (coincide con los "14
+  parent→inexistente" del censo). No es urgente (rinden como raíz o no se ven), pero son un cabo: decidir si re-anclar esas
+  14 o borrarlas. No tocado.
 - ~~**Filtrar `is_deleted` en la carga salvo marcadores**~~ ✅ **HECHO (item 2, sesión 19, `useSupabase.ts`).** La carga
   pasó de `template_id.is.null,is_exception.eq.true` a `is_exception.eq.true OR and(template_id.is.null,is_deleted.eq.false)`.
   Deja de traer las borradas SIN `is_exception` (**~281 hoy, creciendo**): son inertes — `indexExceptionsByTemplate` solo
