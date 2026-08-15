@@ -14,7 +14,7 @@ import { formatLocalISO } from './dateUtils';
 import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById, resolveActionTarget } from './instanceEngine';
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
 import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mudo en vez de morir en consola
-import { validateTemplate, writesOwnStatusOnToggle, containerDayToggle } from './fase3Contracts'; // §16.16: invariante + selección día-scoped del toggle (C1)
+import { validateTemplate, writesOwnStatusOnToggle, containerDayToggle, childrenToMoveWithContainer } from './fase3Contracts'; // §16.16: invariante + selección día-scoped del toggle (C1) + arrastre de hijas al mover contenedor (b2)
 import { isTaskCompleted } from './utils'; // §16.16: completado del contenedor DERIVADO (dirección del toggle)
 
 interface UseTaskCRUDOptions {
@@ -461,6 +461,23 @@ export function useTaskCRUD({
       updatedTask.instanceDate &&
       updatedTask.dueDate !== updatedTask.instanceDate;
 
+    // b2 (opción A): al MOVER un contenedor MANUAL a otro día, sus hijas de FILA REAL viajan con él
+    // (si no, quedan varadas en el día viejo → bug "vacated"). Manual = sin templateId (los recurrentes
+    // van por la maquinaria de excepción/plantilla, y una plantilla no tiene dueDate que mover).
+    // "Movimiento" = cambia el día del contenedor. Las recurrentes no actuadas NO están en la lista
+    // (no son fila real) → se regeneran solas en el destino.
+    const _prevContainer = tasks[updatedTask.id];
+    const _containerOldDate = _prevContainer ? (_prevContainer.dueDate || _prevContainer.instanceDate || null) : null;
+    const _containerNewDate = updatedTask.dueDate || null;
+    const _isManualContainerMove =
+      !isException &&
+      !updatedTask.templateId &&
+      (updatedTask.subtasks?.length || 0) > 0 &&
+      !!_containerOldDate && !!_containerNewDate && _containerOldDate !== _containerNewDate;
+    const _childIdsToMove = _isManualContainerMove
+      ? childrenToMoveWithContainer(_prevContainer, tasks, _containerOldDate)
+      : [];
+
     setTasks(prev => {
       const updated = { ...prev };
       const timestamp = new Date().toISOString();
@@ -532,6 +549,15 @@ export function useTaskCRUD({
         isException: updatedTask.templateId ? true : (isException ? true : updatedTask.isException),
         modifiedAt: timestamp
       };
+
+      // b2: arrastrar las hijas de fila real al día nuevo (re-fechado; belongsToDay usa dueDate).
+      if (_isManualContainerMove && _childIdsToMove.length) {
+        for (const cid of _childIdsToMove) {
+          const child = updated[cid];
+          if (!child) continue;
+          updated[cid] = { ...child, dueDate: _containerNewDate, modifiedAt: timestamp };
+        }
+      }
 
       if (updatedTask.recurrence && updatedTask.parentTaskId && updated[updatedTask.parentTaskId]) {
         let parent = updated[updatedTask.parentTaskId];
@@ -747,6 +773,17 @@ export function useTaskCRUD({
 
         const { error } = await supabase.from('tasks').upsert([dbTask], { onConflict: 'id' });
         if (error) throw error;
+
+        // b2: persistir el re-fechado de las hijas arrastradas con el contenedor.
+        if (_isManualContainerMove && _childIdsToMove.length) {
+          const _ts = new Date().toISOString();
+          for (const cid of _childIdsToMove) {
+            const { error: eChild } = await supabase.from('tasks')
+              .update({ due_date: _containerNewDate, modified_at: _ts })
+              .eq('id', cid);
+            if (eChild) { console.error('[SUPABASE] Error moviendo hija con el contenedor:', eChild); reportPersistError({ verbo: 'guardar', titulo: updatedTask.title }); }
+          }
+        }
       } catch (e) {
         console.error('[SUPABASE] Error updating task:', e);
         reportPersistError({ verbo: 'guardar', titulo: updatedTask.title });

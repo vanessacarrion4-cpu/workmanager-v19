@@ -16,6 +16,7 @@ import {
   writesOwnStatusOnToggle,
   isCompletedForDay,
   containerDayToggle,
+  childrenToMoveWithContainer,
 } from './fase3Contracts';
 import { groupTasksByTag } from './filters';
 import { isTaskCompleted } from './utils';
@@ -419,5 +420,56 @@ describe('FASE 3 · (C1) containerDayToggle: selección real del clic (§16.16)'
   it('hoja (sin hijas) → null', () => {
     const tasks = byId([task({ id: 'L', dueDate: WED })]);
     expect(containerDayToggle(tasks['L'], tasks, WED)).toBeNull();
+  });
+});
+
+// =========================================================================
+// b2 — al mover un contenedor MANUAL, sus hijas de fila real viajan con él
+// (childrenToMoveWithContainer). Las recurrentes no actuadas NO (se regeneran).
+// =========================================================================
+describe('childrenToMoveWithContainer (arrastre al mover contenedor)', () => {
+  it('contenedor manual con 2 hijas manuales del día → arrastra las 2', () => {
+    const tasks = byId([
+      task({ id: 'C', dueDate: WED, subtasks: ['a', 'b'] }),
+      task({ id: 'a', parentTaskId: 'C', dueDate: WED }),
+      task({ id: 'b', parentTaskId: 'C', dueDate: WED }),
+    ]);
+    expect(childrenToMoveWithContainer(tasks['C'], tasks, WED).sort()).toEqual(['a', 'b']);
+  });
+
+  it('no arrastra hijas de OTRO día', () => {
+    const tasks = byId([
+      task({ id: 'C', dueDate: WED, subtasks: ['a', 'b'] }),
+      task({ id: 'a', parentTaskId: 'C', dueDate: WED }),
+      task({ id: 'b', parentTaskId: 'C', dueDate: THU }), // otro día → se queda
+    ]);
+    expect(childrenToMoveWithContainer(tasks['C'], tasks, WED)).toEqual(['a']);
+  });
+
+  it('no arrastra hijas borradas', () => {
+    const tasks = byId([
+      task({ id: 'C', dueDate: WED, subtasks: ['a', 'b'] }),
+      task({ id: 'a', parentTaskId: 'C', dueDate: WED }),
+      task({ id: 'b', parentTaskId: 'C', dueDate: WED, isDeleted: true }),
+    ]);
+    expect(childrenToMoveWithContainer(tasks['C'], tasks, WED)).toEqual(['a']);
+  });
+
+  it('excepción recurrente ACTUADA (fila real) del día → viaja; la no actuada no está (no es fila real)', () => {
+    const tasks = byId([
+      task({ id: 'C', dueDate: WED, subtasks: ['man'] }),
+      task({ id: 'man', parentTaskId: 'C', dueDate: WED }), // manual
+      task({ id: 'rule', isTemplate: true, parentTaskId: 'C', recurrence: { frequency: 'daily', startDate: WED } as any }),
+      // excepción actuada de esa regla, con fila real ese día:
+      task({ id: 'inst-rule-' + WED, templateId: 'rule', isException: true, dueDate: WED, instanceDate: WED }),
+    ]);
+    const ids = childrenToMoveWithContainer(tasks['C'], tasks, WED).sort();
+    expect(ids).toEqual(['inst-rule-' + WED, 'man']);
+  });
+
+  it('sin oldDate o sin contenedor → []', () => {
+    const tasks = byId([task({ id: 'C', dueDate: WED, subtasks: [] })]);
+    expect(childrenToMoveWithContainer(tasks['C'], tasks, null)).toEqual([]);
+    expect(childrenToMoveWithContainer(null, tasks, WED)).toEqual([]);
   });
 });

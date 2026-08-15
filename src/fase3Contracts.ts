@@ -194,6 +194,45 @@ export function containerDayToggle(
   return { children, status: currentlyComplete ? 'pending' : 'completed' };
 }
 
+/**
+ * childrenToMoveWithContainer — opción A del movimiento de contenedores (FASE 3, bloque 2).
+ *
+ * Cuando un contenedor se mueve de `oldDate` a otro día, sus hijas de FILA REAL deben viajar con él;
+ * si no, quedan varadas en `oldDate` (el padre en el día nuevo con 0 hijas visibles y las hijas
+ * huérfanas sin padre en el día viejo → el bug "vacated"). belongsToDay() ancla cada hija por su
+ * `dueDate||instanceDate`, así que mover = re-fechar esas filas.
+ *
+ * Devuelve SOLO ids de filas reales que están en `oldDate`:
+ *  - Hijas MANUALES: `parentTaskId` apunta al contenedor (o a su plantilla).
+ *  - Excepciones recurrentes ACTUADAS: fila real con `templateId` cuya plantilla cuelga del contenedor.
+ * Las recurrentes NO actuadas NO son filas reales (no están en `allTasks`) → no salen aquí: se
+ * regeneran solas en el destino vía materializeDay. Nunca incluye hijas de otro día ni borradas.
+ */
+export function childrenToMoveWithContainer(
+  container: Task | null | undefined,
+  allTasks: Record<string, Task>,
+  oldDate: string | null | undefined,
+): string[] {
+  if (!container || !oldDate) return [];
+  const containerId = container.id;
+  const containerTid = container.templateId || container.id;
+  const ids = new Set<string>();
+  const onOldDay = (c: Task | undefined): boolean => !!c && !c.isDeleted && (c.dueDate || c.instanceDate) === oldDate;
+
+  for (const c of Object.values(allTasks)) {
+    if (!c) continue;
+    const isManualChild = c.parentTaskId === containerId || c.parentTaskId === containerTid;
+    const tmpl = c.templateId ? allTasks[c.templateId] : undefined;
+    const isActedException = !!c.templateId && !!tmpl && tmpl.parentTaskId === containerTid && !!c.isException;
+    if ((isManualChild || isActedException) && onOldDay(c)) ids.add(c.id);
+  }
+  // Refuerzo: lo que el contenedor lista en subtasks y sea fila real del día viejo.
+  for (const sid of container.subtasks || []) {
+    if (onOldDay(allTasks[sid])) ids.add(sid);
+  }
+  return Array.from(ids);
+}
+
 export function validateTemplate(task: Task, allTasks: Record<string, Task>): string | null {
   if (!task || !task.isTemplate) return null;
   const hasOwnPauta = !!(task.recurrence && (task.recurrence as any).frequency);
