@@ -3137,9 +3137,7 @@ borradas** (de las que 295 son prunables = puro lastre). No hay ventana por fech
   0 son marcadores (marcador = `is_exception && template_id`). **PERO 29 estaban referenciadas como `parent_task_id` por
   otras filas** (`parent_task_id` tiene FK) → borrarlas habría dado 23503 / orfanado hijas → **APARCADAS.** Hard-deleted
   solo las 266 sin referencias entrantes (tasks: 2803→2537). **HALLAZGO relacionado:** esas 29 son padres de **14 filas
-  VIVAS** cuyo `parent_task_id` apunta a un padre BORRADO = **orfanas vivas ya existentes** (coincide con los "14
-  parent→inexistente" del censo). No es urgente (rinden como raíz o no se ven), pero son un cabo: decidir si re-anclar esas
-  14 o borrarlas. No tocado.
+  VIVAS** cuyo `parent_task_id` apunta a un padre BORRADO = **orfanas vivas** (detalle y causa en el bloque de abajo).
 - ~~**Filtrar `is_deleted` en la carga salvo marcadores**~~ ✅ **HECHO (item 2, sesión 19, `useSupabase.ts`).** La carga
   pasó de `template_id.is.null,is_exception.eq.true` a `is_exception.eq.true OR and(template_id.is.null,is_deleted.eq.false)`.
   Deja de traer las borradas SIN `is_exception` (**~281 hoy, creciendo**): son inertes — `indexExceptionsByTemplate` solo
@@ -3153,3 +3151,39 @@ borradas** (de las que 295 son prunables = puro lastre). No hay ventana por fech
 crecimiento ilimitado de `inst-` y carga-todo-el-histórico; **el primer síntoma será el tiempo de arranque**, no la BD, y
 llegará antes en el móvil que en el escritorio. Hay margen de sobra para decidir con calma; el lever barato y sin riesgo
 mientras tanto es el hard-delete de las 295 prunables.
+
+### 16.23 Las 14 huérfanas vivas (item 2, sesión 19) — detalle, causa, decisión pendiente
+
+**Qué son:** 14 filas VIVAS (pending, `due=null`) cuyo `parent_task_id` apunta a un contenedor **soft-deleted**. TODAS en
+el bloque **`CM11l`**, creadas entre **2026-04-29 y 2026-05-08** (infancia de la app). Los títulos son claramente de
+prueba:
+
+| Título | Bloque | id | due | padre (borrado) |
+|--------|--------|----|-----|-----------------|
+| rec hija 2 | CM11l | t-1777834252690 | null | t-1777834209844 "Prueba rec con hijas" |
+| Rec hija 1 | CM11l | t-1777834228705 | null | t-1777834209844 "Prueba rec con hijas" |
+| tarea 3 | CM11l | t-1777492162833 | 2026-04-29 | t-1777492158105 "tarea 2" |
+| Margenes | CM11l | t-1777827686522 | null | t-1777827632047 "Rutinas mañana" |
+| Ingresos | CM11l | t-1777827753534 | null | t-1777827632047 "Rutinas mañana" |
+| Bancos | CM11l | t-1777827722578 | null | t-1777827632047 "Rutinas mañana" |
+| Horario picking | CM11l | t-1777827766238 | null | t-1777827632047 "Rutinas mañana" |
+| Margenes | CM11l | t-1777828228288 | null | t-1777828189938 "Rutinas Mañana" |
+| Ingresos | CM11l | t-1777828247976 | null | t-1777828189938 "Rutinas Mañana" |
+| Bancoos | CM11l | t-1777835967786 | null | t-1777828189938 "Rutinas Mañana" |
+| Picking horario | CM11l | t-1777828260465 | null | t-1777828189938 "Rutinas Mañana" |
+| subhija bloque | CM11l | t-1777448113356 | null | t-1777448090561 "diarioa bloque" |
+| Subhija bloque jueves | CM11l | t-1777448139699 | null | t-1777448090561 "diarioa bloque" |
+| contenedor una vez a la semana | CM11l | t-1778280399992 | null | t-1778280339302 "rec cont sabado" |
+
+**Cómo llegaron ahí (por qué "no deberían poder existir" pero existen):** el FK `parent_task_id` guarda filas FÍSICAS, y
+un **soft-delete es un `UPDATE is_deleted=true`, NO un `DELETE`** → la fila del padre SIGUE existiendo físicamente, así que
+el FK está satisfecho. Pero a nivel de APP la reconstrucción salta los `is_deleted`, así que la hija queda "colgando" de un
+padre que no se pinta. Es decir: **no es una violación de integridad de la BD** (el padre existe, borrado); es una
+**orfandad a nivel de app**, creada al soft-deletear un contenedor SIN propagar el `is_deleted` a sus hijas. Pasó en
+abril/mayo (infancia), con un borrado que no bajaba a las hijas. **Hoy no se reproduce:** `handleDeleteTask` usa
+`collectDeletableTasks` (recursivo) y soft-deletea el contenedor + TODAS sus descendientes juntas (item 3, abajo).
+
+**Decisión pendiente (tuya):** son trabajo de prueba de la primera semana, en un bloque de test (`CM11l`). Opciones:
+(a) soft-deletear las 14 (limpio, reversible); (b) si `CM11l` es un bloque de test entero, borrarlo cuando el borrado de
+bloque sea reversible (item 1b); (c) re-anclar (poner `is_deleted:false` a los padres) si resulta que algo era real —
+improbable por los títulos. No toco nada hasta que decidas.
