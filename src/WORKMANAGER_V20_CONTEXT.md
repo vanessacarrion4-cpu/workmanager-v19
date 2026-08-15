@@ -3063,3 +3063,49 @@ Para ordenar por VALOR de un vistazo. **Coste:** S = un rato · M = medio · L =
 | Verificar adjuntos | Claim heredado "no persisten"; sin re-verificar. | S (medir) | Saber si es real | No (medir) |
 | #1 exception-move (extraer+test) | Origen del leak `inst-inst-`. Solo CONTIGO (mover instancia en pantalla + diff BD). | M | Blindar el punto más frágil con test | No (refactor), pero validación sí |
 | Recurrentes en otras vistas (§11.1e/f/g) | Semana no mueve · Bloques no completa recurrentes · Calendario sin icono. Sin re-verificar hoy. | M | Coherencia entre vistas | Sí |
+
+### 16.22 SALUD INTERNA / VOLUMEN (sesión 19, item 6) — primera medición, nunca lo habíamos mirado
+
+**Snapshot (2026-08-15):**
+- **`tasks`: 2803 filas** = 2030 vivas + 773 borradas (soft, 28%). De las borradas: **478 son marcadores funcionales**
+  (`is_exception + template_id`, los lee `materializeDay` para suprimir ocurrencias → NO se pueden borrar sin más) y
+  **295 son prunables** (basura muerta de verdad).
+- **Instancias `inst-`: 1268 (62% de las vivas)**, de ellas **1210 completadas históricas.** Este es el motor del
+  crecimiento: cada vez que actúas sobre una ocurrencia recurrente (completar/mover) se persiste una fila-excepción que
+  **nunca se poda**.
+- **Leak `inst-inst-`: 1 fila** (contenido). `template_id→no-plantilla`: 65. `parent→inexistente`: 14. Basura ~4%.
+- **`time_entries`: 764 · `work_blocks`: 13 (todos activos).**
+- **Contenedores: 99. Dos GIGANTES: 136 y 121 hijas** (luego 51, 33, 26, 24…).
+
+**Crecimiento (altas de `tasks` por `created_at`):** abr 65 · may 1044 · jun 631 · jul 842 · ago 221 (parcial). Neto
+**~600–800 filas/mes**, dominado por `inst-`. `time_entries` ~220/mes. → **Proyección: ~+8.000 filas/año** → del orden de
+**10–12k filas vivas para mediados de 2027** si el uso sigue igual.
+
+**Qué carga el cliente:** en el arranque trae **2797 de 2803 filas** (`template_id null OR is_exception`), **incluidas 769
+borradas** (de las que 295 son prunables = puro lastre). No hay ventana por fecha: se carga TODO el histórico cada vez.
+
+**Dónde va a doler (por orden de probabilidad), y por qué NO es Postgres:**
+1. **El cuello es el CLIENTE, no la BD.** Postgres se ríe de 10–100k filas. Lo que crece es: (a) el payload de carga,
+   (b) el mapa en memoria, (c) las pasadas de reconstrucción (`reconstructHierarchy` / `reconstructInstanceHierarchy` /
+   `reconstructExceptionContainerSubtasks` / `sortInstanceContainerSubtasks`, varias `Object.values(mappedTasks).forEach`),
+   (d) `useGeneration` materializando en memoria. Todo O(n) o O(n·hijas). A 2k va bien (hay `DIAG-TEMP` midiendo la carga);
+   a 10–12k la carga + reconstrucción puede pasar de instantánea a notable (segundos).
+2. **`inst-` sin poda = crecimiento ILIMITADO.** 1210 ocurrencias completadas históricas hoy, +cientos/mes. Es el lever
+   número uno de volumen.
+3. **Los 2 contenedores gigantes (136 / 121 hijas).** Render + reconstrucción + sort concentrados; el bug de render "otros
+   días" en Bloques lo empeora (pinta también las completadas de todos los días).
+4. **~28% de lastre cargado** (769 borradas), creciendo.
+
+**Levers (NO ejecutados — para cuando decidas; varios exigen tu criterio):**
+- **Podar/archivar `inst-` completadas antiguas** (> N meses) SIN perder el rastro de completado (regla ya anotada: nunca
+  dejar de escribir el completado). Es el lever de mayor impacto en volumen. Riesgo: medio (tocar histórico) → con la usuaria.
+- **Hard-delete de las 295 prunables** (borradas que NO son marcadores funcionales) — reduce lastre sin tocar nada vivo. S.
+- **Filtrar `is_deleted` en la carga salvo marcadores** — cargar solo las 478 borradas-marcador, no las 295 muertas. S/M.
+- **Ventana por fecha en la carga** (traer reciente + plantillas, generar el resto on-demand) — el arreglo de fondo si el
+  volumen molesta. L, refactor de carga → con validación.
+- **Partir los 2 contenedores gigantes** (decisión de producto/organización, no técnica).
+
+**Veredicto honesto:** hoy NO hay problema de volumen ni de lentitud. La app está sana. Pero la trayectoria es de
+crecimiento ilimitado de `inst-` y carga-todo-el-histórico; **el primer síntoma será el tiempo de arranque**, no la BD, y
+llegará antes en el móvil que en el escritorio. Hay margen de sobra para decidir con calma; el lever barato y sin riesgo
+mientras tanto es el hard-delete de las 295 prunables.
