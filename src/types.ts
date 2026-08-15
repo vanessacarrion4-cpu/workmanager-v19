@@ -13,6 +13,7 @@ export interface WorkBlock {
   icon: string; // Lucide icon name
   order: number;
   isActive: boolean;
+  isDeleted?: boolean; // sesión 19: borrado reversible de bloque (soft-delete)
 }
 
 export interface Attachment {
@@ -79,7 +80,8 @@ export interface Task {
   createdAt: string;
   modifiedAt: string;
   deletedAt?: string | null;
-  
+  deletedWithBlock?: string | null; // sesión 19: id del bloque con el que se soft-borró (para restaurar solo esas)
+
   isTemplate?: boolean; // True if this is the "container" defined in Blocks view
   isActive?: boolean; // For templates, whether they should generate instances
   isException?: boolean; // True if edited individually

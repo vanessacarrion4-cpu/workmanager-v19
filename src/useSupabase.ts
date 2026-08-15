@@ -25,6 +25,49 @@ interface UseSupabaseOptions {
 }
 
 /**
+ * Mapea una fila cruda de `tasks` (Supabase) al modelo `Task`. Fuente ÚNICA del mapeo — la usan la carga
+ * inicial y `handleRestoreBlock` (recuperar un bloque re-fetchea sus tareas). `subtasks` se reconstruye aparte.
+ */
+export function mapDbTaskToTask(t: any): Task {
+  return {
+    id: t.id,
+    blockId: t.block_id,
+    title: t.title,
+    notes: t.notes,
+    status: t.status,
+    dueDate: t.due_date,
+    dueTime: t.due_time,
+    completedAt: t.completed_at,
+    estimatedMinutes: t.estimated_minutes,
+    actualMinutes: t.actual_minutes,
+    totalEstimatedCombo: t.total_estimated_combo,
+    totalRegisteredCombo: t.total_registered_combo,
+    tags: t.tags || [],
+    order: t.order,
+    isTemplate: t.is_template,
+    isActive: t.is_active !== false,
+    isException: t.is_exception,
+    isDeleted: t.is_deleted,
+    isExpanded: t.is_expanded,
+    taskType: t.task_type,
+    onHold: t.on_hold ?? false,
+    parentTaskId: t.parent_task_id,
+    templateId: t.template_id,
+    instanceDate: t.instance_date,
+    recurrence: t.recurrence,
+    delegation: t.delegation,
+    wasRecurring: t.was_recurring || false,
+    createdAt: t.created_at,
+    modifiedAt: t.modified_at,
+    deletedAt: t.deleted_at,
+    deletedWithBlock: t.deleted_with_block ?? null,
+    existsInSupabase: true,
+    subtasks: [],
+    attachments: t.attachments || []
+  } as Task;
+}
+
+/**
  * Reconstruye el array subtasks[] de cada tarea a partir de parentTaskId.
  * Primera pasada: relaciones directas (parentTaskId → padre)
  * Al final ordena cada array subtasks[] por el campo order de cada subtarea.
@@ -255,10 +298,11 @@ export function useSupabase({
       try {
         console.log('[SUPABASE] Loading initial data...');
 
-        // Cargar bloques
+        // Cargar bloques (sesión 19: no traer los soft-borrados)
         const { data: blocksData, error: blocksError } = await supabase
           .from('work_blocks')
           .select('*')
+          .neq('is_deleted', true)
           .order('order', { ascending: true });
 
         if (blocksError) throw blocksError;
@@ -332,9 +376,11 @@ export function useSupabase({
             id: b.id,
             name: b.name,
             color: b.color,
+            pastelColor: b.pastel_color,
             icon: b.icon,
             order: b.order || 0,
-            isActive: b.is_active !== false
+            isActive: b.is_active !== false,
+            isDeleted: b.is_deleted === true
           }));
           setBlocks(mappedBlocks);
         } else {
@@ -356,41 +402,7 @@ export function useSupabase({
         if (tasksData && tasksData.length > 0) {
           const mappedTasks: Record<string, Task> = {};
           tasksData.forEach((t: any) => {
-            mappedTasks[t.id] = {
-              id: t.id,
-              blockId: t.block_id,
-              title: t.title,
-              notes: t.notes,
-              status: t.status,
-              dueDate: t.due_date,
-              dueTime: t.due_time,
-              completedAt: t.completed_at,
-              estimatedMinutes: t.estimated_minutes,
-              actualMinutes: t.actual_minutes,
-              totalEstimatedCombo: t.total_estimated_combo,
-              totalRegisteredCombo: t.total_registered_combo,
-              tags: t.tags || [],
-              order: t.order,
-              isTemplate: t.is_template,
-              isActive: t.is_active !== false,
-              isException: t.is_exception,
-              isDeleted: t.is_deleted,
-              isExpanded: t.is_expanded,
-              taskType: t.task_type,
-              onHold: t.on_hold ?? false,
-              parentTaskId: t.parent_task_id,
-              templateId: t.template_id,
-              instanceDate: t.instance_date,
-              recurrence: t.recurrence,
-              delegation: t.delegation,
-              wasRecurring: t.was_recurring || false,
-              createdAt: t.created_at,
-              modifiedAt: t.modified_at,
-              deletedAt: t.deleted_at,
-              existsInSupabase: true,
-              subtasks: [],
-              attachments: t.attachments || []
-            };
+            mappedTasks[t.id] = mapDbTaskToTask(t);
           });
 
           // Reconstruir jerarquía (tres pasadas)

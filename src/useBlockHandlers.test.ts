@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
 import { Task } from './types';
-import { tasksInBlock } from './useBlockHandlers';
+import { tasksInBlock, liveTasksInBlock, tasksToRestoreWithBlock } from './useBlockHandlers';
 
 function task(partial: Partial<Task> & { id: string }): Task {
   return {
@@ -41,5 +41,28 @@ describe('tasksInBlock', () => {
   it('bloque sin tareas → []', () => {
     const tasks = byId([task({ id: 'x', blockId: 'b1' })]);
     expect(tasksInBlock('vacio', tasks)).toEqual([]);
+  });
+});
+
+describe('liveTasksInBlock (las que se soft-borran con el bloque)', () => {
+  it('solo las VIVAS del bloque (excluye ya borradas y otros bloques)', () => {
+    const tasks = byId([
+      task({ id: 'a', blockId: 'b1' }),
+      task({ id: 'b', blockId: 'b1', isDeleted: true } as any), // ya borrada → no se re-marca
+      task({ id: 'c', blockId: 'b2' }),
+    ]);
+    expect(liveTasksInBlock('b1', tasks)).toEqual(['a']);
+  });
+});
+
+describe('tasksToRestoreWithBlock (las que vuelven al recuperar el bloque)', () => {
+  it('SOLO las marcadas con ese bloque; las borradas de antes NO resucitan', () => {
+    const tasks = byId([
+      task({ id: 'conBloque1', blockId: 'b1', isDeleted: true, deletedWithBlock: 'b1' } as any),
+      task({ id: 'conBloque2', blockId: 'b1', isDeleted: true, deletedWithBlock: 'b1' } as any),
+      task({ id: 'yaBorradaAntes', blockId: 'b1', isDeleted: true, deletedWithBlock: null } as any), // NO vuelve
+      task({ id: 'deOtroBloque', blockId: 'b2', isDeleted: true, deletedWithBlock: 'b2' } as any),   // NO vuelve
+    ]);
+    expect(tasksToRestoreWithBlock('b1', tasks).sort()).toEqual(['conBloque1', 'conBloque2']);
   });
 });
