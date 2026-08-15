@@ -3053,7 +3053,7 @@ Consolidado de todo lo pendiente estos días, para elegir de un vistazo si entra
 
 | # | Punto | Fase | Qué es | Coste | Qué gano | Pantalla |
 |---|-------|------|--------|-------|----------|----------|
-| 1 | **Recurrentes en otras vistas** (§11.1e/f/g) | FASE 6 | Semana no MUEVE recurrentes · Bloques no COMPLETA recurrentes · Calendario sin icono de completar. Interacción incoherente según la vista. | M | Coherencia diaria: la misma tarea se comporta igual en toda la app | Sí |
+| 1 | **Recurrentes en otras vistas** (§11.1e/f/g; **MAPA en §16.27**) | FASE 6 | Semana no MUEVE (WeekView sin `onUpdateTask` + card propio) · Calendario sin icono de completar (variante COMPACT no tiene checkbox) · Bloques no completa (es la vista de definición → se completa en Mi Día). **Son TRES causas distintas, no un bug único.** | M cada una | Coherencia: la misma tarea se comporta igual en toda la app | Sí |
 | 2 | **Modal de la papelera de fila recurrente** | FASE 6 | Que deje CLARÍSIMO "este día" vs "la serie" y avise si hay hijas pendientes que se entierran. Es el gesto que más miedo da. | M | Borrar recurrentes sin sustos; menos error | Sí |
 | 3 | **Acciones escondidas tras hover o dentro de modales** | FASE 6 | Muchas acciones solo aparecen al PASAR EL RATÓN (medido: **~13 grupos hover en 8 vistas** — fila de tarea, bloques, delegadas, dashboard, chips, tiempos…) o están ENTERRADAS dentro de un modal. Ejemplo probado: **borrar un bloque** = lápiz que solo se ve al *hover* (`BlocksView:596/602`) + botón "Eliminar" dentro del modal de editar (`Modals.tsx:169`). En MÓVIL el hover ni existe. Auditar todas y sacar las importantes/destructivas a un sitio visible (o un menú "⋯" explícito y táctil). **DATO real (sesión 19): la usuaria NO encontraba cómo borrar un bloque, aunque la opción lleva ahí desde siempre — prueba de que el problema es real, no teórico.** | M-L | Descubribilidad: una acción que no se encuentra = no existe para el usuario; además funciona en móvil (hoy el hover no) | Sí |
 | 4 | **Pauta de recurrencia desde la FILA** | FASE 5 | Hoy solo desde el modal; desde la fila el chip se ve pero no llega a poner la pauta. | M | Crear recurrentes sin abrir el modal (fricción si creas muchas) | Sí |
@@ -3297,3 +3297,33 @@ hijas con semántica de Bloques (un helper tipo `getVisibleSubtasksForBloques(co
 - **Recurrente:** las **reglas hijas** (plantillas) + las **excepciones que sigan pendientes**; **NO** las instancias
   completadas históricas. Esto además arregla de raíz el reorden flaky de §16.25 (de 136 items a ~4).
 - **Antes de tocar: fija la regla canónica** (tu versión vs la del doc), porque cambian el resultado para los recurrentes.
+
+### 16.27 MAPA — recurrentes en otras vistas (item 1, sesión 19). Sin arreglar.
+
+**¿Un problema o tres? → TRES causas DISTINTAS con un hilo común.** El hilo: solo Mi Día usa el `TaskCard` FULL con toda
+la plumbing recurrente (toggle día-scoped `onToggleStatus(id, viewDay)` + move-picker + modal "este día vs serie"). Cada
+vista secundaria recortó una parte distinta. NO se arregla con un solo cambio.
+
+- **Semana — NO se mueve** *(causa: la vista es la más ligera)*: `WeekView` usa un card propio `WeekTaskCard` (no el
+  `TaskCard`), y App **NO le pasa `onUpdateTask`** (`App.tsx:718-729`: solo `onEditTask`/`onToggle`/`onAddTask`). O sea, en
+  Semana **no hay forma de mover NINGUNA tarea** (recurrente o no) salvo abrir el modal de editar. Además `onToggle` se
+  llama con `task.id` SIN el día (`WeekView` líneas 279/340/…) → completar un contenedor recurrente togglea TODOS los días,
+  no ese. **Qué tocaría:** pasar `onUpdateTask` a WeekView + añadir move-picker al `WeekTaskCard` (reusar el de COMPACT) y
+  enrutar por el modal "este día vs serie"; y pasar `date` a `onToggle`. **Riesgo:** MEDIO (card propio, interacción nueva).
+- **Calendario — sin ICONO de completar** *(causa: variante COMPACT)*: `CalendarView` usa `TaskCard variant="COMPACT"`
+  (`CalendarView:428`). La COMPACT (`TaskCard:284`) TIENE el move-picker (`handleMoveTask`) pero **NO tiene el checkbox de
+  completar** (el checkbox vive en la variante FULL, `TaskCard:490-505`). Por eso en Calendario se puede MOVER pero no
+  COMPLETAR. **Qué tocaría:** añadir el checkbox de completar a la variante COMPACT (que ya recibe `onToggleStatus`).
+  **Riesgo:** MEDIO (COMPACT es compartida; no romper el layout del move-picker).
+- **Bloques — no se completan recurrentes** *(causa: es la vista de DEFINICIÓN)*: Bloques muestra la **regla/plantilla**
+  (con la regla canónica de A, plantilla + excepciones pendientes), no las ocurrencias. Completar una regla no es
+  "completar una ocurrencia" — las ocurrencias se completan en Mi Día. Esto es **más semántico/diseño que bug**: decidir si
+  desde Bloques debe poder completarse una ocurrencia concreta (poco natural) o si se acepta "las ocurrencias se completan
+  en Mi Día". **Qué tocaría:** probablemente NADA de código — decisión de producto. **Riesgo:** bajo (es una decisión).
+
+**Cuántas filas:** 24 contenedores recurrentes (≈1268 instancias materializadas). En cada vista se ven las instancias del
+día/semana correspondiente.
+
+**Recomendación:** son 3 arreglos separables. Por valor: (1) Calendario-completar (un checkbox en COMPACT, contenido) →
+(2) Semana-mover (más grande, card propio) → (3) Bloques = decisión, seguramente "se completa en Mi Día". No es un
+refactor único; cada vista es un frente.
