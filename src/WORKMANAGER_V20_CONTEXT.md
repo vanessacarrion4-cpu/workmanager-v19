@@ -3135,7 +3135,8 @@ borradas** (de las que 295 son prunables = puro lastre). No hay ventana por fech
     pantalla antes de borrar. **Con la usuaria.**
 - ~~**Hard-delete de las 295 prunables**~~ ◐ **HECHO EN PARTE (item 3, sesión 19): 266 borradas de 295.** Verificado antes:
   0 son marcadores (marcador = `is_exception && template_id`). **PERO 29 estaban referenciadas como `parent_task_id` por
-  otras filas** (`parent_task_id` tiene FK) → borrarlas habría dado 23503 / orfanado hijas → **APARCADAS.** Hard-deleted
+  otras filas** (`parent_task_id` tiene FK **ON DELETE CASCADE** — verificado, item 3) → hard-borrarlas habría
+  **cascade-borrado sus 14 hijas VIVAS** (irreversible), no un simple error → aparcarlas fue aún más importante → **APARCADAS.** Hard-deleted
   solo las 266 sin referencias entrantes (tasks: 2803→2537). **HALLAZGO relacionado:** esas 29 son padres de **14 filas
   VIVAS** cuyo `parent_task_id` apunta a un padre BORRADO = **orfanas vivas** (detalle y causa en el bloque de abajo).
 - ~~**Filtrar `is_deleted` en la carga salvo marcadores**~~ ✅ **HECHO (item 2, sesión 19, `useSupabase.ts`).** La carga
@@ -3187,3 +3188,23 @@ abril/mayo (infancia), con un borrado que no bajaba a las hijas. **Hoy no se rep
 (a) soft-deletear las 14 (limpio, reversible); (b) si `CM11l` es un bloque de test entero, borrarlo cuando el borrado de
 bloque sea reversible (item 1b); (c) re-anclar (poner `is_deleted:false` a los padres) si resulta que algo era real —
 improbable por los títulos. No toco nada hasta que decidas.
+
+### 16.24 ¿Borrar un contenedor arrastra sus hijas? (item 3, sesión 19) — comprobado sin tocar nada
+
+**Dos niveles, respuesta clara:**
+
+1. **En la APP (el gesto normal "borrar contenedor" → `handleDeleteTask`): las hijas SE VAN CON ÉL, y es RECUPERABLE.**
+   `handleDeleteTask` usa `collectDeletableTasks` (recursivo) y hace **soft-delete** (`is_deleted:true`) del contenedor
+   **y de TODAS sus descendientes** a la vez. No quedan sueltas ni huérfanas, y como es soft-delete se pueden recuperar
+   (`is_deleted:false`). O sea: **borrar un contenedor por error es reversible** (a diferencia de borrar un BLOQUE, que hoy
+   es hard — eso es lo que arregla el item 1b).
+
+2. **A nivel de BD, si una fila-contenedor se HARD-borra** (DELETE físico): el FK `parent_task_id` tiene **ON DELETE
+   CASCADE** (verificado con probe temporal: borré un padre y su hija desapareció, 204). Es decir, un `DELETE` físico de un
+   contenedor **arrastra en cascada a todas sus descendientes, irreversible.** PERO la app **nunca** hace hard-delete de
+   tareas — solo soft (punto 1). El hard-cascade solo ocurre en un `DELETE` físico: hoy eso pasa al **borrar un BLOQUE**
+   (cascade por `block_id`) o en un script de limpieza. Por eso el prune del item 3 aparcó las 29 referenciadas: borrarlas
+   habría cascade-borrado 14 hijas vivas.
+
+**Resumen para tu tranquilidad:** borrar un contenedor en la app = soft, recuperable, sin sueltas. El único borrado
+irreversible hoy es el de BLOQUE (item 1b lo hará reversible en cuanto exista `work_blocks.is_deleted`).
