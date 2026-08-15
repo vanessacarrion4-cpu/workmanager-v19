@@ -2791,6 +2791,30 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
       Moussa" (12 hijas/1 due/8 días), "Tarjeta transporte camión" (11/1/3), "Adrian Cross despido" (11/1/3), "Testamento
       Blas" (10/1/4). Este es un problema DISTINTO del multi-día de Bloques (41 contenedores, abajo): aquí el dato ya
       perdió el día de cada hija; allí el dato tiene los días pero Bloques no los respeta.
+    - **CAUSA del colapso — INVESTIGADO (sesión 19, item 1). NO es el fix b2; es la acción "mover a fecha" en MASA.**
+      Cluster de las 116 filas por `modified_at` exacto (mismo segundo = una sola escritura): `2026-07-31T18:12:37`→45
+      filas (due 08-10) · `07-31T17:56:18`→11 (08-03) · `07-31T18:11:27`→11 (08-10) · `08-13T16:17:48`→11 (08-14) ·
+      `07-31T07:51:14`→8 (08-10) · `08-14T05:06:31`→5 (07-29) · resto sueltas. **45 filas en un segundo = escritura por
+      lote**, no 45 movimientos sueltos → es `bulkUpdateTasks({dueDate})` (el "mover a fecha" del modo selección). Al
+      multiseleccionar y mover a una fecha, TODO lo seleccionado recibe ese `due_date`. Con HOJAS sueltas seleccionadas de
+      varios días, sus días se aplastan al destino (bulkEffectiveIds no filtra por día una hoja seleccionada directamente);
+      con un CONTENEDOR seleccionado, baja a sus hijas del día. **Mecanismo VIVO** (es la función de reprogramar en lote) y
+      **de la usuaria, no automático**: descartado un re-fechador en carga — las dos reparaciones de `useSupabase`
+      (`repairContainers*`) solo ponen `due_date:null` en plantillas, nunca sellan una fecha.
+    - **DESCARGO del fix b2 (`a8f23d6`, "mover contenedor, opción A") — las dos preguntas de la usuaria:**
+      · **(1) ¿b2 aplasta hijas de OTROS días?** NO. `childrenToMoveWithContainer` pasa CADA candidata por `onOldDay`
+      (`(dueDate||instanceDate) === oldDate`, fase3Contracts.ts:220/227/231): solo viajan las hijas del día de ORIGEN; las
+      de otros días no se tocan. No hay bug, no hay que revertir.
+      · **(2) ¿Las filas del 10-ago son anteriores a b2?** SÍ, TODAS. b2 se publicó `2026-08-15 09:35:42`; todos los
+      clusters de colapso son `07-31`/`08-11`/`08-13`/`08-14T05:06` → **anteriores**. El mecanismo es ANTIGUO (el "mover a
+      fecha" en lote); b2 no lo causó. b2 solo REPITE, hacia delante y SOLO para el día de origen, que las hijas viajen con
+      el padre (que es justo la opción A que pediste). *(Matiz honesto: `modified_at` marca la última escritura por
+      cualquier motivo; el cluster `08-14T05:06`→due 07-29 huele a una escritura de status que solo tocó `modified_at`, no
+      a un re-fechado; los re-fechados de verdad son los de 07-31.)*
+    - **Para dejar de provocarlo:** al reprogramar en lote (modo selección → "mover a fecha"), ten en cuenta que aplasta el
+      `due_date` de TODO lo seleccionado a esa fecha; si seleccionas hijas de días distintos, pierden su día. No es un bug
+      del motor; es la acción haciendo lo que dice. (Aparte: valorar si seleccionar un CONTENEDOR debería arrastrar sus
+      hijas del día al reprogramar — hoy sí lo hace.)
     - **La regla que quiere la usuaria:** "cada hija sale solo el día que le tocaba, completada o no". Alcanzarla NO es un
       cambio de render simple: el `due_date` por-hija ya está machacado (22 contenedores/116 filas) → habría que (a)
       recuperar el día real de cada hija (¿`completed_at`/`created`? decisión de la usuaria) y re-fechar, y ADEMÁS (b)
