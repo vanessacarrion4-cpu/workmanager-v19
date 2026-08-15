@@ -2758,3 +2758,27 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
     (§16.16 abierto). Comprobar al rediseñar Carga.
   - **Calendario "Ir a fecha" de Mi Día no retrocede de mes (hallazgo sesión 18):** solo muestra el mes actual; para ir a
     julio hacen falta ~23 clics en la flecha de día anterior. Añadir navegación de mes (‹ mes ›). Sin prioridad.
+  - **MAPA — contenedor muestra hijas completadas "de otros días" (sesión 19, SOLO diagnóstico, NO tocado). TÚ DECIDES
+    la política.**
+    - **Dónde (la capa exacta):** `TaskCard.tsx:851` y `:860`. La lista de hijas que se pinta es
+      `(subtasksForGroup || task.subtasks)` y el único filtro es el interruptor `hideCompleted` (líneas 852/862:
+      `if (!hideCompleted) return true;` → con el interruptor APAGADO se pinta **toda** hija, completada incluida).
+      · **Mi Día (Dashboard)** pasa `subtasksForGroup` = hijas DEL DÍA (`getVisibleSubtasksForDay` → `belongsToDay ===
+      activeDate`, filtro por día en `filters.ts:89`). Por eso Mi Día **nunca** enseña hijas de otro día; solo las del día
+      activo, y oculta completadas si el interruptor está encendido.
+      · **Bloques (y cualquier vista con `subtasksForGroup=null`)** cae al fallback `task.subtasks` = **TODAS las hijas de
+      TODOS los días**. Con el interruptor apagado, cada hija completada de cualquier día se pinta tachada. **Esta es la
+      causa de "hijas completadas de otros días".** El contador (badge, `TaskCard:540-541`) cuenta pendientes de esa misma
+      lista → en Bloques cuenta pendientes de todos los días.
+    - **"Accidente Moussa" (`t-1783582412582`) en concreto:** contenedor MANUAL, `due=null`, **12 hijas, TODAS del
+      2026-08-14** (10 completadas, 2 pendientes → contador 2). O sea, en su caso NO son "otros días": son completadas del
+      MISMO día que se pintan porque el interruptor de completadas está apagado. El síntoma "otros días" literal aparece en
+      los contenedores multi-día (abajo) vistos en Bloques.
+    - **Tamaño (medido hoy):** 75 contenedores vivos · **65** tienen ≥1 hija completada (**244** hijas completadas en
+      total) · **41** tienen hijas repartidas en **varios días** (el caso "otros días" real en Bloques). Mayores:
+      "cierre eam" (16 hijas/2 días/16 comp), "Guillem Tell" (18/5/15), "Marcos Ibáñez" (9/2/9), "Aragon contrato" (9/6/8).
+    - **Qué cambiaría según decidas:** (a) *ocultar por defecto, ver a petición* → en `TaskCard:851/860` ocultar
+      completadas aunque `hideCompleted` esté apagado, y añadir un "ver completadas (N)" por contenedor; (b) *día-scopear
+      Bloques también* → pasar un `subtasksForGroup` filtrado por día en Bloques (cambia la semántica de Bloques, hoy
+      atemporal); (c) *dejarlo* (es correcto si "mostrar completadas" significa "todas"). **No lo toco: es tu decisión de
+      producto, y afecta a 65 contenedores.**
