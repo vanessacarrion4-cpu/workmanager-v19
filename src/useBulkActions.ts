@@ -106,6 +106,24 @@ export function bulkEffectiveIds(
   return { ids: [...effectiveIds], resolved: resolvedById };
 }
 
+/**
+ * bulkUpdatesForTask — guard del "mover a fecha" en lote (item 2, sesión 19).
+ *
+ * Una acción masiva que cambia `dueDate` NO debe tocar el `due_date` de una tarea COMPLETADA: mover al
+ * futuro algo ya hecho no tiene sentido y es justo lo que aplastaba la historia (§16.17, colapso de fechas).
+ * Las PENDIENTES se mueven libres. Solo se filtra `dueDate`; los demás campos del update sí se aplican
+ * (p.ej. cambiar tags de una completada sigue funcionando). Escape hatch: mover UNA completada suelta desde
+ * su fila (handleUpdateTask) NO pasa por aquí → sigue siendo posible a propósito.
+ */
+export function bulkUpdatesForTask(updates: Partial<Task>, task: Task | undefined): Partial<Task> {
+  if (task && task.status === 'completed' && updates.dueDate !== undefined) {
+    const u = { ...updates };
+    delete u.dueDate;
+    return u;
+  }
+  return updates;
+}
+
 export function useBulkActions({
   tasks,
   setTasks,
@@ -131,7 +149,7 @@ export function useBulkActions({
       const next = { ...prev };
       effectiveIds.forEach(id => {
         const base = next[id] || resolvedById[id]; // C3: materializar el virgen en memoria también
-        if (base) next[id] = { ...base, ...updates, modifiedAt: timestamp };
+        if (base) next[id] = { ...base, ...bulkUpdatesForTask(updates, base), modifiedAt: timestamp }; // item 2: no re-fechar completadas
       });
       return next;
     });
@@ -140,7 +158,8 @@ export function useBulkActions({
       effectiveIds.forEach(id => {
         const task = tasks[id] || resolvedById[id]; // C3: virgen resuelto → llega al upsert de excepción
         if (!task) return;
-        const updatedTask = { ...task, ...updates, modifiedAt: timestamp };
+        const u = bulkUpdatesForTask(updates, task); // item 2: no re-fechar completadas
+        const updatedTask = { ...task, ...u, modifiedAt: timestamp };
 
         // C3: un virgen resuelto (resolvedById) SIEMPRE se materializa (upsert), aunque su objeto
         // herede `existsInSupabase:true` de la plantilla vía materializeDay — ese flag no distingue
@@ -187,12 +206,12 @@ export function useBulkActions({
           });
         } else {
           const supabaseUpdates: Record<string, any> = { modified_at: timestamp };
-          if (updates.status !== undefined) supabaseUpdates.status = updatedTask.status;
-          if (updates.completedAt !== undefined) supabaseUpdates.completed_at = updatedTask.completedAt ?? null;
-          if (updates.dueDate !== undefined) supabaseUpdates.due_date = updatedTask.dueDate ?? null;
-          if (updates.tags !== undefined) supabaseUpdates.tags = updatedTask.tags;
-          if (updates.estimatedMinutes !== undefined) supabaseUpdates.estimated_minutes = updatedTask.estimatedMinutes;
-          if ('delegation' in updates) supabaseUpdates.delegation = updatedTask.delegation ?? null;
+          if (u.status !== undefined) supabaseUpdates.status = updatedTask.status;
+          if (u.completedAt !== undefined) supabaseUpdates.completed_at = updatedTask.completedAt ?? null;
+          if (u.dueDate !== undefined) supabaseUpdates.due_date = updatedTask.dueDate ?? null; // item 2: undefined para completadas → no escribe due_date
+          if (u.tags !== undefined) supabaseUpdates.tags = updatedTask.tags;
+          if (u.estimatedMinutes !== undefined) supabaseUpdates.estimated_minutes = updatedTask.estimatedMinutes;
+          if ('delegation' in u) supabaseUpdates.delegation = updatedTask.delegation ?? null;
 
           persist(supabase.from('tasks').update(supabaseUpdates).eq('id', id), { verbo: 'guardar', titulo: updatedTask.title });
         }

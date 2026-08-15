@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
 import { Task } from './types';
-import { bulkEffectiveIds } from './useBulkActions';
+import { bulkEffectiveIds, bulkUpdatesForTask } from './useBulkActions';
 
 const WED = '2026-07-15';
 const THU = '2026-07-16';
@@ -69,5 +69,32 @@ describe('bulkEffectiveIds', () => {
       task({ id: 'c', parentTaskId: 'C', dueDate: THU }),               // otro día → no
     ]);
     expect(run(tasks, ['C'])).toEqual(['a']);
+  });
+});
+
+describe('bulkUpdatesForTask (guard "mover a fecha")', () => {
+  const pend = task({ id: 'p', status: 'pending', dueDate: WED });
+  const done = task({ id: 'd', status: 'completed', dueDate: WED });
+
+  it('pendiente + mover a fecha → se re-fecha (sin cambios)', () => {
+    expect(bulkUpdatesForTask({ dueDate: THU }, pend)).toEqual({ dueDate: THU });
+  });
+
+  it('completada + mover a fecha → se ELIMINA dueDate del update (no se re-fecha)', () => {
+    expect(bulkUpdatesForTask({ dueDate: THU }, done)).toEqual({});
+  });
+
+  it('completada + otros campos (sin dueDate) → intactos', () => {
+    expect(bulkUpdatesForTask({ tags: ['focus'] }, done)).toEqual({ tags: ['focus'] });
+  });
+
+  it('completada + mover a fecha + tags → solo se quita dueDate, los tags quedan', () => {
+    expect(bulkUpdatesForTask({ dueDate: THU, tags: ['focus'] }, done)).toEqual({ tags: ['focus'] });
+  });
+
+  it('no muta el objeto updates original', () => {
+    const upd: Partial<Task> = { dueDate: THU, tags: ['focus'] };
+    bulkUpdatesForTask(upd, done);
+    expect(upd).toEqual({ dueDate: THU, tags: ['focus'] });
   });
 });

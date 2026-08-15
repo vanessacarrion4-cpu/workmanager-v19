@@ -2780,10 +2780,14 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
     completadas; la historia real solo sobrevive porque `completed_at` la conserva en 75/76).
     - **Mi impresión / recomendación (para decidir):** más que un aviso, lo LIMPIO es que **"mover a fecha" NO toque el
       `due_date` de las tareas COMPLETADas** — mover al futuro algo ya hecho no tiene sentido y es justo lo que borra la
-      historia; las PENDIENTES se mueven libremente (que es la intención real). Si prefieres seguir pudiendo mover también
-      completadas, entonces sí un **aviso solo cuando la selección MEZCLA días e incluye completadas**: "Vas a mover N
-      tareas de X días a [fecha]; Y están completadas y perderán la fecha de cuándo se hicieron. ¿Seguir?". Un aviso que
-      salte siempre sería ruido (reprogramar pendientes a un día es lo normal). **Fase: FASE 6 (diseño). No tocado.**
+      historia; las PENDIENTES se mueven libremente (que es la intención real).
+    - ✅ **IMPLEMENTADO (item 2, sesión 19, decisión de la usuaria):** guard en `bulkUpdateTasks` vía helper puro
+      `bulkUpdatesForTask(updates, task)` (useBulkActions.ts): si la tarea está COMPLETADA y el update trae `dueDate`, se
+      elimina `dueDate` del update (los demás campos sí se aplican). Aplicado en estado y en persistencia. +5 tests. Las
+      pendientes se mueven libres. **Escape hatch (respuesta a "¿algún caso donde querría mover una completada?"):** mover
+      UNA completada suelta desde su FILA (el move-picker → `handleUpdateTask`) **NO pasa por este guard** → sigue siendo
+      posible a propósito; solo se bloquea el aplastamiento MASIVO. Si algún día quieres mover completadas en lote, habría
+      que quitar el guard o añadir el aviso alternativo.
   - **MAPA — contenedor muestra hijas completadas "de otros días" (sesión 19, SOLO diagnóstico, NO tocado). TÚ DECIDES
     la política.**
     - **Dónde (la capa exacta):** `TaskCard.tsx:851` y `:860`. La lista de hijas que se pinta es
