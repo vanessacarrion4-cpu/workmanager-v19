@@ -2966,9 +2966,9 @@ Priorizado por lo que **duele a diario**, no por lo fácil de arreglar. "V" = ve
 heredado del §16, confianza media (no re-verificado hoy). Lo pendiente de TU validación en pantalla va marcado.
 
 **TIER A — te muerde a diario / cada vez que usas la función:**
-1. **Reorden de subtareas en contenedores RECURRENTES no persistía a la recarga** (#21). Afecta **22 de 24** recurrentes,
-   incluidos "Verduras vivas" (51 subtareas) y "Pago nóminas" (26). **ARREGLADO esta sesión (`36eea43`), PENDIENTE tu
-   validación en pantalla.** Hasta que valides, trátalo como resuelto.
+1. **Reorden de subtareas en contenedores RECURRENTES no persistía a la recarga** (#21). Afecta **22 de 24** recurrentes.
+   **ARREGLADO (`36eea43`) y ✅ VALIDADO EN PANTALLA (sesión 19): el reorden aguanta la recarga.** *(Salvedad nueva: en
+   "Rutinas mañana" el reorden a veces no agarra — es OTRO problema, mapeado en §16.25.)*
 2. **En BLOQUES, un contenedor pinta sus hijas completadas de TODOS los días** (render "otros días"). Ruido visual diario
    en **65 contenedores** con completadas. En **Mi Día NO pasa** (es día-scoped). Sin arreglar — es tu decisión de
    producto (quieres verlo en pantalla). *(V: la causa es `TaskCard:851/860`, `subtasksForGroup=null` en Bloques.)*
@@ -3009,13 +3009,14 @@ heredado del §16, confianza media (no re-verificado hoy). Lo pendiente de TU va
      `handleRestoreBlock`, filtro de carga, y tests. No cambio código antes (escribir a columnas inexistentes fallaría mudo).
 
 **TIER B — molesto cuando tocas esa función:**
-4. **Mover en LOTE aplasta las fechas** de todo lo seleccionado (colapsa el día de completadas de días distintos).
-   **Guard añadido esta sesión (`a5ed17e`), PENDIENTE tu validación.** Antes de validar, evita mover en lote mezclando días.
+4. **Mover en LOTE aplasta las fechas** de todo lo seleccionado. **Guard añadido (`a5ed17e`) y ✅ VALIDADO EN PANTALLA
+   (sesión 19):** seleccionando un contenedor con completadas y sin completar, las **completadas se quedan** (no se
+   re-fechan); las pendientes se mueven.
 5. **Poner pauta de recurrencia desde la FILA no funciona** (FASE 5): hay que abrir el modal. Fricción al crear recurrentes.
 6. **Recurrentes desde otras vistas** (H, §11.1e/f/g): Semana no mueve recurrentes · Bloques no completa recurrentes ·
    Calendario sin icono de completar. Interacción incompleta según la vista.
-7. **Clic en contenedor MIXTO** (manual + recurrente): el conteo del tapón y la selección real ya coinciden
-   (`e481508`) y el toggle marca también las manuales (`fa6cc69`). **PENDIENTE tu validación** (era justo el caso no probado).
+7. **Clic en contenedor MIXTO** (manual + recurrente): el conteo del tapón y la selección real coinciden (`e481508`) y el
+   toggle marca también las manuales (`fa6cc69`). **✅ VALIDADO EN PANTALLA (sesión 19): el clic marca las dos clases** (b1 OK).
 
 **TIER C — cosmético / raro / sin pérdida de trabajo:**
 8. **due_date colapsado** en 22 contenedores/116 filas: histórico, DECIDIDO no tocar (la historia real vive en
