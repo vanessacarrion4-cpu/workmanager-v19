@@ -2329,7 +2329,16 @@ de contenedor.
 - **Con día (Mi Día, Semana, Calendario):** un contenedor **aparece solo si tiene ≥1 hija de ESE día**, y está **completo cuando todas sus hijas de ese día lo están**. **Manda el día siempre**, incluidos los contenedores que mezclan hijas recurrentes y sueltas. (Es lo que ya calcula `isContainerCompleteOnDay` + `belongsToDay`; falta terminar de cablearlo en b3/c y en Semana/Calendario si algún día muestran visto de contenedor.)
 - **Sin día (Bloques):** no hay día → está **completo cuando no le queda ninguna hija pendiente**, sin mirar fechas (`isTaskCompleted` sobre todas las hijas). Nunca se lee el `status` guardado del contenedor.
 
-**BLOQUES = LISTA DE DEFINICIÓN, una línea por regla:** en Bloques se muestra **solo la plantilla** (una fila por regla), NO sus ocurrencias. Las ocurrencias se consultan por el **icono de información** de la fila, que ya las muestra bien (estimado vs real por ocurrencia). *(Confirmar en implementación que no se cuela ninguna instancia en la lista de Bloques.)*
+**BLOQUES — REGLA CANÓNICA (fijada por la usuaria, sesión 19, 2026-08-15):**
+- **Contenedores normales:** se ven las subtareas **PENDIENTES**; las **completadas ocultas** pero **accesibles a petición**
+  (por contenedor, no global).
+- **Contenedores recurrentes:** se ve la **plantilla/regla** y las **instancias modificadas que sigan PENDIENTES**. Las
+  **ocurrencias completadas históricas NO** (se consultan por el icono de información).
+
+> ~~**BLOQUES = LISTA DE DEFINICIÓN, una línea por regla:** solo la plantilla, NO sus ocurrencias; las ocurrencias por el
+> icono de información.~~ **SUPERADA (2026-08-15).** Esta versión decía "ninguna ocurrencia inline"; la regla canónica de
+> arriba SÍ muestra las instancias modificadas que sigan pendientes. Implementada en `getVisibleSubtasksForBloques`
+> (§16.26). *(El nivel superior sigue siendo una fila por contenedor/regla; el cambio es solo qué HIJAS se pintan al abrirlo.)*
 
 **PENDIENTES sueltos (asignar a su fase):**
 - **Checkbox que falta en las filas completadas** — revisar por qué una fila completada no muestra su casilla en algún caso. *(FASE 6 diseño / o bug de fila.)*
