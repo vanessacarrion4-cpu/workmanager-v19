@@ -2863,11 +2863,19 @@ handler lógico, no por llamada):
   #1/#3 EXIGE extraer lógica inline del hook a helper puro (patrón b1/b2/item6) = **tocar el camino real** → APARCADO por
   regla del día (no autónomo). Cuando quieras, es un rato: son extracciones mecánicas + su test.
 - **TIER 1 — alto (estado derivado / contenedor / recurrencia / borrado silencioso):**
-  1. **APARCADO (exige extracción, ALTO riesgo) — item 4, decisión de no tocar autónomo.** `handleUpdateTask` — rama
-     **excepción-move** (`inst-inst-`) y **detach recurrente** (parent→null). Origen histórico del leak `inst-inst-`. Un
-     `applyExceptionMove(map, updatedTask)` puro lo testearía, pero reescribe la secuencia de escritura más delicada de la
-     app → riesgo de reintroducir el leak, no validable en navegador. Core puro (`templateIdFromInstanceId`) ya testeado;
-     arrastre de contenedor (b2) también. **Hacer CON la usuaria delante** (o con diff de BD antes/después de un move).
+  1. **PENDIENTE (exige extracción, ALTO riesgo) — item 4, aparcado por acuerdo con la usuaria (no tocar sin validación en
+     pantalla).** `handleUpdateTask` — rama **excepción-move** (`inst-inst-`, `useTaskCRUD:~478-535` + async `~665-720`) y
+     **detach recurrente** (parent→null, `~536-572`). Es el **origen histórico del leak `inst-inst-`**.
+       - **PLAN:** extraer un reducer PURO `applyExceptionMove(prevMap, updatedTask) → nuevoMap` (o, más acotado,
+         `planExceptionMove(...) → { oldParentId, newParentId, newSubtaskId, borra[], upserts[] }`) que capture: quitar la
+         hija del padre viejo, crear/mergear la instancia del padre en el día nuevo, construir la fila-excepción de la hija,
+         y detach recurrente (`parent_task_id: null`). El hook solo APLICA el resultado. Testear: (a) NUNCA produce
+         `inst-inst-` (base normalizada con `templateIdFromInstanceId`); (b) no duplica padre si ya existe en el día nuevo;
+         (c) detach deja `parentTaskId:null` (re-anida materializeDay).
+       - **RIESGO: ALTO.** Reescribe la secuencia de escritura más delicada de la app; regresión = reaparece el leak, y NO
+         es validable en navegador con un test unitario solo. Core puro (`templateIdFromInstanceId`) YA testeado; el
+         arrastre de contenedor (b2) también. **Hacer CON la usuaria: mover una instancia recurrente en pantalla + diff de
+         BD antes/después** (confirmar 0 filas `inst-inst-` nuevas) antes de dar por bueno. No autónomo.
   2. ✅ **HECHO (`item 6`).** `bulkUpdateTasks` — selección extraída a `bulkEffectiveIds` (puro), arreglado el bug de la
      hija manual perdida (mismo `templateId` que b1) y 5 tests. Sin regresión en el caso recurrente.
   3. ✅/◐ **PARCIAL (`item 4`).** `handleDeleteTask` — el CONJUNTO a borrar (recursivo + fan-out de plantilla) extraído a
