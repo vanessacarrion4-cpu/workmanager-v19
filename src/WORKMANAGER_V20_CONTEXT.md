@@ -2879,14 +2879,28 @@ handler lógico, no por llamada):
      columna inexistente (confirmado: 400 PGRST204) → fallo mudo, pero **redundante**: el orden ya persiste por el `order`
      de cada hija y `reconstructHierarchy` lo re-ordena en carga. Se eliminó la escritura muerta. **Impacto real que tenía
      #18: NINGUNO visible** — reordenar subtareas de un contenedor MANUAL siempre funcionó y persistió.
-     · **GAP ADYACENTE — APARCADO EN FASE 4 (persistencia). Bug #21 (nuevo):** reordenar subtareas de un contenedor
-     **RECURRENTE** no sobrevive a recarga — `reconstructInstanceHierarchy` (useSupabase:61) NO ordena por `order` (a
-     diferencia del path manual `reconstructHierarchy`). **Exposición medida (item 3, sesión 19):** de 99 contenedores
-     vivos, **24 son recurrentes y 22 tienen ≥2 subtareas** (reordenables → afectados). Algunos grandes: "Pago nóminas" (26
-     hijas), "Verduras vivas" (51), "Cierre Central Rec" (16), "Cobros Finca" (10), "Previsional" (9). En manuales el
-     reorden SÍ persiste (67 de 75 tienen ≥2). **Arreglo:** ordenar por `order` en `reconstructInstanceHierarchy`
-     (+ posiblemente en `reconstructExceptionContainerSubtasks`); es cambio de la reconstrucción en carga que afecta a
-     TODOS los recurrentes → validación en pantalla de la usuaria. No autónomo.
+     · **GAP ADYACENTE — Bug #21 (nuevo). PRIORIDAD SUBIDA (usuaria): molestia diaria en Verduras/nóminas. MAPA del
+     arreglo abajo; NO arreglado, a validar con calma.** Reordenar subtareas de un contenedor **RECURRENTE** no sobrevive a
+     recarga.
+       - **Exposición (item 3):** de 99 contenedores vivos, **24 recurrentes, 22 con ≥2 subtareas** (afectados). Grandes:
+         "Pago nóminas" (26), "Verduras vivas" (51), "Cierre Central Rec" (16), "Cobros Finca" (10), "Previsional" (9). En
+         manuales el reorden SÍ persiste (67 de 75 con ≥2).
+       - **Causa exacta (item 3):** al reordenar, `handleUpdateSubtasksOrder` persiste el `order` de cada hija; para hijas
+         `inst-` lo escribe en su **plantilla-hija** (`useTaskOrdering:112`, `dbId = sub.templateId`). En carga hay dos
+         reconstrucciones: `reconstructExceptionContainerSubtasks` (useSupabase:94) sigue el orden de
+         `parentTemplate.subtasks` (que `reconstructHierarchy` YA ordena por `order` de las reglas) → **ese path conserva
+         el orden**; pero `reconstructInstanceHierarchy` (useSupabase:61) hace `push` en orden de iteración (línea ~82) sin
+         ordenar → **ese path pierde el orden**. Es el único roto.
+       - **QUÉ TOCAR:** solo `reconstructInstanceHierarchy` (useSupabase:61-86): tras poblar `parentInstance.subtasks`,
+         ordenarlo por el `order` de la **plantilla** de cada hija (no por el `order` de la instancia, que suele venir 0/sin
+         set — ESA es la trampa), o construirlo siguiendo el orden de `parentTemplate.subtasks` como hace el path de
+         excepción. ~5-10 líneas, un punto.
+       - **RIESGO: medio.** Es SOLO lectura/reconstrucción en carga → **0 escrituras a BD, reversible revirtiendo el
+         código**. Riesgos reales: (a) usar la clave de orden equivocada (instancia vs plantilla) → no-op o desorden; (b)
+         cambia el orden de carga de TODOS los recurrentes (24) → validar en pantalla reordenando Verduras/nóminas y
+         recargando; (c) que los dos passes de reconstrucción no se pisen. **Filas escritas por el arreglo: 0.**
+       - **TEST:** `reconstructInstanceHierarchy` no está exportada; exportarla (cambio mínimo) permite un test de carga del
+         camino real. No autónomo — es reconstrucción en carga y quieres validarlo con calma.
 - **TIER 2 — medio:**
   5. `bulkDeleteTasks` (materializa excepción-borrada de vírgenes, `useBulkActions:184`) y `bulkDuplicateTasks`
      (duplicar FK-safe, `:259`; ahí vivió el bug #20). Sin test.
