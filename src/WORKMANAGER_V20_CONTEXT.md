@@ -3100,8 +3100,22 @@ borradas** (de las que 295 son prunables = puro lastre). No hay ventana por fech
 4. **~28% de lastre cargado** (769 borradas), creciendo.
 
 **Levers (NO ejecutados — para cuando decidas; varios exigen tu criterio):**
-- **Podar/archivar `inst-` completadas antiguas** (> N meses) SIN perder el rastro de completado (regla ya anotada: nunca
-  dejar de escribir el completado). Es el lever de mayor impacto en volumen. Riesgo: medio (tocar histórico) → con la usuaria.
+- **Podar/archivar `inst-` completadas antiguas — PLAN ESCRITO (item 4, sesión 19; NO ejecutar sin la usuaria).** Es el
+  lever de mayor impacto (las `inst-` son el 62% y crecen ~700/mes). Principio innegociable: **nunca perder el rastro de
+  completado** → archivar antes de borrar, jamás hard-delete a secas.
+  - **Fecha de corte que propongo: `completed_at` anterior a HOY − 6 meses.** Deja medio año de histórico vivo (para el
+    calendario y los informes) y se lleva la cola larga. *(Nota: la app tiene ~5 meses de datos (desde abr-2026), así que
+    HOY el corte de 6 meses no poda casi nada — es correcto: aún no hay cola. El plan es para cuando la haya.)*
+  - **Cuándo ejecutarlo:** cuando el censo (§16.22) pase de **~5.000 filas vivas**, o revisión trimestral (ver nota de
+    vigilancia). Hoy: 2537 filas → no toca aún.
+  - **Método (preserva historia, reversible hasta el borrado):** (1) seleccionar `inst-` con `status='completed'` y
+    `completed_at < corte`; (2) **COPIAR esas filas a un archivo** (tabla `tasks_archive` o export JSON a Storage) —
+    verificado que la copia existe; (3) re-verificar por fila: NO es marcador de borrado activo, NO está referenciada como
+    `parent_task_id` por una fila viva (mismo chequeo FK del item 3), NO es pendiente; (4) hard-delete de `tasks` en lotes.
+  - **Qué NO tocar:** `inst-` PENDIENTES (trabajo futuro), marcadores de borrado (`is_deleted`+`is_exception`), y las
+    referenciadas por filas vivas. Reduce carga (menos filas `is_exception` que traer) y reconstrucción.
+  - **Riesgo: medio** (irreversible tras el borrado; toca histórico). Mitigación: el archivo + validar una muestra en
+    pantalla antes de borrar. **Con la usuaria.**
 - ~~**Hard-delete de las 295 prunables**~~ ◐ **HECHO EN PARTE (item 3, sesión 19): 266 borradas de 295.** Verificado antes:
   0 son marcadores (marcador = `is_exception && template_id`). **PERO 29 estaban referenciadas como `parent_task_id` por
   otras filas** (`parent_task_id` tiene FK) → borrarlas habría dado 23503 / orfanado hijas → **APARCADAS.** Hard-deleted
