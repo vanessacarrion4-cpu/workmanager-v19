@@ -2988,3 +2988,38 @@ heredado del §16, confianza media (no re-verificado hoy). Lo pendiente de TU va
 **Lo que NO está roto (para tranquilidad):** el motor de instancias (materializeDay/reconcileDay), el completado por día
 (toggle C1), mover un contenedor MANUAL con sus hijas (b2), las acciones masivas sobre contenedores (b1/item6), el leak
 `inst-inst-` (contenido: **1 fila** en toda la BD). 141 tests verdes.
+
+### 16.20 FASE 4 — CERRADA (sesión 19, item 2). Resumen y punto de retomada.
+
+FASE 4 (persistencia y limpieza legada) queda **CERRADA**. Todo lo ejecutado fue REVERSIBLE (unmark o `is_deleted:true`,
+nunca hard-delete). Detalle largo arriba (§16.17); esto es el cierre de un vistazo.
+
+**EJECUTADO (datos, reversible):**
+- **G1** — 6 plantillas rotas reales → `is_template=false` (reaparecen como tarea normal) + phantom "Gestión campaña"
+  soft-deleted. *(Hallazgo: eran series recurrentes RETIRADAS con 63 instancias completadas → G3 subió 64→86, inofensivo.)*
+- **G3** — 41 completadas (leak `template_id→no-plantilla`) soft-deleted + 15 huérfanas pendientes (basura de test) + G4
+  + las 5 "inst→tarea-normal" (verificadas sin trabajo real) soft-deleted. Total ~62 filas soft-deleted, todas reversibles.
+- **G4** — instancia suelta `inst-t-1785433862534-2026-08-24` soft-deleted (su tarea real vive en due 08-31).
+
+**DECIDIDO NO HACER (con razón):**
+- **G2 (Soriano)** `t-1778161643849` + `t-1778576136973`: **las dos se quedan, no son duplicados.** Lección: "mismo
+  título + mismo bloque" NO basta como criterio de duplicado (hay homónimas legítimas). El detector de dups da falsos
+  positivos por eso.
+- **Descolapsar el due_date** (22 contenedores/116 filas): NO. La historia real vive en `completed_at` (75/76 recuperables);
+  el `due_date` planificado de algo hecho no aporta. Re-fechar = riesgo sin premio. Única irrecuperable anotada:
+  `t-1777366769600`.
+
+**APARCADO CON FASE:**
+- **Bug #21** (reorden recurrentes no persistía) → estaba en FASE 4; **ARREGLADO esta sesión** (`36eea43`), pendiente
+  validación en pantalla.
+- **Guard "mover a fecha"** (no aplastar completadas) → IMPLEMENTADO (`a5ed17e`), pendiente validación.
+- **Borrar bloque no persiste** (§16.19 punto 3) → FASE 4 (persistencia), sin arreglar (escritura nueva, con la usuaria).
+- **Adjuntos** (persistencia, sin re-verificar) → FASE 4.
+
+**PUNTO DE RETOMADA LIMPIO (por dónde seguir):**
+1. **Validar en pantalla** (bloqueante para cerrar del todo lo de esta sesión): #21 (reordenar Verduras vivas → recargar),
+   guard de mover en lote, clic en contenedor mixto, render "otros días".
+2. **Decidir producto:** render "otros días" (§16.17, 3 opciones) · aviso vs guard en mover-lote (ya guard).
+3. **Siguiente arreglo de persistencia (con la usuaria):** borrar bloque (no persiste) + verificar adjuntos.
+4. **FASE 5 / FASE 6:** tablas de decisión en §16.21 (abajo) — ordenar por valor.
+5. **#1 (exception-move / leak):** solo con la usuaria (plan en §16.18).
