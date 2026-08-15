@@ -2691,18 +2691,27 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
     (Las 63 nuevas G3-completadas que aparecieron por el unmark NO se tocaron; son la historia de las series retiradas —
     todas completadas, 0 pendientes. Si molestan en conteos, soft-delete reversible con el mismo criterio; lo dejo a tu
     decisión por ser historial.)
-  - **APARCADO (G3 · 23 pendientes) — decisión de la usuaria:** son `template_id→no-plantilla` pero PENDIENTES; la regla
-    es no borrar pendiente-trabajo-real a ciegas. Muchas son basura de test antigua ("tarea repe sola", "fdad", "preuba
-    de recurrente", "B Bancos/Ingressos/Margenes", "Sub T3" — abril/mayo, plantilla inexistente), PERO otras parecen
-    trabajo real ("Hacer Renta Montse Barber" `inst-t-1780559218671-2026-06-22`, "Hacer Renta Rosa Cambronero"
-    `inst-t-1780559279008-ekfud7gx1-2026-06-22`, "comentar Blai PPV", "Publicar a coordinadores", "Linia de vida pendent
-    pressupo", "Recibir pagos Bego"). **Decide cuáles son basura y cuáles conservar/re-anclar.** Script listo:
-    `scratchpad/fase4-exec.mjs` (imprime la lista) — el borrado de pendientes NO está automatizado a propósito.
-  - **APARCADO (G4) — decisión de la usuaria:** `inst-t-1785433862534-2026-08-24` ("Ënviar documentos firmados a
-    auditores", **pending**, due 08-24). Su tarea real `t-1785433862534` está viva y ahora en **due 08-31** (no 08-24).
-    Como la suelta está PENDIENTE y con fecha distinta a la real, no la toco: **decide** si esa ocurrencia del 24-ago es
-    trabajo que quieres o un duplicado a soft-delete.
-  - **NO TOCADO (G2 · Soriano):** por orden expresa. `t-1778161643849` y `t-1778576136973` siguen ambas vivas.
+  - **HECHO (G3 · 23 pendientes → 16 soft-deleted) — decisión de la usuaria (2026-08-15 tarde).** Clasificadas por si
+    tocaban una REGLA viva (ninguna: las 23 tenían `reglaViva=false`, así que borrar la fila nunca toca una serie):
+    · **17 "huérfanas" (plantilla ausente)** = filas sueltas sin regla detrás, casi todas basura de test ("tarea repe
+    sola", "fdad", "preuba de recurrente", "B Bancos/Ingressos/Margenes", "Sub T3", "Recibir pagos Bego") → **soft-delete
+    directo** (reversible). De estas, **1 saltada** por seguridad: `inst-t-1778012355951-2026-05-05` ("Prueba recurrente…")
+    tiene 1 hija viva → no la borro para no orfanarla (queda aparcada). Y otra ya estaba ausente. **Netas: 15 huérfanas.**
+    · **G4** `inst-t-1785433862534-2026-08-24` → **soft-delete** (item 2 aprobado). **Total soft-deleted hoy: 16.**
+  - **APARCADO (5 "inst→tarea-normal") — esperan tu decisión:** son ocurrencias (`inst-…`) cuya **tarea-plantilla EXISTE**
+    (no es regla, es tarea normal; leak). Por tu criterio "borrar una ocurrencia ≠ tocar su regla / dime cuáles son
+    ocurrencias antes de ejecutar", NO las toco: `inst-inst-inst-t-1781192525690-…-2026-07-10` ("comentar Blai PPV") ·
+    `inst-inst-t-1778694774705-2026-07-10-2026-07-13` ("Publicar a coordinadores") ·
+    `inst-inst-t-1780486425092-2026-06-15-2026-07-13` ("Linia de vida pendent pressupo") ·
+    `inst-t-1780559218671-2026-06-22` ("Hacer Renta Montse Barber") ·
+    `inst-t-1780559279008-ekfud7gx1-2026-06-22` ("Hacer Renta Rosa Cambronero"). Script: `scratchpad/fase4-item1-2.mjs`.
+  - **CERRADO (G2 · Soriano) — decisión de la usuaria: las dos se quedan.** `t-1778161643849` y `t-1778576136973` NO son
+    duplicados: cada una tiene su información. **LECCIÓN de criterio:** "mismo título + mismo bloque" **no basta** para
+    detectar duplicados — la usuaria tiene tareas legítimas que se llaman igual. El detector de dups (G2, `fase4-plan.mjs`
+    grupo 2a/2b) da falsos positivos por eso; cualquier futura búsqueda de duplicados necesita más señal (hijas, tiempo,
+    notas), no solo título+bloque. G2 no se vuelve a mirar salvo que la usuaria lo pida.
+  - **Estado FASE 4:** cerrada salvo lo que la usuaria dejó explícito → 5 "inst→tarea-normal" aparcadas + la huérfana con
+    hija viva. G1/G3-completadas/G3-pendientes-huérfanas/G4 hechas; G2 cerrada por decisión.
   - *(Plan medido original abajo, intacto, como referencia.)*
 - **FASE 4 (persistencia y limpieza legada) — PLAN MEDIDO sesión 18, RE-CONFIRMADO al cierre (SOLO LECTURA, nada
   ejecutado; para aprobar de un vistazo). Números re-medidos hoy: IDÉNTICOS — G1=7 rotas (mismos ids), G2=1 grupo real
@@ -2770,10 +2779,22 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
       TODOS los días**. Con el interruptor apagado, cada hija completada de cualquier día se pinta tachada. **Esta es la
       causa de "hijas completadas de otros días".** El contador (badge, `TaskCard:540-541`) cuenta pendientes de esa misma
       lista → en Bloques cuenta pendientes de todos los días.
-    - **"Accidente Moussa" (`t-1783582412582`) en concreto:** contenedor MANUAL, `due=null`, **12 hijas, TODAS del
-      2026-08-14** (10 completadas, 2 pendientes → contador 2). O sea, en su caso NO son "otros días": son completadas del
-      MISMO día que se pintan porque el interruptor de completadas está apagado. El síntoma "otros días" literal aparece en
-      los contenedores multi-día (abajo) vistos en Bloques.
+    - **"Accidente Moussa" (`t-1783582412582`) — CORREGIDO (2026-08-15, mi diagnóstico de ayer estaba MAL).** Contenedor
+      MANUAL, `due=null`, 12 hijas. Ayer dije "todas del mismo día, no es otros días" mirando solo `due_date`. La usuaria
+      tenía razón: las hijas SÍ pertenecen a días distintos, pero el dato está **COLAPSADO** — las 12 tienen `due_date`
+      idéntico (`2026-08-14`) mientras que su `completed_at` va del **22-jul al 14-ago** y su `created` del **9-jul al
+      12-ago** (8 días de trabajo real distintos). Por eso "aparecen todas juntas": el render pinta cada hija en el día de
+      su `due_date` (correcto), pero **todos los `due_date` son el mismo** → se apilan. **No es (solo) render: es DATO.**
+    - **Patrón "due_date colapsado" (medido hoy):** **22 contenedores** tienen TODAS sus hijas con un `due_date` único pero
+      trabajadas en varios días → **116 filas-hija**. **12 de esos 22 están colapsados al `2026-08-10`** (un evento masivo
+      ese día — probablemente un re-fechado en bloque; a investigar por separado, no es este mapa). Ejemplos: "Accidente
+      Moussa" (12 hijas/1 due/8 días), "Tarjeta transporte camión" (11/1/3), "Adrian Cross despido" (11/1/3), "Testamento
+      Blas" (10/1/4). Este es un problema DISTINTO del multi-día de Bloques (41 contenedores, abajo): aquí el dato ya
+      perdió el día de cada hija; allí el dato tiene los días pero Bloques no los respeta.
+    - **La regla que quiere la usuaria:** "cada hija sale solo el día que le tocaba, completada o no". Alcanzarla NO es un
+      cambio de render simple: el `due_date` por-hija ya está machacado (22 contenedores/116 filas) → habría que (a)
+      recuperar el día real de cada hija (¿`completed_at`/`created`? decisión de la usuaria) y re-fechar, y ADEMÁS (b)
+      día-scopear Bloques (opción b de abajo). Es DATO + RENDER. **Solo mapa; no lo toco.**
     - **Tamaño (medido hoy):** 75 contenedores vivos · **65** tienen ≥1 hija completada (**244** hijas completadas en
       total) · **41** tienen hijas repartidas en **varios días** (el caso "otros días" real en Bloques). Mayores:
       "cierre eam" (16 hijas/2 días/16 comp), "Guillem Tell" (18/5/15), "Marcos Ibáñez" (9/2/9), "Aragon contrato" (9/6/8).
