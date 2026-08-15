@@ -2782,3 +2782,46 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
       Bloques también* → pasar un `subtasksForGroup` filtrado por día en Bloques (cambia la semántica de Bloques, hoy
       atemporal); (c) *dejarlo* (es correcto si "mostrar completadas" significa "todas"). **No lo toco: es tu decisión de
       producto, y afecta a 65 contenedores.**
+
+### 16.18 COBERTURA + AUDITORÍA DE CAMINOS DE ESCRITURA (sesión 19, bloques 4/6/7) — LISTA, sin arreglar
+
+**Contexto:** el patrón que nos ha mordido 4 veces = escribir estado DERIVADO / de contenedor / de excepción recurrente
+por un camino que **ningún test recorre de verdad**. Con el hook de selección ya extraído (`containerDayToggle`,
+`childrenToMoveWithContainer`) se puede testear el camino real; el resto sigue sin cubrir.
+
+**YA con test del camino real (esta sesión):** `containerDayToggle` (selección C1 de `handleToggleStatus`, incl. mixto),
+`childrenToMoveWithContainer` (arrastre de `handleUpdateTask`), `filterTasksForDay` (ensamblado del día),
+`reconcileDay`, `materializeDay`/`resolveChildForDay`, `isCompletedForDay`, `writesOwnStatusOnToggle`,
+`childrenToToggleOnDay`. Total suite: 117 verdes.
+
+**Caminos de escritura SIN test del camino real, priorizados por riesgo** (117 escrituras en 14 archivos; agrupadas por
+handler lógico, no por llamada):
+
+- **TIER 1 — alto (estado derivado / contenedor / recurrencia / borrado silencioso):**
+  1. `handleUpdateTask` — rama **excepción-move** (`inst-inst-`, `useTaskCRUD:468-528` y async `652-707`) y
+     **detach recurrente** (parent→null, `536-572`). Es el origen histórico del leak `inst-inst-`. El arrastre de
+     contenedor (b2) sí tiene test; estas dos ramas NO. *Testeable extrayendo la construcción de ids a helper puro.*
+  2. `bulkUpdateTasks` / `useBulkActions:54-113` — la selección `effectiveIds`. **Bug sospechado ya (auditoría b1):** una
+     hija MANUAL de un contenedor recurrente/plantilla seleccionado como instancia se pierde (mismo patrón `templateId`
+     que arreglamos en el toggle). *Extraer `effectiveIds` a helper puro lo testea y prepara el fix.*
+  3. `handleDeleteTask` (`useTaskCRUD:794`) borrado recursivo **+** el handler de "borrar → este día" de recurrentes
+     (`App.tsx:958-979`, escribe excepción `is_deleted`). Es la **supresión de contenedor** (§16.16). `materializeDay`
+     tapón B está testeado; el **camino de escritura** que crea la excepción, no.
+  4. `handleUpdateSubtasksOrder` (`useTaskOrdering:80`) — **rota conocida (bug #18):** escribe a `tasks.subtasks`, columna
+     inexistente → **falla en silencio**. Un test del camino real lo dejaría en rojo (documenta la rotura) sin tocar prod.
+- **TIER 2 — medio:**
+  5. `bulkDeleteTasks` (materializa excepción-borrada de vírgenes, `useBulkActions:184`) y `bulkDuplicateTasks`
+     (duplicar FK-safe, `:259`; ahí vivió el bug #20). Sin test.
+  6. `handlePromoteTask` / `handleDemoteTask` (`useTaskOrdering:167/225`) — cambian `parent_task_id` → cambian la
+     pertenencia a contenedor. Sin test.
+  7. `handleTimerStopConfirm` (`useTimerHandlers:165`) — al parar el timer con "marcar completa" **escribe status** (toca
+     el completado por otra puerta). Sin test.
+  8. `handleAddTask` (`useTaskCRUD:249`) y `handleAddRule` (`:890`) — creación. Sin test.
+- **TIER 3 — bajo:**
+  9. `useBlockHandlers` (alta/edición/reorder/activar/borrar de `work_blocks`; "borrar bloque no persiste" ya en FASE 4).
+  10. `handleUpdateTasksOrder` (reorder raíces), flags `is_expanded`, entradas de tiempo (`time_entries`), adjuntos
+      (storage). Mecánicos, bajo acoplamiento con el modelo.
+
+**Recomendación de orden (cuando toque, es trabajo de código real → no autónomo):** 1 → 2 → 3 → 4. Los cuatro comparten
+el mismo gesto: extraer la lógica pura de selección/construcción-de-ids a un helper y testear ESE helper por el camino que
+el hook llama de verdad (como se hizo con `containerDayToggle`). Del 2 y el 4 hay además fix pendiente (bug real).
