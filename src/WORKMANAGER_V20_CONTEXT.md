@@ -2966,22 +2966,41 @@ heredado del §16, confianza media (no re-verificado hoy). Lo pendiente de TU va
 2. **En BLOQUES, un contenedor pinta sus hijas completadas de TODOS los días** (render "otros días"). Ruido visual diario
    en **65 contenedores** con completadas. En **Mi Día NO pasa** (es día-scoped). Sin arreglar — es tu decisión de
    producto (quieres verlo en pantalla). *(V: la causa es `TaskCard:851/860`, `subtasksForGroup=null` en Bloques.)*
-3. **Borrar un bloque:** persiste desde el item 1 (`758359e`, hard cascade). **La usuaria pidió hacerlo REVERSIBLE**
-   (soft-delete) — es la única operación de la app que destruye sin vuelta atrás. **BLOQUEADO POR ESQUEMA (item 1b,
-   sesión 19):** requiere añadir la columna `is_deleted` a `work_blocks`, y eso es DDL (`ALTER TABLE`) que **NO se puede
-   ejecutar desde la API REST** (PostgREST no hace DDL; el repo no tiene carpeta de migraciones ni supabase CLI). Por eso
-   **NO cambié el código** (escribir `is_deleted` a una columna inexistente fallaría en silencio, como el bug #18).
-   - **SQL que tiene que correr la usuaria** (Supabase → SQL editor), es aditivo y de bajo riesgo:
+3. **Borrar un bloque — CONTRADICCIÓN RESUELTA (sesión 19, puntos 1-3). HOY es un DELETE FÍSICO irreversible con cascade.**
+   - **QUÉ HACE HOY `handleDeleteBlock` (useBlockHandlers.ts:118-141, línea a línea):** lee el bloque y cuenta sus tareas
+     (`tasksInBlock`); `confirm(...)`; `setBlocks(filter)` quita el bloque del ESTADO; `setTasks(delete)` quita sus tareas
+     del ESTADO; y **`supabase.from('work_blocks').delete().eq('id', id)` = DELETE FÍSICO de la fila en la BD.** Al
+     recargar: el bloque NO vuelve (borrado) y sus tareas TAMPOCO (cascade). **Persiste.**
+   - **Por qué la contradicción:** las DOS cosas fueron ciertas en momentos distintos. En el B1 (sesiones previas)
+     `handleDeleteBlock` SOLO tocaba estado (sin `supabase.…`) → no persistía → entró en "acciones mudas / borrar bloque
+     no persiste". **En el item 1 de ESTA sesión (`758359e`, publicado) le añadí el `.delete()`** → desde entonces es un
+     DELETE físico. La usuaria tenía razón sobre el B1 (era mudo); yo tengo razón sobre HOY (físico) — porque lo cambié en
+     medio. *(El comentario en el código dice "PERMANENTE"; es correcto HOY.)*
+   - **PUNTO 2 — `work_blocks → tasks` tiene ON DELETE CASCADE, y ENCADENA (verificado hoy):** probe temporal
+     bloque→contenedor→hija→nieta (3 tareas) → `DELETE work_blocks` → **0 tareas restantes.** Todas las tareas comparten
+     `block_id`, así que el cascade de `block_id` se las lleva todas; además `parent_task_id` es CASCADE y refuerza. O sea:
+     **borrar un bloque HOY borra físicamente el árbol entero de sus tareas, irreversible.** Es la única operación así.
+   - **PUNTO 3 — REDISEÑO reversible SIN el agujero de resurrección.** Requiere DDL (no ejecutable desde la API REST; el
+     repo no tiene migraciones). **El agujero:** al soft-deletear un bloque, si más tarde lo recuperamos, NO deben
+     resucitar las tareas que YA estaban borradas antes (marcadores, prunables, histórico). Solución: marcar **qué tareas
+     se borraron JUNTO CON el bloque**, y al recuperar restaurar SOLO esas. **SQL definitivo (ya no es una sola columna):**
      ```sql
      ALTER TABLE work_blocks ADD COLUMN is_deleted boolean NOT NULL DEFAULT false;
+     ALTER TABLE tasks       ADD COLUMN deleted_with_block text;   -- guarda el id del bloque con el que se borró
      ```
-   - **Código que aplicaré en cuanto la columna exista** (listo): (a) `handleDeleteBlock` → en vez de
-     `work_blocks.delete()`, `update({ is_deleted:true })` en el bloque **y** `update({ is_deleted:true })` en sus tareas
-     (soft, recuperable — ya no dependemos del cascade); (b) la carga de bloques (`useSupabase`, `from('work_blocks')`)
-     añade `.eq('is_deleted', false)` para no traer los borrados; (c) las tareas del bloque borrado ya no se cargan (el
-     filtro del item 2 + su `is_deleted:true`). Recuperar = poner `is_deleted:false` en el bloque y sus tareas.
-   - **Estado:** esperando que la usuaria corra el SQL; entonces se implementa y publica. (No es "arriesgado" el cambio en
-     sí — es aditivo — solo que no tengo forma de ejecutar DDL desde aquí.)
+     - **Borrar bloque (soft):** `UPDATE work_blocks SET is_deleted=true WHERE id=B;`
+       `UPDATE tasks SET is_deleted=true, deleted_at=now(), deleted_with_block=B WHERE block_id=B AND is_deleted=false;`
+       (SOLO las VIVAS → las ya borradas no se tocan). Soft-delete es UPDATE, **no dispara el cascade** → no hay pérdida física.
+     - **Recuperar bloque:** `UPDATE work_blocks SET is_deleted=false WHERE id=B;`
+       `UPDATE tasks SET is_deleted=false, deleted_with_block=null WHERE deleted_with_block=B;`
+       (restaura SOLO las que se borraron con el bloque; las viejas borradas siguen borradas → **agujero cerrado**).
+     - **Carga:** `from('work_blocks')` añade `.eq('is_deleted', false)`; las tareas del bloque borrado ya no se cargan
+       (filtro del item 2, porque quedan `is_deleted:true`).
+     - *(Alternativa sin columna nueva en `tasks`: añadir `work_blocks.deleted_at` y, al recuperar, restaurar las tareas
+       del bloque cuyo `deleted_at` == el del bloque. Reusa `tasks.deleted_at`. Menos explícito que `deleted_with_block`;
+       recomiendo la columna.)*
+   - **Estado:** esperando que corras el SQL (2 columnas). Entonces implemento y publico: `handleDeleteBlock` a soft, nuevo
+     `handleRestoreBlock`, filtro de carga, y tests. No cambio código antes (escribir a columnas inexistentes fallaría mudo).
 
 **TIER B — molesto cuando tocas esa función:**
 4. **Mover en LOTE aplasta las fechas** de todo lo seleccionado (colapsa el día de completadas de días distintos).
@@ -3184,10 +3203,9 @@ padre que no se pinta. Es decir: **no es una violación de integridad de la BD**
 abril/mayo (infancia), con un borrado que no bajaba a las hijas. **Hoy no se reproduce:** `handleDeleteTask` usa
 `collectDeletableTasks` (recursivo) y soft-deletea el contenedor + TODAS sus descendientes juntas (item 3, abajo).
 
-**Decisión pendiente (tuya):** son trabajo de prueba de la primera semana, en un bloque de test (`CM11l`). Opciones:
-(a) soft-deletear las 14 (limpio, reversible); (b) si `CM11l` es un bloque de test entero, borrarlo cuando el borrado de
-bloque sea reversible (item 1b); (c) re-anclar (poner `is_deleted:false` a los padres) si resulta que algo era real —
-improbable por los títulos. No toco nada hasta que decidas.
+**DECISIÓN (usuaria, sesión 19): NO se tocan. SE QUEDAN como CASO REAL para validar (c)** (reconciliación sin fuga /
+re-anclado por plantilla). Son el ejemplo vivo de "hija viva con padre soft-deleted" — perfectas para comprobar que (c)
+las re-ancla o las trata bien. No soft-deletear, no borrar, no re-anclar a mano. Congeladas a propósito.
 
 ### 16.24 ¿Borrar un contenedor arrastra sus hijas? (item 3, sesión 19) — comprobado sin tocar nada
 
@@ -3208,3 +3226,12 @@ improbable por los títulos. No toco nada hasta que decidas.
 
 **Resumen para tu tranquilidad:** borrar un contenedor en la app = soft, recuperable, sin sueltas. El único borrado
 irreversible hoy es el de BLOQUE (item 1b lo hará reversible en cuanto exista `work_blocks.is_deleted`).
+
+> **DOS VERDADES DISTINTAS sobre `parent_task_id` (punto 5, sesión 19 — NO se sustituyen, conviven):**
+> - **ESCRIBIR** un `parent_task_id` que apunta a una fila INEXISTENTE (INSERT/UPDATE) → **error `23503`** ("violates
+>   foreign key constraint"), que en varios caminos petaba en silencio. Es el landmine de bug #20 (§13.16-13.17); sigue
+>   VIGENTE para escrituras (materializar-primero lo evita en los caminos arreglados).
+> - **BORRAR** físicamente una fila REFERENCIADA como padre (DELETE) → **ON DELETE CASCADE**: arrastra a las hijas. Es lo
+>   verificado en el item 3.
+> No es que una corrija a la otra: **23503 es al escribir un FK malo; CASCADE es al borrar el padre.** Operaciones
+> distintas, ambas ciertas.
