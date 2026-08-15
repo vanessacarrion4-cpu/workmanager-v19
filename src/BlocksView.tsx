@@ -16,8 +16,11 @@ import {
   GripVertical,
   Play,
   Pause,
-  Grid2X2
+  Grid2X2,
+  Trash2,
+  RotateCcw
 } from 'lucide-react';
+import { supabase } from './supabaseClient'; // papelera de bloques: fetch on-demand de los soft-borrados
 import { motion } from 'framer-motion';
 import { Reorder } from 'framer-motion';
 import { WorkBlock, Task } from './types';
@@ -52,6 +55,7 @@ interface BlocksViewProps {
   onOpenTimePanel?: (taskId: string, subtaskId: string | null) => void;
   onEditRule?: (taskId: string) => void;
   onAddBlock: () => void;
+  onRestoreBlock?: (id: string) => void | Promise<void>;
   onEditBlock: (blockId: string) => void;
   onReorderBlocks: (blocks: WorkBlock[]) => void;
   onToggleBlock: (blockId: string) => void;
@@ -88,7 +92,7 @@ export function BlocksManagerView({
   blocks, tasks, allTasksMap, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null,
   timeEntries, activeTimer, onStartTimer, onStopTimer, onAddTask, onAddRule, onToggleTask, onDelete,
   onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel,
-  onEditRule, onAddBlock, onEditBlock, onReorderBlocks, onToggleBlock, activeDate,
+  onEditRule, onAddBlock, onRestoreBlock = null, onEditBlock, onReorderBlocks, onToggleBlock, activeDate,
   onReorderSubtasks, onReorderTasks, onToggleExpand, onExpandAll, onViewInstances, onPromote, onDemote,
   highlightTaskId, onClearHighlight,
   onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(),
@@ -120,6 +124,17 @@ export function BlocksManagerView({
 
   const [selectedBlock, setSelectedBlock] = useState<WorkBlock | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  // Papelera de bloques (sesión 19): los soft-borrados no se cargan → se fetchean a demanda para recuperarlos.
+  const [trashBlocks, setTrashBlocks] = useState<WorkBlock[] | null>(null); // null = cerrada; array = abierta
+  const fetchTrash = async () => {
+    const { data } = await supabase.from('work_blocks').select('*').eq('is_deleted', true).order('order', { ascending: true });
+    setTrashBlocks((data || []).map((b: any) => ({
+      id: b.id, name: b.name, color: b.color, pastelColor: b.pastel_color,
+      icon: b.icon, order: b.order || 0, isActive: b.is_active !== false, isDeleted: true,
+    })));
+  };
+  const toggleTrash = () => { if (trashBlocks === null) fetchTrash(); else setTrashBlocks(null); };
+  const restoreFromTrash = async (id: string) => { if (onRestoreBlock) await onRestoreBlock(id); await fetchTrash(); };
   // Bloques es una vista de planificación, no un registro histórico: por defecto ocultamos
   // completadas (evita arrastrar el histórico legado). El interruptor se persiste en localStorage.
   const [hideCompleted, setHideCompleted] = useState<boolean>(() => {
@@ -470,8 +485,50 @@ export function BlocksManagerView({
           >
             <Plus size={18} /> Nuevo Contexto
           </button>
+          {/* Papelera de bloques (sesión 19): recuperar bloques borrados */}
+          <button
+            onClick={toggleTrash}
+            title="Papelera de bloques (recuperar borrados)"
+            className={`px-4 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest border transition-all flex items-center gap-2 ${
+              trashBlocks !== null
+                ? 'bg-azul text-white border-azul'
+                : 'dark:bg-bg-card bg-white dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:text-turquesa'
+            }`}
+          >
+            <Trash2 size={16} /> <span className="hidden sm:inline">Papelera</span>
+          </button>
         </div>
       </div>
+
+      {/* Panel de papelera de bloques */}
+      {trashBlocks !== null && (
+        <div className="mb-4 dark:bg-bg-card/60 bg-white p-4 rounded-2xl border dark:border-border-main border-border-main-light">
+          <div className="flex items-center gap-2 mb-3">
+            <Trash2 size={14} className="text-text-secondary-light" />
+            <span className="text-[11px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">
+              Bloques borrados ({trashBlocks.length})
+            </span>
+          </div>
+          {trashBlocks.length === 0 ? (
+            <p className="text-xs dark:text-text-secondary text-text-secondary-light">No hay bloques en la papelera.</p>
+          ) : (
+            <div className="space-y-2">
+              {trashBlocks.map(b => (
+                <div key={b.id} className="flex items-center gap-3 p-2 rounded-xl dark:bg-bg-main bg-bg-secondary-light">
+                  <span className="w-1.5 h-6 rounded-full shrink-0" style={{ backgroundColor: b.color }} />
+                  <span className="text-sm font-bold dark:text-white text-text-main-light flex-1 truncate">{b.icon} {b.name}</span>
+                  <button
+                    onClick={() => restoreFromTrash(b.id)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-turquesa/10 text-turquesa hover:bg-turquesa hover:text-white text-[10px] font-black uppercase tracking-wide transition-all"
+                  >
+                    <RotateCcw size={12} /> Recuperar
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center gap-4 dark:bg-bg-card/50 bg-gray-200 p-2 rounded-2xl border dark:border-border-main border-border-main-light w-fit">
         {(['all', 'active', 'inactive'] as const).map(f => (

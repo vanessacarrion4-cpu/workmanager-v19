@@ -219,7 +219,7 @@ export default function App() {
 
   const {
     handleAddBlock, handleUpdateBlock, handleReorderBlocks,
-    handleToggleBlockActive, handleDeleteBlock,
+    handleToggleBlockActive, handleDeleteBlock, handleRestoreBlock,
   } = useBlockHandlers({ blocks, setBlocks, tasks, setTasks, setEditingBlockId });
 
   const timerHandlers = useTimerHandlers({
@@ -555,6 +555,7 @@ export default function App() {
                 onStartTimer={timerHandlers.handleStartTimer}
                 onStopTimer={timerHandlers.handleStopTimer}
                 onAddBlock={handleAddBlock}
+                onRestoreBlock={handleRestoreBlock}
                 onDelete={handleDeleteTaskRequest}
                 onAddTask={handleAddTask}
                 onAddRule={handleAddRule}
