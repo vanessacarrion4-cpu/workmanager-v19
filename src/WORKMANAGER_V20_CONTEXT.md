@@ -2905,9 +2905,12 @@ handler lógico, no por llamada):
      columna inexistente (confirmado: 400 PGRST204) → fallo mudo, pero **redundante**: el orden ya persiste por el `order`
      de cada hija y `reconstructHierarchy` lo re-ordena en carga. Se eliminó la escritura muerta. **Impacto real que tenía
      #18: NINGUNO visible** — reordenar subtareas de un contenedor MANUAL siempre funcionó y persistió.
-     · **GAP ADYACENTE — Bug #21 (nuevo). PRIORIDAD SUBIDA (usuaria): molestia diaria en Verduras/nóminas. MAPA del
-     arreglo abajo; NO arreglado, a validar con calma.** Reordenar subtareas de un contenedor **RECURRENTE** no sobrevive a
-     recarga.
+     · **GAP ADYACENTE — Bug #21. ✅ ARREGLADO (sesión 19), pendiente de tu validación en pantalla** (reordenar "Verduras
+     vivas" → recargar → comprobar que el orden aguanta). Fix: `sortInstanceContainerSubtasks` (useSupabase.ts) ordena las
+     subtareas de cada contenedor-instancia por el `order` de la **plantilla** de cada hija (o el propio si es manual),
+     llamado tras las dos pasadas de reconstrucción. Solo lectura en carga → **0 escrituras a BD, reversible por código.**
+     +4 tests (incl. la trampa: instancia order 0 vs plantilla order). Reordenar subtareas de un contenedor **RECURRENTE**
+     ya sobrevive a la recarga.
        - **Exposición (item 3):** de 99 contenedores vivos, **24 recurrentes, 22 con ≥2 subtareas** (afectados). Grandes:
          "Pago nóminas" (26), "Verduras vivas" (51), "Cierre Central Rec" (16), "Cobros Finca" (10), "Previsional" (9). En
          manuales el reorden SÍ persiste (67 de 75 con ≥2).

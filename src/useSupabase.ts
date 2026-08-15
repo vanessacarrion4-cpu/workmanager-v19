@@ -132,6 +132,32 @@ function reconstructExceptionContainerSubtasks(mappedTasks: Record<string, Task>
 }
 
 /**
+ * Bug #21 (sesión 19): reordenar subtareas de un contenedor RECURRENTE no sobrevivía a la recarga.
+ * `reconstructInstanceHierarchy` puebla `subtasks` en orden de ITERACIÓN (push), no por `order`.
+ * El reorden persiste el `order` de cada hija: para hijas `inst-` lo escribe en su PLANTILLA-hija
+ * (`useTaskOrdering`, `dbId = sub.templateId`), para manuales en la propia hija. Por eso la clave de
+ * orden correcta es: `order` de la PLANTILLA de la hija si es instancia, o el `order` propio si es manual
+ * (esa es la trampa — la instancia suele venir con `order` 0/sin set). Idempotente para el path de
+ * excepción (que ya venía ordenado por `parentTemplate.subtasks`). Solo reconstrucción en memoria: 0 escrituras.
+ */
+export function sortInstanceContainerSubtasks(mappedTasks: Record<string, Task>): void {
+  const orderKey = (childId: string): number => {
+    const child = mappedTasks[childId];
+    if (!child) return 9999;
+    if (child.templateId && mappedTasks[child.templateId] && mappedTasks[child.templateId]!.order != null) {
+      return mappedTasks[child.templateId]!.order as number;
+    }
+    return child.order ?? 9999;
+  };
+  Object.values(mappedTasks).forEach(inst => {
+    if (!inst.templateId) return;                       // solo instancias-contenedor
+    if (!inst.subtasks || inst.subtasks.length < 2) return;
+    const sorted = [...inst.subtasks].sort((a, b) => orderKey(a) - orderKey(b));
+    mappedTasks[inst.id] = { ...inst, subtasks: sorted };
+  });
+}
+
+/**
  * Reparación 1: Contenedores que tienen datos que solo deberían tener las subtareas
  * (dueDate, dueTime, tags, delegation). Los limpia y persiste en Supabase.
  */
@@ -365,6 +391,9 @@ export function useSupabase({
           reconstructHierarchy(mappedTasks);
           reconstructInstanceHierarchy(mappedTasks);
           reconstructExceptionContainerSubtasks(mappedTasks);
+          // Bug #21: ordenar las subtareas de los contenedores-instancia por el `order` de la plantilla-hija
+          // (tras las dos pasadas que pueblan instancias). Sin esto el reorden de recurrentes no persistía.
+          sortInstanceContainerSubtasks(mappedTasks);
 
           // Reparaciones automáticas
           repairContainersWithForbiddenData(mappedTasks);
