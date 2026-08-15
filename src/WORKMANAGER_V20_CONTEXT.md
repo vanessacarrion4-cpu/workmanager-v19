@@ -3355,3 +3355,30 @@ de ese día, no solo `type`):
 **Qué necesita el modal (datos):** la tarea objetivo (para nombre + si es contenedor) y el nº de hijas pendientes de ese
 día. Hoy `RecurrenceChoiceModal` solo recibe `type`; habría que pasarle esos dos datos desde `App` (donde se dispara
 `setRecurrenceAction`). **Coste:** M. **Cambia pantalla:** sí (es el punto). **Es propuesta; no implementado.**
+
+### 16.29 MAPA — pauta de recurrencia desde la fila (item 3, sesión 19). Sin arreglar.
+
+**Hallazgo: probablemente YA FUNCIONA (para tareas manuales hoja). El §16.17 ("desde la fila el chip no llega a poner la
+pauta") parece STALE.** Verificado en código:
+- La fila SÍ tiene el chip cableado: `TaskCard:711-721` renderiza `RecurrencePickerChip` con
+  `onChange={(rec) => onUpdateTask({ ...task, recurrence: rec || undefined })}` (con comentario explicando que se arregló:
+  "Igual que poner la recurrencia desde el modal").
+- El motor convierte: `handleUpdateTask:641-653` — `if (recurrence && !parentTaskId && !templateId && !isTemplate)` →
+  pone `isTemplate:true`, vacía `dueDate` del template y **CREA la 1ª instancia del día**. Es la misma conversión
+  manual→plantilla que hace el modal.
+- **Opción B** (`ced422a`, `handleAddRule:910`): una tarea nueva nace NORMAL (no plantilla) y se vuelve regla al ponerle la
+  pauta. Encaja exactamente con el chip de la fila → **el flujo ya existe, está más cerca de lo que parecía: básicamente
+  hecho.**
+
+**Dónde NO aparece el chip en la fila** (limitaciones reales, no bugs): solo se muestra para `!hasSubtasks && !templateId
+&& !isTemplate` (`TaskCard:708`) = hoja MANUAL. No en contenedores (su pauta va por las reglas hijas) ni en instancias/
+plantillas ya recurrentes. Eso es coherente con el modelo.
+
+**Lo que SÍ queda (y explica el recuerdo de "no se podía"):** el chip es `muted` y vive en el raíl que se revela al pasar
+el ratón → **problema de DESCUBRIBILIDAD, no de función** (enlaza con §16.27/acciones escondidas, punto #3 de §16.21). Es
+decir: la pauta se puede poner desde la fila, pero el chip cuesta de encontrar (hover) — probablemente por eso parecía que
+"no ponía la pauta".
+
+**Qué haría falta:** (a) **validar en pantalla** que poner la pauta desde la fila convierte y crea la instancia (yo lo veo
+cableado; confírmalo). (b) Si el problema es encontrar el chip → cae bajo "acciones escondidas". **Coste real si ya
+funciona: casi 0 (validación).** Corregir el §16.17 va en el repaso stale (item 5).
