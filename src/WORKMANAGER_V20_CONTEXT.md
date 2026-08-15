@@ -3069,6 +3069,14 @@ Para ordenar por VALOR de un vistazo. **Coste:** S = un rato · M = medio · L =
 
 ### 16.22 SALUD INTERNA / VOLUMEN (sesión 19, item 6) — primera medición, nunca lo habíamos mirado
 
+> 🔭 **NOTA DE VIGILANCIA (item 5) — revisar antes de que vaya lento, no cuando ya lo esté.**
+> Crecimiento medido: **~700 filas `tasks`/mes** (dominado por `inst-`), +~220 `time_entries`/mes. Hoy (2026-08-15):
+> **2537 filas vivas**, app SANA. El cuello, cuando llegue, será **el ARRANQUE del cliente** (carga + reconstrucción en
+> memoria), **NO Postgres** — y aparecerá antes en el MÓVIL. **Disparador de revisión: cuando el censo pase de ~5.000
+> filas vivas, o en la revisión trimestral (~2026-11).** Al revisar: re-correr el censo (§16.22), medir el tiempo de
+> arranque (el `DIAG-TEMP` de `useSupabase` ya lo cronometra), y si molesta, activar la poda de `inst-` (plan abajo). El
+> lever barato mientras tanto ya está aplicado (item 2: no cargar borradas inertes; item 3: −266 prunables).
+
 **Snapshot (2026-08-15):**
 - **`tasks`: 2803 filas** = 2030 vivas + 773 borradas (soft, 28%). De las borradas: **478 son marcadores funcionales**
   (`is_exception + template_id`, los lee `materializeDay` para suprimir ocurrencias → NO se pueden borrar sin más) y
