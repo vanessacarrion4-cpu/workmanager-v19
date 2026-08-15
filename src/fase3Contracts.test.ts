@@ -421,6 +421,19 @@ describe('FASE 3 · (C1) containerDayToggle: selección real del clic (§16.16)'
     const tasks = byId([task({ id: 'L', dueDate: WED })]);
     expect(containerDayToggle(tasks['L'], tasks, WED)).toBeNull();
   });
+
+  // Invariante del TAPÓN (item 4): el nº que muestra el aviso = children.length de ESTE helper.
+  // La cuenta NO se parte por etiqueta y SÍ incluye recurrentes → así el mensaje ("N subtareas")
+  // coincide siempre con lo que se marca. Antes el aviso contaba el subconjunto de una etiqueta
+  // filtrando `inst-` y decía "1" mientras marcaba 2.
+  it('cuenta del tapón = TODAS las hijas del día, sin partir por etiqueta', () => {
+    const tasks = byId([
+      task({ id: 'C', dueDate: WED, subtasks: ['a', 'b'] }),
+      task({ id: 'a', parentTaskId: 'C', dueDate: WED, tags: ['focus'] }),
+      task({ id: 'b', parentTaskId: 'C', dueDate: WED, tags: ['espera'] }),
+    ]);
+    expect(containerDayToggle(tasks['C'], tasks, WED)!.children.length).toBe(2);
+  });
 });
 
 // =========================================================================

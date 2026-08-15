@@ -19,7 +19,7 @@ import {
   isTaskCompleted, isTaskRepetitive, getTaskEstimatedCombo,
   getTaskEstimatedPending, getTaskRegisteredCombo, formatMinutes
 } from './utils';
-import { containerEstimatedForDay, containerRegisteredForDay, isContainerCompleteOnDay } from './fase3Contracts'; // FASE 3: totales + completado derivado del contenedor
+import { containerEstimatedForDay, containerRegisteredForDay, isContainerCompleteOnDay, containerDayToggle } from './fase3Contracts'; // FASE 3: totales + completado derivado del contenedor + selección real del día (tapón)
 import { getTagColor } from './helpers';
 import { TitleField } from './TitleField';
 import {
@@ -450,7 +450,13 @@ export function TaskCard({
                     const dayScoped = !!dayForTotals;
                     let n: number;
                     if (dayScoped) {
-                      n = (subtasksForGroup || task.subtasks || []).filter((s: string) => !s.startsWith('inst-')).length;
+                      // El aviso DEBE contar exactamente lo que se va a marcar. El toggle real usa
+                      // `containerDayToggle(task, map, día)` (útil.: mismo helper que llama el hook), que incluye
+                      // TODAS las hijas del día (manuales + recurrentes) y no está partido por etiqueta. Antes se
+                      // contaba `subtasksForGroup` (subconjunto de ESTA etiqueta) filtrando `inst-` → decía "1" y
+                      // marcaba 2. Ahora coincide con la selección real.
+                      const sel = containerDayToggle(task, allTasksMap, dayForTotals);
+                      n = sel ? sel.children.length : 0;
                     } else {
                       const countLeaves = (id: string, seen: Set<string> = new Set()): number => {
                         if (seen.has(id)) return 0; seen.add(id);
