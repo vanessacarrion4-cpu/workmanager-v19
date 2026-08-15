@@ -2031,8 +2031,9 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
       tiene vuelta atrás y no hace falta si el código deja de leer ese campo. **En su lugar: TEST que garantice que el
       completado del contenedor se DERIVA de las hijas del día y que el `status` guardado del contenedor NO se lee** — si
       alguien vuelve a leerlo, el test se pone rojo. (Misma trampa que la variable muerta, resuelta sin tocar datos.)
-- **FASE 4 — persistencia:** borrar bloque no persiste · adjuntos no persisten · tiempos descuadran al recargar ·
-  reordenar recurrente cambia todos los días · escritura innecesaria en cada carga (§16.1 de la sesión 14 / repairs) ·
+- **FASE 4 — persistencia:** ~~borrar bloque no persiste~~ (RESUELTO s19: reversible) · adjuntos no persisten (sin
+  re-verificar) · ~~tiempos descuadran al recargar~~ (persisten; posible tema de agregación, §16.19) · ~~reordenar
+  recurrente cambia todos los días~~ (RESUELTO s19, #21) · escritura innecesaria en cada carga (§16.1 de la sesión 14 / repairs) ·
   desplegar todo no refresca · conteos SQL + limpieza legada (§15.7) · borrar la columna de prioridad.
 - **FASE 5 — creación:** tarea vacía que se persiste + guard de título vacío **(EVIDENCIA REAL, sesión 16: la usuaria
   dejó una tarea de título vacío persistida `t-1785615179787` al validar el punto 1 — borrada; el bug NO es teórico)** ·
@@ -2774,11 +2775,11 @@ ya se completó hace tiempo.)*
 
   *(Todo por id arriba o con patrón medible; ninguna fila tocada. Números corregidos vs el doc viejo: dups 5+2 → 1+0;
   template_id-huérfano 45 → 64.)*
-- **FASE 5 (creación) — el chip de recurrencia NO se puede usar desde la FILA (ni en Bloques NI en Mi Día); hay que abrir
-  el MODAL** (corrige el alcance: estaba escrito como si fuera solo de Bloques). Surgió al pasar a la opción B (`ced422a`):
-  la pauta se pone "en el editor". Desde la fila el chip se revela al pasar el ratón pero **no llega a poner la pauta**;
-  desde el modal sí (y con C4 arranca en el día de la tarea). **Decidir** si en la fila debe poder ponerse (y, si sí, si
-  en una regla recién creada el chip está siempre visible). **Es diseño, no bug — no cambia la prioridad, sigue el orden.**
+- **FASE 5 (creación) — chip de recurrencia desde la FILA. ⚠️ STALE (corregido sesión 19, item 3, §16.29):** ya NO es
+  cierto que "no llega a poner la pauta". El chip de la fila está cableado (`TaskCard:711-721` `onChange → onUpdateTask`) y
+  `handleUpdateTask:641-653` convierte manual→plantilla + crea la 1ª instancia — igual que el modal. **Probablemente YA
+  funciona** para tareas manuales hoja; falta solo validarlo en pantalla. Lo que queda es DESCUBRIBILIDAD: el chip es
+  hover-only (cae bajo "acciones escondidas", §16.21 #3). Ver §16.29.
 - **FASE 6 (diseño):**
   - **Modal de la papelera de una fila recurrente (sin prioridad):** debe dejar CLARÍSIMO qué se borra ("este día" vs "la
     serie") y **avisar si hay hijas pendientes debajo** que se van a enterrar. Es el gesto que hoy suprime un contenedor
@@ -2955,7 +2956,7 @@ handler lógico, no por llamada):
      el completado por otra puerta). Sin test.
   8. `handleAddTask` (`useTaskCRUD:249`) y `handleAddRule` (`:890`) — creación. Sin test.
 - **TIER 3 — bajo:**
-  9. `useBlockHandlers` (alta/edición/reorder/activar/borrar de `work_blocks`; "borrar bloque no persiste" ya en FASE 4).
+  9. `useBlockHandlers` (alta/edición/reorder/activar/borrar de `work_blocks`; borrar bloque YA persiste y es reversible, s19).
   10. `handleUpdateTasksOrder` (reorder raíces), flags `is_expanded`, entradas de tiempo (`time_entries`), adjuntos
       (storage). Mecánicos, bajo acoplamiento con el modelo.
 
@@ -3034,14 +3035,15 @@ nunca hard-delete). Detalle largo arriba (§16.17); esto es el cierre de un vist
 - **Bug #21** (reorden recurrentes no persistía) → estaba en FASE 4; **ARREGLADO esta sesión** (`36eea43`), pendiente
   validación en pantalla.
 - **Guard "mover a fecha"** (no aplastar completadas) → IMPLEMENTADO (`a5ed17e`), pendiente validación.
-- **Borrar bloque no persiste** (§16.19 punto 3) → FASE 4 (persistencia), sin arreglar (escritura nueva, con la usuaria).
+- ~~**Borrar bloque no persiste**~~ → ✅ RESUELTO (sesión 19): borrado REVERSIBLE (soft-delete + `handleRestoreBlock` +
+  papelera). Ver §16.19 punto 3.
 - **Adjuntos** (persistencia, sin re-verificar) → FASE 4.
 
 **PUNTO DE RETOMADA LIMPIO (por dónde seguir):**
 1. **Validar en pantalla** (bloqueante para cerrar del todo lo de esta sesión): #21 (reordenar Verduras vivas → recargar),
    guard de mover en lote, clic en contenedor mixto, render "otros días".
 2. **Decidir producto:** render "otros días" (§16.17, 3 opciones) · aviso vs guard en mover-lote (ya guard).
-3. **Siguiente arreglo de persistencia (con la usuaria):** borrar bloque (no persiste) + verificar adjuntos.
+3. **Siguiente arreglo de persistencia:** verificar adjuntos (borrar bloque ya resuelto, reversible).
 4. **FASE 5 / FASE 6:** tablas de decisión en §16.21 (abajo) — ordenar por valor.
 5. **#1 (exception-move / leak):** solo con la usuaria (plan en §16.18).
 
@@ -3056,7 +3058,7 @@ Consolidado de todo lo pendiente estos días, para elegir de un vistazo si entra
 | 1 | **Recurrentes en otras vistas** (§11.1e/f/g; **MAPA en §16.27**) | FASE 6 | Semana no MUEVE (WeekView sin `onUpdateTask` + card propio) · Calendario sin icono de completar (variante COMPACT no tiene checkbox) · Bloques no completa (es la vista de definición → se completa en Mi Día). **Son TRES causas distintas, no un bug único.** | M cada una | Coherencia: la misma tarea se comporta igual en toda la app | Sí |
 | 2 | **Modal de la papelera de fila recurrente** | FASE 6 | Que deje CLARÍSIMO "este día" vs "la serie" y avise si hay hijas pendientes que se entierran. Es el gesto que más miedo da. | M | Borrar recurrentes sin sustos; menos error | Sí |
 | 3 | **Acciones escondidas tras hover o dentro de modales** | FASE 6 | Muchas acciones solo aparecen al PASAR EL RATÓN (medido: **13 grupos hover en 8 vistas**) o ENTERRADAS en un modal. Ejemplo probado: **borrar un bloque** = lápiz hover-only (`BlocksView:596`) + "Eliminar" dentro del modal (`Modals.tsx:169`). **DATO MÓVIL (item 4, sesión 19): de los 13, 1 es solo un tooltip; los OTROS 12 gatean acciones REALES que sin hover son inalcanzables/torpes en el teléfono** — borrar/editar bloque · borrar/editar persona (Delegadas y picker) · editar/borrar entradas de tiempo (Dashboard y TimeComponents) · ver/borrar adjuntos (modal) · editar subtarea (modal) · y **los CHIPS de la fila** (fecha/etiqueta/tiempo/**poner pauta**, `TaskCard:282`). **Lo más grave: hasta el propio botón "⋯ Más acciones" (`TaskCard:782`) es hover-only** → en móvil no hay ni menú que tocar. **DATO real: la usuaria no encontraba cómo borrar un bloque aunque lleva ahí desde siempre — el problema es real.** Auditar y sacar las importantes/destructivas a un sitio visible/táctil. | M-L | Descubribilidad + que la app se pueda USAR en móvil (hoy ~12 acciones no se alcanzan) | Sí |
-| 4 | **Pauta de recurrencia desde la FILA** | FASE 5 | Hoy solo desde el modal; desde la fila el chip se ve pero no llega a poner la pauta. | M | Crear recurrentes sin abrir el modal (fricción si creas muchas) | Sí |
+| 4 | **Pauta de recurrencia desde la FILA** (**MAPA §16.29**) | FASE 5 | **Probablemente YA funciona** (chip cableado + conversión en `handleUpdateTask`; §16.29). Falta VALIDAR en pantalla; lo real que queda es que el chip es hover-only (→ #3 acciones escondidas). | S (validar) | Confirmar que ya se puede; si no, es casi 0 | Sí (validación) |
 | 5 | **Calendario "Ir a fecha" no retrocede de mes** | FASE 6 | Solo muestra el mes actual; para ir a julio, ~23 clics. Añadir ‹ mes ›. | S | Navegar al pasado sin sufrir | Sí |
 | 6 | **#1 exception-move: extraer + test** | Técnico | Origen del leak `inst-inst-`. Blindar con test el camino más frágil. **Solo CONTIGO** (mover instancia en pantalla + diff BD). | M | Menos riesgo de que vuelva el leak | No (refactor) + validación |
 | 7 | **Renombrar "borrar la serie" → "terminar la serie"** | FASE 6 | El botón en realidad la termina (corta de ese día, conserva histórico). El nombre engaña. | S | Menos confusión | Sí (texto) |
@@ -3221,7 +3223,11 @@ irreversible hoy es el de BLOQUE (item 1b lo hará reversible en cuanto exista `
 > No es que una corrija a la otra: **23503 es al escribir un FK malo; CASCADE es al borrar el padre.** Operaciones
 > distintas, ambas ciertas.
 
-### 16.25 MAPA — "Rutinas mañana": a veces el reorden de subtareas no agarra (sesión 19, sin arreglar)
+### 16.25 MAPA — "Rutinas mañana": a veces el reorden de subtareas no agarra (sesión 19) — ✅ ABORDADO por A (pdte. validación)
+
+> **ACTUALIZACIÓN:** el fix A (`f5b3410`) ataca las 3 causas de abajo: `values` MEMOIZADO, reorden que FUSIONA en vez de
+> reemplazar, y sobre todo la lista pasa de 136 a 4 filas (no se pintan las 132 completadas). **Pendiente validar en
+> pantalla** que ya no se descoloca. El mapa original se conserva abajo.
 
 **Síntoma:** en "Rutinas mañana", arrastrar una subtarea a veces NO mueve. No siempre.
 
@@ -3255,7 +3261,11 @@ en el momento". Comparten el terreno (recurrentes grandes) pero son cosas distin
 - (c) **No montar 136 items:** en Bloques, un contenedor recurrente no debería listar sus 132 instancias completadas
   (enlaza directamente con la regla de render de §16.26). Con solo 4 reglas visibles, el reorden es trivial y estable.
 
-### 16.26 MAPA — render de Bloques vs regla acordada (sesión 19, sin arreglar)
+### 16.26 MAPA — render de Bloques vs regla acordada (sesión 19) — ✅ IMPLEMENTADO (A, pdte. validación)
+
+> **ACTUALIZACIÓN:** ya NO es "sin arreglar". La regla canónica se fijó (§16.13) y A la implementó
+> (`getVisibleSubtasksForBloques`, `f5b3410`): 896→220 filas, "ver completadas" por contenedor. **Pendiente solo tu
+> validación en pantalla.** El mapa original (divergencias) se conserva abajo como registro.
 
 **Tu regla (dictada esta sesión):**
 - **Contenedores normales:** se ven las subtareas PENDIENTES; las COMPLETADAS ocultas pero accesibles a petición.
