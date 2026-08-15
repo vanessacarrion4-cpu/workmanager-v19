@@ -2698,13 +2698,20 @@ aparcado aquí, cada cosa en su fase. **El siguiente bloque es (b3) y nada más.
     directo** (reversible). De estas, **1 saltada** por seguridad: `inst-t-1778012355951-2026-05-05` ("Prueba recurrente…")
     tiene 1 hija viva → no la borro para no orfanarla (queda aparcada). Y otra ya estaba ausente. **Netas: 15 huérfanas.**
     · **G4** `inst-t-1785433862534-2026-08-24` → **soft-delete** (item 2 aprobado). **Total soft-deleted hoy: 16.**
-  - **APARCADO (5 "inst→tarea-normal") — esperan tu decisión:** son ocurrencias (`inst-…`) cuya **tarea-plantilla EXISTE**
-    (no es regla, es tarea normal; leak). Por tu criterio "borrar una ocurrencia ≠ tocar su regla / dime cuáles son
-    ocurrencias antes de ejecutar", NO las toco: `inst-inst-inst-t-1781192525690-…-2026-07-10` ("comentar Blai PPV") ·
-    `inst-inst-t-1778694774705-2026-07-10-2026-07-13` ("Publicar a coordinadores") ·
-    `inst-inst-t-1780486425092-2026-06-15-2026-07-13` ("Linia de vida pendent pressupo") ·
-    `inst-t-1780559218671-2026-06-22` ("Hacer Renta Montse Barber") ·
-    `inst-t-1780559279008-ekfud7gx1-2026-06-22` ("Hacer Renta Rosa Cambronero"). Script: `scratchpad/fase4-item1-2.mjs`.
+  - **APARCADO (5 "inst→tarea-normal") — VERIFICADO (item 2, sesión 19). En las 5, borrar la ocurrencia NO toca su tarea
+    real (son filas distintas).** Estado de cada tarea real (para que decidas):
+    1. **"comentar Blai PPV"** `inst-inst-inst-t-1781192525690-…-2026-07-10` (due 08-10) → cadena de leak; queda VIVA una
+       fila pendiente a 06-23 (`inst-inst-t-1781192525690-…-06-23`, bloque activo). Borrar la del 08-10 = seguro.
+    2. **"Publicar a coordinadores"** `inst-inst-t-1778694774705-2026-07-10-2026-07-13` → su base `t-1778694774705` es una
+       **PLANTILLA** viva (isTemplate:true, la maquinaria, no una tarea visible). Borrar la ocurrencia = seguro.
+    3. **"Linia de vida"** `inst-inst-t-1780486425092-2026-06-15-2026-07-13` → su base `t-1780486425092` ya está **BORRADA**
+       → es un huérfano de tarea muerta. Borrar = claramente seguro (no hay tarea real detrás).
+    4. **"Hacer Renta Montse Barber"** `inst-t-1780559218671-2026-06-22` → tarea real `t-1780559218671` **VIVA y VISIBLE**
+       (subtarea, bloque activo). Borrar la ocurrencia = seguro, la tarea real se queda.
+    5. **"Hacer Renta Rosa Cambronero"** `inst-t-1780559279008-ekfud7gx1-2026-06-22` → tarea real **VIVA y VISIBLE**.
+       Borrar la ocurrencia = seguro, la tarea real se queda.
+    **Resumen: las 5 son borrables sin perder trabajo real.** Script listo `scratchpad/fase4-item1-2.mjs` (añadir estos ids).
+    Esperando tu OK para el soft-delete.
   - **CERRADO (G2 · Soriano) — decisión de la usuaria: las dos se quedan.** `t-1778161643849` y `t-1778576136973` NO son
     duplicados: cada una tiene su información. **LECCIÓN de criterio:** "mismo título + mismo bloque" **no basta** para
     detectar duplicados — la usuaria tiene tareas legítimas que se llaman igual. El detector de dups (G2, `fase4-plan.mjs`
