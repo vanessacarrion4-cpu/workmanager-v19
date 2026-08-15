@@ -3327,3 +3327,31 @@ día/semana correspondiente.
 **Recomendación:** son 3 arreglos separables. Por valor: (1) Calendario-completar (un checkbox en COMPACT, contenido) →
 (2) Semana-mover (más grande, card propio) → (3) Bloques = decisión, seguramente "se completa en Mi Día". No es un
 refactor único; cada vista es un frente.
+
+### 16.28 PROPUESTA (no código) — modal de borrado de fila recurrente (item 2, sesión 19)
+
+**Qué hay hoy** (`RecurrenceChoiceModal`, `Modals.tsx:13`): genérico y sin contexto. Título "¿Qué quieres eliminar?",
+texto "Esta tarea es parte de una rutina recurrente…", botones **"Solo este día"** / **"Toda la serie (Futuro)"** /
+Cancelar. **No nombra la tarea, no dice la fecha, y NO avisa de que "este día" de un CONTENEDOR oculta también sus
+subtareas** — que es justo lo que enterró Verduras vivas (el tapón B evita perder el trabajo, pero el modal no lo dice).
+
+**Diseño que propondría** (mismo modal, más contexto; el modal debería recibir la tarea objetivo + nº de hijas pendientes
+de ese día, no solo `type`):
+
+- **Título con nombre:** "¿Eliminar «{título}»?" — no genérico.
+- **Distinguir las dos acciones con su CONSECUENCIA, no solo el ámbito:**
+  - **"Quitar solo el {fecha concreta}"** *(hoy = "Solo este día")* → subtítulo: *"La rutina sigue; solo desaparece del
+    {p.ej. martes 12 ago}."* Es una excepción de un día.
+  - **"Terminar la rutina"** *(hoy = "Toda la serie (Futuro)"; renombrar — enlaza con el punto #7)* → subtítulo: *"Deja de
+    repetirse de hoy en adelante. Lo ya hecho se conserva."* (NO dice "borrar", porque no borra el histórico.)
+  - Cancelar.
+- **AVISO cuando hay hijas pendientes debajo** (contenedor recurrente): banda destacada antes de los botones —
+  *"⚠️ Este día tiene {N} subtarea{s} pendiente{s} debajo. Si quitas el día, se ocultan con él."* Con N real (mismo cálculo
+  que el tapón del checkbox / `collectDeletableTasks` día-scoped). Así el gesto que enterró Verduras vivas queda avisado.
+- **Hoja vs contenedor:** para una HOJA recurrente no aparece el aviso de subtareas (no tiene). Para un CONTENEDOR, sí.
+- **Refuerzo de seguridad ya existente:** el tapón B (materializeDay) impide que "quitar el día" entierre trabajo VIVO
+  pendiente; el modal solo tiene que COMUNICARLO. No cambia el comportamiento de datos, solo la claridad.
+
+**Qué necesita el modal (datos):** la tarea objetivo (para nombre + si es contenedor) y el nº de hijas pendientes de ese
+día. Hoy `RecurrenceChoiceModal` solo recibe `type`; habría que pasarle esos dos datos desde `App` (donde se dispara
+`setRecurrenceAction`). **Coste:** M. **Cambia pantalla:** sí (es el punto). **Es propuesta; no implementado.**
