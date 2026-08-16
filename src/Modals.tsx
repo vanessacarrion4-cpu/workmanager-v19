@@ -10,40 +10,75 @@ import { COLORS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { generateInstances } from './utils';
 
-export function RecurrenceChoiceModal({ type, onClose, onConfirm }: { type: 'edit' | 'delete', onClose: () => void, onConfirm: (choice: 'instance' | 'series') => void }) {
+// §16.28 (FASE 6 B2): el modal recibe la TAREA objetivo y el nº de hijas pendientes de ese día, no solo `type`.
+// Para BORRAR: nombra la tarea, explica la CONSECUENCIA de cada opción (no solo el ámbito) y AVISA si al quitar el
+// día se ocultan subtareas pendientes debajo (el gesto que enterró "Verduras vivas"). Para EDITAR: igual, más suave.
+export function RecurrenceChoiceModal({ type, task = null, pendingChildCount = 0, onClose, onConfirm }: { type: 'edit' | 'delete', task?: Task | null, pendingChildCount?: number, onClose: () => void, onConfirm: (choice: 'instance' | 'series') => void }) {
+  const isDelete = type === 'delete';
+  const title = (task?.title || '').trim() || 'esta tarea';
+  const rawDate = task?.dueDate || task?.instanceDate || null;
+  const dateLabel = rawDate
+    ? parseLocalISO(rawDate).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })
+    : 'ese día';
+  const showWarning = isDelete && pendingChildCount > 0;
+  const plural = pendingChildCount !== 1;
+
   return (
     <div className="fixed inset-0 bg-bg-main/80 backdrop-blur-md z-[110] flex items-center justify-center p-4">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-bg-card max-w-sm w-full rounded-[2.5rem] border border-border-main p-8 shadow-[0_30px_100px_rgba(0,0,0,0.6)] text-center"
+        className="bg-bg-card max-w-sm w-full rounded-[2.5rem] border border-border-main p-7 shadow-[0_30px_100px_rgba(0,0,0,0.6)]"
       >
-        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 ${type === 'edit' ? 'bg-azul/20 text-azul' : 'bg-rosa/20 text-rosa'}`}>
-          {type === 'edit' ? <Edit size={32} /> : <Trash2 size={32} />}
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-5 ${isDelete ? 'bg-rosa/20 text-rosa' : 'bg-azul/20 text-azul'}`}>
+          {isDelete ? <Trash2 size={28} /> : <Edit size={28} />}
         </div>
-        <h3 className="text-2xl font-black text-white mb-2">
-          {type === 'edit' ? '¿Qué quieres editar?' : '¿Qué quieres eliminar?'}
+        <h3 className="text-xl font-black text-white mb-1 leading-snug">
+          {isDelete ? '¿Eliminar' : '¿Editar'} «{title}»?
         </h3>
-        <p className="text-sm font-bold text-text-secondary mb-8 leading-relaxed">
-          Esta tarea es parte de una rutina recurrente. Elige si quieres afectar solo a este día o a toda la serie.
+        <p className="text-sm font-bold text-text-secondary mb-5 leading-relaxed">
+          Es parte de una rutina recurrente.
         </p>
- 
+
+        {showWarning && (
+          <div className="mb-5 rounded-2xl border border-naranja/40 bg-naranja/10 p-4 flex gap-3">
+            <span className="text-lg leading-none shrink-0">⚠️</span>
+            <p className="text-sm font-bold text-naranja leading-relaxed">
+              Este día tiene {pendingChildCount} subtarea{plural ? 's' : ''} pendiente{plural ? 's' : ''} debajo. Si quitas el día, se {plural ? 'ocultan' : 'oculta'} con él.
+            </p>
+          </div>
+        )}
+
         <div className="space-y-3">
-          <button 
+          <button
             onClick={() => onConfirm('instance')}
-            className="w-full py-4 bg-bg-main hover:bg-bg-secondary rounded-2xl text-[10px] font-black uppercase tracking-widest text-white border border-border-main transition-all flex items-center justify-center gap-2"
+            className="w-full p-4 bg-bg-main hover:bg-bg-secondary rounded-2xl text-left text-white border border-border-main transition-all"
           >
-            {type === 'edit' ? 'Solo esta tarea' : 'Solo este día'}
+            <span className="block text-sm font-black">
+              {isDelete ? `Quitar solo el ${dateLabel}` : 'Solo esta tarea'}
+            </span>
+            <span className="block text-xs font-bold text-text-secondary mt-0.5 leading-relaxed">
+              {isDelete
+                ? `La rutina sigue; solo desaparece del ${dateLabel}.`
+                : 'Los cambios afectan solo a este día.'}
+            </span>
           </button>
-          <button 
+          <button
             onClick={() => onConfirm('series')}
-            className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2 shadow-xl ${type === 'edit' ? 'bg-azul shadow-azul/20' : 'bg-rosa shadow-rosa/20'}`}
+            className={`w-full p-4 rounded-2xl text-left text-white transition-all shadow-xl ${isDelete ? 'bg-rosa shadow-rosa/20' : 'bg-azul shadow-azul/20'}`}
           >
-            {type === 'edit' ? 'Toda la serie (Futuro)' : 'Toda la serie (Futuro)'}
+            <span className="block text-sm font-black">
+              {isDelete ? 'Terminar la rutina' : 'Toda la serie (futuro)'}
+            </span>
+            <span className="block text-xs font-bold text-white/80 mt-0.5 leading-relaxed">
+              {isDelete
+                ? 'Deja de repetirse de hoy en adelante. Lo ya hecho se conserva.'
+                : 'Los cambios afectan a todas las futuras.'}
+            </span>
           </button>
-          <button 
+          <button
             onClick={onClose}
-            className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-white transition-all"
+            className="w-full py-3 text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-white transition-all"
           >
             Cancelar
           </button>

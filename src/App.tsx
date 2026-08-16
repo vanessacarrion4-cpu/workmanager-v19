@@ -15,7 +15,7 @@ import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { filterTasksForDay } from './filters';
 import { materializeInstanceById } from './instanceEngine';
-import { reconcileDay } from './fase3Contracts'; // C3: mapa del día sin fuga (materialize + belongsToDay + contenedores + plantillas)
+import { reconcileDay, containerDayToggle } from './fase3Contracts'; // C3: mapa del día sin fuga; §16.28: nº hijas pendientes del día para el modal de papelera
 import { useSupabase } from './useSupabase';
 import { useTaskCRUD } from './useTaskCRUD';
 import { useTaskOrdering } from './useTaskOrdering';
@@ -938,9 +938,19 @@ export default function App() {
       )}
 
       {/* RecurrenceChoiceModal */}
-      {recurrenceAction && (
+      {recurrenceAction && (() => {
+        // §16.28: contexto para el modal de papelera — la tarea objetivo, su fecha y cuántas hijas del día quedan
+        // PENDIENTES (mismo día-scoped que el tapón, vía containerDayToggle). Con esto el modal nombra la tarea y
+        // avisa de las subtareas que se ocultarían (el caso "Verduras vivas"). Una HOJA → 0 → sin aviso.
+        const rTask = tasks[recurrenceAction.taskId] || dashboardTasks.find((t: Task) => t.id === recurrenceAction.taskId) || materializeInstanceById(recurrenceAction.taskId, tasks);
+        const rDate = rTask?.dueDate || rTask?.instanceDate || null;
+        const rc = rTask ? containerDayToggle(rTask, tasks, rDate) : null;
+        const rPending = rc ? rc.children.filter((c: Task) => c.status !== 'completed').length : 0;
+        return (
         <RecurrenceChoiceModal
           type={recurrenceAction.type}
+          task={rTask}
+          pendingChildCount={rPending}
           onClose={() => setRecurrenceAction(null)}
           onConfirm={(choice) => {
             const { taskId, type, ruleId } = recurrenceAction;
@@ -1000,7 +1010,8 @@ export default function App() {
             }
           }}
         />
-      )}
+        );
+      })()}
 
       {/* TimeManagementPanel */}
       <AnimatePresence>

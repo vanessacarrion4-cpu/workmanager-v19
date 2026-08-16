@@ -3350,7 +3350,16 @@ día/semana correspondiente.
 (2) Semana-mover (más grande, card propio) → (3) Bloques = decisión, seguramente "se completa en Mi Día". No es un
 refactor único; cada vista es un frente.
 
-### 16.28 PROPUESTA (no código) — modal de borrado de fila recurrente (item 2, sesión 19)
+### 16.28 modal de borrado de fila recurrente. ✅ HECHO + VERIFICADO EN PANTALLA (FASE 6 B2, commit pendiente).
+
+> ✅ **FASE 6 · BLOQUE 2 — HECHO.** `RecurrenceChoiceModal` ahora recibe la TAREA y el nº de hijas pendientes del día.
+> Borrado: título "¿Eliminar «{título}»?"; cada opción con su consecuencia ("Quitar solo el {fecha}" / "Terminar la
+> rutina" — renombrado, cierra el item #7); y banda ⚠️ "Este día tiene N subtarea(s) pendiente(s) debajo…" solo si es
+> contenedor con pendientes. **Verificado en pantalla:** contenedor "Cierre Propias" → aviso "2 subtareas pendientes",
+> nombre y fecha ("domingo, 16 ago") correctos; HOJA "gafgaf" → mismo modal SIN aviso. Cancelado, sin borrar nada.
+> Edita comparte el componente (type='edit'), lógica intacta. Debajo, la propuesta original.
+
+
 
 **Qué hay hoy** (`RecurrenceChoiceModal`, `Modals.tsx:13`): genérico y sin contexto. Título "¿Qué quieres eliminar?",
 texto "Esta tarea es parte de una rutina recurrente…", botones **"Solo este día"** / **"Toda la serie (Futuro)"** /
