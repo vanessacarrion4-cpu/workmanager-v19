@@ -265,9 +265,13 @@ export function TaskCard({
   // guardado (son los 92 huérfanos). CON día (Mi Día): las hijas DE ESE DÍA. SIN día (Bloques y demás,
   // que no es un día concreto): TODAS sus hijas (isTaskCompleted). Una HOJA sí usa su propio status.
   const rowCompleted = hasSubtasks
-    ? (dayForTotals
-        ? isContainerCompleteOnDay(task.id, allTasksMap, dayForTotals)
-        : isTaskCompleted(task.id, allTasksMap))
+    ? (subtasksForGroup
+        // §16.30: contenedor PARTIDO por grupo (etiqueta en Mi Día, persona en Delegadas) → el check refleja SOLO
+        // ese grupo; si no, completabas tu grupo y el check seguía desmarcado (parecía que no había funcionado).
+        ? (subtasksForGroup.length > 0 && subtasksForGroup.every((id: string) => isTaskCompleted(id, allTasksMap)))
+        : (dayForTotals
+            ? isContainerCompleteOnDay(task.id, allTasksMap, dayForTotals)
+            : isTaskCompleted(task.id, allTasksMap)))
     : task.status === 'completed';
 
   // Una tarea COMPLETADA es un hecho cerrado: no se edita desde la fila (sesión 15). Las columnas de
@@ -469,12 +473,15 @@ export function TaskCard({
                     let n: number;
                     if (dayScoped) {
                       // El aviso DEBE contar exactamente lo que se va a marcar. El toggle real usa
-                      // `containerDayToggle(task, map, día)` (útil.: mismo helper que llama el hook), que incluye
-                      // TODAS las hijas del día (manuales + recurrentes) y no está partido por etiqueta. Antes se
-                      // contaba `subtasksForGroup` (subconjunto de ESTA etiqueta) filtrando `inst-` → decía "1" y
-                      // marcaba 2. Ahora coincide con la selección real.
-                      const sel = containerDayToggle(task, allTasksMap, dayForTotals);
+                      // `containerDayToggle(task, map, día, subtasksForGroup)` (mismo helper que llama el hook). §16.30:
+                      // pasando el grupo, el contador cuenta SOLO la etiqueta clicada → coincide con la selección
+                      // (antes conté TODAS y decía "1"/marcaba 2; ahora la selección respeta la etiqueta y el contador
+                      // la sigue: "1" marca 1).
+                      const sel = containerDayToggle(task, allTasksMap, dayForTotals, subtasksForGroup);
                       n = sel ? sel.children.length : 0;
+                    } else if (subtasksForGroup) {
+                      // §16.30: Delegadas — sin día pero partido por PERSONA. Cuenta el grupo (hijas vivas).
+                      n = subtasksForGroup.filter((id: string) => { const t = allTasksMap[id]; return t && !t.isDeleted; }).length;
                     } else {
                       const countLeaves = (id: string, seen: Set<string> = new Set()): number => {
                         if (seen.has(id)) return 0; seen.add(id);
@@ -484,13 +491,13 @@ export function TaskCard({
                       };
                       n = (task.subtasks || []).filter((s: string) => !s.startsWith('inst-')).reduce((a: number, k: string) => a + countLeaves(k), 0);
                     }
-                    const ambito = dayScoped ? 'de este día' : 'de TODOS los días';
+                    const ambito = dayScoped ? 'de este día' : (subtasksForGroup ? 'de este grupo' : 'de TODOS los días');
                     const msg = rowCompleted
                       ? `¿Marcar «${task.title || 'sin título'}» y sus ${n} subtarea${n !== 1 ? 's' : ''} ${ambito} como pendientes?`
                       : `¿Completar «${task.title || 'sin título'}» y sus ${n} subtarea${n !== 1 ? 's' : ''} (${ambito})?`;
                     if (n > 0 && !confirm(msg)) return;
                   }
-                  onToggleStatus(task.id, dayForTotals);
+                  onToggleStatus(task.id, dayForTotals, subtasksForGroup);
                 }
               }}
               className={`w-5 h-5 rounded-md flex items-center justify-center transition-all duration-150 shrink-0 ${

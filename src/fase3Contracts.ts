@@ -171,6 +171,7 @@ export function containerDayToggle(
   task: Task | null | undefined,
   allTasks: Record<string, Task>,
   viewDay: string | null | undefined,
+  restrictIds?: string[] | null,   // §16.30: si viene, togglear SOLO estas hijas (grupo de etiqueta de Mi Día).
 ): { children: Task[]; status: 'pending' | 'completed' } | null {
   if (!task || !viewDay) return null;
   const containerTmplId = task.templateId || task.id;
@@ -189,6 +190,12 @@ export function containerDayToggle(
     children = dmArr.filter((c) => c.parentTaskId === contInstId);
   } else {
     children = childrenToToggleOnDay(task.id, allTasks, viewDay).map((id) => allTasks[id]).filter(Boolean) as Task[];
+  }
+  // §16.30: restringir al grupo clicado (etiqueta en Mi Día). La dirección se calcula sobre ESE subconjunto,
+  // para que cada grupo se complete/reabra por su cuenta. Sin restrictIds → todas las hijas del día (previo).
+  if (restrictIds && restrictIds.length > 0) {
+    const keep = new Set(restrictIds);
+    children = children.filter((c) => keep.has(c.id));
   }
   const currentlyComplete = children.length > 0 && children.every((c) => c.status === 'completed');
   return { children, status: currentlyComplete ? 'pending' : 'completed' };

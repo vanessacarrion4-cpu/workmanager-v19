@@ -570,10 +570,11 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                           people={people}
                           blocks={blocks}
                           timeEntries={timeEntries}
-                          onToggleStatus={(id: string) => {
-                            const t = allTasksMap[id];
-                            if (t) onUpdateTask({ ...t, status: t.status === 'completed' ? 'pending' : 'completed', modifiedAt: new Date().toISOString() });
-                          }}
+                          // §16.30: mismo mecanismo que Mi Día. Antes este handler propio flipaba el status del
+                          // PADRE (campo muerto en un contenedor) e ignoraba las hijas. Ahora enruta al
+                          // handleToggleStatus compartido con el grupo = subtareas de ESTA persona (sin día → la rama
+                          // "contenedor sin día pero con grupo" togglea solo esas). Hoja delegada → restrictIds null.
+                          onToggleStatus={(id: string, _day?: string | null, restrictIds?: string[] | null) => onToggleTask(id, null, restrictIds)}
                           onUpdateTask={onUpdateTask}
                           onEditTask={onEditTask}
                           onAddTask={onAddTask}

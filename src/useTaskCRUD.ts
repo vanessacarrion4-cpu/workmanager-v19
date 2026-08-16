@@ -141,7 +141,7 @@ export function useTaskCRUD({
     }
   }, [tasks, dashboardTasks, setRecurrenceAction, setTasks]);
 
-  const handleToggleStatus = useCallback((taskId: string, viewDay?: string | null) => {
+  const handleToggleStatus = useCallback((taskId: string, viewDay?: string | null, restrictIds?: string[] | null) => {
     let task = tasks[taskId] || Object.values(tasks).find(t => t.id === taskId);
     // Fallback V20 (a): instancia virtual movida cuyo id de excepción difiere → resolvemos al id
     // REAL solo si es EXCEPCIÓN persistida — nunca la plantilla (tocarla marcaría toda la serie).
@@ -227,11 +227,18 @@ export function useTaskCRUD({
     // §16.16 C1: la SELECCIÓN día-scoped (qué hijas del día + dirección) vive en `containerDayToggle` (helper
     // puro, testeado — el camino real, lo llama este hook). Aquí solo se EJECUTA el resultado por el upsert de
     // siempre. Si devuelve null → no es rama C1 (hoja, o contenedor sin día/Bloques) → camino previo.
-    const c1 = containerDayToggle(task, tasks, viewDay);
+    const c1 = containerDayToggle(task, tasks, viewDay, restrictIds);
     if (c1) {
       c1.children.forEach(child => toggleRecursive(child, c1.status)); // NO se togglea el contenedor (su completado se deriva)
+    } else if (restrictIds && restrictIds.length > 0 && !writesOwnStatusOnToggle(task)) {
+      // §16.30: CONTENEDOR SIN día pero con grupo (Delegadas: grupo = subtareas de esa PERSONA). containerDayToggle
+      // es día-scoped y devuelve null aquí, así que aplicamos el mismo criterio a mano: togglear SOLO las hijas del
+      // grupo, con la dirección derivada de ese subconjunto. Mismo mecanismo, sin día. (Bloques no entra: sin grupo.)
+      const groupChildren = restrictIds.map(id => tasks[id] || (dayMap ? dayMap[id] : undefined)).filter(Boolean) as Task[];
+      const groupComplete = groupChildren.length > 0 && groupChildren.every(c => isTaskCompleted(c.id, tasks));
+      groupChildren.forEach(child => toggleRecursive(child, groupComplete ? 'pending' : 'completed'));
     } else {
-      // Hoja, o contenedor SIN día (Bloques) → comportamiento previo: dirección por status propio (hoja) o
+      // Hoja, o contenedor SIN día ni grupo (Bloques) → comportamiento previo: dirección por status propio (hoja) o
       // por todas las hijas (contenedor sin día); toggleRecursive recorre todas las subtareas.
       const currentlyComplete = writesOwnStatusOnToggle(task) ? (task.status === 'completed') : isTaskCompleted(task.id, tasks);
       toggleRecursive(task, currentlyComplete ? 'pending' : 'completed');

@@ -422,17 +422,57 @@ describe('FASE 3 · (C1) containerDayToggle: selección real del clic (§16.16)'
     expect(containerDayToggle(tasks['L'], tasks, WED)).toBeNull();
   });
 
-  // Invariante del TAPÓN (item 4): el nº que muestra el aviso = children.length de ESTE helper.
-  // La cuenta NO se parte por etiqueta y SÍ incluye recurrentes → así el mensaje ("N subtareas")
-  // coincide siempre con lo que se marca. Antes el aviso contaba el subconjunto de una etiqueta
-  // filtrando `inst-` y decía "1" mientras marcaba 2.
-  it('cuenta del tapón = TODAS las hijas del día, sin partir por etiqueta', () => {
+  // Invariante del TAPÓN: el nº que muestra el aviso = children.length de ESTE helper (mismo helper que llama
+  // el hook) → el mensaje ("N subtareas") coincide SIEMPRE con lo que se marca. SIN restrictIds cuenta TODAS
+  // las hijas del día (retrocompat; Semana/Bloques). CON restrictIds cuenta el grupo (§16.30, tests abajo).
+  it('cuenta del tapón SIN restrictIds = TODAS las hijas del día', () => {
     const tasks = byId([
       task({ id: 'C', dueDate: WED, subtasks: ['a', 'b'] }),
       task({ id: 'a', parentTaskId: 'C', dueDate: WED, tags: ['focus'] }),
       task({ id: 'b', parentTaskId: 'C', dueDate: WED, tags: ['espera'] }),
     ]);
     expect(containerDayToggle(tasks['C'], tasks, WED)!.children.length).toBe(2);
+  });
+
+  // §16.30 — restrictIds: la SELECCIÓN respeta el grupo de etiqueta (reverso del parche §16.16: antes el
+  // contador contaba todas; ahora la selección respeta la etiqueta y el contador la sigue). Es el camino real:
+  // TaskCard pasa `subtasksForGroup` → handleToggleStatus → containerDayToggle(...restrictIds).
+  it('restrictIds: contenedor MIXTO por etiqueta, clic en un grupo → SOLO las hijas de ese grupo', () => {
+    const tasks = byId([
+      task({ id: 'C', dueDate: WED, subtasks: ['a', 'b'] }),
+      task({ id: 'a', parentTaskId: 'C', dueDate: WED, tags: ['focus'], status: 'pending' }),
+      task({ id: 'b', parentTaskId: 'C', dueDate: WED, tags: ['espera'], status: 'pending' }),
+    ]);
+    const r = containerDayToggle(tasks['C'], tasks, WED, ['a'])!;   // grupo "focus" = solo a
+    expect(idsOf(r)).toEqual(['a']);          // NO toca b (otra etiqueta)
+    expect(r.status).toBe('completed');
+  });
+
+  it('restrictIds: "el aviso dice 1 y marca 1" — children.length = tamaño del grupo, no del día', () => {
+    const tasks = byId([
+      task({ id: 'C', dueDate: WED, subtasks: ['a', 'b'] }),
+      task({ id: 'a', parentTaskId: 'C', dueDate: WED, tags: ['focus'] }),
+      task({ id: 'b', parentTaskId: 'C', dueDate: WED, tags: ['espera'] }),
+    ]);
+    expect(containerDayToggle(tasks['C'], tasks, WED, ['a'])!.children.length).toBe(1); // no 2
+  });
+
+  it('restrictIds: dirección por SUBCONJUNTO — grupo A completo desmarca aunque B siga pendiente', () => {
+    const tasks = byId([
+      task({ id: 'C', dueDate: WED, subtasks: ['a', 'b'] }),
+      task({ id: 'a', parentTaskId: 'C', dueDate: WED, tags: ['focus'], status: 'completed' }),
+      task({ id: 'b', parentTaskId: 'C', dueDate: WED, tags: ['espera'], status: 'pending' }),
+    ]);
+    expect(containerDayToggle(tasks['C'], tasks, WED, ['a'])!.status).toBe('pending');   // grupo A todo hecho → desmarca
+    expect(containerDayToggle(tasks['C'], tasks, WED)!.status).toBe('completed');         // sin grupo: B pendiente → marcar
+  });
+
+  it('restrictIds sin coincidencias → children vacío (no togglea nada ajeno)', () => {
+    const tasks = byId([
+      task({ id: 'C', dueDate: WED, subtasks: ['a'] }),
+      task({ id: 'a', parentTaskId: 'C', dueDate: WED, tags: ['focus'] }),
+    ]);
+    expect(containerDayToggle(tasks['C'], tasks, WED, ['zzz'])!.children.length).toBe(0);
   });
 });
 
