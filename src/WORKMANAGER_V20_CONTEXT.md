@@ -3405,7 +3405,14 @@ solo lectura por diseño (`TaskCard:701-707`). Cambiar la pauta requiere el moda
 se quiere editar desde la fila: convertir esa etiqueta en un control (picker) también para instancias/plantillas, decidiendo
 la semántica "este día vs serie" — es diseño, con coste, NO un simple "ya está cableado". **No arreglado.**
 
-### 16.30 MAPA — completar un contenedor DESDE su grupo de etiqueta (sesión 20). Sin arreglar.
+### 16.30 completar un contenedor DESDE su grupo (sesión 20). ✅ HECHO + VALIDADO EN PANTALLA (commit `af2c937`).
+
+> ✅ **FASE 6 · BLOQUE 2 — HECHO.** Completar respeta el grupo (etiqueta en Mi Día, persona en Delegadas). 4 cambios
+> alineados + Delegadas unificado por el MISMO `handleToggleStatus` (antes flipaba el status del padre = campo muerto).
+> **Verificado en pantalla** (Mi Día, "Cierre Propias" partido FOCUS/RESTO): completar desde FOCUS → día 2→3 (no 4),
+> RESTO intacto, check de FOCUS marcado, aviso "1 subtarea"; revertido sin dejar datos tocados. +4 tests, 164 verdes.
+> **Conteo:** de 105 contenedores con hijas vivas, **67** tienen hijas de ≥2 etiquetas (los que pueden partirse). El
+> texto de abajo es el mapa original.
 
 > Hallazgo de la usuaria tras validar FASE 6 B1: un contenedor con subtareas de **etiquetas distintas** aparece **partido en
 > varios grupos** (Mi Día agrupa por etiqueta). Al completar el contenedor **desde el grupo de una etiqueta**, hoy se
