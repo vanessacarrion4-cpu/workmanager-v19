@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
 import { Task } from './types';
-import { sortInstanceContainerSubtasks } from './useSupabase';
+import { sortInstanceContainerSubtasks, mapDbTaskToTask } from './useSupabase';
 
 const WED = '2026-07-15';
 
@@ -64,5 +64,35 @@ describe('sortInstanceContainerSubtasks (bug #21)', () => {
     ]);
     sortInstanceContainerSubtasks(map);
     expect(map['C'].subtasks).toEqual(['b', 'a']); // intacto: este path lo cubre reconstructHierarchy
+  });
+});
+
+describe('mapDbTaskToTask (fuente única del mapeo DB→Task; usado en carga y restore)', () => {
+  it('mapea snake_case → camelCase, incluida la columna nueva deleted_with_block', () => {
+    const t = mapDbTaskToTask({
+      id: 't-1', block_id: 'b1', title: 'X', status: 'pending',
+      due_date: '2026-07-15', is_template: true, is_exception: false, is_deleted: false,
+      parent_task_id: 'p1', template_id: 'tpl1', instance_date: '2026-07-15',
+      deleted_at: null, deleted_with_block: 'blk-9',
+    });
+    expect(t).toMatchObject({
+      id: 't-1', blockId: 'b1', title: 'X', status: 'pending', dueDate: '2026-07-15',
+      isTemplate: true, isException: false, isDeleted: false, parentTaskId: 'p1',
+      templateId: 'tpl1', instanceDate: '2026-07-15', deletedWithBlock: 'blk-9',
+    });
+  });
+
+  it('defaults: tags→[], subtasks→[], existsInSupabase→true, onHold→false, isActive por !==false', () => {
+    const t = mapDbTaskToTask({ id: 't-2', block_id: 'b1', title: 'Y', status: 'pending' });
+    expect(t.tags).toEqual([]);
+    expect(t.subtasks).toEqual([]);
+    expect((t as any).existsInSupabase).toBe(true);
+    expect(t.onHold).toBe(false);
+    expect(t.isActive).toBe(true);      // is_active undefined → !== false → true
+    expect(t.deletedWithBlock).toBe(null); // deleted_with_block ausente → null
+  });
+
+  it('is_active:false → isActive:false', () => {
+    expect(mapDbTaskToTask({ id: 't-3', is_active: false }).isActive).toBe(false);
   });
 });
