@@ -721,6 +721,8 @@ export default function App() {
                 timeEntries={timeEntries}
                 onEditTask={handleEditTaskRequest}
                 onToggle={handleToggleStatus}
+                onUpdateTask={handleUpdateTask}
+                onRecurrenceDateChange={(task: any, newDate: string) => setPendingDateChange({ task, newDate })}
                 onAddTask={(parentId, blockId, date) => {
                   if (date) setActiveDate(date);
                   handleAddTask(parentId, blockId, date);

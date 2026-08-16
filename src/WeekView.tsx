@@ -9,13 +9,15 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
-  Plus, Check, RefreshCw, Layers, Clock, LayoutGrid, Tag
+  Plus, Check, RefreshCw, Layers, Clock, LayoutGrid, Tag,
+  Calendar as CalendarIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task, WorkBlock, TimeEntry } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { materializeDay } from './instanceEngine';
 import { formatMinutes, getTaskEstimatedCombo } from './utils';
+import { MonthDatePicker } from './TimeComponents';
 import { TAG_LABELS } from './constants';
 
 // ─── Colores carga ────────────────────────────────────────────────────────────
@@ -144,14 +146,17 @@ function GroupDropdown({ value, onChange }: { value: GroupMode; onChange: (v: Gr
 export function WeekView({
   allTasksMap, blocks, timeEntries = [],
   onEditTask, onToggle, onAddTask, onNavigateToDashboard,
+  onUpdateTask, onRecurrenceDateChange,
 }: {
   allTasksMap: Record<string, Task>;
   blocks: WorkBlock[];
   timeEntries: TimeEntry[];
   onEditTask: (id: string) => void;
-  onToggle: (id: string) => void;
+  onToggle: (id: string, day?: string) => void;
   onAddTask: (parentId: string | null, blockId?: string, date?: string) => void;
   onNavigateToDashboard: (date: string) => void;
+  onUpdateTask: (task: Task) => void;
+  onRecurrenceDateChange: (task: Task, newDate: string) => void;
 }) {
   const today = formatLocalISO(new Date());
 
@@ -276,7 +281,8 @@ export function WeekView({
               <div className="space-y-0.5 pb-1 px-1">
                 {blockTasks.map(task => (
                   <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
-                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} onEditTask={onEditTask} />
+                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} date={date} onEditTask={onEditTask}
+                    onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
                 ))}
               </div>
             </motion.div>
@@ -337,7 +343,8 @@ export function WeekView({
                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                   {bTasks.map(task => (
                                     <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
-                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} onEditTask={onEditTask} />
+                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} date={date} onEditTask={onEditTask}
+                    onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
                                   ))}
                                 </motion.div>
                               )}
@@ -347,7 +354,8 @@ export function WeekView({
                       })
                     : tipoTasks.map(task => (
                         <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
-                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} onEditTask={onEditTask} />
+                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} date={date} onEditTask={onEditTask}
+                    onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
                       ))
                   }
                 </div>
@@ -521,7 +529,8 @@ export function WeekView({
                                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                               {tipoTasks.map(task => (
                                                 <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
-                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id)} date={date} onEditTask={onEditTask} />
+                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} date={date} onEditTask={onEditTask}
+                    onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
                                               ))}
                                             </motion.div>
                                           )}
@@ -563,14 +572,31 @@ export function WeekView({
 }
 
 // ─── WeekTaskCard ─────────────────────────────────────────────────────────────
-function WeekTaskCard({ task, dayMap, onEdit, onToggle, date, onEditTask }: {
+function WeekTaskCard({ task, dayMap, onEdit, onToggle, date, onEditTask, onUpdateTask, onRecurrenceDateChange }: {
   task: Task; dayMap: Record<string, Task>;
   onEdit: () => void; onToggle: () => void; date: string;
   onEditTask?: (id: string) => void;
+  onUpdateTask: (task: Task) => void;
+  onRecurrenceDateChange: (task: Task, newDate: string) => void;
 }) {
   const tagEmoji = task.tags?.[0] ? TAG_LABELS[task.tags[0]]?.icon : null;
   const isCompleted = task.status === 'completed';
   const taskMins = getTaskMins(task, dayMap);
+
+  // Mover a otro día. Recurrente → pregunta (modal "este día / serie") reusando el
+  // mismo camino de App (onRecurrenceDateChange). Normal → mueve directo.
+  const [showMovePicker, setShowMovePicker] = useState(false);
+  const [showMoveCalendar, setShowMoveCalendar] = useState(false);
+  const handleMoveTask = (newDate: string | null) => {
+    if (!newDate || newDate === date) { setShowMovePicker(false); setShowMoveCalendar(false); return; }
+    if (task.templateId) {
+      onRecurrenceDateChange(task, newDate);
+    } else {
+      onUpdateTask({ ...task, dueDate: newDate, modifiedAt: new Date().toISOString() });
+    }
+    setShowMovePicker(false);
+    setShowMoveCalendar(false);
+  };
 
   // Contenedor: mostrar subtareas del día al expandir. Las subtareas del mapa
   // materializado son exactamente las que ocurren este día.
@@ -599,6 +625,77 @@ function WeekTaskCard({ task, dayMap, onEdit, onToggle, date, onEditTask }: {
           {task.title}
         </span>
         {task.templateId && <RefreshCw size={9} className="text-turquesa shrink-0 opacity-60" />}
+        {/* Mover a otro día */}
+        <div className="relative shrink-0">
+          <button
+            onClick={e => { e.stopPropagation(); setShowMovePicker(v => !v); setShowMoveCalendar(false); }}
+            className="w-5 h-5 flex items-center justify-center text-azul/70 hover:text-azul rounded transition-all"
+            title="Mover a otro día"
+          >
+            <CalendarIcon size={11} />
+          </button>
+          <AnimatePresence>
+            {showMovePicker && (
+              <>
+                <div className="fixed inset-0 z-[210]" onClick={e => { e.stopPropagation(); setShowMovePicker(false); setShowMoveCalendar(false); }} />
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                  onClick={e => e.stopPropagation()}
+                  className="fixed bottom-4 right-4 z-[220] dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl shadow-2xl p-4 w-[220px]"
+                >
+                  {!showMoveCalendar ? (
+                    <div className="space-y-2">
+                      {task.templateId && (
+                        <p className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest text-center pb-1 border-b dark:border-border-main/50 border-border-main-light/50">
+                          Recurrente · preguntará
+                        </p>
+                      )}
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={e => { e.stopPropagation(); handleMoveTask(formatLocalISO(new Date())); }}
+                          className="flex flex-col items-center gap-1 p-3 dark:bg-bg-main bg-bg-secondary-light rounded-xl border dark:border-border-main border-border-main-light hover:border-turquesa transition-all group"
+                        >
+                          <span className="text-[10px] font-black dark:text-white text-text-main-light uppercase tracking-widest group-hover:text-turquesa">Hoy</span>
+                          <span className="text-[8px] dark:text-text-secondary text-text-secondary-light">{new Date().getDate()}</span>
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); const m = new Date(); m.setDate(m.getDate() + 1); handleMoveTask(formatLocalISO(m)); }}
+                          className="flex flex-col items-center gap-1 p-3 dark:bg-bg-main bg-bg-secondary-light rounded-xl border dark:border-border-main border-border-main-light hover:border-turquesa transition-all group"
+                        >
+                          <span className="text-[10px] font-black dark:text-white text-text-main-light uppercase tracking-widest group-hover:text-turquesa">Mañana</span>
+                          <span className="text-[8px] dark:text-text-secondary text-text-secondary-light">{(() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.getDate(); })()}</span>
+                        </button>
+                      </div>
+                      <button
+                        onClick={e => { e.stopPropagation(); setShowMoveCalendar(true); }}
+                        className="w-full flex items-center justify-between p-3 dark:bg-bg-main bg-bg-secondary-light rounded-xl border dark:border-border-main border-border-main-light hover:border-azul transition-all group"
+                      >
+                        <span className="text-[10px] font-black dark:text-white text-text-main-light uppercase tracking-widest group-hover:text-azul">Elegir fecha</span>
+                        <CalendarIcon size={14} className="dark:text-text-secondary text-text-secondary-light group-hover:text-azul" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between px-1">
+                        <button
+                          onClick={e => { e.stopPropagation(); setShowMoveCalendar(false); }}
+                          className="text-[10px] font-black text-turquesa uppercase tracking-widest hover:underline flex items-center gap-1"
+                        >
+                          <ChevronLeft size={12} /> Volver
+                        </button>
+                        <span className="text-[10px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Mensual</span>
+                      </div>
+                      <MonthDatePicker
+                        value={task.dueDate || date}
+                        onChange={(d) => { handleMoveTask(d); }}
+                      />
+                    </div>
+                  )}
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
         {isContainer && (
           <span className="text-[9px] dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0">
             {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
