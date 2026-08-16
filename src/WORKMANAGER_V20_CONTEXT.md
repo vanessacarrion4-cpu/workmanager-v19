@@ -3308,7 +3308,14 @@ hijas con semántica de Bloques (un helper tipo `getVisibleSubtasksForBloques(co
   completadas históricas. Esto además arregla de raíz el reorden flaky de §16.25 (de 136 items a ~4).
 - **Antes de tocar: fija la regla canónica** (tu versión vs la del doc), porque cambian el resultado para los recurrentes.
 
-### 16.27 MAPA — recurrentes en otras vistas (item 1, sesión 19). Sin arreglar.
+### 16.27 MAPA — recurrentes en otras vistas (item 1, sesión 19). Semana CERRADA (FASE 6 B1).
+
+> ✅ **FASE 6 · BLOQUE 1 — SEMANA HECHO Y VALIDADO EN PANTALLA POR LA USUARIA (2026-08-16, commit `dc83604`).** Semana
+> ahora **mueve** (botón de calendario SIEMPRE visible en cada fila — no hover; recurrente → modal "¿este día / toda la
+> serie?", tarea normal → mueve directo) y el **toggle es por día** (los 4 sitios pasan `date` → rama C1). La usuaria
+> confirmó en el deploy: mover funciona; completó un contenedor en un día y otro día siguió pendiente (cierra el bug del
+> toggle-sin-día que ella señaló). **Pendiente de FASE 6:** (2) Calendario-completar (checkbox en COMPACT); (3) Bloques =
+> decisión de producto. El texto de abajo (mapa original) queda como histórico; la parte de Semana ya NO aplica.
 
 > ✅ **VERIFICADO EN PANTALLA (2026-08-16)** (no solo leído en código): **Semana** → inspeccionado el DOM: 0 controles de
 > mover y 0 de recurrencia (solo toggles) → confirma "no mueve". **Calendario** → abierto el día: controles presentes
@@ -3397,3 +3404,49 @@ día. Hoy `RecurrenceChoiceModal` solo recibe `type`; habría que pasarle esos d
 solo lectura por diseño (`TaskCard:701-707`). Cambiar la pauta requiere el modal (y cambia la serie). Lo que haría falta si
 se quiere editar desde la fila: convertir esa etiqueta en un control (picker) también para instancias/plantillas, decidiendo
 la semántica "este día vs serie" — es diseño, con coste, NO un simple "ya está cableado". **No arreglado.**
+
+### 16.30 MAPA — completar un contenedor DESDE su grupo de etiqueta (sesión 20). Sin arreglar.
+
+> Hallazgo de la usuaria tras validar FASE 6 B1: un contenedor con subtareas de **etiquetas distintas** aparece **partido en
+> varios grupos** (Mi Día agrupa por etiqueta). Al completar el contenedor **desde el grupo de una etiqueta**, hoy se
+> completan **TODAS las subtareas del día**, ignorando la etiqueta desde la que se clica. Quiere que se complete **solo la
+> etiqueta clicada**. (Es el reverso del parche §16.16/tapón: entonces alineé el CONTADOR a "todas"; lo correcto parece ser
+> que la SELECCIÓN respete la etiqueta y el contador la siga.)
+
+**Dónde nace el "partido por etiqueta":** `filters.ts` `groupTasksByTag` (~271-305): para un contenedor, agrupa sus hijas
+del día por `tags[0]` y **empuja el MISMO contenedor a cada grupo** con `subtasksForGroup = [ids de ESA etiqueta]`. Esos ids
+son los materializados del día (mismos que devuelve `containerDayToggle`) → **intersecar por id es viable.**
+
+**Por qué falla hoy (cadena del clic):** `TaskCard:493` el checkbox llama `onToggleStatus(task.id, dayForTotals)` — pasa id
+y día, **NO `subtasksForGroup`**. → `handleToggleStatus` → `containerDayToggle(task, tasks, viewDay)` (`useTaskCRUD:230`)
+devuelve **TODAS** las hijas del día (sin filtro de etiqueta) → se completan todas.
+
+**Asimetría reveladora:** el "en suspenso" del mismo contenedor **YA respeta el grupo** (`TaskCard:222-242`: `onHoldChildIds
+= subtasksForGroup` y togglea solo esas). El **completar NO** — ni la acción ni el estado del check. El on-hold es el patrón
+a imitar.
+
+**Respuestas a lo que pediste:**
+1. **¿En qué vistas pasa?** Solo **Mi Día** (`DashboardView`, único que agrupa por etiqueta y parte el contenedor).
+   **Semana NO** aplica: usa `WeekTaskCard` propio y agrupa por Bloque/Tipo, no por etiqueta → el contenedor no se parte;
+   completar "todas las del día" ahí es correcto. **Relacionadas (mismo mecanismo `subtasksForGroup`, a decidir aparte):**
+   Delegadas parte por PERSONA (misma asimetría: on-hold por-grupo, completar no); Calendario usa `subtasksForGroup` pero
+   COMPACT no tiene checkbox de completar → no alcanzable por ese camino.
+2. **¿Qué pasarle al toggle además del día?** El subconjunto `subtasksForGroup` (los ids de la etiqueta clicada). Nada más:
+   día + esos ids.
+3. **¿`containerDayToggle` admite un filtro más sin romperse?** Sí. Es función pura con tests que la llaman con 3 args.
+   Añadir un 4º opcional `restrictIds?: string[]` (si viene, filtra `children` a ∈ restrictIds y calcula la dirección
+   "todas hechas → pendiente" sobre ese subconjunto) es **retrocompatible** (los 3-args siguen igual → Semana/Bloques
+   intactos).
+4. **¿Cuántas filas cambian de ASPECTO?** **0** — es un arreglo de comportamiento, sin UI nueva. Solo cambia el
+   comportamiento de los contenedores de Mi Día cuyas hijas del día abarcan **≥2 etiquetas** (medible en pantalla si se
+   quiere el número exacto).
+5. **¿Y en Bloques?** No tiene día (`dayForTotals=null`) ni agrupa por etiqueta (`subtasksForGroup=null`) → `containerDay
+   Toggle` devuelve `null` → rama else → completa TODAS las hijas (todos los días). El fix **no lo toca** (subtasksForGroup
+   es null ahí). Bloques sigue igual: completar el contenedor = completar todo.
+
+**Para que quede consistente, el fix (cuando se decida) son 3 cambios alineados + revertir el parche del contador:**
+(a) `TaskCard` pasa `subtasksForGroup` al toggle; (b) `containerDayToggle` acepta y aplica `restrictIds`; (c) el **estado del
+check** `rowCompleted` (`TaskCard:267-271`, hoy `isContainerCompleteOnDay` = todas las del día) pasa a reflejar el grupo
+(`subtasksForGroup.every(completada)`), si no el check quedaría desmarcado tras completar su grupo; (d) el **contador del
+tapón** (`TaskCard:470-477`) vuelve a contar el subconjunto (usando el mismo `containerDayToggle` con restrictIds) → "1
+subtarea" marcará 1. Cubrir con test el caso "1/marca 1". **No arreglado — esperando decisión.**
