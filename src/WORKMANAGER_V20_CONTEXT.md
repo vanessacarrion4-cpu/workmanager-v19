@@ -2775,11 +2775,10 @@ ya se completó hace tiempo.)*
 
   *(Todo por id arriba o con patrón medible; ninguna fila tocada. Números corregidos vs el doc viejo: dups 5+2 → 1+0;
   template_id-huérfano 45 → 64.)*
-- **FASE 5 (creación) — chip de recurrencia desde la FILA. ⚠️ STALE (corregido sesión 19, item 3, §16.29):** ya NO es
-  cierto que "no llega a poner la pauta". El chip de la fila está cableado (`TaskCard:711-721` `onChange → onUpdateTask`) y
-  `handleUpdateTask:641-653` convierte manual→plantilla + crea la 1ª instancia — igual que el modal. **Probablemente YA
-  funciona** para tareas manuales hoja; falta solo validarlo en pantalla. Lo que queda es DESCUBRIBILIDAD: el chip es
-  hover-only (cae bajo "acciones escondidas", §16.21 #3). Ver §16.29.
+- **FASE 5 (creación) — pauta de recurrencia desde la FILA. ❌ (corregido 2x, ver §16.29):** en una tarea RECURRENTE la
+  recurrencia de la fila es una **ETIQUETA de solo lectura** (`TaskCard:701-707`), NO un chip editable → no se puede
+  cambiar desde la fila (refutado en pantalla 2026-08-16). El picker editable solo existe para CONVERTIR una hoja manual en
+  recurrente (`TaskCard:708-724`), y ese camino NO está confirmado en pantalla. **No dar por bueno.** Ver §16.29.
 - **FASE 6 (diseño):**
   - **Modal de la papelera de una fila recurrente (sin prioridad):** debe dejar CLARÍSIMO qué se borra ("este día" vs "la
     serie") y **avisar si hay hijas pendientes debajo** que se van a enterrar. Es el gesto que hoy suprime un contenedor
@@ -3058,7 +3057,7 @@ Consolidado de todo lo pendiente estos días, para elegir de un vistazo si entra
 | 1 | **Recurrentes en otras vistas** (§11.1e/f/g; **MAPA en §16.27**) | FASE 6 | Semana no MUEVE (WeekView sin `onUpdateTask` + card propio) · Calendario sin icono de completar (variante COMPACT no tiene checkbox) · Bloques no completa (es la vista de definición → se completa en Mi Día). **Son TRES causas distintas, no un bug único.** | M cada una | Coherencia: la misma tarea se comporta igual en toda la app | Sí |
 | 2 | **Modal de la papelera de fila recurrente** | FASE 6 | Que deje CLARÍSIMO "este día" vs "la serie" y avise si hay hijas pendientes que se entierran. Es el gesto que más miedo da. | M | Borrar recurrentes sin sustos; menos error | Sí |
 | 3 | **Acciones escondidas tras hover o dentro de modales** | FASE 6 | Muchas acciones solo aparecen al PASAR EL RATÓN (medido: **13 grupos hover en 8 vistas**) o ENTERRADAS en un modal. Ejemplo probado: **borrar un bloque** = lápiz hover-only (`BlocksView:596`) + "Eliminar" dentro del modal (`Modals.tsx:169`). **DATO MÓVIL (item 4, sesión 19): de los 13, 1 es solo un tooltip; los OTROS 12 gatean acciones REALES que sin hover son inalcanzables/torpes en el teléfono** — borrar/editar bloque · borrar/editar persona (Delegadas y picker) · editar/borrar entradas de tiempo (Dashboard y TimeComponents) · ver/borrar adjuntos (modal) · editar subtarea (modal) · y **los CHIPS de la fila** (fecha/etiqueta/tiempo/**poner pauta**, `TaskCard:282`). **Lo más grave: hasta el propio botón "⋯ Más acciones" (`TaskCard:782`) es hover-only** → en móvil no hay ni menú que tocar. **DATO real: la usuaria no encontraba cómo borrar un bloque aunque lleva ahí desde siempre — el problema es real.** Auditar y sacar las importantes/destructivas a un sitio visible/táctil. | M-L | Descubribilidad + que la app se pueda USAR en móvil (hoy ~12 acciones no se alcanzan) | Sí |
-| 4 | **Pauta de recurrencia desde la FILA** (**MAPA §16.29**) | FASE 5 | **Probablemente YA funciona** (chip cableado + conversión en `handleUpdateTask`; §16.29). Falta VALIDAR en pantalla; lo real que queda es que el chip es hover-only (→ #3 acciones escondidas). | S (validar) | Confirmar que ya se puede; si no, es casi 0 | Sí (validación) |
+| 4 | **Pauta de recurrencia desde la FILA** (**MAPA §16.29**) | FASE 5 | ❌ Refutado en pantalla: en tarea recurrente la pauta de la fila es una ETIQUETA de solo lectura (`TaskCard:701-707`), no editable. El picker solo existe para convertir manual→recurrente (sin confirmar). Editar la pauta desde la fila = **diseño nuevo** (convertir la etiqueta en control + semántica este-día/serie). | M | Poder cambiar la pauta sin abrir el modal | Sí |
 | 5 | **Calendario "Ir a fecha" no retrocede de mes** | FASE 6 | Solo muestra el mes actual; para ir a julio, ~23 clics. Añadir ‹ mes ›. | S | Navegar al pasado sin sufrir | Sí |
 | 6 | **#1 exception-move: extraer + test** | Técnico | Origen del leak `inst-inst-`. Blindar con test el camino más frágil. **Solo CONTIGO** (mover instancia en pantalla + diff BD). | M | Menos riesgo de que vuelva el leak | No (refactor) + validación |
 | 7 | **Renombrar "borrar la serie" → "terminar la serie"** | FASE 6 | El botón en realidad la termina (corta de ese día, conserva histórico). El nombre engaña. | S | Menos confusión | Sí (texto) |
@@ -3368,27 +3367,27 @@ día. Hoy `RecurrenceChoiceModal` solo recibe `type`; habría que pasarle esos d
 
 ### 16.29 MAPA — pauta de recurrencia desde la fila (item 3, sesión 19). Sin arreglar.
 
-**Hallazgo: probablemente YA FUNCIONA (para tareas manuales hoja). El §16.17 ("desde la fila el chip no llega a poner la
-pauta") parece STALE.** Verificado en código:
-- La fila SÍ tiene el chip cableado: `TaskCard:711-721` renderiza `RecurrencePickerChip` con
-  `onChange={(rec) => onUpdateTask({ ...task, recurrence: rec || undefined })}` (con comentario explicando que se arregló:
-  "Igual que poner la recurrencia desde el modal").
-- El motor convierte: `handleUpdateTask:641-653` — `if (recurrence && !parentTaskId && !templateId && !isTemplate)` →
-  pone `isTemplate:true`, vacía `dueDate` del template y **CREA la 1ª instancia del día**. Es la misma conversión
-  manual→plantilla que hace el modal.
-- **Opción B** (`ced422a`, `handleAddRule:910`): una tarea nueva nace NORMAL (no plantilla) y se vuelve regla al ponerle la
-  pauta. Encaja exactamente con el chip de la fila → **el flujo ya existe, está más cerca de lo que parecía: básicamente
-  hecho.**
+> ❌ **REFUTADO EN PANTALLA (2026-08-16).** Mi conclusión anterior ("probablemente YA funciona") era FALSA — deducida del
+> código, muerta en pantalla (5ª vez el mismo patrón). **NO deducir "funciona" del código.** Debajo, lo que de verdad pasa,
+> comprobado ejecutando la app (dev server + inspección del DOM real).
 
-**Dónde NO aparece el chip en la fila** (limitaciones reales, no bugs): solo se muestra para `!hasSubtasks && !templateId
-&& !isTemplate` (`TaskCard:708`) = hoja MANUAL. No en contenedores (su pauta va por las reglas hijas) ni en instancias/
-plantillas ya recurrentes. Eso es coherente con el modelo.
+**QUÉ PASA DE VERDAD (comprobado ejecutando, siguiendo la cadena clic→escritura):**
+- En Mi Día con datos reales: **0 chips-picker de recurrencia en el DOM · 3 LABELS de recurrencia** (`<span>` "Mes 16",
+  "Diaria"…, `isButton:false`, `role:null`, sin `onClick`). O sea, lo que se ve en la fila de una tarea recurrente **NO es
+  un chip editable: es una ETIQUETA de solo lectura.** Por eso "está ahí y no responde": no hay selector que abrir.
+- **Causa en código:** `TaskCard:701-707` — si la tarea es INSTANCIA (`templateId`) o PLANTILLA (`isTemplate`), la
+  recurrencia se pinta como `<span>{recurrenceLabel(...)}</span>` (solo lectura). El `RecurrencePickerChip` EDITABLE
+  (`TaskCard:708-724`) solo se renderiza para una **hoja MANUAL** (`!templateId && !isTemplate`) — es decir, solo sirve
+  para CONVERTIR una tarea manual en recurrente, **no para cambiar/ver la pauta de una que YA es recurrente.**
+- **Respuesta a la cadena que pediste:** (1) ¿abre el selector al pulsar? **NO** — en una tarea recurrente no hay botón,
+  es un span; el clic no tiene a dónde llegar. (2) onChange / (3) onUpdateTask / persistencia → **N/A** (no hay control).
+  (4) **Condición de solo-lectura: SÍ — `task.templateId` (instancia recurrente) o `task.isTemplate` (plantilla) → etiqueta,
+  no picker.** Esa es la condición que lo deja muerto en el contexto real donde la ves.
+- **El caso "hoja manual → poner pauta" (el que mi §16.29 daba por bueno): NO CONFIRMADO en pantalla** — en los datos
+  actuales no había ninguna hoja manual con el picker para probarlo. Así que tampoco puedo afirmar que ese camino funcione;
+  queda como NO verificado (y ya no lo doy por bueno).
 
-**Lo que SÍ queda (y explica el recuerdo de "no se podía"):** el chip es `muted` y vive en el raíl que se revela al pasar
-el ratón → **problema de DESCUBRIBILIDAD, no de función** (enlaza con §16.27/acciones escondidas, punto #3 de §16.21). Es
-decir: la pauta se puede poner desde la fila, pero el chip cuesta de encontrar (hover) — probablemente por eso parecía que
-"no ponía la pauta".
-
-**Qué haría falta:** (a) **validar en pantalla** que poner la pauta desde la fila convierte y crea la instancia (yo lo veo
-cableado; confírmalo). (b) Si el problema es encontrar el chip → cae bajo "acciones escondidas". **Coste real si ya
-funciona: casi 0 (validación).** Corregir el §16.17 va en el repaso stale (item 5).
+**Conclusión honesta:** "modificar la pauta de una tarea recurrente desde la fila" **NO existe hoy** — es una etiqueta de
+solo lectura por diseño (`TaskCard:701-707`). Cambiar la pauta requiere el modal (y cambia la serie). Lo que haría falta si
+se quiere editar desde la fila: convertir esa etiqueta en un control (picker) también para instancias/plantillas, decidiendo
+la semántica "este día vs serie" — es diseño, con coste, NO un simple "ya está cableado". **No arreglado.**
