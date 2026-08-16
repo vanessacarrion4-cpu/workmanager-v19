@@ -786,7 +786,9 @@ export function TaskCard({
                   <button
                     onClick={(e) => { e.stopPropagation(); clearTimeout(stripTimer.current); setStripOpen(o => !o); }}
                     title="Más acciones"
-                    className={`w-6 h-6 flex items-center justify-center rounded-lg transition-all dark:text-text-secondary text-text-secondary-light ${stripOpen ? 'opacity-100 dark:bg-white/10 bg-black/5' : 'opacity-0 group-hover/row:opacity-100'}`}
+                    /* FASE 6 B3 (tanda 1): SIEMPRE visible (antes opacity-0 group-hover → inalcanzable con el dedo,
+                       no hay hover en móvil). Es el "⋯" que abre la tira-menú; desbloquea el resto de acciones. */
+                    className={`w-6 h-6 flex items-center justify-center rounded-lg transition-all dark:text-text-secondary text-text-secondary-light ${stripOpen ? 'opacity-100 dark:bg-white/10 bg-black/5' : 'opacity-100 group-hover/row:dark:bg-white/5 group-hover/row:bg-black/5'}`}
                   >
                     <MoreHorizontal size={16} />
                   </button>
