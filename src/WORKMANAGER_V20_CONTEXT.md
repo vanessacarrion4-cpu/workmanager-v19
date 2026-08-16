@@ -3466,3 +3466,71 @@ check** `rowCompleted` (`TaskCard:267-271`, hoy `isContainerCompleteOnDay` = tod
 (`subtasksForGroup.every(completada)`), si no el check quedaría desmarcado tras completar su grupo; (d) el **contador del
 tapón** (`TaskCard:470-477`) vuelve a contar el subconjunto (usando el mismo `containerDayToggle` con restrictIds) → "1
 subtarea" marcará 1. Cubrir con test el caso "1/marca 1". **No arreglado — esperando decisión.**
+
+### 16.31 Borrado de contenedor partido — el aviso debe LISTAR, no solo contar (sesión 20). Sin implementar.
+
+**Hallazgo de la usuaria:** un contenedor partido por etiqueta se borra desde un grupo, se lleva las hijas de los OTROS
+grupos (que no ve), y el aviso solo da un número → no se entera de lo que pierde. **Decisión tomada (no reabrir):** borrar
+NO va por grupo — se lleva el contenedor ENTERO (completar por grupo tiene sentido; borrar por grupo dejaría el contenedor
+medio vivo). Lo que se arregla es el AVISO: que liste TODO lo que se va (títulos), no solo el número.
+
+**Confirmado con datos (código + probe, 2026-08-17):**
+1. **¿Borrar desde un grupo se lleva las hijas de los otros?** SÍ. El borrado es a nivel de CONTENEDOR (id del contenedor,
+   sin parámetro de grupo) — nunca fue por grupo. Dos caminos: (a) recurrente → `RecurrenceChoiceModal` → "quitar este
+   día" soft-deletea SOLO la instancia del contenedor y sus hijas del día quedan OCULTAS con él (no borradas: la rutina y
+   sus hijas siguen otros días); (b) no-recurrente → `handleDeleteTask` → `collectDeletableTasks` (contenedor + TODAS las
+   descendientes, recursivo) soft-delete. **Soft-delete real:** hay 488/2519 filas `is_deleted:true` en BD → recuperable a
+   nivel BD, pero **NO hay botón de deshacer en la app para una tarea suelta** (sí para bloques, vía papelera).
+2. **¿El número del aviso es total o del grupo?** TOTAL. El modal usa `containerDayToggle` SIN `restrictIds` (todas las
+   hijas del día); el confirm no-recurrente usa `collectDeletableTasks` (todas). Verificado en pantalla: "Cierre Propias"
+   (FOCUS+RESTO) → aviso "2 subtareas" = las dos, no una.
+3. **¿Delegadas igual?** SÍ. `onDeleteTask` = mismo `handleDeleteTaskRequest`; el grupo por persona (`subtasksForGroup`) NO
+   afecta al borrado → se lleva el contenedor entero (todas las personas). Número total.
+
+**Datos reales de contenedores partidos (probe):** «Verduras vivas» 51 (espera 50 + **focus 1** ← la hija que se pierde sin
+verla) · «Selecció RRHH» 33 (focus 24/espera 4/con_hora 3/resto 2) · «Rutinas mañana» 136 (con_hora 136, una sola etiqueta
+pero igual quiere verlas antes de borrar).
+
+**Texto propuesto (mismo `RecurrenceChoiceModal`; añade una banda-inventario; también convierte el `confirm()` nativo del
+no-recurrente en modal para poder listar). El conjunto listado = TODAS las hijas del día (no solo pendientes).**
+
+- **POCAS hijas (≤ ~6): lista completa directa, agrupada por etiqueta.**
+  > **¿Eliminar «Cierre propias»?** · Es parte de una rutina recurrente.
+  > ⚠️ **Quitar este día se lleva estas 3 subtareas:**
+  >   🎯 Focus (1) — Sacar cuentas de resultados
+  >   📋 Resto (1) — Publicar a coordinadores
+  >   🚀 Dirección (1) — Comentar previsional 1Q
+  > [ Quitar solo el domingo, 16 ago ] La rutina sigue; solo desaparece del domingo, 16 ago.
+  > [ Terminar la rutina ] Deja de repetirse de hoy en adelante. Lo ya hecho se conserva.
+  > [ Cancelar ]
+- **MUCHAS hijas (> ~6): resumen por etiqueta con total SIEMPRE visible + "Ver las N →" que despliega la lista completa
+  (agrupada, con scroll). Nunca se quita la opción de ver el detalle.**
+  > **¿Eliminar «Verduras vivas»?** · Es parte de una rutina recurrente.
+  > ⚠️ **Quitar este día se lleva 51 subtareas:**
+  >   ⏳ Espera (50) · 🎯 Focus (1)
+  >   [ Ver las 51 → ]   ← despliega: cada etiqueta con sus títulos, scroll
+  > [ Quitar solo el domingo, 16 ago ] … / [ Terminar la rutina ] … / [ Cancelar ]
+- **No-recurrente** (contenedor manual): misma banda pero "Esto borra «X» y estas N subtareas (recuperables solo en la
+  base):" + [ Eliminar ] / [ Cancelar ] (sin "este día / serie").
+- **Hoja** (sin hijas): sin banda (como hoy).
+
+**Pendiente de OK de la usuaria sobre el texto antes de implementar.**
+
+### 16.32 INVENTARIO FASE 5 (creación) — formato §16.21. NO arrancada.
+
+FASE 5 = hacer FLUIDA la creación de tareas y poner/gestionar pautas. Consolidado para saber si queda mucho o poco al
+cerrar la 6.
+
+| # | Qué es | Coste | Qué gano | ¿Cambia pantalla? |
+|---|--------|-------|----------|-------------------|
+| F5-1 | **Tarea vacía que se persiste + guard de título vacío.** Bug REAL (sesión 16: quedó `t-1785615179787` con título vacío en BD). Al crear y no escribir título, no debe persistir basura. | S | Menos basura en BD; creación sin residuos | Apenas (una guarda) |
+| F5-2 | **Encadenar creación con Enter.** Crear tarea tras tarea sin tocar el ratón (Enter guarda y abre la siguiente). | S-M | Meter muchas tareas rápido (rutinas) | Sí (foco/flujo) |
+| F5-3 | **Crear tarea dentro de un contenedor → cursor directo en el título** (edición inline lista para escribir). | S | Añadir subtareas sin fricción | Sí (foco) |
+| F5-4 | **Aviso "¿convertir en contenedor?" con "Sí" enfocado** → confirmar con Enter. | S | Convertir sin ratón | Sí (foco) |
+| F5-5 | **PONER pauta a una tarea NORMAL desde la fila** (§16.29, 4a). Chip editable ya cableado; NO confirmado en pantalla (no había hojas manuales que probar). | S (si va) / M | Crear recurrentes sin abrir el modal | Sí (validar) |
+| F5-6 | **CAMBIAR la pauta de una RECURRENTE desde la fila** (§16.29, 4b). Hoy es etiqueta de solo lectura → diseño NUEVO (picker + semántica este-día/serie). | M | Cambiar pauta sin abrir el modal | Sí |
+| F5-7 | **Decisión: tarea creada en Mi Día → ¿primer bloque o sin bloque?** (§16.5). Hoy cae SIEMPRE en `blocks[0]` por un default que nadie decidió. | S (una vez decidido) | Que las tareas nuevas caigan donde la usuaria espera | Sí (dónde aparece) |
+| F5-8 | **Ruido en consola al arrancar Mi Día.** Menor; limpiar logs de arranque. | S | Consola limpia para depurar | No |
+
+**Lectura rápida:** casi todo es S (pequeño) y de FLUJO/FOCO; los únicos con peso de diseño son F5-6 (picker de pauta nuevo)
+y la DECISIÓN F5-7. Cerrada la 6, la 5 es corta salvo esos dos.
