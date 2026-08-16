@@ -3310,6 +3310,11 @@ hijas con semántica de Bloques (un helper tipo `getVisibleSubtasksForBloques(co
 
 ### 16.27 MAPA — recurrentes en otras vistas (item 1, sesión 19). Sin arreglar.
 
+> ✅ **VERIFICADO EN PANTALLA (2026-08-16)** (no solo leído en código): **Semana** → inspeccionado el DOM: 0 controles de
+> mover y 0 de recurrencia (solo toggles) → confirma "no mueve". **Calendario** → abierto el día: controles presentes
+> "Editar tarea" y **"Mover a otro día"**, pero **NO "Completar"** → confirma "mueve pero no completa" (COMPACT sin
+> checkbox). **Bloques** → estructural (vista de definición). Las tres claims de abajo quedan comprobadas ejecutando.
+
 **¿Un problema o tres? → TRES causas DISTINTAS con un hilo común.** El hilo: solo Mi Día usa el `TaskCard` FULL con toda
 la plumbing recurrente (toggle día-scoped `onToggleStatus(id, viewDay)` + move-picker + modal "este día vs serie"). Cada
 vista secundaria recortó una parte distinta. NO se arregla con un solo cambio.
