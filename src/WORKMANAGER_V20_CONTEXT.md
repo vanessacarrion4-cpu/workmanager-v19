@@ -3813,6 +3813,10 @@ borrar, F6-x2) debe cumplirla por diseño.
   innecesaria en cada carga (repairs).
 - ⬜ **`bulkDelete`/`bulkDuplicate`**: misma sobre-selección que arregló §16.34 en bulk-update (usan otra recolección) →
   acotar a día+pendiente cuando toque.
+- ⬜ **`bulkDuplicateTasks` stale-closure de `activeDate` (item propio, IMPACTO BAJO)** — `useBulkActions.ts:485` deps sin
+  `activeDate` que se usa en el fallback `dayMapFor(m ? m[1] : activeDate)` (línea 374). Solo afecta al duplicar un id SIN
+  sufijo de fecha tras navegar de día. Misma clase que el bug de `handleAddTask` (sesión 21). Fix pequeño (añadir
+  `activeDate` a las deps). **NO tocar bulk esta semana (decisión de la propietaria); pendiente.**
 
 **FASE 7 — MEJORAS (backlog)** (§16.10 FASE 7)
 - ⬜ **Deshacer** — incluye **deshacer borrado de una tarea suelta** (hoy no existe en la app, §16.31) · calibración
