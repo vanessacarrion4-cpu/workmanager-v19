@@ -17,7 +17,7 @@ import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import {
   isTaskCompleted, isTaskRepetitive, getTaskEstimatedCombo,
-  getTaskEstimatedPending, getTaskRegisteredCombo, formatMinutes
+  getTaskEstimatedPending, getTaskRegisteredCombo, formatMinutes, isExpiredTemplate
 } from './utils';
 import { containerEstimatedForDay, containerRegisteredForDay, isContainerCompleteOnDay, containerDayToggle } from './fase3Contracts'; // FASE 3: totales + completado derivado del contenedor + selección real del día (tapón)
 import { getVisibleSubtasksForBloques, hiddenCompletedCountForBloques } from './filters'; // A (sesión 19): render de Bloques por regla canónica
@@ -137,13 +137,17 @@ export function TaskCard({
   //  - Bloques: getVisibleSubtasksForBloques (regla canónica) con el "ver completadas" local.
   //  - Mi Día / resto: (subtasksForGroup || task.subtasks) filtrado por el hideCompleted global (comportamiento previo).
   const renderChildIds = useMemo(() => {
-    if (blocksMode) return getVisibleSubtasksForBloques(task, allTasksMap, showCompletedChildren);
+    const todayISO = formatLocalISO(new Date());
+    // F5-6 split de hijas: en la DEFINICIÓN (Bloques), la hija-serie vieja terminada (endDate pasado) se oculta para
+    // no duplicar el título con la nueva. En Mi Día las hijas son instancias (isExpiredTemplate=false) → no afecta.
+    const dropExpired = (ids: string[]) => ids.filter((sid: string) => !isExpiredTemplate(allTasksMap[sid], todayISO));
+    if (blocksMode) return dropExpired(getVisibleSubtasksForBloques(task, allTasksMap, showCompletedChildren));
     const base = subtasksForGroup || task.subtasks || [];
-    return base.filter((sid: string) => {
+    return dropExpired(base.filter((sid: string) => {
       if (!hideCompleted) return true;
       const s = allTasksMap[sid];
       return !s || s.status !== 'completed';
-    });
+    }));
   }, [blocksMode, showCompletedChildren, subtasksForGroup, task, allTasksMap, hideCompleted]);
   const hiddenCompletedCount = blocksMode ? hiddenCompletedCountForBloques(task, allTasksMap) : 0;
 

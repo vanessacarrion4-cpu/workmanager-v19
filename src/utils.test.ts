@@ -42,6 +42,9 @@ describe('isExpiredTemplate (F5-6: ocultar series terminadas de Bloques/Búsqued
   it('NO plantilla (aunque tenga endDate pasado) → false', () => {
     expect(isExpiredTemplate({ isTemplate: false, recurrence: { frequency: 'daily', endDate: '2026-07-31' } }, TODAY)).toBe(false);
   });
+  it('HIJA-plantilla terminada (con parentTaskId) → true (F5-6 split de hijas: se oculta del contenedor)', () => {
+    expect(isExpiredTemplate({ isTemplate: true, parentTaskId: 't-cont', recurrence: { frequency: 'daily', endDate: '2026-07-31' } }, TODAY)).toBe(true);
+  });
   it('null / sin recurrence → false', () => {
     expect(isExpiredTemplate(null, TODAY)).toBe(false);
     expect(isExpiredTemplate({ isTemplate: true }, TODAY)).toBe(false);

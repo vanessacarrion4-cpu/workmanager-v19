@@ -507,13 +507,16 @@ export function useTaskCRUD({
     // ── F5-6 (ii): CAMBIAR LA PAUTA de una plantilla recurrente HOJA existente = PARTIR la serie ──
     // Cambiar la pauta NO debe reescribir el pasado (§16.16). En vez de re-upsertar la recurrencia sobre la
     // misma plantilla (retroactivo = el bug), se CIERRA la serie vieja (endDate = víspera del corte, conserva su
-    // pasado) y se ABRE una nueva desde el corte (= activeDate, el día que se mira). SOLO HOJAS (sin plantillas-
-    // hijas); un CONTENEDOR cae al camino genérico (su aviso de 3 salidas = commit siguiente). La vieja truncada
-    // se oculta de Bloques/Búsqueda por su endDate pasado (isExpiredTemplate) pero sigue generando su pasado.
+    // pasado) y se ABRE una nueva desde HOY. La vieja truncada se oculta de la definición por su endDate pasado
+    // (isExpiredTemplate) pero sigue generando su pasado.
+    // Aplica a TODA plantilla-HOJA (sin plantillas-hijas propias), sea top-level o HIJA de un contenedor: la hija
+    // recurrente ES el bug vivo (reproducido sesión 21), porque tiene parentTaskId y antes caía al upsert genérico.
+    // Un CONTENEDOR (con plantillas-hijas) NO entra: no tiene pauta propia (§16.16, convención sin guarda) → nada
+    // que partir. La nueva serie CONSERVA parentTaskId y se re-enlaza en subtasks del contenedor (ver más abajo).
     const _prevTpl = tasks[updatedTask.id];
-    const _isExistingTemplate = !!_prevTpl && _prevTpl.isTemplate && !_prevTpl.templateId && !_prevTpl.parentTaskId;
-    const _hasTemplateChildren = _isExistingTemplate && (_prevTpl!.subtasks || []).some(id => tasks[id]?.isTemplate);
-    if (_isExistingTemplate && !_hasTemplateChildren && _prevTpl!.recurrence && updatedTask.recurrence
+    const _isLeafTemplateBase = !!_prevTpl && _prevTpl.isTemplate && !_prevTpl.templateId;
+    const _hasTemplateChildren = _isLeafTemplateBase && (_prevTpl!.subtasks || []).some(id => tasks[id]?.isTemplate);
+    if (_isLeafTemplateBase && !_hasTemplateChildren && _prevTpl!.recurrence && updatedTask.recurrence
         && recurrenceChanged(_prevTpl!.recurrence, updatedTask.recurrence)) {
       const ts = new Date().toISOString();
       // REGLA F5-6 (decisión propietaria, sesión 21): CAMBIAR una pauta usa HOY como corte, NO el día mirado.
@@ -534,10 +537,13 @@ export function useTaskCRUD({
       const newId = `t-${Date.now()}`;
       const oldRecurrence = { ..._prevTpl!.recurrence!, endDate: oldEndDate };                         // cierra la vieja
       const newRecurrence = { ...updatedTask.recurrence, startDate: newStartDate, endDate: undefined }; // abre la nueva
+      // parentTaskId: se CONSERVA el del original. En una hoja top-level es null; en una hija de contenedor es el
+      // contenedor → la nueva serie sigue colgando de él (§16.16: el contenedor no cambia, solo se re-parte la hija).
+      const _parentId = _prevTpl!.parentTaskId ?? null;
       const newTemplate: Task = {
         ..._prevTpl!, ...updatedTask,
         id: newId, recurrence: newRecurrence,
-        dueDate: null, dueTime: null, instanceDate: null, templateId: null, parentTaskId: null,
+        dueDate: null, dueTime: null, instanceDate: null, templateId: null, parentTaskId: _parentId,
         isTemplate: true, isException: false, existsInSupabase: true,
         createdAt: ts, modifiedAt: ts,
       };
@@ -554,13 +560,19 @@ export function useTaskCRUD({
           [_prevTpl!.id]: { ...prev[_prevTpl!.id], recurrence: oldRecurrence, modifiedAt: ts },
           [newId]: newTemplate,
         };
+        // Re-enlace en el contenedor: la nueva hija entra en subtasks del padre (la vieja se queda con su histórico;
+        // se ocultará de la definición por isExpiredTemplate). Solo en estado — subtasks no persiste (bug #18), el
+        // enlace durable es parent_task_id de la nueva fila.
+        if (_parentId && next[_parentId] && !(next[_parentId].subtasks || []).includes(newId)) {
+          next[_parentId] = { ...next[_parentId], subtasks: [...(next[_parentId].subtasks || []), newId], modifiedAt: ts };
+        }
         oldInstancesToRemove.forEach(o => { if (next[o.id]) next[o.id] = { ...next[o.id], isDeleted: true, modifiedAt: ts }; });
         return next;
       });
       persist(supabase.from('tasks').update({ recurrence: oldRecurrence, modified_at: ts }).eq('id', _prevTpl!.id),
         { verbo: 'guardar', titulo: _prevTpl!.title });
       persist(supabase.from('tasks').insert({
-        id: newId, block_id: newTemplate.blockId, parent_task_id: null, template_id: null, instance_date: null,
+        id: newId, block_id: newTemplate.blockId, parent_task_id: _parentId, template_id: null, instance_date: null,
         title: newTemplate.title, notes: newTemplate.notes || '', priority: 'media', on_hold: newTemplate.onHold ?? false,
         status: 'pending', due_date: null, due_time: newTemplate.dueTime || null, completed_at: null,
         estimated_minutes: newTemplate.estimatedMinutes || 0, actual_minutes: 0, tags: newTemplate.tags || [],

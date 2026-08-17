@@ -3776,12 +3776,22 @@ borrar, F6-x2) debe cumplirla por diseño.
   (i) ocultaría 20-75 pendientes pasadas por regla (§16.36).
   - **CAMINO ELEGIDO: B (decisión propietaria, sesión 21).** **Camino A DESCARTADO** (duplicar plantilla+hijas+re-enlazar =
     lo que rompió datos 3× esta semana, para una op de cada varios meses → no compensa).
-  - **HOJAS: split (ii) real** (vieja `endDate` = víspera del corte; nueva desde el corte).
-  - **CONTENEDORES: aviso con TRES salidas** (no hacer el refactor, no hacerlo mal en silencio). El aviso dice qué pierdo y
-    QUÉ PUEDO HACER: **(a)** cambiar solo desde el corte, ocultando las **N** pendientes pasadas de esta rutina (aplica (i),
-    con los ojos abiertos); **(b)** cancelar; **(c)** *"terminar esta rutina y crear una nueva a mano"* = el split hecho por
-    la propietaria, sin refactor, preservando el pasado. El (ii)-contenedor automático queda como item futuro si algún día
-    hace falta.
+  - **HOJAS (top-level Y hijas de contenedor): split (ii) real** (vieja `endDate` = víspera del corte; nueva desde el corte).
+  - **⚠️ CORRECCIÓN (sesión 22, VERIFICADO): el bug retroactivo es de las HIJAS, no del contenedor. El "aviso de 3
+    salidas para contenedores" se DESCARTÓ — el bug de contenedor no existe.** Verificación (datos + interfaz, no deducida):
+    - **Un contenedor NO tiene frecuencia propia.** 0 de 11 contenedores en datos tienen `recurrence.frequency`; todos
+      `null`. La recurrencia vive en las HIJAS. "Cambiar la pauta de un contenedor" no es una operación real.
+    - **El editor de repetición del modal no tiene guarda de contenedor** (por código sí saldría), pero **desde Mi Día el
+      modal del contenedor ni se abre** por gesto normal (⋯→Editar, doble-clic, título) → no hay flujo para ello.
+    - **El retroactivo REPRODUCIDO desde la interfaz es de una HIJA recurrente:** cambiar su pauta (⋯→Editar→"Toda la
+      serie") escribía en sitio (mismo `startDate`, frecuencia nueva) = el pasado se regenera con la pauta nueva. Motivo:
+      la guarda del split exigía `!parentTaskId` y las hijas TIENEN `parentTaskId` → caían al upsert genérico. Hay **75
+      hijas con pauta propia** en datos (todas hojas, sin hijas-plantilla).
+  - 📐 **REGLA DEL MODELO (convención SIN guarda): un contenedor NO debe tener recurrencia propia.** `isTemplate:true` en un
+    contenedor es la **llave del motor** (para que `materializeDay` baje a generar las instancias de sus HIJAS), NO una pauta.
+    El esquema PERMITE `recurrence` en un contenedor y `validateTemplate` solo **avisa** (no bloquea) → la invariante no está
+    forzada por código. Consecuencia: **si algún día aparece un contenedor con `frequency`, es un DATO MALO, no una función.**
+    (No se construye guarda ahora — decisión propietaria sesión 22 — solo queda escrito para que no se confunda con una feature.)
   - **CORTE = HOY, CLAVADO (decisión propietaria, sesión 21).** Se separan las dos operaciones: **CREAR** una tarea usa el
     **día mirado** (`activeDate`); **CAMBIAR una pauta** usa **HOY** (`formatLocalISO(new Date())`), nunca el día mirado. Razón:
     cambiar pauta = §16.16 (no reescribir el pasado); si el corte fuera el día mirado y miras atrás, reescribirías el tramo
@@ -3792,7 +3802,18 @@ borrar, F6-x2) debe cumplirla por diseño.
     plantilla-hoja recurrente + pauta cambiada (`recurrenceChanged`) → cierra la vieja (`endDate`=**ayer**) + abre nueva
     (`startDate`=**HOY**, id nuevo), con `today = formatLocalISO(new Date())` (NO `activeDate`). Filtro `isExpiredTemplate` en
     Bloques (2 listas + contador) y Búsqueda oculta las series con `endDate` pasado. +12 tests (recurrenceChanged,
-    isExpiredTemplate). Contenedores: siguen con el bug retroactivo hasta su commit (aviso 3 salidas).
+    isExpiredTemplate).
+  - ✅ **HIJAS IMPLEMENTADO (sesión 22), pendiente de validación de la propietaria.** Se extiende la MISMA rama a las hijas:
+    la guarda pasa de `!parentTaskId` (excluía hijas) a **plantilla-HOJA** (`isTemplate && !templateId && sin hijas-plantilla`),
+    que dispara tanto en top-level como en hija. La nueva serie **CONSERVA `parentTaskId`** (cuelga del mismo contenedor) y se
+    re-enlaza en `subtasks` del padre en estado (durable = `parent_task_id` de la fila; `subtasks` no persiste, bug #18). El
+    `insert` persiste `parent_task_id` correcto (antes hardcodeado a null). **Duplicado dentro del contenedor** (misma serie
+    vieja terminada + nueva, ambas colgando): se resuelve como en hojas, con `isExpiredTemplate` aplicado al render de hijas
+    (`TaskCard.renderChildIds` en modo Bloques + memo de subtareas de `TaskModal`) → solo se ve la nueva; el histórico de la
+    vieja sigue vivo. En Mi Día nunca hay duplicado (las hijas son instancias; la vieja terminada no genera ninguna hoy).
+    Las **otras hijas del contenedor NO se tocan** (cada una es su propia serie; no hay "serie vieja" a nivel de contenedor).
+    **Verificado en pantalla (datos reales, limpiado):** vieja daily `endDate 08-17` (ayer) + nueva weekdays `startDate 08-18`
+    (hoy), **ambas con `parent_task_id`=contenedor**; Mi Día = 1 fila. +1 test (isExpiredTemplate de hija con parentTaskId).
   - 🔎 **HALLAZGO durante la verificación (y ARREGLADO en el mismo commit):** en el día del corte se DUPLICABA — la
     instancia vieja ya materializada de ese día seguía viva y la nueva serie generaba también ese día. Fix: el split
     soft-deletea las instancias viejas **pendientes** con fecha ≥ corte (las COMPLETADAS se dejan, §16.16). Verificado:

@@ -19,7 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Task, TagType } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { TAG_LABELS } from './constants';
-import { getTaskRegisteredCombo, formatMinutes } from './utils';
+import { getTaskRegisteredCombo, formatMinutes, isExpiredTemplate } from './utils';
 import {
   DelegationChip, DatePickerChip, TagPickerChip, RecurrencePickerChip,
   EstimatedTimeChip, TimePickerChip, MonthDatePicker, TimeManagementPanel
@@ -103,8 +103,12 @@ export function TaskModal({
   }, [localTask.notes]);
 
   const subtasks = useMemo(() => {
+    const todayISO = formatLocalISO(new Date());
     return (localTask.subtasks || [])
       .map(id => allTasksMap[id] || { id, title: subtaskTitles[id] || '', status: 'pending' as const, blockId: localTask.blockId, parentTaskId: localTask.id, subtasks: [], tags: [], estimatedMinutes: 0, order: -1 })
+      // F5-6 split de hijas: la serie vieja terminada (endDate pasado) se oculta de la definición del contenedor
+      // para no duplicar el título con la nueva. Su histórico sigue vivo; solo desaparece de esta lista.
+      .filter(st => !isExpiredTemplate(st, todayISO))
       .sort((a, b) => (a?.order || 0) - (b?.order || 0));
   }, [localTask.subtasks, localTask.id, localTask.blockId, allTasksMap, subtaskTitles]);
 
