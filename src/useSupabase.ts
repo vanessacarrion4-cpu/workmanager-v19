@@ -296,8 +296,6 @@ export function useSupabase({
       const _diagT0 = Date.now(); // DIAG-TEMP
       diag('carga:INICIO'); // DIAG-TEMP
       try {
-        console.log('[SUPABASE] Loading initial data...');
-
         // Cargar bloques (sesión 19: no traer los soft-borrados)
         const { data: blocksData, error: blocksError } = await supabase
           .from('work_blocks')
@@ -363,13 +361,6 @@ export function useSupabase({
           console.warn('[SUPABASE] Error loading meetings:', meetingsError);
         }
 
-        console.log('[SUPABASE] Loaded:', {
-          blocks: blocksData?.length,
-          tasks: tasksData?.length,
-          persons: personsData?.length,
-          meetings: meetingsData?.length
-        });
-
         // Mapear bloques
         if (blocksData && blocksData.length > 0) {
           const mappedBlocks = blocksData.map((b: any) => ({
@@ -395,7 +386,6 @@ export function useSupabase({
             createdAt: p.created_at
           }));
           setPeople(mappedPersons);
-          console.log('[SUPABASE] Loaded persons:', mappedPersons.map((p: any) => p.name).join(', '));
         }
 
         // Mapear tareas
@@ -446,12 +436,10 @@ export function useSupabase({
             createdAt: m.created_at
           }));
           setMeetings(mappedMeetings);
-          console.log('[SUPABASE] Loaded meetings:', mappedMeetings.length);
         }
 
         setIsDataLoaded(true);
         diag('carga:FIN (isDataLoaded=true)', { tareas: tasksData?.length ?? 0, ms: Date.now() - _diagT0 }); // DIAG-TEMP
-        console.log('[SUPABASE] Data loaded successfully');
 
         // Limpieza automática: borrar instancias eliminadas de más de 30 días
         // Esto evita que la tabla crezca indefinidamente con basura
