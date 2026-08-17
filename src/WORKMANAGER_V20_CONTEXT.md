@@ -3652,11 +3652,31 @@ alcance y decidir.**
 | **Revisar Margenes** | 2026-08-08 | **2026-08-17** | **SÍ** | **2026-08-17 (HOY)** |
 | **Ver con Blai Resultados tienda** | 2026-08-08 | **2026-08-17** | **SÍ** | **2026-08-17 (HOY)** |
 | **Sacar copias para reuniones físicas** | 2026-08-08 | **2026-08-17** | **SÍ** | **2026-08-17 (HOY)** |
-| (12ª, cortada en el probe) | — | — | — | — |
+| **Publicar a coordinadores** | 2026-08-08 | **2026-08-17** | **SÍ** | **2026-08-17 (HOY)** |
 
-Las **4 de HOY** (08-08 → 08-17) son el daño fresco de la validación de la propietaria. Los CONTENEDORES reabiertos
-(Rutinas mañana, Cierre Propias, Previsional…) tienen `was_recurring:true` con fechas viejas → posible daño histórico /
-otro camino (el status de un contenedor es DERIVADO). **Reversión: decidir después, con la lista delante.**
+**5 de HOY** (08-08 → 08-17): "Hacer cuadro Resumen", "Revisar Margenes", "Ver con Blai Resultados", "Sacar copias",
+"Publicar a coordinadores" — varias comparten plantilla `…1778694715714` (hijas de "Cierre Propias") → una op de bulk de hoy
+sobre ese contenedor. Los CONTENEDORES reabiertos (Rutinas mañana, Cierre Propias, Previsional, Pago nóminas, Gestión
+campaña) tienen fechas viejas y su status es DERIVADO.
+
+**🔒 LÍNEA BASE (decisión de la propietaria, sesión 21): estas 12 NO se revierten, se quedan como están.** Son el CONTROL del
+fix: **si tras el arreglo aparece una fila NUEVA reabierta (`was_recurring:true` & pendiente) que NO esté en esta lista de 12,
+el fix NO cerró.** No tocar ninguna. (IDs completos en el probe; 5 comparten plantilla de "Cierre Propias".)
+
+**✅ VERIFICACIÓN pedida — ¿los contenedores reabiertos vienen de `handleToggleStatus` por el mismo default? → DESCARTADO.**
+`handleToggleStatus` **no puede escribir el status de un CONTENEDOR**: `toggleRecursive` solo empuja a `tasksToUpsert` las
+tareas que pasan `writesOwnStatusOnToggle` (= HOJAS; un contenedor devuelve false), y su upsert escribe `status: t.status` =
+el estado **INTENCIONADO** del toggle (`useTaskCRUD.ts:257/288`), NO un default 'pending'. → **Completar NO reabre en
+silencio** (ni contenedores ni hijas ajenas). Los contenedores reabiertos con fecha vieja son **LEGADO** (anteriores a la
+corrección §16.16, cuando el status del contenedor SÍ se persistía; sus `modified_at` son de 06/07, coherente). **El único
+escritor de status-default VIVO (reapertura (c)) es `bulkUpdateTasks`** (upsert `status: updatedTask.status`, el default
+'pending' del virgen, en una op que no toca status). Los dos BORRADOS escriben status pero con `is_deleted:true` → no es
+reapertura viva.
+
+**→ ALCANCE REVISADO DEL COMMIT 1 (c):** el arreglo real está en **`bulkUpdateTasks`** (no escribir status default en el
+virgin-upsert de una op que no togglea; preservar el status persistido). **`handleToggleStatus` NO se toca** (escribe status
+intencionado; tocarlo arriesga romper el completar). Borrados = defensa opcional. **Pendiente de OK de la propietaria a este
+alcance revisado** (su premisa era "completar reabre"; el código lo descarta).
 
 **Fix propuesto (a)+(b)+(c) en UN bloque, NO aplicar hasta aprobación:** (a)+(b) que `toggleTaskSelection` (y/o
 `bulkEffectiveIds`) acote la selección de hijas a **día + PENDIENTE** (que las completadas/otros-días no entren nunca al
