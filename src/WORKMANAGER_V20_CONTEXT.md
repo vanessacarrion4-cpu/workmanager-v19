@@ -3782,29 +3782,31 @@ borrar, F6-x2) debe cumplirla por diseño.
     con los ojos abiertos); **(b)** cancelar; **(c)** *"terminar esta rutina y crear una nueva a mano"* = el split hecho por
     la propietaria, sin refactor, preservando el pasado. El (ii)-contenedor automático queda como item futuro si algún día
     hace falta.
-  - **CORTE = EL DÍA QUE MIRO (`activeDate`) en AMBOS casos** (hoja y contenedor), unificado. **No hay razón técnica** para
-    que el contenedor no pueda: (i) es subir `startDate` al `activeDate` igual que a hoy. (Matiz: si miras un día pasado, el
-    corte es ese día — coherente aunque raro.)
+  - **CORTE = HOY, CLAVADO (decisión propietaria, sesión 21).** Se separan las dos operaciones: **CREAR** una tarea usa el
+    **día mirado** (`activeDate`); **CAMBIAR una pauta** usa **HOY** (`formatLocalISO(new Date())`), nunca el día mirado. Razón:
+    cambiar pauta = §16.16 (no reescribir el pasado); si el corte fuera el día mirado y miras atrás, reescribirías el tramo
+    [día pasado→hoy]. Con corte=HOY eso ya no pasa: el pasado, mires el día que mires, queda intacto.
   - Excepciones ya materializadas del pasado → se quedan con la serie vieja (no se tocan). El **N** del aviso = pendientes
     pasadas reales de ESA rutina (cálculo del probe §16.36).
   - ✅ **HOJAS IMPLEMENTADO (sesión 21), pendiente de validación de la propietaria.** `handleUpdateTask` rama nueva:
-    plantilla-hoja recurrente + pauta cambiada (`recurrenceChanged`) → cierra la vieja (`endDate`=corte-1) + abre nueva
-    (`startDate`=corte=activeDate, id nuevo). Filtro `isExpiredTemplate` en Bloques (2 listas + contador) y Búsqueda oculta
-    las series con `endDate` pasado. +12 tests (recurrenceChanged, isExpiredTemplate). Contenedores: siguen con el bug
-    retroactivo hasta su commit (aviso 3 salidas).
+    plantilla-hoja recurrente + pauta cambiada (`recurrenceChanged`) → cierra la vieja (`endDate`=**ayer**) + abre nueva
+    (`startDate`=**HOY**, id nuevo), con `today = formatLocalISO(new Date())` (NO `activeDate`). Filtro `isExpiredTemplate` en
+    Bloques (2 listas + contador) y Búsqueda oculta las series con `endDate` pasado. +12 tests (recurrenceChanged,
+    isExpiredTemplate). Contenedores: siguen con el bug retroactivo hasta su commit (aviso 3 salidas).
   - 🔎 **HALLAZGO durante la verificación (y ARREGLADO en el mismo commit):** en el día del corte se DUPLICABA — la
     instancia vieja ya materializada de ese día seguía viva y la nueva serie generaba también ese día. Fix: el split
     soft-deletea las instancias viejas **pendientes** con fecha ≥ corte (las COMPLETADAS se dejan, §16.16). Verificado:
     día del corte = 1 fila, sin duplicar.
-  - **Verificado en pantalla (datos reales, limpiado):** "Delmer" (terminada) oculta de Búsqueda; corte HOY → vieja
-    `endDate`=ayer oculta + instancia vieja del día soft-deleted + nueva desde hoy, 1 fila; **corte en DÍA PASADO (08-12)**
-    → vieja daily `08-08→08-11` (pasado anterior conservado), nueva weekdays desde `08-12` → **el tramo [día-pasado→hoy]
-    pasa a la pauta nueva** (lo que la propietaria señaló: es reescribir ese tramo; coherente con corte=día mirado; las
-    completadas del tramo se preservan). 1 fila en el día del corte.
-  - **DECISIÓN ABIERTA para la propietaria:** ¿deja el corte = día mirado (reescribe el tramo pasado→hoy si mira atrás), o
-    lo clava en HOY para pautas (nunca reescribir pasado)? Pendiente de su validación en pantalla.
-  - **Borde conocido:** una instancia COMPLETADA con fecha ≥ corte (haber actuado hoy y re-pautar hoy) NO se borra (fact) →
-    solaparía con la ocurrencia nueva ese día. Raro; anotado.
+  - **Verificado en pantalla (datos reales, limpiado) con corte=HOY (08-17):**
+    - **Punto 2 — cambiar pauta VIENDO UN DÍA PASADO (08-12):** vieja daily `08-08 → endDate 08-16` (**ayer**, NO 08-11) +
+      nueva weekdays `startDate 08-17` (**HOY**, NO 08-12). El tramo pasado→hoy **ya NO se reescribe**: el corte se clava en
+      hoy aunque mire atrás. (Antes, con corte=día mirado, salía endDate 08-11 / startDate 08-12 = reescribía el tramo.)
+    - **Punto 3 — BORDE: completar hoy + re-pautar hoy:** la instancia completada de hoy se conserva (fact); vieja daily
+      `endDate 08-17` (**HOY**, se le deja hoy para no invalidar la completada) + nueva weekdays `startDate 08-18` (**MAÑANA**).
+      Hoy muestra **1 fila** (solo la completada), sin duplicar ni solapar. Manejo en la rama: `todayCompleted` → `oldEndDate`
+      = hoy y `newStartDate` = mañana (en el caso normal, `oldEndDate` = ayer y `newStartDate` = hoy).
+  - **Borde RESUELTO (era "conocido"):** instancia COMPLETADA con fecha = corte → la rama detecta `todayCompleted` y desplaza
+    el corte un día (vieja conserva hoy, nueva desde mañana), así la completada no solapa con la ocurrencia nueva. Verificado.
   - **Chip inline en la fila: APARCADO** como candidato (se reabre si cambia pautas a menudo).
   - ⏸️ **ITEM PENDIENTE (no construir): toggle "ver terminadas" en Bloques.** Reactivar una serie oculta (endDate pasado)
     no tiene camino en la app; la respuesta acordada es **"se crea de nuevo"**. Si algún día hace falta retomar rutinas

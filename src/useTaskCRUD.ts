@@ -513,14 +513,27 @@ export function useTaskCRUD({
     const _prevTpl = tasks[updatedTask.id];
     const _isExistingTemplate = !!_prevTpl && _prevTpl.isTemplate && !_prevTpl.templateId && !_prevTpl.parentTaskId;
     const _hasTemplateChildren = _isExistingTemplate && (_prevTpl!.subtasks || []).some(id => tasks[id]?.isTemplate);
-    if (_isExistingTemplate && !_hasTemplateChildren && updatedTask.recurrence
+    if (_isExistingTemplate && !_hasTemplateChildren && _prevTpl!.recurrence && updatedTask.recurrence
         && recurrenceChanged(_prevTpl!.recurrence, updatedTask.recurrence)) {
       const ts = new Date().toISOString();
-      const cut = activeDate; // corte = el día que se mira
-      const cutMinus1 = formatLocalISO(new Date(parseLocalISO(cut).getTime() - 86400000));
+      // REGLA F5-6 (decisión propietaria, sesión 21): CAMBIAR una pauta usa HOY como corte, NO el día mirado.
+      // Cambiar la pauta es una decisión sobre el FUTURO de la serie, no una acción de un día; que el día abierto en
+      // el calendario decidiera dónde parte el historial sería un efecto secundario (reescribiría el pasado si miras
+      // atrás). (Crear SÍ usa el día mirado: §16.7 — ahí pones trabajo en ese día. Son casos distintos.)
+      const today = formatLocalISO(new Date());
+      const dayBefore = (d: string) => formatLocalISO(new Date(parseLocalISO(d).getTime() - 86400000));
+      const dayAfter = (d: string) => formatLocalISO(new Date(parseLocalISO(d).getTime() + 86400000));
+      // BORDE NORMAL con corte=hoy: completar HOY y re-pautar HOY. Si la ocurrencia de hoy de la serie vieja ya está
+      // COMPLETADA (hecho consumado, §16.16, no se toca), la serie vieja CONSERVA hoy (endDate=hoy) y la nueva arranca
+      // MAÑANA → sin solapamiento. Si hoy NO está hecho, la vieja acaba ayer y la nueva arranca hoy.
+      const todayCompleted = Object.values(tasks).some((t: Task) =>
+        !!t && t.templateId === _prevTpl!.id && !t.isDeleted && t.status === 'completed'
+        && (t.dueDate || t.instanceDate) === today);
+      const oldEndDate = todayCompleted ? today : dayBefore(today);
+      const newStartDate = todayCompleted ? dayAfter(today) : today;
       const newId = `t-${Date.now()}`;
-      const oldRecurrence = { ...(_prevTpl!.recurrence || {}), endDate: cutMinus1 };            // cierra la vieja
-      const newRecurrence = { ...updatedTask.recurrence, startDate: cut, endDate: undefined };  // abre la nueva
+      const oldRecurrence = { ..._prevTpl!.recurrence!, endDate: oldEndDate };                         // cierra la vieja
+      const newRecurrence = { ...updatedTask.recurrence, startDate: newStartDate, endDate: undefined }; // abre la nueva
       const newTemplate: Task = {
         ..._prevTpl!, ...updatedTask,
         id: newId, recurrence: newRecurrence,
@@ -528,13 +541,13 @@ export function useTaskCRUD({
         isTemplate: true, isException: false, existsInSupabase: true,
         createdAt: ts, modifiedAt: ts,
       };
-      // Instancias YA materializadas de la serie vieja con fecha >= corte y PENDIENTES: pasan a ser dominio de la
-      // nueva serie → se soft-deletean (si no, en el día del corte conviven la instancia vieja y la ocurrencia nueva
-      // = DUPLICADO, verificado en pantalla). Las COMPLETADAS >= corte NO se tocan (hechos consumados, §16.16; caso
-      // raro: haber actuado hoy y re-pautar hoy — quedaría un solapamiento, aceptado como borde).
+      // Instancias YA materializadas de la serie vieja con fecha >= arranque de la nueva y PENDIENTES: pasan a ser
+      // dominio de la nueva serie → se soft-deletean (si no, ese día conviven la instancia vieja y la ocurrencia
+      // nueva = DUPLICADO). Las COMPLETADAS NO se tocan (§16.16); con el ajuste de arriba, la de hoy ya queda fuera
+      // del rango de la nueva serie, así que no solapa.
       const oldInstancesToRemove = Object.values(tasks).filter((t: Task) =>
         !!t && t.templateId === _prevTpl!.id && !t.isDeleted && t.status !== 'completed'
-        && ((t.dueDate || t.instanceDate || '') >= cut));
+        && ((t.dueDate || t.instanceDate || '') >= newStartDate));
       setTasks(prev => {
         const next: Record<string, Task> = {
           ...prev,
@@ -898,9 +911,8 @@ export function useTaskCRUD({
         reportPersistError({ verbo: 'guardar', titulo: updatedTask.title });
       }
     })();
-    // F5-6: `activeDate` en deps — el split de pauta usa el día que se mira como corte. Sin él, mismo
-    // stale-closure que el bug de fecha de handleAddTask (crearía el corte con un activeDate viejo).
-  }, [tasks, setTasks, setEditingTaskId, setInlineEditingTaskId, activeDate]);
+    // F5-6: el split de pauta usa HOY (new Date() fresco) como corte, no activeDate → sin stale-closure de fecha.
+  }, [tasks, setTasks, setEditingTaskId, setInlineEditingTaskId]);
 
   const handleDeleteTask = useCallback((taskId: string) => {
     const updatedTasks = { ...tasks };
