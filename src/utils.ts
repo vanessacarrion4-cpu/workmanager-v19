@@ -73,6 +73,32 @@ export function isTaskRepetitive(taskId: string, allTasks: Record<string, Task>,
 }
 
 /**
+ * F5-6 (ii): ¿ha cambiado la PAUTA (patrón) de una recurrencia? Compara SOLO frecuencia y campos de patrón
+ * (weekDays/monthDay/yearDay/yearMonth), NO `startDate`/`endDate`. Así, "partir la serie" solo se dispara cuando
+ * de verdad cambia la repetición, no cuando solo se ajustan las fechas de corte.
+ */
+export function recurrenceChanged(a: any, b: any): boolean {
+  if (!a || !b) return a !== b; // una presente y la otra no = cambio
+  const norm = (r: any) => JSON.stringify({
+    frequency: r.frequency,
+    weekDays: (r.weekDays || []).slice().sort(),
+    monthDay: r.monthDay ?? null,
+    yearDay: r.yearDay ?? null,
+    yearMonth: r.yearMonth ?? null,
+  });
+  return norm(a) !== norm(b);
+}
+
+/**
+ * F5-6 (ii): una plantilla recurrente cuya `recurrence.endDate` ya pasó es una serie TERMINADA. Se oculta de las
+ * vistas de DEFINICIÓN (Bloques, Búsqueda) para no duplicar la fila tras un cambio de pauta (la vieja truncada
+ * convive con la nueva). NO se borra ni se desactiva: sigue generando su pasado (materializeDay respeta endDate).
+ */
+export function isExpiredTemplate(task: any, todayISO: string): boolean {
+  return !!(task && task.isTemplate && task.recurrence && task.recurrence.endDate && task.recurrence.endDate < todayISO);
+}
+
+/**
  * Generates tasks for a given date range based on the new "Subtask Recurrence" architecture.
  */
 export function generateInstances(

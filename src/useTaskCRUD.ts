@@ -10,12 +10,12 @@
 import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
-import { formatLocalISO } from './dateUtils';
+import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById, resolveActionTarget } from './instanceEngine';
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
 import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mudo en vez de morir en consola
 import { validateTemplate, writesOwnStatusOnToggle, containerDayToggle, childrenToMoveWithContainer } from './fase3Contracts'; // §16.16: invariante + selección día-scoped del toggle (C1) + arrastre de hijas al mover contenedor (b2)
-import { isTaskCompleted } from './utils'; // §16.16: completado del contenedor DERIVADO (dirección del toggle)
+import { isTaskCompleted, recurrenceChanged } from './utils'; // §16.16: completado DERIVADO; F5-6: cambio de pauta
 
 /**
  * collectDeletableTasks — el CONJUNTO que borra `handleDeleteTask` (camino real, puro, testeable).
@@ -504,6 +504,63 @@ export function useTaskCRUD({
       return;
     }
 
+    // ── F5-6 (ii): CAMBIAR LA PAUTA de una plantilla recurrente HOJA existente = PARTIR la serie ──
+    // Cambiar la pauta NO debe reescribir el pasado (§16.16). En vez de re-upsertar la recurrencia sobre la
+    // misma plantilla (retroactivo = el bug), se CIERRA la serie vieja (endDate = víspera del corte, conserva su
+    // pasado) y se ABRE una nueva desde el corte (= activeDate, el día que se mira). SOLO HOJAS (sin plantillas-
+    // hijas); un CONTENEDOR cae al camino genérico (su aviso de 3 salidas = commit siguiente). La vieja truncada
+    // se oculta de Bloques/Búsqueda por su endDate pasado (isExpiredTemplate) pero sigue generando su pasado.
+    const _prevTpl = tasks[updatedTask.id];
+    const _isExistingTemplate = !!_prevTpl && _prevTpl.isTemplate && !_prevTpl.templateId && !_prevTpl.parentTaskId;
+    const _hasTemplateChildren = _isExistingTemplate && (_prevTpl!.subtasks || []).some(id => tasks[id]?.isTemplate);
+    if (_isExistingTemplate && !_hasTemplateChildren && updatedTask.recurrence
+        && recurrenceChanged(_prevTpl!.recurrence, updatedTask.recurrence)) {
+      const ts = new Date().toISOString();
+      const cut = activeDate; // corte = el día que se mira
+      const cutMinus1 = formatLocalISO(new Date(parseLocalISO(cut).getTime() - 86400000));
+      const newId = `t-${Date.now()}`;
+      const oldRecurrence = { ...(_prevTpl!.recurrence || {}), endDate: cutMinus1 };            // cierra la vieja
+      const newRecurrence = { ...updatedTask.recurrence, startDate: cut, endDate: undefined };  // abre la nueva
+      const newTemplate: Task = {
+        ..._prevTpl!, ...updatedTask,
+        id: newId, recurrence: newRecurrence,
+        dueDate: null, dueTime: null, instanceDate: null, templateId: null, parentTaskId: null,
+        isTemplate: true, isException: false, existsInSupabase: true,
+        createdAt: ts, modifiedAt: ts,
+      };
+      // Instancias YA materializadas de la serie vieja con fecha >= corte y PENDIENTES: pasan a ser dominio de la
+      // nueva serie → se soft-deletean (si no, en el día del corte conviven la instancia vieja y la ocurrencia nueva
+      // = DUPLICADO, verificado en pantalla). Las COMPLETADAS >= corte NO se tocan (hechos consumados, §16.16; caso
+      // raro: haber actuado hoy y re-pautar hoy — quedaría un solapamiento, aceptado como borde).
+      const oldInstancesToRemove = Object.values(tasks).filter((t: Task) =>
+        !!t && t.templateId === _prevTpl!.id && !t.isDeleted && t.status !== 'completed'
+        && ((t.dueDate || t.instanceDate || '') >= cut));
+      setTasks(prev => {
+        const next: Record<string, Task> = {
+          ...prev,
+          [_prevTpl!.id]: { ...prev[_prevTpl!.id], recurrence: oldRecurrence, modifiedAt: ts },
+          [newId]: newTemplate,
+        };
+        oldInstancesToRemove.forEach(o => { if (next[o.id]) next[o.id] = { ...next[o.id], isDeleted: true, modifiedAt: ts }; });
+        return next;
+      });
+      persist(supabase.from('tasks').update({ recurrence: oldRecurrence, modified_at: ts }).eq('id', _prevTpl!.id),
+        { verbo: 'guardar', titulo: _prevTpl!.title });
+      persist(supabase.from('tasks').insert({
+        id: newId, block_id: newTemplate.blockId, parent_task_id: null, template_id: null, instance_date: null,
+        title: newTemplate.title, notes: newTemplate.notes || '', priority: 'media', on_hold: newTemplate.onHold ?? false,
+        status: 'pending', due_date: null, due_time: newTemplate.dueTime || null, completed_at: null,
+        estimated_minutes: newTemplate.estimatedMinutes || 0, actual_minutes: 0, tags: newTemplate.tags || [],
+        order: newTemplate.order || 0, is_template: true, is_active: true, is_exception: false, is_deleted: false,
+        is_expanded: false, task_type: newTemplate.taskType || 'core', recurrence: newRecurrence,
+        delegation: newTemplate.delegation || null, created_at: ts, modified_at: ts,
+      }), { verbo: 'guardar', titulo: newTemplate.title });
+      oldInstancesToRemove.forEach(o => persist(
+        supabase.from('tasks').update({ is_deleted: true, modified_at: ts }).eq('id', o.id),
+        { verbo: 'guardar', titulo: o.title }));
+      return;
+    }
+
     // §16.16: guard del invariante regla XOR contenedor. AVISA (no bloquea) si la plantilla queda
     // en estado inválido: pauta+hijas a la vez, o ni pauta ni hijas (plantilla inerte).
     const templateIssue = validateTemplate(updatedTask, tasks);
@@ -841,7 +898,9 @@ export function useTaskCRUD({
         reportPersistError({ verbo: 'guardar', titulo: updatedTask.title });
       }
     })();
-  }, [tasks, setTasks, setEditingTaskId, setInlineEditingTaskId]);
+    // F5-6: `activeDate` en deps — el split de pauta usa el día que se mira como corte. Sin él, mismo
+    // stale-closure que el bug de fecha de handleAddTask (crearía el corte con un activeDate viejo).
+  }, [tasks, setTasks, setEditingTaskId, setInlineEditingTaskId, activeDate]);
 
   const handleDeleteTask = useCallback((taskId: string) => {
     const updatedTasks = { ...tasks };

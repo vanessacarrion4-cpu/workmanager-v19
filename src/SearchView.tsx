@@ -9,6 +9,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Task, TagType } from './types';
 import { TAG_LABELS } from './constants';
 import { TaskCard } from './components';
+import { isExpiredTemplate } from './utils';
+import { formatLocalISO } from './dateUtils';
 
 // ─── tipos ─────────────────────────────────────────────────────────────────
 
@@ -256,10 +258,13 @@ export function SearchView({
 
   // Incluye contenedores (isTemplate:true sin templateId) además de tareas manuales e instancias excepción.
   // Los templates de subtareas recurrentes tienen templateId → siguen excluidos.
-  const rootTasks = useMemo(() =>
-    Object.values(allTasksMap).filter((t: any) =>
+  const rootTasks = useMemo(() => {
+    const todayISO = formatLocalISO(new Date());
+    return Object.values(allTasksMap).filter((t: any) =>
       t && !t.isDeleted && !t.parentTaskId && (!t.templateId || t.isException)
-    ), [allTasksMap]);
+      && !isExpiredTemplate(t, todayISO) // F5-6: serie terminada (endDate pasado) → fuera de la búsqueda
+    );
+  }, [allTasksMap]);
 
   const availableTags = useMemo(() => {
     const s = new Set<string>();

@@ -24,7 +24,8 @@ import { supabase } from './supabaseClient'; // papelera de bloques: fetch on-de
 import { motion } from 'framer-motion';
 import { Reorder } from 'framer-motion';
 import { WorkBlock, Task } from './types';
-import { isTaskRepetitive } from './utils';
+import { isTaskRepetitive, isExpiredTemplate } from './utils';
+import { formatLocalISO } from './dateUtils';
 import { TaskCard, BulkActionBar, ToggleExpandButton } from './components';
 
 // Componentes compartidos importados desde App.tsx vía props
@@ -177,11 +178,13 @@ export function BlocksManagerView({
 
   const coreTasks = useMemo(() => {
     if (!selectedBlock) return [];
+    const todayISO = formatLocalISO(new Date());
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id) return false;
       if (t.parentTaskId) return false;
       if (t.templateId) return false;
       if (t.isDeleted) return false;
+      if (isExpiredTemplate(t, todayISO)) return false; // F5-6: serie terminada (endDate pasado) → oculta de la definición
       // A (sesión 19): un CONTENEDOR (con hijas) NUNCA se oculta por "completado" — debe seguir viéndose para
       // poder abrir su "ver completadas". Solo se ocultan las HOJAS completadas.
       const isContainer = !!(t.subtasks && t.subtasks.length > 0);
@@ -194,11 +197,13 @@ export function BlocksManagerView({
 
   const adhocTasks = useMemo(() => {
     if (!selectedBlock) return [];
+    const todayISO = formatLocalISO(new Date());
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id) return false;
       if (t.parentTaskId) return false;
       if (t.templateId) return false;
       if (t.isDeleted) return false;
+      if (isExpiredTemplate(t, todayISO)) return false; // F5-6: serie terminada (endDate pasado) → oculta de la definición
       const isContainer = !!(t.subtasks && t.subtasks.length > 0);
       if (hideCompleted && t.status === 'completed' && !isContainer) return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
@@ -587,7 +592,7 @@ export function BlocksManagerView({
                   </div>
                   <div className="flex items-center gap-4">
                     <p className="text-[10px] font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">
-                      {Object.values(allTasksMap).filter((t: any) => t && t.blockId === block.id && t.isTemplate && !t.parentTaskId).length} reglas · {Object.values(allTasksMap).filter((t: any) => t && t.blockId === block.id && !t.isTemplate && !t.templateId && !t.parentTaskId).length} manuales
+                      {Object.values(allTasksMap).filter((t: any) => t && t.blockId === block.id && t.isTemplate && !t.parentTaskId && !isExpiredTemplate(t, formatLocalISO(new Date()))).length} reglas · {Object.values(allTasksMap).filter((t: any) => t && t.blockId === block.id && !t.isTemplate && !t.templateId && !t.parentTaskId).length} manuales
                     </p>
                   </div>
                 </div>

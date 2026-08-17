@@ -3776,12 +3776,37 @@ borrar, F6-x2) debe cumplirla por diseño.
     corte es ese día — coherente aunque raro.)
   - Excepciones ya materializadas del pasado → se quedan con la serie vieja (no se tocan). El **N** del aviso = pendientes
     pasadas reales de ESA rutina (cálculo del probe §16.36).
-  - **VALIDACIÓN exigida (propietaria):** en pantalla, en el DÍA DEL CORTE la fila **ni se duplica ni desaparece**.
+  - ✅ **HOJAS IMPLEMENTADO (sesión 21), pendiente de validación de la propietaria.** `handleUpdateTask` rama nueva:
+    plantilla-hoja recurrente + pauta cambiada (`recurrenceChanged`) → cierra la vieja (`endDate`=corte-1) + abre nueva
+    (`startDate`=corte=activeDate, id nuevo). Filtro `isExpiredTemplate` en Bloques (2 listas + contador) y Búsqueda oculta
+    las series con `endDate` pasado. +12 tests (recurrenceChanged, isExpiredTemplate). Contenedores: siguen con el bug
+    retroactivo hasta su commit (aviso 3 salidas).
+  - 🔎 **HALLAZGO durante la verificación (y ARREGLADO en el mismo commit):** en el día del corte se DUPLICABA — la
+    instancia vieja ya materializada de ese día seguía viva y la nueva serie generaba también ese día. Fix: el split
+    soft-deletea las instancias viejas **pendientes** con fecha ≥ corte (las COMPLETADAS se dejan, §16.16). Verificado:
+    día del corte = 1 fila, sin duplicar.
+  - **Verificado en pantalla (datos reales, limpiado):** "Delmer" (terminada) oculta de Búsqueda; corte HOY → vieja
+    `endDate`=ayer oculta + instancia vieja del día soft-deleted + nueva desde hoy, 1 fila; **corte en DÍA PASADO (08-12)**
+    → vieja daily `08-08→08-11` (pasado anterior conservado), nueva weekdays desde `08-12` → **el tramo [día-pasado→hoy]
+    pasa a la pauta nueva** (lo que la propietaria señaló: es reescribir ese tramo; coherente con corte=día mirado; las
+    completadas del tramo se preservan). 1 fila en el día del corte.
+  - **DECISIÓN ABIERTA para la propietaria:** ¿deja el corte = día mirado (reescribe el tramo pasado→hoy si mira atrás), o
+    lo clava en HOY para pautas (nunca reescribir pasado)? Pendiente de su validación en pantalla.
+  - **Borde conocido:** una instancia COMPLETADA con fecha ≥ corte (haber actuado hoy y re-pautar hoy) NO se borra (fact) →
+    solaparía con la ocurrencia nueva ese día. Raro; anotado.
   - **Chip inline en la fila: APARCADO** como candidato (se reabre si cambia pautas a menudo).
+  - ⏸️ **ITEM PENDIENTE (no construir): toggle "ver terminadas" en Bloques.** Reactivar una serie oculta (endDate pasado)
+    no tiene camino en la app; la respuesta acordada es **"se crea de nuevo"**. Si algún día hace falta retomar rutinas
+    terminadas a menudo, un toggle que las muestre atenuadas y permita quitarles el `endDate`. La propietaria: "puede que
+    no lo haga nunca, no inventar la necesidad antes de tenerla."
+  - ⚠️ **CONSECUENCIA A VIGILAR:** desde este commit, **cada cambio de pauta de una hoja genera una serie oculta más**
+    (endDate pasado). Hoy son 4 acumuladas en meses; con el split será 1 por cambio. No es problema (ocultas, conservan el
+    pasado), pero **revisar el número dentro de unos meses** (probe de plantillas con endDate pasado) en vez de descubrirlo
+    con 200. Baseline hoy: 4 (Revisión rentas, Delmer, Revisar nóminas tiendas propias, Mirar situación CV de envasado).
 - ✅ **§16.7 startDate del chip al DÍA MIRADO — CERRADO (confirmado en pantalla, sesión 21).** Ya estaba resuelto en código
   (C4/§16.12: chip usa `defaultDate`; `TaskCard:721`/`TaskModal:799` pasan el día mirado). **Confirmado:** puse pauta diaria
   a una tarea viendo el **15 ago** → `recurrence.startDate = 2026-08-15` (el día mirado, NO hoy 08-17). Nada que construir.
-- ✅ **BUG de fecha `handleAddTask` stale-closure — ARREGLADO (sesión 21), pendiente de validación de la propietaria.**
+- ✅ **BUG de fecha `handleAddTask` stale-closure — ARREGLADO Y VALIDADO EN PANTALLA POR LA PROPIETARIA (sesión 21, `90067ec`).**
   Síntoma (verificado): mirando 08-14, el primer alta caía en 08-17 (hoy). Root: `handleAddTask` deps `[tasks,
   setAddSubtaskWarning]` no cubrían el `activeDate` que usa `doAddTask` → tras navegar sin cambiar `tasks`, `doAddTask`
   quedaba stale. **Fix:** deps → `[tasks, setAddSubtaskWarning, activeDate, blocks]` (`useTaskCRUD.ts:318`); no se pone
