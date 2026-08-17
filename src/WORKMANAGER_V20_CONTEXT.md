@@ -3739,7 +3739,12 @@ borrar, F6-x2) debe cumplirla por diseño.
 > detalle/histórico. Estados: ⬜ pendiente · 🔧 en curso · ✅ hecho (pendiente validación de la propietaria) · ✔️ validado.
 
 **FASE 5 — CREACIÓN (activa)**
-- ⬜ **Compositor de tanda** (une F5-7 alta rápida + F5-2 Enter): al pulsar "+ Nueva tarea" eliges bloque (sin default);
+- ✅ **Compositor de tanda** (une F5-7 alta rápida + F5-2 Enter) — **IMPLEMENTADO, pendiente de validación en pantalla.**
+  Verificado por mí (dev server): abre sin bloque preseleccionado; Enter sin bloque NO crea (conserva título + abre
+  selector + aviso); elegir bloque → Enter crea y encadena (input se vacía, barra sigue); **la elección propaga de verdad
+  (creé en "Central"/b2, no en el primero → sin fallback silencioso)**; Escape cierra; 3 tareas de prueba limpiadas. Ficheros:
+  `useTaskCRUD.ts` (`doAddTask`/`handleAddTask` aceptan `initialTitle`; sin inline si viene título), `DashboardView.tsx`
+  (barra compositor). Al pulsar "+ Nueva tarea" eliges bloque (sin default);
   chip de bloque **visible fijo** durante la tanda; **desplegable para cambiar de bloque a mitad** sin salir; **Enter
   encadena** en ese bloque. *Decisiones de diseño (sesión 21):* (Q2) título + Enter **sin bloque** → **no crea, conserva
   el título y salta el foco al selector** (nada se pierde); (Q3) **coexiste** con la edición inline — la inline sigue para
@@ -3747,6 +3752,10 @@ borrar, F6-x2) debe cumplirla por diseño.
   Escape o Enter en vacío; el bloque elegido se reinicia al cerrar (no se recuerda entre tandas). Toca `doAddTask`
   (quitar fallback a `blocks[0]`) + el "+ Nueva tarea" de Mi Día.
 - ⬜ **Modal de crear: bloque vacío + obliga a elegir** (parte (a) de F5-7). Commit APARTE del compositor.
+- 🕯️ **CANDIDATO (no aprobado) — segundo chip de ETIQUETA en la tanda:** la propietaria crea por tandas del mismo
+  contexto, que quizá no es solo el bloque. Si al usar el compositor unos días acaba etiquetando a mano las 10 tareas
+  (todas caen en "resto"), añadir un **chip de etiqueta opcional a la tanda** (vacío por defecto, heredado por las de la
+  tanda), igual que el de bloque. **Pendiente de su uso real, NO es item aprobado.** El compositor de hoy es SOLO bloque.
 - ⬜ **F5-6 · cambiar pauta desde fila + modal:** 1º atajo desde la fila al editor del modal (reusa lo existente), 2º chip
   inline encima. **Corte DESDE HOY** en ambos. Al cablear el chip, verificar que la pauta arranca el **día mirado**, no
   hoy real (bug §16.7). Sin picker nuevo.

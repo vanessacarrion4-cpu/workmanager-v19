@@ -4,7 +4,7 @@
  * Extraído de App.tsx - Sesión 3 del refactor.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Plus, CheckCircle2, ChevronRight, ChevronDown, Clock,
   Zap, ArrowRight, X, CalendarIcon, Trash2, Edit
@@ -34,7 +34,7 @@ interface DashboardViewProps {
   onStopTimer?: () => void;
   onToggle: (taskId: string) => void;
   onDelete: (taskId: string) => void;
-  onAddTask: (parentTaskId?: string | null, blockId?: string) => void;
+  onAddTask: (parentTaskId?: string | null, blockId?: string, overrideDate?: string, defaultPersonId?: string, initialTitle?: string) => void;
   onUpdateTask: (task: Task) => void;
   onEditTask: (taskId: string) => void;
   editingTaskId?: string | null;
@@ -100,6 +100,26 @@ export function DashboardView({
   const hideCompleted = hideCompletedProp !== undefined ? hideCompletedProp : hideCompletedLocal;
   const setHideCompleted = (v: boolean) => { setHideCompletedLocal(v); onHideCompletedChange?.(v); };
   const [showDashboardCalendar, setShowDashboardCalendar] = useState(false);
+
+  // FASE 5 — COMPOSITOR DE TANDA (alta rápida): eliges bloque UNA vez por tanda (sin default), el chip queda
+  // visible, Enter encadena creando en ESE bloque, y el chip es desplegable para cambiar de bloque a mitad sin
+  // salir. Título + Enter SIN bloque → no crea, conserva el título y abre el selector (nada se pierde). Enter en
+  // vacío o Esc cierran la tanda; el bloque NO se recuerda entre tandas. Solo bloque (la etiqueta, candidato §16.35).
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerBlockId, setComposerBlockId] = useState<string | null>(null);
+  const [composerTitle, setComposerTitle] = useState('');
+  const [composerBlockMenu, setComposerBlockMenu] = useState(false);
+  const composerInputRef = useRef<HTMLInputElement>(null);
+  const composerBlock = blocks.find((b: any) => b.id === composerBlockId);
+  const openComposer = () => { setComposerOpen(true); setComposerTitle(''); };
+  const closeComposer = () => { setComposerOpen(false); setComposerTitle(''); setComposerBlockId(null); setComposerBlockMenu(false); };
+  const composerCommit = () => {
+    const title = composerTitle.trim();
+    if (!title) { closeComposer(); return; }                        // Enter en vacío → cerrar la tanda
+    if (!composerBlockId) { setComposerBlockMenu(true); return; }    // sin bloque → NO crea; abre el selector (título conservado)
+    onAddTask(null, composerBlockId, undefined, undefined, title);  // crea ya titulada en el bloque de la tanda (día = activeDate)
+    setComposerTitle('');                                            // el input sigue montado y con foco → encadena
+  };
   const [expandAllLocal, setExpandAllLocal] = useState<boolean | null>(null);
   const expandAll = expandAllProp !== undefined ? expandAllProp : expandAllLocal;
   const setExpandAll = (fn: ((prev: boolean | null) => boolean | null) | (boolean | null)) => {
@@ -542,7 +562,7 @@ export function DashboardView({
           );
         })}
 
-        {dayTasks.length === 0 && (
+        {dayTasks.length === 0 && !composerOpen && (
           <div className="py-32 flex flex-col items-center justify-center text-text-secondary border-2 border-dashed border-border-main rounded-[2.5rem] bg-bg-card/30">
             <div className="w-16 h-16 bg-bg-card rounded-3xl flex items-center justify-center mb-6 border border-border-main shadow-2xl">
               <Zap size={32} className="text-turquesa opacity-40" />
@@ -550,7 +570,7 @@ export function DashboardView({
             <p className="font-bold text-lg mb-1">Día totalmente despejado</p>
             <p className="text-sm opacity-50 mb-8">No tienes nada planificado para hoy</p>
             <button
-              onClick={() => onAddTask()}
+              onClick={openComposer}
               className="bg-turquesa hover:bg-turquesa/90 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-turquesa/20 transition-all flex items-center gap-3"
             >
               <Plus size={20} />
@@ -559,14 +579,66 @@ export function DashboardView({
           </div>
         )}
 
-        {dayTasks.length > 0 && (
+        {dayTasks.length > 0 && !composerOpen && (
           <button
-            onClick={() => onAddTask()}
+            onClick={openComposer}
             className="w-full py-5 border-2 border-dashed border-border-main rounded-[1.5rem] flex items-center justify-center gap-3 font-bold text-turquesa hover:bg-bg-card/50 transition-all"
           >
             <Plus size={20} />
             + Nueva tarea para hoy
           </button>
+        )}
+
+        {/* FASE 5 — Compositor de tanda */}
+        {composerOpen && (
+          <div className="w-full p-4 border-2 border-turquesa/50 rounded-[1.5rem] dark:bg-bg-card/60 bg-bg-card/40 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Añadiendo a</span>
+              <div className="relative">
+                <button
+                  onClick={() => setComposerBlockMenu(o => !o)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${composerBlockId ? 'dark:border-border-main border-border-main-light' : 'border-turquesa text-turquesa animate-pulse'}`}
+                  style={composerBlockId ? { color: composerBlock?.color } : undefined}
+                  title={composerBlockId ? 'Cambiar de bloque (a mitad de tanda)' : 'Elige un bloque'}
+                >
+                  <span>{composerBlockId ? `${composerBlock?.icon || '📁'} ${composerBlock?.name || ''}` : '📁 Elegir bloque'}</span>
+                  <ChevronDown size={12} />
+                </button>
+                {composerBlockMenu && (
+                  <>
+                    <div className="fixed inset-0 z-[60]" onClick={() => setComposerBlockMenu(false)} />
+                    <div className="absolute left-0 top-full mt-1 z-[70] w-56 max-h-72 overflow-y-auto rounded-xl border dark:border-border-main border-border-main-light dark:bg-bg-card bg-white shadow-2xl p-1">
+                      {blocks.filter((b: any) => b.isActive !== false && (b.name || '').trim()).map((b: any) => (
+                        <button
+                          key={b.id}
+                          onClick={() => { setComposerBlockId(b.id); setComposerBlockMenu(false); composerInputRef.current?.focus(); }}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-bold hover:dark:bg-white/5 hover:bg-black/5 transition-all text-left"
+                        >
+                          <span>{b.icon}</span>
+                          <span style={{ color: b.color }}>{b.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            <input
+              ref={composerInputRef}
+              autoFocus
+              value={composerTitle}
+              onChange={e => setComposerTitle(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); composerCommit(); }
+                else if (e.key === 'Escape') { e.preventDefault(); closeComposer(); }
+              }}
+              placeholder="Título de la tarea — Enter crea y encadena · Esc cierra"
+              className="w-full px-3 py-2 rounded-xl dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light text-sm font-bold dark:text-white text-text-main-light outline-none focus:border-turquesa transition-all"
+            />
+            {composerTitle.trim() && !composerBlockId && (
+              <p className="text-[11px] font-bold text-turquesa">Elige un bloque para crear la tarea.</p>
+            )}
+          </div>
         )}
       </div>
 

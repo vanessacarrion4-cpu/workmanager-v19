@@ -293,7 +293,7 @@ export function useTaskCRUD({
     });
   }, [tasks, setTasks]);
 
-  const handleAddTask = useCallback((parentTaskId: string | null = null, blockId?: string, overrideDate?: string, defaultPersonId?: string) => {
+  const handleAddTask = useCallback((parentTaskId: string | null = null, blockId?: string, overrideDate?: string, defaultPersonId?: string, initialTitle?: string) => {
     if (parentTaskId) {
       // Si es instancia recurrente, resolver al template para verificar propiedades
       let parent = tasks[parentTaskId];
@@ -314,10 +314,10 @@ export function useTaskCRUD({
         }
       }
     }
-    return doAddTask(parentTaskId, blockId, overrideDate, defaultPersonId);
+    return doAddTask(parentTaskId, blockId, overrideDate, defaultPersonId, initialTitle);
   }, [tasks, setAddSubtaskWarning]);
 
-  const doAddTask = useCallback((parentTaskId: string | null = null, blockId?: string, overrideDate?: string, defaultPersonId?: string) => {
+  const doAddTask = useCallback((parentTaskId: string | null = null, blockId?: string, overrideDate?: string, defaultPersonId?: string, initialTitle?: string) => {
     const id = `t-${Date.now()}`;
     const timestamp = new Date().toISOString();
 
@@ -350,7 +350,7 @@ export function useTaskCRUD({
     const newTask: Task = {
       id,
       blockId: finalBlockId,
-      title: '',
+      title: initialTitle ?? '', // FASE 5: el compositor de tanda crea la tarea YA titulada (no fila vacía + inline)
       notes: '',
       status: 'pending',
       dueDate: overrideDate ? overrideDate : (isTemplate ? null : activeDate),
@@ -435,7 +435,9 @@ export function useTaskCRUD({
 
     // Opción A (sesión 15): crear SIEMPRE abre la edición del título EN LA FILA (no el modal), igual
     // en nivel-1 y en subtareas. El modal solo se abre a petición (botón editar → setEditingTaskId).
-    setInlineEditingTaskId(id);
+    // FASE 5: si viene `initialTitle` (compositor de tanda), la tarea nace ya titulada → NO abrir inline
+    // (el compositor mantiene su propio campo con foco para encadenar).
+    if (initialTitle === undefined) setInlineEditingTaskId(id);
     return id;
   }, [tasks, setTasks, blocks, activeDate, setEditingTaskId, setInlineEditingTaskId]);
 
