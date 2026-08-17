@@ -3764,21 +3764,19 @@ borrar, F6-x2) debe cumplirla por diseño.
   re-enlazar = justo el tipo de op que rompió datos 3× esta semana) → si sigue siendo así, hacerlo **solo para HOJAS** y en
   contenedores dar un **aviso claro de qué pasará** en vez de hacerlo mal en silencio. **Chip inline en la fila: APARCADO
   como candidato** (se reabre si algún día cambia pautas a menudo).
-- ✅❓ **§16.7 startDate del chip al DÍA MIRADO — YA RESUELTO EN CÓDIGO (C4/§16.12); la nota estaba obsoleta.**
-  `RecurrencePickerChip` ya usa `baseDate = defaultDate ? parseLocalISO(defaultDate) : new Date()` y **ambos llamadores
-  pasan el día mirado**: `TaskCard:721` `defaultDate={dayForTotals}`, `TaskModal:799` `defaultDate={st.dueDate||null}`. Todos
-  los `startDate` internos usan `baseIso`/`baseDate` (incl. el alias `const today = baseDate`, `Chips.tsx:426`). → No hay
-  nada que construir. Confirmación en pantalla BLOQUEADA por el bug de fecha de abajo (no pude crear una tarea en un día
-  no-hoy para probar). El chip recibe `activeDate` fresco por render, así que §16.7 en sí está bien.
-- ⚠️🔴 **BUG NUEVO (sesión 21, verificado en pantalla) — `handleAddTask` stale-closure: el primer alta tras navegar de día
-  cae en el día ANTERIOR (a menudo hoy), no en el día mirado.** Síntoma: mirando "Viernes 14 ago" (contador 28/28 de 08-14),
-  creé una tarea con el compositor y salió con `due_date = 2026-08-17` (hoy). Root confirmado en código: `handleAddTask`
-  deps = `[tasks, setAddSubtaskWarning]` (`useTaskCRUD.ts:318`) — **no incluye `doAddTask`** (que sí depende de `activeDate`);
-  al navegar de día sin cambiar `tasks`, `handleAddTask` retiene un `doAddTask` viejo con el `activeDate` anterior. Tras el
-  primer alta (cambia `tasks`) se re-memoiza y los siguientes ya usan el día correcto → bug INTERMITENTE (solo el primero
-  tras navegar). **Afecta al COMPOSITOR (F5-7) y al alta antigua.** Fix pequeño: añadir `doAddTask` a las deps de
-  `handleAddTask` (o `activeDate`). **NO arreglado — pendiente de decisión de la propietaria.** Verificar en pantalla tras
-  el fix (crear en un día no-hoy → cae en ese día).
+- ✅ **§16.7 startDate del chip al DÍA MIRADO — CERRADO (confirmado en pantalla, sesión 21).** Ya estaba resuelto en código
+  (C4/§16.12: chip usa `defaultDate`; `TaskCard:721`/`TaskModal:799` pasan el día mirado). **Confirmado:** puse pauta diaria
+  a una tarea viendo el **15 ago** → `recurrence.startDate = 2026-08-15` (el día mirado, NO hoy 08-17). Nada que construir.
+- ✅ **BUG de fecha `handleAddTask` stale-closure — ARREGLADO (sesión 21), pendiente de validación de la propietaria.**
+  Síntoma (verificado): mirando 08-14, el primer alta caía en 08-17 (hoy). Root: `handleAddTask` deps `[tasks,
+  setAddSubtaskWarning]` no cubrían el `activeDate` que usa `doAddTask` → tras navegar sin cambiar `tasks`, `doAddTask`
+  quedaba stale. **Fix:** deps → `[tasks, setAddSubtaskWarning, activeDate, blocks]` (`useTaskCRUD.ts:318`); no se pone
+  `doAddTask` directo por TDZ (declarado después). **Verificado en pantalla — test INTERMITENTE:** navegar→crear UNA→
+  comprobar, en 3 días distintos (08-12, 08-15, 08-11), cada una primer alta tras navegar → **las 3 cayeron en su día
+  mirado** (no en hoy). Afectaba al compositor y al alta antigua. **Otra instancia de la MISMA clase (item aparte, bajo
+  impacto): `bulkDuplicateTasks` (`useBulkActions.ts:485`)** usa `activeDate` (línea 374, fallback para ids sin fecha) pero
+  no está en sus deps → stale al navegar; solo afecta a duplicar un id sin sufijo de fecha. Auditoría: los demás handlers
+  (bulkUpdate/bulkDelete con activeDate en deps; toggle/update por argumento; timer sin activeDate) están limpios.
 - ✅→✔️(pdte) **F5-5 · poner pauta a tarea NORMAL desde la fila:** ya CABLEADO; **solo validar** en pantalla.
 - ⚠️ **F5-1 · no persistir tarea vacía** — **NO es INV, más grande de lo que parecía. REVERTIDO** (sesión 21). Al intentar
   descartar la hoja vacía al perder el foco salió una **CARRERA**: `doAddTask` inserta la tarea en BD de forma ASÍNCRONA y

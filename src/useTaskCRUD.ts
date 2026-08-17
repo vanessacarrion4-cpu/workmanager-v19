@@ -315,7 +315,10 @@ export function useTaskCRUD({
       }
     }
     return doAddTask(parentTaskId, blockId, overrideDate, defaultPersonId, initialTitle);
-  }, [tasks, setAddSubtaskWarning]);
+    // §16.7-bug: `activeDate` y `blocks` en deps → handleAddTask se re-memoiza al navegar de día y captura un
+    // `doAddTask` FRESCO (con el activeDate actual). Sin esto, el primer alta tras navegar caía en el día viejo
+    // (verificado en pantalla). No se pone `doAddTask` directo: está declarado después (TDZ en el array de deps).
+  }, [tasks, setAddSubtaskWarning, activeDate, blocks]);
 
   const doAddTask = useCallback((parentTaskId: string | null = null, blockId?: string, overrideDate?: string, defaultPersonId?: string, initialTitle?: string) => {
     const id = `t-${Date.now()}`;
