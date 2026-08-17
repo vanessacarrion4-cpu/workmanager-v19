@@ -3494,27 +3494,37 @@ pero igual quiere verlas antes de borrar).
 **Texto propuesto (mismo `RecurrenceChoiceModal`; añade una banda-inventario; también convierte el `confirm()` nativo del
 no-recurrente en modal para poder listar). El conjunto listado = TODAS las hijas del día (no solo pendientes).**
 
-- **POCAS hijas (≤ ~6): lista completa directa, agrupada por etiqueta.**
-  > **¿Eliminar «Cierre propias»?** · Es parte de una rutina recurrente.
-  > ⚠️ **Quitar este día se lleva estas 3 subtareas:**
-  >   🎯 Focus (1) — Sacar cuentas de resultados
-  >   📋 Resto (1) — Publicar a coordinadores
-  >   🚀 Dirección (1) — Comentar previsional 1Q
-  > [ Quitar solo el domingo, 16 ago ] La rutina sigue; solo desaparece del domingo, 16 ago.
-  > [ Terminar la rutina ] Deja de repetirse de hoy en adelante. Lo ya hecho se conserva.
-  > [ Cancelar ]
-- **MUCHAS hijas (> ~6): resumen por etiqueta con total SIEMPRE visible + "Ver las N →" que despliega la lista completa
-  (agrupada, con scroll). Nunca se quita la opción de ver el detalle.**
+- **FORMATO ÚNICO (SIN umbral — decisión de la propietaria: dos formatos son dos caminos que se rompen por separado).
+  SIEMPRE resumen por etiqueta + total + "Ver las N →" desplegable (lista completa agrupada, con scroll). Nunca se quita
+  el detalle.**
   > **¿Eliminar «Verduras vivas»?** · Es parte de una rutina recurrente.
   > ⚠️ **Quitar este día se lleva 51 subtareas:**
   >   ⏳ Espera (50) · 🎯 Focus (1)
   >   [ Ver las 51 → ]   ← despliega: cada etiqueta con sus títulos, scroll
-  > [ Quitar solo el domingo, 16 ago ] … / [ Terminar la rutina ] … / [ Cancelar ]
-- **No-recurrente** (contenedor manual): misma banda pero "Esto borra «X» y estas N subtareas (recuperables solo en la
-  base):" + [ Eliminar ] / [ Cancelar ] (sin "este día / serie").
+  > [ Quitar solo el domingo, 16 ago ] La rutina sigue; solo desaparece del domingo, 16 ago.
+  > [ Terminar la rutina ] Deja de repetirse de hoy en adelante. Lo ya hecho se conserva.
+  > [ Cancelar ]
+  (Con pocas hijas, MISMO formato: "…se lleva 3 subtareas: 🎯 Focus (1) · 📋 Resto (1) · 🚀 Dirección (1) · [Ver las 3 →]".)
+- **No-recurrente** (contenedor manual): misma banda + "Esto borra «X» y estas N subtareas. **No se puede deshacer desde la
+  app.**" + [ Eliminar ] / [ Cancelar ] (sin "este día / serie").
 - **Hoja** (sin hijas): sin banda (como hoy).
 
-**Pendiente de OK de la usuaria sobre el texto antes de implementar.**
+**Decisiones de la propietaria (sesión 21, APROBADAS):** formato único sin umbral · el no-recurrente dice "No se puede
+deshacer desde la app." · resto del texto aprobado. **Implementar DESPUÉS de resolver el GATE de abajo.**
+
+**⚠️ GATE — "terminar la rutina" (VERIFICADO CON DATOS, sesión 21):** las ocurrencias PASADAS se conservan ✓ (7 de 8 reglas
+terminadas mantienen instancias pasadas vivas, con las COMPLETADAS intactas → el modelo §16.16 "hacia atrás, íntegras" SE
+CUMPLE). **PERO** las futuras materializadas se soft-deletean **solo en estado LOCAL, no se persisten** (`App.tsx:1001-1008`:
+el `persist` es únicamente para la regla `is_active:false`) → **2 reglas terminadas ("Revisar Margenes", "Sacar cuentas de
+resultados") tienen instancias FUTURAS vivas en BD que reaparecen al recargar.** La subetiqueta del botón "Deja de repetirse
+de hoy en adelante" sería FALSA para esas. **Bug real de "terminar la rutina", separado del modelo de pasadas. PENDIENTE de
+decisión de la propietaria: arreglar el `persist` de las futuras (pequeño: persistir el mismo soft-delete que ya hace en
+local) ANTES del aviso, o aparcarlo.** No se implementa el aviso hasta decidir.
+
+**APARCADO (FASE 6/7, junto al modal de papelera):** NO existe deshacer en la app para una tarea suelta (488/2519 filas ya
+`is_deleted`; recuperable solo en BD). **Mismo texto que el item #7 (§16.21/§16.17) "renombrar «borrar la serie» → «terminar
+la rutina»"**, ya aplicado en el modal del B2 ("Terminar la rutina") → #7 queda CUBIERTO por texto; falta el arreglo del
+persist de futuras (el GATE de arriba).
 
 ### 16.32 INVENTARIO FASE 5 (creación) — formato §16.21. NO arrancada.
 
@@ -3534,3 +3544,30 @@ cerrar la 6.
 
 **Lectura rápida:** casi todo es S (pequeño) y de FLUJO/FOCO; los únicos con peso de diseño son F5-6 (picker de pauta nuevo)
 y la DECISIÓN F5-7. Cerrada la 6, la 5 es corta salvo esos dos.
+
+### 16.33 Items NUEVOS de FASE 6 (sesión 21) — solo documentados, sin implementar.
+
+**F6-x1 · Indicador de subtareas EN ESPERA en contenedor CONTRAÍDO.**
+- Símbolo de espera + número, **sin texto**. Cuenta las hijas EN ESPERA **de la etiqueta visible** (jerarquía de 2 niveles
+  → hijas directas). El acotado por etiqueta **ya existe vía `subtasksForGroup`** (§16.30) → reutilizarlo (contar
+  `subtasksForGroup` con `onHold`, mismo patrón que `onHoldChildIds` en `TaskCard:222`).
+- **Solo visible CONTRAÍDO; al desplegar desaparece** (desplegado ya se ven las hijas).
+- Valor **DERIVADO, NO se persiste**.
+- **El símbolo debe DISTINGUIRSE visualmente del de una tarea suelta en espera**, para que el contenedor no se lea como si
+  él mismo estuviera en espera.
+- **Motivo (regla):** "en espera" **NO cascadea** de hija a contenedor — propagarlo ocultaría hermanas activas (el mismo
+  fallo que la cascada de completar, §16.30). Es un CONTADOR, no un estado del padre. | Coste M | Cambia pantalla: Sí (un badge en la fila contraída).
+
+**F6-x2 · Selección múltiple en Mi Día con DOS alcances.**
+- **POR ETIQUETA:** todas las tareas del grupo de esa etiqueta. **GLOBAL:** todas las del día, atravesando todas las
+  etiquetas. **Ambos SIEMPRE dentro del día visible; nunca alcanzan otros días.**
+- Marcar un contenedor CONTRAÍDO selecciona **todas sus hijas de ese día aunque no se vean**: el criterio de alcance es el
+  **DÍA, no la visibilidad**.
+- **No aplica en Bloques** (no agrupa por etiqueta).
+- **Forma propuesta (a validar en pantalla):** dos casillas de "seleccionar todo" — una en la cabecera de CADA etiqueta,
+  otra en la cabecera del DÍA. El alcance lo determina dónde se pulsa. **Sin avisos de alcance** (nunca sale del día). | Coste M-L | Cambia pantalla: Sí (casillas nuevas en cabeceras).
+
+**F6-x3 · Etiquetar el total HISTÓRICO del contenedor en Bloques.**
+- §16.7: Bloques es vista de DEFINICIÓN y muestra el registrado de TODAS las hijas (histórico), no del día. **Es correcto**,
+  pero la propietaria lo leyó como error (vio 2h 10m en cabecera con todas las hijas visibles a 0m).
+- **El número NO cambia.** Falta solo que la pantalla DIGA que es histórico (una etiqueta/aclaración junto al total). | Coste S | Cambia pantalla: Sí (texto aclaratorio, no el dato).
