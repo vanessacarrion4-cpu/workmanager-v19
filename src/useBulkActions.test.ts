@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
 import { Task } from './types';
-import { bulkEffectiveIds, bulkUpdatesForTask } from './useBulkActions';
+import { bulkEffectiveIds, bulkUpdatesForTask, bulkUpsertStatusFields } from './useBulkActions';
 
 const WED = '2026-07-15';
 const THU = '2026-07-16';
@@ -69,6 +69,25 @@ describe('bulkEffectiveIds', () => {
       task({ id: 'c', parentTaskId: 'C', dueDate: THU }),               // otro día → no
     ]);
     expect(run(tasks, ['C'])).toEqual(['a']);
+  });
+});
+
+describe('bulkUpsertStatusFields (§16.34 c — no escribir status que no se cambia a propósito)', () => {
+  it('op que NO cambia status (mover fecha) → {} (upsert omite status → conflicto preserva BD)', () => {
+    expect(bulkUpsertStatusFields({ dueDate: THU }, task({ id: 'x', status: 'pending' }))).toEqual({});
+  });
+
+  it('op que NO cambia status (tags) → {}', () => {
+    expect(bulkUpsertStatusFields({ tags: ['focus'] }, task({ id: 'x', status: 'completed' }))).toEqual({});
+  });
+
+  it('op que SÍ cambia status a completed → escribe status + completed_at', () => {
+    const t = task({ id: 'x', status: 'completed', completedAt: '2026-07-15T10:00:00.000Z' } as any);
+    expect(bulkUpsertStatusFields({ status: 'completed' } as any, t)).toEqual({ status: 'completed', completed_at: '2026-07-15T10:00:00.000Z' });
+  });
+
+  it('op que cambia status a pending → completed_at null', () => {
+    expect(bulkUpsertStatusFields({ status: 'pending' } as any, task({ id: 'x', status: 'pending' }))).toEqual({ status: 'pending', completed_at: null });
   });
 });
 

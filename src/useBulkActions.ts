@@ -124,6 +124,19 @@ export function bulkUpdatesForTask(updates: Partial<Task>, task: Task | undefine
   return updates;
 }
 
+/**
+ * bulkUpsertStatusFields — §16.34 (c), REGLA DEL MODELO: ningún camino escribe un estado que no está cambiando
+ * A PROPÓSITO. Devuelve los campos de status para el UPSERT de una instancia en `bulkUpdateTasks` SOLO cuando la
+ * op cambia status de verdad. Si la op es mover fecha / tiempo / tags / delegar (`updates.status === undefined`),
+ * devuelve `{}`: así el upsert NO incluye `status`/`completed_at` → en CONFLICTO PostgREST preserva lo de BD (no
+ * reabre una instancia que allí está completada, p.ej. una fuera de ventana resuelta como "virgen" pendiente);
+ * en ALTA nueva se usa el default de la columna. Puro y testeable.
+ */
+export function bulkUpsertStatusFields(updates: Partial<Task>, updatedTask: Task): Record<string, any> {
+  if (updates.status === undefined) return {};
+  return { status: updatedTask.status, completed_at: updatedTask.completedAt || null };
+}
+
 export function useBulkActions({
   tasks,
   setTasks,
@@ -166,7 +179,13 @@ export function useBulkActions({
         // "instancia virgen" de "excepción persistida"; el que manda es "¿lo resolví como virgen?".
         const isVirgin = !!resolvedById[id];
         if (task.templateId && (isVirgin || !task.existsInSupabase)) {
-          supabase.from('tasks').upsert({
+          // §16.34 (c) — REGLA DEL MODELO: ningún camino escribe un estado que no está cambiando A PROPÓSITO.
+          // Una op de bulk que NO cambia status (mover fecha, tiempo, tags, delegar) NO debe escribir `status`/
+          // `completed_at`/`was_recurring` en el upsert: si el id ya existe en BD COMPLETADA (p.ej. fuera de la
+          // ventana cargada, resuelta como "virgen" pendiente), incluirlos la REABRÍA. Omitiéndolos, en CONFLICTO
+          // PostgREST solo actualiza las columnas presentes (preserva el status/completed_at/was_recurring de BD);
+          // en ALTA nueva usan el default de la columna (pending). Solo se escribe status cuando la op lo toca.
+          const row: Record<string, any> = {
             id: task.id,
             block_id: task.blockId,
             parent_task_id: null,
@@ -175,10 +194,8 @@ export function useBulkActions({
             title: task.title,
             notes: task.notes || '',
             priority: 'media',
-            status: updatedTask.status,
             due_date: task.dueDate || null,
             due_time: task.dueTime || null,
-            completed_at: updatedTask.completedAt || null,
             estimated_minutes: updatedTask.estimatedMinutes || 0,
             actual_minutes: task.actualMinutes || 0,
             tags: updatedTask.tags || [],
@@ -193,7 +210,10 @@ export function useBulkActions({
             delegation: updatedTask.delegation ?? null,
             created_at: task.createdAt || timestamp,
             modified_at: timestamp,
-          }, { onConflict: 'id' }).then(({ error }) => {
+            // §16.34 (c): status/completed_at SOLO si la op los cambia (si no, se omiten → conflicto preserva BD).
+            ...bulkUpsertStatusFields(updates, updatedTask),
+          };
+          supabase.from('tasks').upsert(row, { onConflict: 'id' }).then(({ error }) => {
             if (error) {
               console.error('[BULK] Error upsert instancia:', task.id, error);
               reportPersistError({ verbo: 'guardar', titulo: task.title });

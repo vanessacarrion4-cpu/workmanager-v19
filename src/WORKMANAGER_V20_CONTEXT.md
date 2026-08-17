@@ -3686,3 +3686,23 @@ completada — preservar el status persistido / no upsertar status en instancias
 
 **NOTA DE ORDEN (§16):** este bug **NO es F6-x2** (selección global / por etiqueta = funcionalidad nueva). **F6-x2 va
 DESPUÉS** de que la selección funcione bien: añadir dos alcances sobre una selección que coge mal duplicaría el fallo.
+
+---
+
+**⭐ REGLA DEL MODELO (sesión 21) — emerge de tres casos (§16.30 completar sin acotar por etiqueta · §16.34 bulk sin acotar
+por día/estado · el upsert escribiendo status default):**
+> **1. Toda acción acota su alcance al CONTEXTO desde el que se lanza** (etiqueta, persona, día). No al todo, no a lo que no
+> se ve. **2. Ningún camino escribe un estado que no está cambiando a propósito** (un movimiento de fecha no toca `status`;
+> un upsert de una op no-status no impone un `status` default). Los hechos consumados (completadas) no se tocan NUNCA (§16.16).
+
+Los tres bugs no son sueltos: son la misma regla incumplida en tres sitios. Cualquier acción nueva (bulk, toggle, mover,
+borrar, F6-x2) debe cumplirla por diseño.
+
+**🔎 REGISTRO DE VERIFICACIÓN (2026-08-17) — escritores de status-default, para no repetir la arqueología:**
+- `handleToggleStatus` — **DESCARTADO** como escritor de default: escribe `status: t.status` = el estado INTENCIONADO del
+  toggle, y solo sobre HOJAS (`writesOwnStatusOnToggle`; nunca el status de un contenedor). No reabre en silencio.
+- Borrado de instancia recurrente (`App.tsx` onConfirm delete) y `bulkDeleteTasks` — escriben status pero con
+  `is_deleted:true` → no es reapertura viva. **Descartados** como reaperturas.
+- `bulkUpdateTasks` (virgin-upsert) — **ÚNICO** escritor de status-default vivo → arreglado en COMMIT 1 (c) vía
+  `bulkUpsertStatusFields` (omite `status`/`completed_at` cuando la op no cambia status). Si el patrón reaparece, revisar
+  aquí primero.
