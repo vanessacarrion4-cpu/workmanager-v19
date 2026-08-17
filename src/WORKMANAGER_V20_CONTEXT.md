@@ -2081,6 +2081,9 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
 
 ### 16.12 PUNTO DE RETOMADA — ✅ FASE 3 CERRADA (sesión 18)
 
+> ✅ **RE-VALIDADO EN PANTALLA POR LA PROPIETARIA (sesión 21):** el clic de C1 completa SOLO las hijas del día (no otros
+> días). FASE 3 cerrada del todo, sin salvedades pendientes por este lado.
+
 **✅ FASE 3 CERRADA (sesión 18). Todo en producción. Estado final:**
 | Paso | Qué | Commit(s) |
 |---|---|---|
@@ -3223,7 +3226,7 @@ irreversible hoy es el de BLOQUE (item 1b lo hará reversible en cuanto exista `
 > No es que una corrija a la otra: **23503 es al escribir un FK malo; CASCADE es al borrar el padre.** Operaciones
 > distintas, ambas ciertas.
 
-### 16.25 MAPA — "Rutinas mañana": a veces el reorden de subtareas no agarra (sesión 19) — ✅ ABORDADO por A (pdte. validación)
+### 16.25 MAPA — "Rutinas mañana": reorden de subtareas — ✅ CERRADO (validado en pantalla por la propietaria, sesión 21, `f5b3410`)
 
 > **ACTUALIZACIÓN:** el fix A (`f5b3410`) ataca las 3 causas de abajo: `values` MEMOIZADO, reorden que FUSIONA en vez de
 > reemplazar, y sobre todo la lista pasa de 136 a 4 filas (no se pintan las 132 completadas). **Pendiente validar en
@@ -3571,3 +3574,42 @@ y la DECISIÓN F5-7. Cerrada la 6, la 5 es corta salvo esos dos.
 - §16.7: Bloques es vista de DEFINICIÓN y muestra el registrado de TODAS las hijas (histórico), no del día. **Es correcto**,
   pero la propietaria lo leyó como error (vio 2h 10m en cabecera con todas las hijas visibles a 0m).
 - **El número NO cambia.** Falta solo que la pantalla DIGA que es histórico (una etiqueta/aclaración junto al total). | Coste S | Cambia pantalla: Sí (texto aclaratorio, no el dato).
+
+### 16.34 🔴 BUG (sesión 21) — Selección múltiple + "cambiar fecha" toca completadas. DIAGNÓSTICO, sin arreglar.
+
+**Síntoma (propietaria):** seleccionar un contenedor con hijas del día (unas completadas, otras no) y cambiar la fecha:
+(a) coge TODAS las hijas, no solo las del día; (b) mueve las COMPLETADAS; (c) las REABRE (a pendiente). (b)+(c) violan
+§16.16 (las instancias son hechos consumados, no se tocan NUNCA).
+
+**Camino (confirmado en código):** toolbar "cambiar fecha" → `setBulkDateModal` → `BulkDateModal` → `onConfirm` →
+`bulkUpdateTasks({ dueDate })` (`App.tsx:905`).
+
+**Causa candidata (confirmada en código) de (a):** `toggleTaskSelection` (`App.tsx:137-150`) al marcar un contenedor mete
+en `selectedTaskIds` el contenedor **Y todas sus hijas renderizadas** (`renderedSubtaskIds = task.subtasks`, desde
+`TaskCard:462`), incluidas COMPLETADAS y sin acotar al día. Luego `bulkEffectiveIds` (`useBulkActions.ts:58`) solo aplica el
+filtro **día + pendiente** en la rama CONTENEDOR (líneas 76, 79); las hijas metidas **sueltas** caen por la rama HOJA
+(102-103) **sin ningún filtro** → entran completadas y de cualquier día. El acotado por día/estado que sí hace la rama
+contenedor se lo salta la selección directa de hijas.
+
+**(b) y (c) NO están explicados aún — hay guardas que DEBERÍAN impedirlo:** `bulkUpdatesForTask` (118-125) quita `dueDate`
+si la tarea está completada; y `bulkUpdateTasks` no escribe `status` salvo que venga en `updates` (aquí solo viene
+`dueDate`). O sea, por el código LEÍDO, una completada seleccionada suelta NO debería moverse ni reabrirse. **No deduzco el
+mecanismo de reapertura: queda ABIERTO** — hace falta repro controlado en pantalla (con la propietaria, para no causar más
+daño) o traza más fina para cazar la escritura exacta. Puede ser daño histórico previo a las guardas.
+
+**Alcance del daño ya causado (probe de solo-lectura, 2026-08-17, 1278 instancias vivas):**
+- **REABIERTAS** (`was_recurring:true` & status≠completed → fueron completadas y ahora están pendientes): **12**.
+- **MOVIDAS** (`due_date` ≠ `instance_date`): 123 (la mayoría legítimas: mover pendientes es válido).
+- **REABIERTAS *y* MOVIDAS** (firma del bug): **7** (p. ej. "Revisar Margenes", "Hacer cuadro Resumen", "Ver con Blai
+  Resultados", con `instance_date` viejo y `due_date` movido a hoy, sin `completed_at`).
+
+**Q4 — otras acciones en bloque:** `bulkDeleteTasks` y `bulkDuplicateTasks` también leen `selectedTaskIds` + añaden
+`subtasks` → **misma sobre-selección** (incluyen completadas/otros días); delegar/en-espera/tiempo pasan por
+`bulkUpdateTasks` → mismo origen. El "cambiar fecha" es el dañino (reescribe hechos).
+
+**Q5 — familia con §16.30:** el fix de §16.30 arregló el COMPLETAR de la fila (por grupo, vía `restrictIds`/
+`subtasksForGroup` en `handleToggleStatus`). El BULK usa OTRA vía de selección (`toggleTaskSelection` + `selectedTaskIds` +
+`bulkEffectiveIds`) que §16.30 **no tocó**. Misma CLASE (el alcance debe ser día+pendiente, como la visibilidad/intención),
+código distinto. El arreglo probable: que `toggleTaskSelection` meta solo las hijas del día PENDIENTES, y/o que
+`bulkEffectiveIds` filtre también las hijas seleccionadas sueltas por día+estado. **Sin arreglar — esperando revisar el
+alcance y decidir.**
