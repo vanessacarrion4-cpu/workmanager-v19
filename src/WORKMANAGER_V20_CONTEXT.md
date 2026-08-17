@@ -3548,6 +3548,17 @@ cerrar la 6.
 **Lectura rápida:** casi todo es S (pequeño) y de FLUJO/FOCO; los únicos con peso de diseño son F5-6 (picker de pauta nuevo)
 y la DECISIÓN F5-7. Cerrada la 6, la 5 es corta salvo esos dos.
 
+**✅ VERIFICACIÓN DEL INVENTARIO (sesión 21, contra el código actual, con subagentes; no deducido):**
+- **F5-1** (tarea vacía se persiste, sin guarda) → **SIGUE VIVO.** `doAddTask` inserta con `title:''` sin guarda
+  (`useTaskCRUD.ts:428/406`); `commitTitle` solo mira si cambió, no si está vacío (`TaskCard.tsx:256`).
+- **F5-2** (encadenar con Enter) → **NO EXISTE** (nunca se implementó). Enter guarda y sale (`TitleField.tsx:36-39`); no crea la siguiente. Item de FLUJO real.
+- **F5-3** (cursor al título al crear en contenedor) → **YA FUNCIONA** — `doAddTask` hace `setInlineEditingTaskId(id)` + `autoFocus` (`useTaskCRUD.ts:438`, `TitleField.tsx:31`). **Se cae del inventario** (salvo la rama "convertir en contenedor", que abre el modal — ligada a F5-4).
+- **F5-4** (aviso convertir con "Sí" enfocado/Enter) → **NO EXISTE.** El botón no tiene `autoFocus` ni hay handler de Enter (`App.tsx:847-882`). Item de FLUJO real.
+- **F5-5** (poner pauta a tarea NORMAL desde la fila) → **CABLEADO** (chip editable presente y conectado a la conversión manual→recurrente, `TaskCard.tsx:715-731` + `useTaskCRUD.ts:647-716`). No es "construir": es **VALIDAR en pantalla** (nunca se comprobó, §16.29).
+- **F5-6** (cambiar pauta de RECURRENTE desde la fila) → **SIGUE VIVO**; se puede REUTILIZAR lo existente (ver PASO 1). No hace falta picker nuevo.
+- **F5-7** (Mi Día → primer bloque vs sin bloque) → **DECISIÓN ABIERTA.** Dato: hoy **0 tareas sin bloque** (todas tienen uno); el primer bloque es "CM11l" y ya acumula 214 tareas de nivel-1. "Sin bloque" hoy NO existe como estado.
+- **F5-8** (ruido de consola al arrancar) → **SIGUE VIVO.** Trío `[SUPABASE] Loading/Loaded/successfully` (`useSupabase.ts:299/366/454`) + `[REPAIR]`/limpieza condicionales. Item técnico menor.
+
 ### 16.33 Items NUEVOS de FASE 6 (sesión 21) — solo documentados, sin implementar.
 
 **F6-x1 · Indicador de subtareas EN ESPERA en contenedor CONTRAÍDO.**
@@ -3577,7 +3588,12 @@ va DESPUÉS.
   pero la propietaria lo leyó como error (vio 2h 10m en cabecera con todas las hijas visibles a 0m).
 - **El número NO cambia.** Falta solo que la pantalla DIGA que es histórico (una etiqueta/aclaración junto al total). | Coste S | Cambia pantalla: Sí (texto aclaratorio, no el dato).
 
-### 16.34 🔴 BUG (sesión 21) — Selección múltiple + "cambiar fecha" toca completadas. DIAGNÓSTICO, sin arreglar.
+### 16.34 ✅ CERRADO (sesión 21) — Selección múltiple + "cambiar fecha" tocaba completadas.
+
+> ✅ **CERRADO Y VALIDADO EN PANTALLA POR LA PROPIETARIA (2026-08-17).** Fix en dos commits: `b9cfef3` (c, no escribir
+> status default en el virgin-upsert) + `e647fb1` (a+b, `bulkEffectiveIds` acota las hijas sueltas a día+pendiente). **Probe
+> de línea base tras la validación: siguen 12 reabiertas, CERO nuevas** → el fix no genera reaperturas. Las 12 de la línea
+> base NO se revierten (decisión de la propietaria). Debajo, el diagnóstico completo (histórico).
 
 **Síntoma (propietaria):** seleccionar un contenedor con hijas del día (unas completadas, otras no) y cambiar la fecha:
 (a) coge TODAS las hijas, no solo las del día; (b) mueve las COMPLETADAS; (c) las REABRE (a pendiente). (b)+(c) violan
