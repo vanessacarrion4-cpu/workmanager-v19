@@ -3756,18 +3756,28 @@ borrar, F6-x2) debe cumplirla por diseño.
   contexto, que quizá no es solo el bloque. Si al usar el compositor unos días acaba etiquetando a mano las 10 tareas
   (todas caen en "resto"), añadir un **chip de etiqueta opcional a la tanda** (vacío por defecto, heredado por las de la
   tanda), igual que el de bloque. **Pendiente de su uso real, NO es item aprobado.** El compositor de hoy es SOLO bloque.
-- ⬜ **F5-6 · cambiar pauta desde fila + modal:** 1º atajo desde la fila al editor del modal (reusa lo existente), 2º chip
-  inline encima. **Corte DESDE HOY** en ambos. Al cablear el chip, verificar que la pauta arranca el **día mirado**, no
-  hoy real (bug §16.7). Sin picker nuevo.
+- ⬜ **F5-6 · cambiar pauta de recurrente = QUE EL EDITOR DE SERIE DEL MODAL HAGA LO CORRECTO (opción 3, decisión sesión 21).**
+  NO se añade un segundo camino desde la fila: cambiar pauta es raro, basta el modal que ya existe. El editor de serie del
+  modal debe aplicar **(ii) PARTIR LA SERIE**: cerrar la vieja (`endDate` = ayer) + abrir una nueva (`startDate` = hoy, pauta
+  nueva), **preservando TODO el pasado (completadas Y pendientes)**. Motivo (medido, §16.35 abajo): (i) simple ocultaría
+  20-75 pendientes pasadas por regla → no vale. **(ii) en CONTENEDORES es un mini-refactor** (duplicar plantilla + hijas +
+  re-enlazar = justo el tipo de op que rompió datos 3× esta semana) → si sigue siendo así, hacerlo **solo para HOJAS** y en
+  contenedores dar un **aviso claro de qué pasará** en vez de hacerlo mal en silencio. **Chip inline en la fila: APARCADO
+  como candidato** (se reabre si algún día cambia pautas a menudo).
+- ⬜ **§16.7 startDate del chip al DÍA MIRADO (no hoy real) — ITEM SEPARADO, aprobado.** `RecurrencePickerChip` arranca
+  `startDate` con `new Date()`; pasa a usar el día que se mira (`activeDate`). Beneficia a F5-5 (poner pauta a tarea normal).
+  Independiente de F5-6. Verificar explícitamente en pantalla.
 - ✅→✔️(pdte) **F5-5 · poner pauta a tarea NORMAL desde la fila:** ya CABLEADO; **solo validar** en pantalla.
 - ⚠️ **F5-1 · no persistir tarea vacía** — **NO es INV, más grande de lo que parecía. REVERTIDO** (sesión 21). Al intentar
   descartar la hoja vacía al perder el foco salió una **CARRERA**: `doAddTask` inserta la tarea en BD de forma ASÍNCRONA y
   el descarte (`onDelete`→`update is_deleted`) se dispara al blur; si el insert aún no llegó, el update no-opea y luego el
   insert la crea VIVA (`is_deleted:false`) — verificado en pantalla (subtarea de "Gestión campaña" quedó viva). Además deja
   una fila-basura por descarte. **Arreglo correcto: DIFERIR el insert** — no persistir la tarea hasta que tenga título
-  (toca `doAddTask` + que `handleUpdateTask` sepa insertar una fila nueva). Ya no es invisible. **Pendiente de decisión:
-  tratarlo como item propio (con paquete pre-construcción) o aparcar.** El compositor ya evita la fuente principal
-  (Mi Día top-level ya no crea filas vacías por botón); queda la fuente "añadir subtarea y abandonar".
+  (toca `doAddTask` + que `handleUpdateTask` sepa insertar una fila nueva). Ya no es invisible.
+  **⛔ APARCADO (decisión de la propietaria, sesión 21): NO reabrir sin releer este hallazgo.** El arreglo naïve
+  (descartar al blur) tiene una **CARRERA** con el insert asíncrono → la tarea puede quedar VIVA (verificado en pantalla).
+  Diferir el insert toca la persistencia del alta = justo donde más daño se ha hecho; no compensa ahora. El compositor ya
+  evita la fuente principal (Mi Día top-level ya no crea filas vacías); queda solo "añadir subtarea y abandonar".
 - ✅ **F5-8 · quitar ruido de consola al arrancar** — **HECHO (`c2f1664`), pendiente validación.** Quitados los
   `console.log` de cada carga (`[SUPABASE] Loading/Loaded/persons/meetings/successfully`); conservados `console.warn` de
   error y `[REPAIR]`/limpieza (condicionales). Invisible.
