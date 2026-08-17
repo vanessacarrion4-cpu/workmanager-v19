@@ -3811,3 +3811,26 @@ borrar, F6-x2) debe cumplirla por diseño.
 
 **Orden de trabajo acordado (sesión 21):** INV (F5-1+F5-8, yo solo) · Compositor (contigo) · F5-6 · F5-5 (validar) ·
 persist futuras (cuando venga bien) · F5-4 al final. Un commit por item; nada se cierra sin tu validación en pantalla.
+
+### 16.36 MEDICIÓN — 858 ocurrencias pendientes pasadas no actuadas (sesión 21). Sin arreglar; pendiente decidir item/fase.
+
+Backlog de ocurrencias VIRTUALES (recurrentes nunca tocadas) con fecha pasada, que la app considera "pendientes" y que
+nadie va a hacer (nadie recupera los "Márgenes" del 12-may). **858** desde 2026-01-01 (234 en los últimos ~30 días).
+Medido con un probe que replica `matchesRecurrence` y resta las fechas con fila persistida.
+
+**Q1 · ¿Entran en los contadores de cabecera de Mi Día y en los totales de contenedor?** **NO.** Ambos son **DÍA-SCOPED**:
+`getStatsForDay` (`filters.ts:333-346`) solo cuenta hojas con `dueDate === activeDate` (o subtareas visibles del día); los
+totales de contenedor usan `dayForTotals` (FASE 3). Las 858 están repartidas en días PASADOS → **no entran en los números
+de HOY**; cada una solo aparece en su propio día pasado.
+**Q2 · ¿Cuánto cambiarían los números de Mi Día si no contaran?** **~0** — no están en ellos. → **Las 858 NO son la causa de
+que los números de Mi Día "no cuadren".** Esa sensación es OTRA cosa (a investigar aparte). *(En CARGA/Workload, que
+proyecta del mes en curso +7 meses, solo el trozo del mes actual podría inflar: **~73 reales de agosto**, no las 858.)*
+**Q3 · Prueba vs real:** **512 reales · 346 de PRUEBA** (rec hija, subhija, Subtarea pREcurrente, etc. = basura de test,
+limpiable aparte con criterio de título).
+**Q4 · ¿Corte para una recurrente diaria 75 días sin hacer?** **HOY NO HAY CORTE.** Las virtuales pasadas se acumulan hacia
+atrás hasta el `startDate` de la regla (sin caducidad, sin "dejar de mostrar tras N días"). Es un hueco de diseño.
+
+**Titular honesto:** las 858 son **deuda de datos real** (512 backlog real + 346 basura de test, creciendo sin límite por
+Q4), PERO **no inflan los contadores diarios de Mi Día** (son por día). Candidato a **item propio**: (a) limpiar las 346 de
+prueba = técnico rápido; (b) decidir un CORTE para las pendientes pasadas (cuántos días atrás siguen "vivas") = FASE 6/7,
+decisión de producto. **La discrepancia real de Mi Día, si la hay, es un lead SEPARADO** (no las 858).
