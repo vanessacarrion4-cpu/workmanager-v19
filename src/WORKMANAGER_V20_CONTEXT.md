@@ -3760,9 +3760,17 @@ borrar, F6-x2) debe cumplirla por diseño.
   inline encima. **Corte DESDE HOY** en ambos. Al cablear el chip, verificar que la pauta arranca el **día mirado**, no
   hoy real (bug §16.7). Sin picker nuevo.
 - ✅→✔️(pdte) **F5-5 · poner pauta a tarea NORMAL desde la fila:** ya CABLEADO; **solo validar** en pantalla.
-- ⬜ **F5-1 · no persistir tarea vacía** + guarda de título (INV, invisible). *Ojo:* interactúa con el compositor → va
-  DESPUÉS de él (el compositor ya no crea filas vacías por botón).
-- ⬜ **F5-8 · quitar ruido de consola al arrancar** (INV, invisible; `useSupabase.ts:299/366/454` + `[REPAIR]`).
+- ⚠️ **F5-1 · no persistir tarea vacía** — **NO es INV, más grande de lo que parecía. REVERTIDO** (sesión 21). Al intentar
+  descartar la hoja vacía al perder el foco salió una **CARRERA**: `doAddTask` inserta la tarea en BD de forma ASÍNCRONA y
+  el descarte (`onDelete`→`update is_deleted`) se dispara al blur; si el insert aún no llegó, el update no-opea y luego el
+  insert la crea VIVA (`is_deleted:false`) — verificado en pantalla (subtarea de "Gestión campaña" quedó viva). Además deja
+  una fila-basura por descarte. **Arreglo correcto: DIFERIR el insert** — no persistir la tarea hasta que tenga título
+  (toca `doAddTask` + que `handleUpdateTask` sepa insertar una fila nueva). Ya no es invisible. **Pendiente de decisión:
+  tratarlo como item propio (con paquete pre-construcción) o aparcar.** El compositor ya evita la fuente principal
+  (Mi Día top-level ya no crea filas vacías por botón); queda la fuente "añadir subtarea y abandonar".
+- ✅ **F5-8 · quitar ruido de consola al arrancar** — **HECHO (`c2f1664`), pendiente validación.** Quitados los
+  `console.log` de cada carga (`[SUPABASE] Loading/Loaded/persons/meetings/successfully`); conservados `console.warn` de
+  error y `[REPAIR]`/limpieza (condicionales). Invisible.
 - ⬜ **F5-4 · aviso "¿convertir en contenedor?" con "Sí" enfocado/Enter** → AL FINAL, con el teclado ya asentado.
 - ✔️ **F5-3 · cursor al título al crear:** ya funciona → cerrado.
 
