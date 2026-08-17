@@ -3738,6 +3738,34 @@ borrar, F6-x2) debe cumplirla por diseño.
 > (FASE 5) y **§16.33** (FASE 6), con lo de hoy. **Para el estado VIVO, ESTA es la lista.** Las otras quedan como
 > detalle/histórico. Estados: ⬜ pendiente · 🔧 en curso · ✅ hecho (pendiente validación de la propietaria) · ✔️ validado.
 
+---
+
+#### ⏭️ PUNTO DE RETOMADA (fin sesión 22, 18/08/2026 → retomar sesión 23)
+
+**PRIMERO, ANTES DE TOCAR CÓDIGO: validar en pantalla lo implementado esta semana (nada se cierra sin ello).** En orden:
+1. **Split de hijas** (commit `9a38cee`): cambia la pauta de una HIJA de una rutina REAL y comprueba — (a) el pasado NO se
+   reescribe (vieja acaba ayer, nueva desde hoy); (b) **⚠️ lo único no visto: que bajo el contenedor NO salgan dos hijas
+   con el mismo título** (mira Bloques + el modal del contenedor). Detalle en el bullet F5-6 · HIJAS más abajo.
+2. **Corte=HOY en hojas** (commit `bf2c9a1`): cambiar la pauta de una hoja top-level viendo un día pasado → corte en HOY,
+   no en el día mirado.
+3. **Compositor** (commits `718e644` y anteriores): alta rápida por tandas, sin default de bloque.
+
+**LUEGO, lo que queda de FASE 5, en orden:**
+1. 🔜 **Sección "Terminadas" en Bloques** — APROBADA, NO montada (se paró para no apilar sobre Bloques sin validar el split).
+   Sin toggle nuevo; solo series terminadas (NO las 774 completadas); contador de cabecera solo activas + la sección con el
+   suyo; en Búsqueda NO salen. Revertir el ocultado duro `isExpiredTemplate` top-level y moverlo a la sección plegada. Minúscula
+   (2 series). Detalle: bullet "Terminadas" más abajo.
+2. ⬜ **Modal de crear: bloque vacío + obliga a elegir** (parte (a) de F5-7). Commit APARTE del compositor.
+3. ⬜ **INV (invisible, cerrar solo): F5-1** (no persistir tarea vacía — OJO: el fix simple tenía RACE, requiere diferir el
+   insert) **+ F5-8** (quitar ruido de consola al arrancar).
+
+**APARCADO (no construir sin que lo pida):** chip de ETIQUETA en la tanda (candidato, esperar uso real) · toggle "ver
+terminadas" (lo absorbe la sección Terminadas) · `bulkDuplicateTasks` stale-closure `activeDate` (item propio, impacto bajo) ·
+default silencioso en **Calendario/Delegadas/Semana** (puntos de creación top-level sin bloque) · **CORTE** de pendientes
+pasadas de series diarias (FASE 6/7) · las 512 ocurrencias reales que contaminan gráfico/reflexión (FASE 7).
+
+---
+
 **FASE 5 — CREACIÓN (activa)**
 - 🔧 **Compositor — 2 hallazgos de la propietaria al validar, ARREGLADOS (sesión 21, commit compositor-fix):**
   - **1a: el "+ Tarea" GLOBAL (`StickyActionBar`, `App.tsx:442`) NO pasaba por el compositor** → creaba con `handleAddTask()`
@@ -3814,6 +3842,12 @@ borrar, F6-x2) debe cumplirla por diseño.
     Las **otras hijas del contenedor NO se tocan** (cada una es su propia serie; no hay "serie vieja" a nivel de contenedor).
     **Verificado en pantalla (datos reales, limpiado):** vieja daily `endDate 08-17` (ayer) + nueva weekdays `startDate 08-18`
     (hoy), **ambas con `parent_task_id`=contenedor**; Mi Día = 1 fila. +1 test (isExpiredTemplate de hija con parentTaskId).
+  - ⚠️ **PENDIENTE DE VERIFICAR EN PANTALLA (única cosa del commit no vista, sesión 22): el NO-duplicado en la DEFINICIÓN.**
+    Que bajo un contenedor REAL, tras cambiar la pauta de una hija, NO aparezcan dos hijas con el mismo título (la vieja
+    terminada debe quedar oculta por `isExpiredTemplate`). Cubierto por test unitario + el filtro en el único punto de render
+    (`TaskCard.renderChildIds` modo Bloques + memo de `TaskModal`), PERO no se pudo ver en pantalla: el contenedor de prueba
+    caía en un contexto que Bloques no tenía activo. **Al validar: usar una rutina real y mirar Bloques + el modal del
+    contenedor.** No darlo por bueno hasta verlo.
   - 🔎 **HALLAZGO durante la verificación (y ARREGLADO en el mismo commit):** en el día del corte se DUPLICABA — la
     instancia vieja ya materializada de ese día seguía viva y la nueva serie generaba también ese día. Fix: el split
     soft-deletea las instancias viejas **pendientes** con fecha ≥ corte (las COMPLETADAS se dejan, §16.16). Verificado:
