@@ -2014,6 +2014,8 @@ barra inferior, no en la cabecera). Es el **layout de la cabecera**: el div del 
 
 ### 16.10 Orden de trabajo por fases
 
+> ➡️ **Estado VIVO consolidado en §16.35** (sesión 21). Esta sección se conserva como origen/histórico.
+
 - **FASE 2 — ✅ CERRADA (sesión 16):** §16.3 (todos los puntos hechos/movidos/descartados) + B1 (avisos, §16.11).
   Siguiente fase activa = **FASE 3**.
 - **FASE 3 — modelo de datos, TESTS PRIMERO:** la reconciliación en cuarentena (hijas de otros días, subtareas duplicadas
@@ -2675,6 +2677,8 @@ las hijas, no del campo del padre). Misma familia que el "status guardado que no
 **EDITABLE y persiste** igual que cualquier tarea (4 contenedores con tipo≠core lo confirman). Ya NO es decisión abierta.
 
 ### 16.17 APARCADO POR FASE (origen: fin sesión 17)
+
+> ➡️ **Estado VIVO consolidado en §16.35** (sesión 21). Esta sección es histórico por fase.
 
 > ⚠️ **NOTA (sesión 19): esta cabecera quedó STALE.** El "se acabó la excavación / no arreglar nada más / el siguiente
 > bloque es (b3)" era el modo de la sesión 17. Desde entonces se cerró FASE 3 (b1/b2/b3/C1-C4), se ejecutó y CERRÓ FASE 4
@@ -3727,3 +3731,56 @@ borrar, F6-x2) debe cumplirla por diseño.
 - `bulkUpdateTasks` (virgin-upsert) — **ÚNICO** escritor de status-default vivo → arreglado en COMMIT 1 (c) vía
   `bulkUpsertStatusFields` (omite `status`/`completed_at` cuando la op no cambia status). Si el patrón reaparece, revisar
   aquí primero.
+
+### 16.35 ⭐ INVENTARIO CONSOLIDADO POR FASE (sesión 21) — FUENTE ÚNICA de lo que queda
+
+> Consolida lo que estaba disperso en **§16.10** (orden), **§16.17** (aparcado), **§16.21** (tabla FASE 5/6), **§16.32**
+> (FASE 5) y **§16.33** (FASE 6), con lo de hoy. **Para el estado VIVO, ESTA es la lista.** Las otras quedan como
+> detalle/histórico. Estados: ⬜ pendiente · 🔧 en curso · ✅ hecho (pendiente validación de la propietaria) · ✔️ validado.
+
+**FASE 5 — CREACIÓN (activa)**
+- ⬜ **Compositor de tanda** (une F5-7 alta rápida + F5-2 Enter): al pulsar "+ Nueva tarea" eliges bloque (sin default);
+  chip de bloque **visible fijo** durante la tanda; **desplegable para cambiar de bloque a mitad** sin salir; **Enter
+  encadena** en ese bloque. *Decisiones de diseño (sesión 21):* (Q2) título + Enter **sin bloque** → **no crea, conserva
+  el título y salta el foco al selector** (nada se pierde); (Q3) **coexiste** con la edición inline — la inline sigue para
+  EDITAR tareas existentes; solo el "editar título al crear" se sustituye por el campo del compositor; cerrar tanda =
+  Escape o Enter en vacío; el bloque elegido se reinicia al cerrar (no se recuerda entre tandas). Toca `doAddTask`
+  (quitar fallback a `blocks[0]`) + el "+ Nueva tarea" de Mi Día.
+- ⬜ **Modal de crear: bloque vacío + obliga a elegir** (parte (a) de F5-7). Commit APARTE del compositor.
+- ⬜ **F5-6 · cambiar pauta desde fila + modal:** 1º atajo desde la fila al editor del modal (reusa lo existente), 2º chip
+  inline encima. **Corte DESDE HOY** en ambos. Al cablear el chip, verificar que la pauta arranca el **día mirado**, no
+  hoy real (bug §16.7). Sin picker nuevo.
+- ✅→✔️(pdte) **F5-5 · poner pauta a tarea NORMAL desde la fila:** ya CABLEADO; **solo validar** en pantalla.
+- ⬜ **F5-1 · no persistir tarea vacía** + guarda de título (INV, invisible). *Ojo:* interactúa con el compositor → va
+  DESPUÉS de él (el compositor ya no crea filas vacías por botón).
+- ⬜ **F5-8 · quitar ruido de consola al arrancar** (INV, invisible; `useSupabase.ts:299/366/454` + `[REPAIR]`).
+- ⬜ **F5-4 · aviso "¿convertir en contenedor?" con "Sí" enfocado/Enter** → AL FINAL, con el teclado ya asentado.
+- ✔️ **F5-3 · cursor al título al crear:** ya funciona → cerrado.
+
+**FASE 6 — DISEÑO/USABILIDAD (parcial)**
+- 🔧 **B3 acciones escondidas** (§16.21 fila 3): tanda 1 (⋯ visible) ✅; **tanda 2 pendiente** — borrar bloque · borrar
+  persona · editar/borrar tiempos · ver adjuntos · **agrandar el área de toque del ⋯** (24→~44px).
+- ⬜ **Aviso de borrado recurrente que LISTA** (§16.31, texto aprobado) **+ persist de futuras al "terminar la rutina"**
+  (con guarda: **solo futuras INTACTAS** — pendientes, sin tiempo, sin excepción; medir antes de escribir).
+- ⬜ **Calendario:** completar en variante COMPACT (§16.27) · "Ir a fecha" retrocede de mes (§16.21 #5).
+- ⬜ **F6-x1** badge de "en espera" en contenedor contraído · **F6-x2** selección doble alcance (etiqueta/día; **ya
+  desbloqueado** — el fix de selección §16.34 está hecho) · **F6-x3** etiquetar el total histórico en Bloques (§16.33).
+- ⬜ **De §16.10 FASE 6:** zona de diagnóstico (§16.8) · hueco cabecera Bloques (§16.9) · avisos propios vs los del
+  navegador · unificar Semana con el TaskCard normal (§16.6 — PARCIAL: Semana ya mueve y togglea por día) · icono de
+  calendario en la fila (PARCIAL: hecho en Semana).
+- ✔️ (cubierto) **4b cambiar pauta recurrente** = lo entrega F5-6.
+
+**TÉCNICO**
+- ⬜ #1 exception-move: extraer + test (§16.21 #6) · poda de instancias `inst-` antiguas (§16.21 #9) · verificar que los
+  adjuntos persisten (§16.21 #10) · tests TIER 2/3 de escritura (§16.21 #11) · borrar la columna de prioridad · escritura
+  innecesaria en cada carga (repairs).
+- ⬜ **`bulkDelete`/`bulkDuplicate`**: misma sobre-selección que arregló §16.34 en bulk-update (usan otra recolección) →
+  acotar a día+pendiente cuando toque.
+
+**FASE 7 — MEJORAS (backlog)** (§16.10 FASE 7)
+- ⬜ **Deshacer** — incluye **deshacer borrado de una tarea suelta** (hoy no existe en la app, §16.31) · calibración
+  estimado/real · arrastrar lo no completado al día siguiente · dependencias · búsqueda con filtros · seguimiento en
+  Delegadas · gráfico elegido/impuesto · reflexión mensual · promover serie · atajos · sincronización con cola.
+
+**Orden de trabajo acordado (sesión 21):** INV (F5-1+F5-8, yo solo) · Compositor (contigo) · F5-6 · F5-5 (validar) ·
+persist futuras (cuando venga bien) · F5-4 al final. Un commit por item; nada se cierra sin tu validación en pantalla.
