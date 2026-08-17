@@ -3764,9 +3764,21 @@ borrar, F6-x2) debe cumplirla por diseño.
   re-enlazar = justo el tipo de op que rompió datos 3× esta semana) → si sigue siendo así, hacerlo **solo para HOJAS** y en
   contenedores dar un **aviso claro de qué pasará** en vez de hacerlo mal en silencio. **Chip inline en la fila: APARCADO
   como candidato** (se reabre si algún día cambia pautas a menudo).
-- ⬜ **§16.7 startDate del chip al DÍA MIRADO (no hoy real) — ITEM SEPARADO, aprobado.** `RecurrencePickerChip` arranca
-  `startDate` con `new Date()`; pasa a usar el día que se mira (`activeDate`). Beneficia a F5-5 (poner pauta a tarea normal).
-  Independiente de F5-6. Verificar explícitamente en pantalla.
+- ✅❓ **§16.7 startDate del chip al DÍA MIRADO — YA RESUELTO EN CÓDIGO (C4/§16.12); la nota estaba obsoleta.**
+  `RecurrencePickerChip` ya usa `baseDate = defaultDate ? parseLocalISO(defaultDate) : new Date()` y **ambos llamadores
+  pasan el día mirado**: `TaskCard:721` `defaultDate={dayForTotals}`, `TaskModal:799` `defaultDate={st.dueDate||null}`. Todos
+  los `startDate` internos usan `baseIso`/`baseDate` (incl. el alias `const today = baseDate`, `Chips.tsx:426`). → No hay
+  nada que construir. Confirmación en pantalla BLOQUEADA por el bug de fecha de abajo (no pude crear una tarea en un día
+  no-hoy para probar). El chip recibe `activeDate` fresco por render, así que §16.7 en sí está bien.
+- ⚠️🔴 **BUG NUEVO (sesión 21, verificado en pantalla) — `handleAddTask` stale-closure: el primer alta tras navegar de día
+  cae en el día ANTERIOR (a menudo hoy), no en el día mirado.** Síntoma: mirando "Viernes 14 ago" (contador 28/28 de 08-14),
+  creé una tarea con el compositor y salió con `due_date = 2026-08-17` (hoy). Root confirmado en código: `handleAddTask`
+  deps = `[tasks, setAddSubtaskWarning]` (`useTaskCRUD.ts:318`) — **no incluye `doAddTask`** (que sí depende de `activeDate`);
+  al navegar de día sin cambiar `tasks`, `handleAddTask` retiene un `doAddTask` viejo con el `activeDate` anterior. Tras el
+  primer alta (cambia `tasks`) se re-memoiza y los siguientes ya usan el día correcto → bug INTERMITENTE (solo el primero
+  tras navegar). **Afecta al COMPOSITOR (F5-7) y al alta antigua.** Fix pequeño: añadir `doAddTask` a las deps de
+  `handleAddTask` (o `activeDate`). **NO arreglado — pendiente de decisión de la propietaria.** Verificar en pantalla tras
+  el fix (crear en un día no-hoy → cae en ese día).
 - ✅→✔️(pdte) **F5-5 · poner pauta a tarea NORMAL desde la fila:** ya CABLEADO; **solo validar** en pantalla.
 - ⚠️ **F5-1 · no persistir tarea vacía** — **NO es INV, más grande de lo que parecía. REVERTIDO** (sesión 21). Al intentar
   descartar la hoja vacía al perder el foco salió una **CARRERA**: `doAddTask` inserta la tarea en BD de forma ASÍNCRONA y
