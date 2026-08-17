@@ -3756,14 +3756,28 @@ borrar, F6-x2) debe cumplirla por diseño.
   contexto, que quizá no es solo el bloque. Si al usar el compositor unos días acaba etiquetando a mano las 10 tareas
   (todas caen en "resto"), añadir un **chip de etiqueta opcional a la tanda** (vacío por defecto, heredado por las de la
   tanda), igual que el de bloque. **Pendiente de su uso real, NO es item aprobado.** El compositor de hoy es SOLO bloque.
-- ⬜ **F5-6 · cambiar pauta de recurrente = QUE EL EDITOR DE SERIE DEL MODAL HAGA LO CORRECTO (opción 3, decisión sesión 21).**
-  NO se añade un segundo camino desde la fila: cambiar pauta es raro, basta el modal que ya existe. El editor de serie del
-  modal debe aplicar **(ii) PARTIR LA SERIE**: cerrar la vieja (`endDate` = ayer) + abrir una nueva (`startDate` = hoy, pauta
-  nueva), **preservando TODO el pasado (completadas Y pendientes)**. Motivo (medido, §16.35 abajo): (i) simple ocultaría
-  20-75 pendientes pasadas por regla → no vale. **(ii) en CONTENEDORES es un mini-refactor** (duplicar plantilla + hijas +
-  re-enlazar = justo el tipo de op que rompió datos 3× esta semana) → si sigue siendo así, hacerlo **solo para HOJAS** y en
-  contenedores dar un **aviso claro de qué pasará** en vez de hacerlo mal en silencio. **Chip inline en la fila: APARCADO
-  como candidato** (se reabre si algún día cambia pautas a menudo).
+- 🔴⬜ **F5-6 · cambiar pauta de recurrente — ES UN BUG VIVO, no funcionalidad nueva.** **Hoy, editar la pauta de una
+  plantilla desde el modal cae al upsert genérico = RETROACTIVO** (`handleUpdateTask`; la rama de conversión
+  `useTaskCRUD:652` solo salta para hojas manuales, no para plantillas existentes). O sea, **cambiar una pauta reescribe el
+  pasado sin avisar → viola §16.16 ("los hechos consumados no se tocan NUNCA").** El arreglo es hacer que el editor de serie
+  del modal aplique **(ii) PARTIR LA SERIE** (cerrar la vieja con `endDate` + abrir una nueva desde el corte), preservando
+  TODO el pasado. NO se añade camino desde la fila (cambiar pauta es raro; basta el modal). Motivo de (ii) vs (i): medido,
+  (i) ocultaría 20-75 pendientes pasadas por regla (§16.36).
+  - **CAMINO ELEGIDO: B (decisión propietaria, sesión 21).** **Camino A DESCARTADO** (duplicar plantilla+hijas+re-enlazar =
+    lo que rompió datos 3× esta semana, para una op de cada varios meses → no compensa).
+  - **HOJAS: split (ii) real** (vieja `endDate` = víspera del corte; nueva desde el corte).
+  - **CONTENEDORES: aviso con TRES salidas** (no hacer el refactor, no hacerlo mal en silencio). El aviso dice qué pierdo y
+    QUÉ PUEDO HACER: **(a)** cambiar solo desde el corte, ocultando las **N** pendientes pasadas de esta rutina (aplica (i),
+    con los ojos abiertos); **(b)** cancelar; **(c)** *"terminar esta rutina y crear una nueva a mano"* = el split hecho por
+    la propietaria, sin refactor, preservando el pasado. El (ii)-contenedor automático queda como item futuro si algún día
+    hace falta.
+  - **CORTE = EL DÍA QUE MIRO (`activeDate`) en AMBOS casos** (hoja y contenedor), unificado. **No hay razón técnica** para
+    que el contenedor no pueda: (i) es subir `startDate` al `activeDate` igual que a hoy. (Matiz: si miras un día pasado, el
+    corte es ese día — coherente aunque raro.)
+  - Excepciones ya materializadas del pasado → se quedan con la serie vieja (no se tocan). El **N** del aviso = pendientes
+    pasadas reales de ESA rutina (cálculo del probe §16.36).
+  - **VALIDACIÓN exigida (propietaria):** en pantalla, en el DÍA DEL CORTE la fila **ni se duplica ni desaparece**.
+  - **Chip inline en la fila: APARCADO** como candidato (se reabre si cambia pautas a menudo).
 - ✅ **§16.7 startDate del chip al DÍA MIRADO — CERRADO (confirmado en pantalla, sesión 21).** Ya estaba resuelto en código
   (C4/§16.12: chip usa `defaultDate`; `TaskCard:721`/`TaskModal:799` pasan el día mirado). **Confirmado:** puse pauta diaria
   a una tarea viendo el **15 ago** → `recurrence.startDate = 2026-08-15` (el día mirado, NO hoy 08-17). Nada que construir.
