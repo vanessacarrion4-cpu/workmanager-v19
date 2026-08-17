@@ -53,6 +53,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const todayLocal = formatLocalISO(new Date());
   const [activeDate, setActiveDate] = useState(todayLocal);
+  const [composerOpenSignal, setComposerOpenSignal] = useState(0); // 1a: el "+ Tarea" global abre el compositor de Mi Día
 
   // --- UI State ---
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -439,7 +440,7 @@ export default function App() {
           selectionMode={selectionMode}
           selectedCount={selectedTaskIds.size}
           onToggleSelectionMode={toggleSelectionMode}
-          onAddTask={currentView === 'dashboard' ? () => handleAddTask() : undefined}
+          onAddTask={currentView === 'dashboard' ? () => setComposerOpenSignal(n => n + 1) : undefined}
           hideCompleted={currentView === 'dashboard' ? dashHideCompleted : currentView === 'delegadas' ? delegadasHideCompleted : undefined}
           onToggleHideCompleted={
             currentView === 'dashboard' ? () => setDashHideCompleted(p => !p) :
@@ -505,6 +506,7 @@ export default function App() {
                 onAddTimeEntry={(taskId: string, subtaskId: string | null, minutes: number, date: string, note?: string, markComplete?: boolean) => timerHandlers.handleManualTimeEntry(taskId, subtaskId, minutes, date, note, markComplete)}
                 activeDate={activeDate}
                 onSetDate={setActiveDate}
+                composerOpenSignal={composerOpenSignal}
                 onDayChange={handleDayChange}
                 onReorderTasks={handleUpdateTasksOrder}
                 onReorderSubtasks={handleUpdateSubtasksOrder}

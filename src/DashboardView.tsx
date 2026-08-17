@@ -4,7 +4,7 @@
  * Extraído de App.tsx - Sesión 3 del refactor.
  */
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Plus, CheckCircle2, ChevronRight, ChevronDown, Clock,
   Zap, ArrowRight, X, CalendarIcon, Trash2, Edit
@@ -66,6 +66,7 @@ interface DashboardViewProps {
   bulkTimeModal?: boolean;
   setBulkTimeModal?: ((open: boolean) => void) | null;
   searchQuery?: string;
+  composerOpenSignal?: number; // 1a: el botón "+ Tarea" global (StickyActionBar) sube este contador → abre el compositor
   hideCompleted?: boolean;
   onHideCompletedChange?: (v: boolean) => void;
   expandAll?: boolean | null;
@@ -88,6 +89,7 @@ export function DashboardView({
   onDeleteTimeEntry = null,
   onUpdateTimeEntry = null,
   searchQuery = '',
+  composerOpenSignal = 0,
   hideCompleted: hideCompletedProp,
   onHideCompletedChange,
   expandAll: expandAllProp,
@@ -111,8 +113,13 @@ export function DashboardView({
   const [composerBlockMenu, setComposerBlockMenu] = useState(false);
   const composerInputRef = useRef<HTMLInputElement>(null);
   const composerBlock = blocks.find((b: any) => b.id === composerBlockId);
-  const openComposer = () => { setComposerOpen(true); setComposerTitle(''); };
+  // 1b: al ABRIR, el compositor arranca SIEMPRE vacío (sin bloque) — no recuerda el de la tanda anterior
+  // (recordar el último bloque sería el mismo default silencioso con otro nombre, descartado).
+  const openComposer = () => { setComposerOpen(true); setComposerTitle(''); setComposerBlockId(null); setComposerBlockMenu(false); };
   const closeComposer = () => { setComposerOpen(false); setComposerTitle(''); setComposerBlockId(null); setComposerBlockMenu(false); };
+  // 1a: el botón "+ Tarea" global (StickyActionBar) sube composerOpenSignal → abre el compositor (mismo camino que
+  // los botones de Mi Día), en vez de crear directo con bloque por defecto.
+  useEffect(() => { if (composerOpenSignal > 0) openComposer(); /* eslint-disable-next-line */ }, [composerOpenSignal]);
   const composerCommit = () => {
     const title = composerTitle.trim();
     if (!title) { closeComposer(); return; }                        // Enter en vacío → cerrar la tanda

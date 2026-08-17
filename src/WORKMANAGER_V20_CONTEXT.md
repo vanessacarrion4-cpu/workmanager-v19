@@ -3739,6 +3739,17 @@ borrar, F6-x2) debe cumplirla por diseño.
 > detalle/histórico. Estados: ⬜ pendiente · 🔧 en curso · ✅ hecho (pendiente validación de la propietaria) · ✔️ validado.
 
 **FASE 5 — CREACIÓN (activa)**
+- 🔧 **Compositor — 2 hallazgos de la propietaria al validar, ARREGLADOS (sesión 21, commit compositor-fix):**
+  - **1a: el "+ Tarea" GLOBAL (`StickyActionBar`, `App.tsx:442`) NO pasaba por el compositor** → creaba con `handleAddTask()`
+    = default silencioso (el bug que veníamos a matar). Fix: en dashboard sube `composerOpenSignal` → DashboardView abre el
+    compositor (mismo camino que los botones de Mi Día). Verificado en pantalla.
+  - **1b: el compositor recordaba el bloque entre tandas.** Fix: `openComposer` resetea `composerBlockId=null` (arranca
+    SIEMPRE vacío; recordar el último = mismo default con otro nombre, descartado). Verificado.
+  - **BARRIDO de puntos de creación TOP-LEVEL (para no descubrir un tercero):** Mi Día (2 botones) → compositor ✓;
+    StickyActionBar → compositor ✓ (1a); Bloques → pasa el bloque seleccionado (explícito, sin default) ✓. **PENDIENTES
+    (default silencioso, NO son Mi Día, item propio):** **Calendario** (`CalendarView:376` `onAddTask(null,undefined,day)`),
+    **Delegadas** (`DelegadasView:530`, con persona), **Semana** (`WeekView:561`, con día). Cada uno crea top-level sin
+    bloque → cae en `blocks[0]`. Necesitan su propia solución de "elegir bloque" (o aceptar el default ahí). Registrados.
 - ✅ **Compositor de tanda** (une F5-7 alta rápida + F5-2 Enter) — **IMPLEMENTADO, pendiente de validación en pantalla.**
   Verificado por mí (dev server): abre sin bloque preseleccionado; Enter sin bloque NO crea (conserva título + abre
   selector + aviso); elegir bloque → Enter crea y encadena (input se vacía, barra sigue); **la elección propaga de verdad
