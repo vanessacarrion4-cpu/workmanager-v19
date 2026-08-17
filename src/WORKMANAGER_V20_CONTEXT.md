@@ -3836,9 +3836,11 @@ una infla SU día pasado** — al revisar una semana atrás, esos pendientes fal
 que se acumula sola).
 
 **Decisiones (sesión 21):**
-- ✅ **(1) Limpiar las 346 de PRUEBA** — 9 reglas de test (rec hija 2·106, subhija bloque·78, Subtarea pREcurrente·74,
-  Rec hija 1·72, Subhija bloque jueves·16, Test Hija1/2/3·0, preuba fomingo·0). **Pendiente de confirmación de la
-  propietaria (que no haya ninguna real colada) antes de soft-delete reversible de esas plantillas.**
+- ✅ **(1) Limpiar las 346 de PRUEBA — HECHO (sesión 21, reversible).** 9 plantillas de test soft-borradas
+  (`is_deleted:true`): rec hija 2, subhija bloque, Subtarea pREcurrente 5-5, Rec hija 1, Subhija bloque jueves, Test
+  Hija1/2/3, preuba fomingo. Confirmado antes de borrar: las 5 con volumen tienen **0 instancias completadas** (creadas
+  abr-may) → nadie las hizo, basura. Reversible con `is_deleted:false`. IDs: t-1777834252690, t-1777448113356,
+  t-1778012649438, t-1777834228705, t-1777448139699, t-1785089481020, t-1785089493867, t-1785089472309, t-1786778176948.
 - ⏸️ **(2) CORTE para pendientes pasadas → ITEM PROPIO FASE 6/7, NO decidido.** Decisión de producto y **no es una sola
   respuesta**: un pago atrasado no caduca igual que un picking. Cuántos días atrás sigue "viva" una pendiente recurrente.
   Pensarlo con calma. (Origen del hueco: Q4 = hoy no hay corte.)
@@ -3856,4 +3858,8 @@ que se acumula sola).
 - **Único punto de código a vigilar (estrecho):** `getStatsForDay` cuenta una tarea SIMPLE solo si `dueDate === activeDate`
   (`filters.ts:336`), mientras la lista la muestra por `belongsToDay` (`dueDate || instanceDate`). Una simple movida que
   pertenezca al día por `instanceDate` (con `dueDate` distinto) se **vería pero no se contaría** → visible > contado. Es
-  raro (las movidas normales llevan `dueDate` al día). Medible en pantalla si se quiere certeza.
+  raro (las movidas normales llevan `dueDate` al día). **MEDIDO (sesión 21): 0 filas hoy en esa situación → NO muerde.
+  CERRADO.** (Si algún día reaparece, el patrón "se ve pero no se cuenta" es conocido; mirar aquí primero.)
+
+**Nota (propietaria):** el lead confirma que la **zona de diagnóstico §16.8 NO es pulido** — resuelve algo que molesta a
+diario (la cabecera confusa). **Cuando llegue FASE 6, va PRIMERA.**
