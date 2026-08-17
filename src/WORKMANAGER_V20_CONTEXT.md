@@ -3831,6 +3831,29 @@ limpiable aparte con criterio de título).
 atrás hasta el `startDate` de la regla (sin caducidad, sin "dejar de mostrar tras N días"). Es un hueco de diseño.
 
 **Titular honesto:** las 858 son **deuda de datos real** (512 backlog real + 346 basura de test, creciendo sin límite por
-Q4), PERO **no inflan los contadores diarios de Mi Día** (son por día). Candidato a **item propio**: (a) limpiar las 346 de
-prueba = técnico rápido; (b) decidir un CORTE para las pendientes pasadas (cuántos días atrás siguen "vivas") = FASE 6/7,
-decisión de producto. **La discrepancia real de Mi Día, si la hay, es un lead SEPARADO** (no las 858).
+Q4), PERO **no inflan los contadores diarios de Mi Día** (son por día). **Matiz (propietaria):** no inflan HOY, pero **cada
+una infla SU día pasado** — al revisar una semana atrás, esos pendientes falsos están; y por Q4 **crecen sin límite** (deuda
+que se acumula sola).
+
+**Decisiones (sesión 21):**
+- ✅ **(1) Limpiar las 346 de PRUEBA** — 9 reglas de test (rec hija 2·106, subhija bloque·78, Subtarea pREcurrente·74,
+  Rec hija 1·72, Subhija bloque jueves·16, Test Hija1/2/3·0, preuba fomingo·0). **Pendiente de confirmación de la
+  propietaria (que no haya ninguna real colada) antes de soft-delete reversible de esas plantillas.**
+- ⏸️ **(2) CORTE para pendientes pasadas → ITEM PROPIO FASE 6/7, NO decidido.** Decisión de producto y **no es una sola
+  respuesta**: un pago atrasado no caduca igual que un picking. Cuántos días atrás sigue "viva" una pendiente recurrente.
+  Pensarlo con calma. (Origen del hueco: Q4 = hoy no hay corte.)
+- 🔗 **(4) Enlace FASE 7:** las **512 reales** contaminarían el **gráfico elegido/impuesto** y la **reflexión mensual**
+  (FASE 7). Que no se construyan encima sin saberlo → resolver el CORTE (2) antes o a la vez.
+
+**LEAD — "los números de Mi Día no me cuadran" (perseguido en pantalla, sesión 21):**
+- **El contador NO está roto.** Verificado en pantalla: cabecera "23 DE 42 COMPLETADAS" + PENDIENTES 19 → **23+19=42**
+  (hechas+faltan=total, la regla §16.8). `getStatsForDay` (`filters.ts:333-368`) cuenta **solo hojas** (contenedores no) y
+  parte `leafTasks` en completadas/pendientes → cumple §16.8 por construcción.
+- **La confusión es PRESENTACIONAL:** la cabecera de hoy muestra dos números grandes ("23 DE 42" + "PENDIENTES 19") que hay
+  que restar mentalmente, y con "ocultar completadas" ves 19 filas mientras dice 42. **La respuesta ya está escrita en
+  §16.8:** su rediseño lidera con **"FALTAN 19"** y degrada "23 hechas de 42" a texto pequeño — que es exactamente el
+  arreglo de esta confusión. → El lead se resuelve construyendo §16.8 (FASE 6), no arreglando el conteo.
+- **Único punto de código a vigilar (estrecho):** `getStatsForDay` cuenta una tarea SIMPLE solo si `dueDate === activeDate`
+  (`filters.ts:336`), mientras la lista la muestra por `belongsToDay` (`dueDate || instanceDate`). Una simple movida que
+  pertenezca al día por `instanceDate` (con `dueDate` distinto) se **vería pero no se contaría** → visible > contado. Es
+  raro (las movidas normales llevan `dueDate` al día). Medible en pantalla si se quiere certeza.
