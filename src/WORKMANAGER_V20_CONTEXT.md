@@ -3678,11 +3678,16 @@ virgin-upsert de una op que no togglea; preservar el status persistido). **`hand
 intencionado; tocarlo arriesga romper el completar). Borrados = defensa opcional. **Pendiente de OK de la propietaria a este
 alcance revisado** (su premisa era "completar reabre"; el código lo descarta).
 
-**Fix propuesto (a)+(b)+(c) en UN bloque, NO aplicar hasta aprobación:** (a)+(b) que `toggleTaskSelection` (y/o
-`bulkEffectiveIds`) acote la selección de hijas a **día + PENDIENTE** (que las completadas/otros-días no entren nunca al
-bulk); (c) que el virgin-upsert **no escriba un status default 'pending'** sobre una instancia que en BD puede estar
-completada — preservar el status persistido / no upsertar status en instancias que no se están togleando a propósito
-(blindar el mismo default en los otros caminos del punto 4). Con test de cada mecanismo por separado.
+**Fix aplicado en DOS commits (pendiente validación en pantalla de la propietaria):**
+- **COMMIT 1 (c)** `b9cfef3` — `bulkUpsertStatusFields`: el virgin-upsert no escribe `status`/`completed_at` cuando la op no
+  cambia status. Solo `bulkUpdateTasks` (los otros caminos descartados, ver registro abajo).
+- **COMMIT 2 (a)+(b)** — `bulkEffectiveIds` rama HOJA: una hija seleccionada suelta solo entra si es del DÍA activo y NO
+  está COMPLETADA (antes caían todas las hijas renderizadas que mete `toggleTaskSelection`). Test propio.
+- Tradeoff (a)+(b): las completadas quedan FUERA de TODA acción de bulk-update (no solo mover fecha) — antes
+  `bulkUpdatesForTask` permitía cambiarles tags. Alineado con "las completadas no entran nunca al bulk". Relajable si la
+  propietaria lo pide.
+- Nota: `bulkDeleteTasks`/`bulkDuplicateTasks` usan OTRA recolección (selectedTaskIds+subtasks) con la misma
+  sobre-selección; no entran en estos dos commits (el daño era el bulk-fecha). Documentado para tratar aparte.
 
 **NOTA DE ORDEN (§16):** este bug **NO es F6-x2** (selección global / por etiqueta = funcionalidad nueva). **F6-x2 va
 DESPUÉS** de que la selección funcione bien: añadir dos alcances sobre una selección que coge mal duplicaría el fallo.

@@ -100,6 +100,13 @@ export function bulkEffectiveIds(
         });
       }
     } else {
+      // §16.34 (a)/(b): una tarea seleccionada SUELTA (hoja) solo entra al bulk si es del DÍA activo y NO está
+      // COMPLETADA. Antes entraba cualquiera: `toggleTaskSelection` mete todas las hijas renderizadas del
+      // contenedor en `selectedTaskIds`, y aquí caían SIN filtro → se movían/tocaban completadas y de otros
+      // días (§16.16: los hechos consumados no se tocan NUNCA). El acotado por día+pendiente que ya hace la
+      // rama CONTENEDOR se aplica ahora también a las hijas sueltas.
+      if (task.status === 'completed') continue;
+      if (task.dueDate && task.dueDate !== activeDate) continue;
       effectiveIds.add(id);
     }
   }

@@ -70,6 +70,29 @@ describe('bulkEffectiveIds', () => {
     ]);
     expect(run(tasks, ['C'])).toEqual(['a']);
   });
+
+  // §16.34 (a)/(b): `toggleTaskSelection` mete en la selección el contenedor Y TODAS sus hijas renderizadas.
+  // Esas hijas caen por la rama HOJA; antes entraban sin filtro (movían/tocaban completadas y de otros días).
+  it('§16.34 (a)/(b): contenedor + hijas sueltas → completada y de otro día NO entran (solo la pendiente del día)', () => {
+    const tasks = byId([
+      task({ id: 'C', subtasks: ['a', 'b', 'c'] }),
+      task({ id: 'a', parentTaskId: 'C', dueDate: WED }),
+      task({ id: 'b', parentTaskId: 'C', dueDate: WED, status: 'completed' }),
+      task({ id: 'c', parentTaskId: 'C', dueDate: THU }),
+    ]);
+    // como en la app: se selecciona el contenedor Y sus hijas renderizadas
+    expect(run(tasks, ['C', 'a', 'b', 'c'])).toEqual(['a']);
+  });
+
+  it('§16.34 (b): hoja COMPLETADA seleccionada suelta → no entra', () => {
+    const tasks = byId([task({ id: 'b', dueDate: WED, status: 'completed' })]);
+    expect(run(tasks, ['b'])).toEqual([]);
+  });
+
+  it('§16.34 (b): hoja de OTRO día seleccionada suelta → no entra', () => {
+    const tasks = byId([task({ id: 'c', dueDate: THU })]);
+    expect(run(tasks, ['c'])).toEqual([]); // activeDate = WED
+  });
 });
 
 describe('bulkUpsertStatusFields (§16.34 c — no escribir status que no se cambia a propósito)', () => {
