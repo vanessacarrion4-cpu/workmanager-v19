@@ -3561,7 +3561,9 @@ y la DECISIÓN F5-7. Cerrada la 6, la 5 es corta salvo esos dos.
 - **Motivo (regla):** "en espera" **NO cascadea** de hija a contenedor — propagarlo ocultaría hermanas activas (el mismo
   fallo que la cascada de completar, §16.30). Es un CONTADOR, no un estado del padre. | Coste M | Cambia pantalla: Sí (un badge en la fila contraída).
 
-**F6-x2 · Selección múltiple en Mi Día con DOS alcances.**
+**F6-x2 · Selección múltiple en Mi Día con DOS alcances.** ⚠️ **DEPENDE de arreglar antes el bug de selección §16.34** (hoy
+la selección coge mal: incluye completadas/otros días). Añadir dos alcances sobre una selección rota duplicaría el fallo →
+va DESPUÉS.
 - **POR ETIQUETA:** todas las tareas del grupo de esa etiqueta. **GLOBAL:** todas las del día, atravesando todas las
   etiquetas. **Ambos SIEMPRE dentro del día visible; nunca alcanzan otros días.**
 - Marcar un contenedor CONTRAÍDO selecciona **todas sus hijas de ese día aunque no se vean**: el criterio de alcance es el
@@ -3613,3 +3615,54 @@ daño) o traza más fina para cazar la escritura exacta. Puede ser daño histór
 código distinto. El arreglo probable: que `toggleTaskSelection` meta solo las hijas del día PENDIENTES, y/o que
 `bulkEffectiveIds` filtre también las hijas seleccionadas sueltas por día+estado. **Sin arreglar — esperando revisar el
 alcance y decidir.**
+
+**TRAZA FINA (sesión 21, sin ejecutar; respuestas a las 5 preguntas):**
+1. **`bulkEffectiveIds` con contenedor MIXTO seleccionado:** devuelve (rama CONTENEDOR) las hijas PENDIENTES del día +
+   (porque `toggleTaskSelection` metió TODAS las hijas renderizadas) CADA hija seleccionada suelta por la **rama HOJA sin
+   filtro** (102-103). Neto: pendientes-del-día ∪ TODAS las hijas seleccionadas (incl. completadas / otros días).
+2. **Path de upsert de instancia** (`useBulkActions.ts:168-206`): se dispara si `task.templateId && (isVirgin ||
+   !existsInSupabase)`.
+3. **`status` en ese upsert = `updatedTask.status` (línea 178)** = el status del objeto EN MEMORIA (un date-move nunca
+   trae `status` en `u`). Para un **virgen materializado es el DEFAULT DE CREACIÓN 'pending'** → **escribe 'pending' sobre
+   lo que en BD podía estar 'completed' = REAPERTURA (c).** El `due_date` (179) es `task.dueDate` = el **ORIGINAL**, no el
+   movido → **el upsert NO mueve.** Es un escritor de status suelto: el default de creación, no la verdad de BD.
+4. **Quién más usa ese patrón "materializar virgen → upsert con status":** `handleToggleStatus` (toggle de instancia),
+   borrado de instancia recurrente (App), `bulkDeleteTasks` (upsert con `o.status`). El PELIGRO de reapertura (escribir
+   'pending' por default sobre un hecho completado) vive allí donde una instancia COMPLETADA pueda resolverse como virgen
+   y upsertarse. Bulk-fecha es uno; hay que blindar el default en todos.
+5. **¿(b) y (c) un mecanismo o dos? → DOS.** (b) MOVER: rama `else`/update (211), que mueve solo si el status en memoria ≠
+   completado (la guarda `bulkUpdatesForTask` mira el status EN MEMORIA) y **nunca escribe status**. (c) REABRIR:
+   virgin-upsert escribiendo 'pending' por default (no mueve). **Ningún branch hace las dos.** → una fila movida+reabierta
+   es la SUMA de una reapertura previa + un movimiento posterior (o dos ops), no un bug atómico de bulk. La guarda de (b)
+   se salta cuando el objeto en memoria ya está 'pending' (p.ej. una instancia con `was_recurring:true` ya reabierta):
+   bulk la trata como pendiente normal y la mueve.
+
+**DAÑO YA CAUSADO — NO tocar aún (para que la propietaria identifique cuáles daba por hechas). 12 instancias reabiertas
+(`was_recurring:true` & pendientes):**
+| Título | Instancia | Fecha actual | ¿Movida? | Modif |
+|--------|-----------|--------------|----------|-------|
+| Rutinas mañana | 2026-06-09 | 2026-06-09 | no | 2026-06-10 |
+| Cierre Propias | 2026-07-13 | 2026-07-13 | no | 2026-07-15 |
+| Previsional | 2026-08-01 | 2026-08-01 | no | 2026-07-31 |
+| Poner pagos Finca Access | 2026-07-15 | 2026-07-25 | SÍ | 2026-07-25 |
+| Pago nóminas | 2026-07-28 | 2026-07-28 | no | 2026-07-27 |
+| Gestión campaña | 2026-07-28 | 2026-07-28 | no | 2026-07-28 |
+| Demanar Jordi PPV | 2026-06-12 | 2026-08-10 | SÍ | 2026-07-31 |
+| **Hacer cuadro Resumen** | 2026-08-08 | **2026-08-17** | **SÍ** | **2026-08-17 (HOY)** |
+| **Revisar Margenes** | 2026-08-08 | **2026-08-17** | **SÍ** | **2026-08-17 (HOY)** |
+| **Ver con Blai Resultados tienda** | 2026-08-08 | **2026-08-17** | **SÍ** | **2026-08-17 (HOY)** |
+| **Sacar copias para reuniones físicas** | 2026-08-08 | **2026-08-17** | **SÍ** | **2026-08-17 (HOY)** |
+| (12ª, cortada en el probe) | — | — | — | — |
+
+Las **4 de HOY** (08-08 → 08-17) son el daño fresco de la validación de la propietaria. Los CONTENEDORES reabiertos
+(Rutinas mañana, Cierre Propias, Previsional…) tienen `was_recurring:true` con fechas viejas → posible daño histórico /
+otro camino (el status de un contenedor es DERIVADO). **Reversión: decidir después, con la lista delante.**
+
+**Fix propuesto (a)+(b)+(c) en UN bloque, NO aplicar hasta aprobación:** (a)+(b) que `toggleTaskSelection` (y/o
+`bulkEffectiveIds`) acote la selección de hijas a **día + PENDIENTE** (que las completadas/otros-días no entren nunca al
+bulk); (c) que el virgin-upsert **no escriba un status default 'pending'** sobre una instancia que en BD puede estar
+completada — preservar el status persistido / no upsertar status en instancias que no se están togleando a propósito
+(blindar el mismo default en los otros caminos del punto 4). Con test de cada mecanismo por separado.
+
+**NOTA DE ORDEN (§16):** este bug **NO es F6-x2** (selección global / por etiqueta = funcionalidad nueva). **F6-x2 va
+DESPUÉS** de que la selección funcione bien: añadir dos alcances sobre una selección que coge mal duplicaría el fallo.
