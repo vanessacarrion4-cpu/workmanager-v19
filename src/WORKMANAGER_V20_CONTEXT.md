@@ -3476,6 +3476,11 @@ subtarea" marcará 1. Cubrir con test el caso "1/marca 1". **No arreglado — es
 
 ### 16.31 Borrado de contenedor partido — el aviso debe LISTAR, no solo contar (sesión 20). Sin implementar.
 
+> 🔗 **ENLAZADO (sesión 23): el BORRADO EN LOTE (barra de selección) es OTRA instancia de este mismo problema.** Su
+> confirm nativo "¿Eliminar N tareas?" (App.tsx:467) tampoco dice QUÉ se borra. Cuando se unifique el bulk con la pregunta
+> "este día / serie" (síntoma 1, ver §16.35 A3-bulk), debe usar **este mismo modal de §16.31** (resumen por etiqueta +
+> total + "Ver las N →" desplegable) en vez del confirm nativo. No tiene que ser el mismo commit, pero va aquí anotado.
+
 **Hallazgo de la usuaria:** un contenedor partido por etiqueta se borra desde un grupo, se lleva las hijas de los OTROS
 grupos (que no ve), y el aviso solo da un número → no se entera de lo que pierde. **Decisión tomada (no reabrir):** borrar
 NO va por grupo — se lleva el contenedor ENTERO (completar por grupo tiene sentido; borrar por grupo dejaría el contenedor
@@ -3820,6 +3825,24 @@ decir siempre **sobre qué datos y por qué entrada**. (Memoria: `criterio-verif
   pendiente persistida → ya efectivos). **Verificado en pantalla (3 casos, limpiado):** mixto (intacta se va, tiempo+completada
   se quedan, contenedor permanece, "2 con trabajo"); todo-intacto (contenedor desaparece); todo-con-trabajo (aviso, nada se
   borra). 184 tests verdes.
+- ⬜ **A3-bulk / SÍNTOMA 1+2 del borrado (diagnosticado sesión 23, PENDIENTE de construir — esperando validación previa).**
+  Dos rutas de borrado con comportamientos distintos para el mismo botón:
+  - **FILA** (⋯→Eliminar) → `handleDeleteTaskRequest` → `RecurrenceChoiceModal` (pregunta "este día / serie") → A1/A2.
+  - **BARRA de selección** (`StickyActionBar:467`) → `confirm("¿Eliminar N?")` nativo → `bulkDeleteTasks` → **NUNCA pregunta**.
+    `setRecurrenceAction` solo se dispara desde las 2 rutas de fila (useTaskCRUD:103/129); el bulk no lo toca (probado).
+  - **Síntoma 1 (CASO A):** marcar una hija recurrente sola por la casilla y Eliminar → borra sin preguntar. Borra **el DÍA**
+    (instancia/excepción), NO la serie (confirmado por CÓDIGO; el checkbox guarda `task.id`=instancia, no la plantilla) —
+    no es el caso grave, pero no avisa ni ofrece elección.
+  - **Síntoma 2 (CASO B):** contenedor marcado por la casilla + Eliminar barra → cascada; y por la FILA → cae en la guarda
+    de A2 (`!isException` marca las hijas movidas como "con trabajo" → "no se quitó nada").
+  - **ARREGLO ACORDADO (3 decisiones propietaria sesión 23):** (1) **guarda** = pendiente + sin tiempo + no completada
+    (fuera `!isException`; editar/mover NO es trabajo) — aplica a A2-fila Y bulk. (2) **unificar**: el bulk pasa por la MISMA
+    pregunta "este día / serie" que la fila cuando la selección incluye recurrentes. (3) **selección MIXTA**: UNA sola
+    pregunta, una vez, aplicada a TODAS las recurrentes; las no-recurrentes se borran directas; **"este día" = día VISIBLE
+    (`activeDate`)**, no la fecha de cada instancia (mata el bug de día). (4) el confirm nativo del bulk pasa a usar el modal
+    de **§16.31** (resumen por etiqueta + total + desplegable) — puede ser commit aparte.
+  - **Verificación (la hace la propietaria):** por la BARRA, con sus contenedores reales — la automatización no acciona el
+    checkbox de selección de forma fiable (es el botón de completar repurposeado). Yo doy los pasos exactos.
 - ✔️ **COMPOSITOR VALIDADO EN PANTALLA (sesión 23) — CERRADO.** La propietaria confirma que funciona. Historial abajo.
 - ✔️ **Compositor — 2 hallazgos de la propietaria al validar, ARREGLADOS (sesión 21, commit compositor-fix):**
   - **1a: el "+ Tarea" GLOBAL (`StickyActionBar`, `App.tsx:442`) NO pasaba por el compositor** → creaba con `handleAddTask()`
