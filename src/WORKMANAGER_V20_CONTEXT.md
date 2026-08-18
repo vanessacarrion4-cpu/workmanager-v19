@@ -3810,8 +3810,12 @@ pasadas de series diarias (FASE 6/7) · las 512 ocurrencias reales que contamina
     salidas para contenedores" se DESCARTÓ — el bug de contenedor no existe.** Verificación (datos + interfaz, no deducida):
     - **Un contenedor NO tiene frecuencia propia.** 0 de 11 contenedores en datos tienen `recurrence.frequency`; todos
       `null`. La recurrencia vive en las HIJAS. "Cambiar la pauta de un contenedor" no es una operación real.
-    - **El editor de repetición del modal no tiene guarda de contenedor** (por código sí saldría), pero **desde Mi Día el
-      modal del contenedor ni se abre** por gesto normal (⋯→Editar, doble-clic, título) → no hay flujo para ello.
+    - **El editor de repetición del modal no tiene guarda de contenedor** (por código sí saldría). El contenedor no tiene
+      pauta, así que ese editor es moot para él.
+    - **⚠️ CORRECCIÓN (sesión 23): el modal del contenedor SÍ SE ABRE, en DOS pasos** — ⋯→Editar → `RecurrenceChoiceModal`
+      ("Solo este día" / "serie") → `TaskModal`. En sesión 22 lo di como "no abre" porque me quedé en el paso intermedio;
+      reproducido en sesión 23 que sí abre. (Dato falso corregido.) Para cambiar la PAUTA de una hija/hoja se usa su propio
+      modal por el mismo camino (⋯→Editar→"Toda la serie"), no el del contenedor.
     - **El retroactivo REPRODUCIDO desde la interfaz es de una HIJA recurrente:** cambiar su pauta (⋯→Editar→"Toda la
       serie") escribía en sitio (mismo `startDate`, frecuencia nueva) = el pasado se regenera con la pauta nueva. Motivo:
       la guarda del split exigía `!parentTaskId` y las hijas TIENEN `parentTaskId` → caían al upsert genérico. Hay **75
