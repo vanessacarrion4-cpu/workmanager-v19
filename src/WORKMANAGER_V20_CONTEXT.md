@@ -3793,6 +3793,12 @@ contaminan gráfico/reflexión (FASE 7) · **retirar `is_active` del todo** (hoy
   **Retirarlo del todo = item aparte pendiente** (no hacer ahora). *(Nota: `block.isActive` de BLOQUES es otra cosa, feature
   viva, no relacionada.)*
 
+#### 🔎 CRITERIO DE VERIFICACIÓN (sesión 23, tras 2 bugs seguidos)
+**Verificar el caso que la propietaria HACE, no el que yo diseño.** Sembrar el estado prueba el MECANISMO, no la FUNCIÓN. Reglas:
+la validación FINAL va sobre una **rutina REAL** de sus datos, por **la vista donde ella entra** (Mi Día/Bloques/Delegadas), y
+probando los **flujos adyacentes** (¿sale el modal?, no solo ¿qué pasa tras elegir?). **Nunca "verificado en pantalla" a secas**:
+decir siempre **sobre qué datos y por qué entrada**. (Memoria: `criterio-verificar-caso-real-no-disenado`, junto a los otros dos.)
+
 **FASE 5 — CREACIÓN (activa)**
 - 🔧 **A1 — "Terminar la rutina" con `endDate` (sesión 23, IMPLEMENTADO, pendiente validación).** La rama `series` del borrado
   (`App.tsx`) pasa de `is_active:false` (memoria, no persistía, no cortaba hijas) a **`recurrence.endDate = ayer`**: si la
