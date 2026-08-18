@@ -3745,31 +3745,29 @@ borrar, F6-x2) debe cumplirla por diseño.
 
 ---
 
-#### ⏭️ PUNTO DE RETOMADA (fin sesión 23, 18/08/2026 → retomar sesión 24)
+#### ⏭️ PUNTO DE RETOMADA (fin sesión 23, 19/08/2026 → retomar sesión 24)
 
 **✔️ CERRADO EN SESIÓN 23 (validado por la propietaria en pantalla):**
-- **F5-6 COMPLETO:** split de hojas (`bf2c9a1`, corte=HOY) + split de HIJAS (`9a38cee`, incl. no-duplicado bajo el
-  contenedor) → VALIDADOS. Compositor VALIDADO. **F5-6 queda cerrado entero.**
-- **D1 Delegadas: NO HAY BUG** (la propietaria lo miró; acota bien). **Barrido D2 limpio:** las 5 vistas acotan por su eje
-  (Mi Día/Delegadas/Calendario por `subtasksForGroup`; Semana por `dayMap`; Carga por rangos con `occursOn`). No repetir.
+- **F5-6 COMPLETO** (`bf2c9a1`+`9a38cee`) + **Compositor**. **D1 Delegadas: NO HAY BUG**; **barrido D2 limpio** (5 vistas
+  acotan por su eje). No repetir.
+- **A1 — "Terminar la rutina" con `endDate`** (`c89b898` incluye la ruta fila) — VALIDADO. Las fantasmas barridas.
+- **A2 — cascada "quitar solo este día" (fila)** (`c89b898`) — VALIDADO.
+- **A3-bulk — borrado en lote usa `bulkEffectiveIds` + guarda de tiempo, Option B** (`674a498`) — VALIDADO (pasos 1/2/3).
 
-**🔧 IMPLEMENTADO EN SESIÓN 23, pendiente de validación de la propietaria:**
-- **A1 — "Terminar la rutina" con `endDate`** (commit A1). Ver bullet A1 abajo. **Qué mirar:** terminar una rutina (hoja o
-  hija) desde ⋯→borrar→"Terminar la rutina" y RECARGAR → no reaparece; el pasado sigue. Las 4 fantasmas (Ingresos, Bancoos,
-  Picking horario, Revisar Margenes) ya barridas (endDate=17-08) → deben haber desaparecido de los días futuros.
+**🔴 EN CURSO / PRIORIDAD (sesión 23→24):**
+- **#4a contador del contenedor** (`badge` no aplicaba `isExpiredTemplate` → decía 5, mostraba 4). **ARREGLADO** en
+  `TaskCard` (badge cuenta lo que muestra). Confirmar en pantalla (Bloques, "Rutinas Mañana" b1: badge 4→1; "Cierre
+  Propias" b2: baja 2). **Las series terminadas NO se pierden** — 12 vivas en BD, solo ocultas (5 top-level + 7 hijas).
+- **🔜 SECCIÓN "TERMINADAS" en Bloques (APROBADA, prioridad tras el contador).** Al final de cada bloque, PLEGADA, contador
+  propio, ordenada por fecha de fin (reciente arriba). Solo series terminadas (endDate pasado); NO las 774 completadas; en
+  Búsqueda NO salen. **Recuento real: 12 series terminadas** (ya no 2). Revertir el ocultado duro y darles ese destino.
 
-**🔧 IMPLEMENTADO EN SESIÓN 23 (además de A1), pendiente de validación:**
-- **A2 — cascada de "quitar solo este día" en contenedor.** Ver bullet A2 abajo. **Qué mirar:** quitar el día de un contenedor
-  con hijas mixtas → las pendientes intactas se van, las completadas/con-tiempo se quedan (y el contenedor con ellas); si TODAS
-  tienen trabajo, aviso "No se quitó nada"; si TODAS eran intactas, el contenedor desaparece.
-
-**LUEGO, lo que queda de FASE 5, en orden:**
-1. 🔜 **C — chip de pauta inline** para recurrentes ya existentes (renderizar `RecurrencePickerChip` en vez de la etiqueta
-   gris + enrutar onChange al template/split). Reabre el candidato aparcado (opción A).
-2. 🔜 **Sección "Terminadas" en Bloques** — APROBADA, NO montada. ⚠️ **RECUENTA antes de construir:** con A1 usando `endDate`,
-   habrá MÁS plantillas con endDate pasado que las 2 que contamos (cada "terminar rutina" añade una). Ya NO es minúscula: al
-   llegar, vuelve a contar. Sin toggle nuevo; solo series terminadas (NO las 774 completadas); en Búsqueda NO salen.
-4. ⬜ **Modal de crear: bloque vacío + obliga a elegir** (parte (a) de F5-7). Commit APARTE.
+**LUEGO, en orden:**
+1. 🔜 **#1 completadas en bulk (cascada protege / selección directa borra)** — reusar heurístico `rootIds` (ver bullet
+   A3-bulk). Y **confirm del bulk (Option A):** "Se quitarán N tareas del [día]. Las series se mantienen." (no pregunta,
+   solo informa). DESPUÉS de la sección.
+2. 🔜 **C — chip de pauta inline** para recurrentes ya existentes. DESPUÉS.
+3. ⬜ **Modal de crear: bloque vacío + obliga a elegir** (parte (a) de F5-7). Commit APARTE.
 5. ⬜ **INV: F5-1** (no persistir vacía — el fix simple tenía RACE, diferir el insert) **+ F5-8** (ruido de consola).
 
 **APARCADO (no construir sin que lo pida):** chip de ETIQUETA en la tanda · `bulkDuplicateTasks` stale-closure · default

@@ -572,10 +572,13 @@ export function TaskCard({
               )}
               {/* Badge circular subtareas pendientes */}
               {hasSubtasks && (() => {
+                const _todayISO = formatLocalISO(new Date());
                 const subIds: string[] = subtasksForGroup || task.subtasks || [];
                 const pendingCount = subIds.filter((sid: string) => {
                   const s = allTasksMap[sid];
-                  return s && !s.isDeleted && s.status !== 'completed';
+                  // #4a (sesión 23): aplicar isExpiredTemplate para que el badge CUENTE LO QUE MUESTRA. La lista
+                  // (renderChildIds) oculta las hijas-serie terminadas (endDate pasado); el badge no lo hacía → "5 y salen 4".
+                  return s && !s.isDeleted && s.status !== 'completed' && !isExpiredTemplate(s, _todayISO);
                 }).length;
                 return (
                   <button
