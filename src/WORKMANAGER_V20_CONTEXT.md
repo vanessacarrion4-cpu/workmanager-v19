@@ -3835,6 +3835,17 @@ decir siempre **sobre qué datos y por qué entrada**. (Memoria: `criterio-verif
     nunca corta una serie. Selección mixta = una pasada, cada hija por su cuenta (no N preguntas). **NO screen-verificado
     por mí** (la automatización no acciona el checkbox de selección); reúsa helper testeado + 184 tests + lo valida la
     propietaria por la barra. §16.31 (confirm nativo → modal-inventario) queda para commit aparte.
+  - **#1 (completadas) — refinamiento PENDIENTE, SÍ es distinguible (no es limitación permanente):** hoy el bulk protege
+    las completadas en AMBOS casos (cascada Y selección directa), porque `bulkEffectiveIds` excluye completadas en las dos
+    ramas. Para permitir "marco una completada a propósito → se borra" sin romper la protección de la cascada, se reusa el
+    MISMO heurístico que ya usa `bulkDuplicateTasks` (`rootIds`: `!selectedTaskIds.has(resolved.parentTaskId)`, resolviendo
+    por el día materializado → el `parentTaskId` de la hija = id de la INSTANCIA del contenedor). Una completada-hoja que es
+    RAÍZ (su padre no está en la selección) = elegida a propósito → se borra; si su contenedor también está seleccionado =
+    auto-añadida por la cascada → protegida. Sin estado nuevo. **Pendiente de construir (tras validación).**
+  - **#2 (barrido de resolución ad-hoc vs helper canónico):** `bulkUpdateTasks` ✔️ y `bulkDeleteTasks` ✔️ (ya) usan
+    `bulkEffectiveIds`. **Queda `bulkDuplicateTasks`** con resolución propia (`resolve` local + `rootIds`) — no usa el helper;
+    tiene además su item abierto (stale-closure `activeDate`). Es el único que falta. Y OJO: hay **DOS entradas de borrado en
+    lote** (App `StickyActionBar:467` y `BlocksView:459`), ambas llaman al mismo `bulkDeleteTasks` arreglado → cubiertas.
   - Detalle histórico del diagnóstico abajo.
   Dos rutas de borrado con comportamientos distintos para el mismo botón:
   - **FILA** (⋯→Eliminar) → `handleDeleteTaskRequest` → `RecurrenceChoiceModal` (pregunta "este día / serie") → A1/A2.
