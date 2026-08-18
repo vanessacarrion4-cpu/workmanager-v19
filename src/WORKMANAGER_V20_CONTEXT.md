@@ -3753,12 +3753,15 @@ borrar, F6-x2) debe cumplirla por diseño.
   hija) desde ⋯→borrar→"Terminar la rutina" y RECARGAR → no reaparece; el pasado sigue. Las 4 fantasmas (Ingresos, Bancoos,
   Picking horario, Revisar Margenes) ya barridas (endDate=17-08) → deben haber desaparecido de los días futuros.
 
+**🔧 IMPLEMENTADO EN SESIÓN 23 (además de A1), pendiente de validación:**
+- **A2 — cascada de "quitar solo este día" en contenedor.** Ver bullet A2 abajo. **Qué mirar:** quitar el día de un contenedor
+  con hijas mixtas → las pendientes intactas se van, las completadas/con-tiempo se quedan (y el contenedor con ellas); si TODAS
+  tienen trabajo, aviso "No se quitó nada"; si TODAS eran intactas, el contenedor desaparece.
+
 **LUEGO, lo que queda de FASE 5, en orden:**
-1. 🔜 **A2 — cascada de "quitar solo este día" en contenedor** (aprobado, 3 confirmaciones cerradas). Cascada a hijas
-   INTACTAS (pendiente + sin tiempo + sin excepción); completadas/con-trabajo se quedan y TAPÓN B las cubre.
-2. 🔜 **C — chip de pauta inline** para recurrentes ya existentes (renderizar `RecurrencePickerChip` en vez de la etiqueta
-   gris + enrutar onChange al template/split). DESPUÉS de A. Reabre el candidato aparcado (opción A).
-3. 🔜 **Sección "Terminadas" en Bloques** — APROBADA, NO montada. ⚠️ **RECUENTA antes de construir:** con A1 usando `endDate`,
+1. 🔜 **C — chip de pauta inline** para recurrentes ya existentes (renderizar `RecurrencePickerChip` en vez de la etiqueta
+   gris + enrutar onChange al template/split). Reabre el candidato aparcado (opción A).
+2. 🔜 **Sección "Terminadas" en Bloques** — APROBADA, NO montada. ⚠️ **RECUENTA antes de construir:** con A1 usando `endDate`,
    habrá MÁS plantillas con endDate pasado que las 2 que contamos (cada "terminar rutina" añade una). Ya NO es minúscula: al
    llegar, vuelve a contar. Sin toggle nuevo; solo series terminadas (NO las 774 completadas); en Búsqueda NO salen.
 4. ⬜ **Modal de crear: bloque vacío + obliga a elegir** (parte (a) de F5-7). Commit APARTE.
@@ -3799,6 +3802,18 @@ contaminan gráfico/reflexión (FASE 7) · **retirar `is_active` del todo** (hoy
   endDate=17-08, tenían 0 futuras materializadas → barrido limpio. **Auditado el borrado en LOTE** (`bulkDeleteTasks`): correcto
   (persiste is_deleted + cascada a hijas), sin A1/A2. **Verificado en pantalla (datos de prueba, limpiado):** terminar hoja y
   contenedor → endDate=17-08 en hoja y en la hija; no reaparecen tras recargar. 184 tests verdes.
+- 🔧 **A2 — "quitar solo este día" en contenedor CASCADA a las hijas (sesión 23, IMPLEMENTADO, pendiente validación).**
+  La ruta `instance` del borrado (`App.tsx`): si el objetivo es un CONTENEDOR con hijas ese día (`containerDayToggle`), en
+  vez de escribir solo la excepción-borrada del contenedor, borra las hijas **INTACTAS** (pendiente + sin excepción + sin
+  tiempo ese día vía `getTaskRegisteredSelf(id, timeEntries, día)` — NO `getTaskRegisteredCombo`, que exige la tarea en el mapa
+  y una instancia hija es virtual → daba 0). Las hijas con trabajo (completadas / con tiempo) NO se tocan (§16.16) y mantienen
+  el contenedor visible; si no queda ninguna, el motor lo suprime solo (`instanceEngine:285`) → NO se escribe excepción de
+  contenedor y **NO se toca TAPÓN B** (sigue vivo, cubre el caso "queda trabajo"). **AVISO** cuando todas tienen trabajo:
+  toast.warn "No se quitó nada: N tareas… tienen trabajo… Usa «Terminar la rutina» o quítalas una a una" (responde el riesgo de
+  "acepto y no pasa nada" = mismo bug). **0 casos en datos** para barrer (los 142 días-quitados de contenedor no tenían hija
+  pendiente persistida → ya efectivos). **Verificado en pantalla (3 casos, limpiado):** mixto (intacta se va, tiempo+completada
+  se quedan, contenedor permanece, "2 con trabajo"); todo-intacto (contenedor desaparece); todo-con-trabajo (aviso, nada se
+  borra). 184 tests verdes.
 - ✔️ **COMPOSITOR VALIDADO EN PANTALLA (sesión 23) — CERRADO.** La propietaria confirma que funciona. Historial abajo.
 - ✔️ **Compositor — 2 hallazgos de la propietaria al validar, ARREGLADOS (sesión 21, commit compositor-fix):**
   - **1a: el "+ Tarea" GLOBAL (`StickyActionBar`, `App.tsx:442`) NO pasaba por el compositor** → creaba con `handleAddTask()`

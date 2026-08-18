@@ -16,6 +16,8 @@ import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { filterTasksForDay } from './filters';
 import { materializeInstanceById } from './instanceEngine';
 import { reconcileDay, containerDayToggle } from './fase3Contracts'; // C3: mapa del día sin fuga; §16.28: nº hijas pendientes del día para el modal de papelera
+import { getTaskRegisteredSelf } from './utils'; // A2: detectar "hija con tiempo registrado" ESE DÍA (guarda de intacta). Self, no Combo: Combo exige la tarea en el mapa y una instancia hija es virtual → devolvía 0.
+import { toast } from './toast'; // A2: avisar cuando "quitar el día" no quita nada (todas con trabajo)
 import { useSupabase } from './useSupabase';
 import { useTaskCRUD } from './useTaskCRUD';
 import { useTaskOrdering } from './useTaskOrdering';
@@ -976,6 +978,51 @@ export default function App() {
                 // resolvía por dashboardTasks; esto cubre las hijas.
                 const taskToDelete = tasks[taskId] || dashboardTasks.find(t => t.id === taskId) || materializeInstanceById(taskId, tasks);
                 if (!taskToDelete) return;
+
+                // A2 (sesión 23): "quitar SOLO este día" sobre un CONTENEDOR = CASCADA a las hijas del día.
+                // Antes se escribía solo la excepción-borrada del contenedor y no las hijas → TAPÓN B lo resucitaba si
+                // quedaba una hija pendiente persistida ("acepto y no borra"). Ahora se borran las hijas INTACTAS
+                // (pendiente + sin tiempo + sin excepción); las que tienen trabajo (completadas / con tiempo) NO se tocan
+                // (§16.16) y MANTIENEN el contenedor visible (el motor lo pinta mientras le queden hijas; si no queda
+                // ninguna, instanceEngine:285 lo suprime solo → no hace falta excepción de contenedor, ni tocar TAPÓN B).
+                const _day = taskToDelete.instanceDate || taskToDelete.dueDate || activeDate;
+                const _rc = containerDayToggle(taskToDelete, tasks, _day);
+                if (_rc && _rc.children.length > 0) {
+                  const _intacta = (c: Task) => c.status === 'pending' && !c.isException && getTaskRegisteredSelf(c.id, timeEntries, _day) === 0;
+                  const intactas = _rc.children.filter(_intacta);
+                  const conTrabajo = _rc.children.filter(c => !_intacta(c));
+                  // Todas con trabajo → no se quita nada. AVISO explícito (si no, "acepto y no pasa nada" = el mismo bug).
+                  if (intactas.length === 0) {
+                    toast.warn(`No se quitó nada: ${conTrabajo.length} tarea${conTrabajo.length !== 1 ? 's' : ''} de este día tiene${conTrabajo.length !== 1 ? 'n' : ''} trabajo (completada o con tiempo) y se conserva${conTrabajo.length !== 1 ? 'n' : ''}. Usa «Terminar la rutina» o quítalas una a una.`);
+                    return;
+                  }
+                  setTasks(prev => {
+                    const next = { ...prev } as Record<string, Task>;
+                    intactas.forEach(c => { next[c.id] = { ...(prev[c.id] || c), isDeleted: true, isException: true, existsInSupabase: true, modifiedAt: timestamp } as Task; });
+                    return next;
+                  });
+                  intactas.forEach(c => {
+                    if (c.templateId) {
+                      // hija recurrente (virgen o materializada) → excepción-borrada del día
+                      persist(supabase.from('tasks').upsert({
+                        id: c.id, block_id: c.blockId, parent_task_id: null, template_id: c.templateId,
+                        instance_date: c.instanceDate || _day, title: c.title, notes: c.notes || '', priority: 'media',
+                        status: c.status, due_date: c.dueDate || null, due_time: c.dueTime || null,
+                        completed_at: c.completedAt || null, estimated_minutes: c.estimatedMinutes || 0,
+                        actual_minutes: c.actualMinutes || 0, tags: c.tags || [], delegation: c.delegation || null,
+                        is_template: false, is_exception: true, is_deleted: true, deleted_at: timestamp, is_active: false,
+                        created_at: c.createdAt || timestamp, modified_at: timestamp
+                      }, { onConflict: 'id' }), { verbo: 'borrar', titulo: c.title });
+                    } else {
+                      // hija manual (fila real) → soft-delete directo
+                      persist(supabase.from('tasks').update({ is_deleted: true, deleted_at: timestamp, modified_at: timestamp }).eq('id', c.id), { verbo: 'borrar', titulo: c.title });
+                    }
+                  });
+                  if (conTrabajo.length > 0) toast.success(`Quitado. ${conTrabajo.length} con trabajo se conserva${conTrabajo.length !== 1 ? 'n' : ''} bajo el contenedor.`);
+                  return;
+                }
+
+                // No es contenedor con hijas del día (hoja recurrente, o contenedor vacío ese día) → borrar la instancia.
                 setTasks(prev => ({
                   ...prev,
                   [taskId]: { ...(prev[taskId] || taskToDelete), isDeleted: true, isException: true, existsInSupabase: true, modifiedAt: timestamp }
