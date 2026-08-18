@@ -3748,7 +3748,7 @@ borrar, F6-x2) debe cumplirla por diseño.
    con el mismo título** (mira Bloques + el modal del contenedor). Detalle en el bullet F5-6 · HIJAS más abajo.
 2. **Corte=HOY en hojas** (commit `bf2c9a1`): cambiar la pauta de una hoja top-level viendo un día pasado → corte en HOY,
    no en el día mirado.
-3. **Compositor** (commits `718e644` y anteriores): alta rápida por tandas, sin default de bloque.
+   *(Compositor ya VALIDADO y cerrado en sesión 23.)*
 
 **LUEGO, lo que queda de FASE 5, en orden:**
 1. 🔜 **Sección "Terminadas" en Bloques** — APROBADA, NO montada (se paró para no apilar sobre Bloques sin validar el split).
@@ -3767,7 +3767,8 @@ pasadas de series diarias (FASE 6/7) · las 512 ocurrencias reales que contamina
 ---
 
 **FASE 5 — CREACIÓN (activa)**
-- 🔧 **Compositor — 2 hallazgos de la propietaria al validar, ARREGLADOS (sesión 21, commit compositor-fix):**
+- ✔️ **COMPOSITOR VALIDADO EN PANTALLA (sesión 23) — CERRADO.** La propietaria confirma que funciona. Historial abajo.
+- ✔️ **Compositor — 2 hallazgos de la propietaria al validar, ARREGLADOS (sesión 21, commit compositor-fix):**
   - **1a: el "+ Tarea" GLOBAL (`StickyActionBar`, `App.tsx:442`) NO pasaba por el compositor** → creaba con `handleAddTask()`
     = default silencioso (el bug que veníamos a matar). Fix: en dashboard sube `composerOpenSignal` → DashboardView abre el
     compositor (mismo camino que los botones de Mi Día). Verificado en pantalla.
@@ -3778,7 +3779,7 @@ pasadas de series diarias (FASE 6/7) · las 512 ocurrencias reales que contamina
     (default silencioso, NO son Mi Día, item propio):** **Calendario** (`CalendarView:376` `onAddTask(null,undefined,day)`),
     **Delegadas** (`DelegadasView:530`, con persona), **Semana** (`WeekView:561`, con día). Cada uno crea top-level sin
     bloque → cae en `blocks[0]`. Necesitan su propia solución de "elegir bloque" (o aceptar el default ahí). Registrados.
-- ✅ **Compositor de tanda** (une F5-7 alta rápida + F5-2 Enter) — **IMPLEMENTADO, pendiente de validación en pantalla.**
+- ✔️ **Compositor de tanda** (une F5-7 alta rápida + F5-2 Enter) — **VALIDADO EN PANTALLA (sesión 23).**
   Verificado por mí (dev server): abre sin bloque preseleccionado; Enter sin bloque NO crea (conserva título + abre
   selector + aviso); elegir bloque → Enter crea y encadena (input se vacía, barra sigue); **la elección propaga de verdad
   (creé en "Central"/b2, no en el primero → sin fallback silencioso)**; Escape cierra; 3 tareas de prueba limpiadas. Ficheros:
