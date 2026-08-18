@@ -9,6 +9,7 @@ import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { resolveTaskId, materializeDay } from './instanceEngine';
+import { getTaskRegisteredSelf } from './utils'; // A3-bulk: guarda de borrado (no tocar las que tienen tiempo ese día)
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan (agrupadas por lote)
 
 interface UseBulkActionsOptions {
@@ -18,6 +19,7 @@ interface UseBulkActionsOptions {
   setSelectedTaskIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   setSelectionMode: React.Dispatch<React.SetStateAction<boolean>>;
   activeDate: string;
+  timeEntries: any[]; // A3-bulk: para la guarda "sin tiempo registrado ese día"
 }
 
 /**
@@ -151,6 +153,7 @@ export function useBulkActions({
   setSelectedTaskIds,
   setSelectionMode,
   activeDate,
+  timeEntries,
 }: UseBulkActionsOptions) {
 
   const bulkUpdateTasks = useCallback((updates: Partial<Task>) => {
@@ -255,6 +258,17 @@ export function useBulkActions({
     const timestamp = new Date().toISOString();
     const resolve = createDayResolver(tasks, activeDate);
 
+    // A3-bulk (sesión 23): el BORRADO usa el MISMO helper que las demás acciones masivas (`bulkEffectiveIds`) en vez
+    // de su resolución ad-hoc antigua (que cascadeaba TODAS las hijas y usaba instanceDate). El helper baja los
+    // contenedores a sus hijas PENDIENTES del día VISIBLE (`dueDate===activeDate`), excluye completadas y de otros días,
+    // y NO incluye el contenedor en sí → se resuelve por sus hijas (si no queda ninguna, el motor lo suprime). Es
+    // siempre "QUITA ESTE DÍA", nunca la serie. GUARDA propia del borrado: además, no tocar las que tengan TIEMPO
+    // registrado ese día (§16.16: preservar trabajo). → guarda efectiva = pendiente + sin tiempo + no completada.
+    // "Terminar la rutina" NO existe en el bulk (Option B, decisión propietaria sesión 23): es decisión por serie,
+    // solo desde la fila (⋯→Eliminar→Terminar), donde se ve el nombre. Así el bulk nunca corta N series de un clic.
+    const { ids: effectiveIds } = bulkEffectiveIds(selectedTaskIds, tasks, activeDate, resolve);
+    const targetIds = effectiveIds.filter(id => getTaskRegisteredSelf(id, timeEntries, activeDate) === 0);
+
     const realIds = new Set<string>();             // filas reales → UPDATE is_deleted
     const virginObjs: Record<string, Task> = {};   // instancias VÍRGENES → materializar excepción borrada
 
@@ -269,11 +283,7 @@ export function useBulkActions({
       if (obj && obj.templateId) virginObjs[obj.id] = obj;
     };
 
-    selectedTaskIds.forEach(id => {
-      addTarget(id);
-      const obj = tasks[id] || resolve(id);
-      if (obj?.subtasks?.length) obj.subtasks.forEach((subId: string) => addTarget(subId));
-    });
+    targetIds.forEach(id => addTarget(id));
 
     // §16.16 (modelo corregido): "ser contenedor" NO es un estado guardado, se DERIVA de tener hijas.
     // Al vaciar de golpe no hay nada que "degradar": la tarea deja de agruparse como contenedor sola,
@@ -291,7 +301,9 @@ export function useBulkActions({
       persist(supabase.from('tasks').update({ is_deleted: true, modified_at: timestamp }).eq('id', id), { verbo: 'borrar', titulo: tasks[id]?.title });
     });
     Object.values(virginObjs).forEach(o => {
-      const day = o.instanceDate || o.dueDate || activeDate;
+      // A3-bulk: el día de la excepción-borrada = día VISIBLE (activeDate), NO la fecha de la instancia. Una hija
+      // movida a hoy tiene instanceDate en su día original → usar instanceDate borraba el día equivocado (bug de día).
+      const day = activeDate;
       persist(supabase.from('tasks').upsert({
         id: o.id,
         block_id: o.blockId,
@@ -324,7 +336,7 @@ export function useBulkActions({
 
     setSelectedTaskIds(new Set());
     setSelectionMode(false);
-  }, [tasks, setTasks, selectedTaskIds, setSelectedTaskIds, setSelectionMode, activeDate]);
+  }, [tasks, setTasks, selectedTaskIds, setSelectedTaskIds, setSelectionMode, activeDate, timeEntries]);
 
   const bulkDuplicateTasks = useCallback(() => {
     const timestamp = new Date().toISOString();

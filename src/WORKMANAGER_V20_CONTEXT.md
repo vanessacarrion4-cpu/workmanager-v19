@@ -3825,7 +3825,17 @@ decir siempre **sobre qué datos y por qué entrada**. (Memoria: `criterio-verif
   pendiente persistida → ya efectivos). **Verificado en pantalla (3 casos, limpiado):** mixto (intacta se va, tiempo+completada
   se quedan, contenedor permanece, "2 con trabajo"); todo-intacto (contenedor desaparece); todo-con-trabajo (aviso, nada se
   borra). 184 tests verdes.
-- ⬜ **A3-bulk / SÍNTOMA 1+2 del borrado (diagnosticado sesión 23, PENDIENTE de construir — esperando validación previa).**
+- 🔧 **A3-bulk / SÍNTOMA 1+2 del borrado — IMPLEMENTADO sesión 23 (Option B), pendiente de validación de la propietaria.**
+  - **Ruta FILA (A2):** guarda = pendiente + sin tiempo + no completada (fuera `!isException`); día = `activeDate`. Commit
+    `c89b898`. Verificado en pantalla (hija movida a hoy → se quita el día, serie intacta).
+  - **Ruta BULK (barra):** `bulkDeleteTasks` pasa a usar el helper canónico `bulkEffectiveIds` (el mismo que `bulkUpdateTasks`)
+    + guarda de tiempo → guarda efectiva = pendiente + sin tiempo + no completada; día = `activeDate`; contenedores bajan a
+    sus hijas del día (no se borra el contenedor en sí, se resuelve por ellas). **Option B (decisión propietaria):
+    "terminar la rutina" NO está en el bulk** — es decisión por serie, solo desde la fila; el bulk siempre "quita este día",
+    nunca corta una serie. Selección mixta = una pasada, cada hija por su cuenta (no N preguntas). **NO screen-verificado
+    por mí** (la automatización no acciona el checkbox de selección); reúsa helper testeado + 184 tests + lo valida la
+    propietaria por la barra. §16.31 (confirm nativo → modal-inventario) queda para commit aparte.
+  - Detalle histórico del diagnóstico abajo.
   Dos rutas de borrado con comportamientos distintos para el mismo botón:
   - **FILA** (⋯→Eliminar) → `handleDeleteTaskRequest` → `RecurrenceChoiceModal` (pregunta "este día / serie") → A1/A2.
   - **BARRA de selección** (`StickyActionBar:467`) → `confirm("¿Eliminar N?")` nativo → `bulkDeleteTasks` → **NUNCA pregunta**.
