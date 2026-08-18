@@ -213,6 +213,14 @@ export function materializeDay(dateStr: string, allTasks: Record<string, Task>):
 
   // Plantillas-contenedor reales (nivel 1): isTemplate, sin templateId ni padre,
   // activas, y que no son subtarea de nadie.
+  //
+  // ⚠️ `isActive` NO ES LA PRIMITIVA DE TERMINACIÓN de una serie. Solo se lee AQUÍ, y solo filtra
+  // contenedores TOP-LEVEL. Una HIJA con isActive:false SIGUE generando (este predicado no la ve;
+  // resolveChildForDay tampoco lo mira). Terminar una serie = `recurrence.endDate` (lo respeta
+  // matchesRecurrence para TODAS: top-level e hijas). Si algún día quieres cortar una serie, usa endDate,
+  // NO isActive (fue el origen del bug de las 4 hijas fantasma, sesión 23 / §16.16). Esta guarda se
+  // conserva como defensa por si queda alguna fila legada con isActive:false; retirarla del todo = item
+  // aparte pendiente (§16.16 "consecuencia a vigilar").
   const containers = Object.values(allTasks).filter(t =>
     t &&
     t.isTemplate === true &&

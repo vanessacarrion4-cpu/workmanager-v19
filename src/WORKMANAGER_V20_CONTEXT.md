@@ -3740,33 +3740,65 @@ borrar, F6-x2) debe cumplirla por diseño.
 
 ---
 
-#### ⏭️ PUNTO DE RETOMADA (fin sesión 22, 18/08/2026 → retomar sesión 23)
+#### ⏭️ PUNTO DE RETOMADA (fin sesión 23, 18/08/2026 → retomar sesión 24)
 
-**PRIMERO, ANTES DE TOCAR CÓDIGO: validar en pantalla lo implementado esta semana (nada se cierra sin ello).** En orden:
-1. **Split de hijas** (commit `9a38cee`): cambia la pauta de una HIJA de una rutina REAL y comprueba — (a) el pasado NO se
-   reescribe (vieja acaba ayer, nueva desde hoy); (b) **⚠️ lo único no visto: que bajo el contenedor NO salgan dos hijas
-   con el mismo título** (mira Bloques + el modal del contenedor). Detalle en el bullet F5-6 · HIJAS más abajo.
-2. **Corte=HOY en hojas** (commit `bf2c9a1`): cambiar la pauta de una hoja top-level viendo un día pasado → corte en HOY,
-   no en el día mirado.
-   *(Compositor ya VALIDADO y cerrado en sesión 23.)*
+**✔️ CERRADO EN SESIÓN 23 (validado por la propietaria en pantalla):**
+- **F5-6 COMPLETO:** split de hojas (`bf2c9a1`, corte=HOY) + split de HIJAS (`9a38cee`, incl. no-duplicado bajo el
+  contenedor) → VALIDADOS. Compositor VALIDADO. **F5-6 queda cerrado entero.**
+- **D1 Delegadas: NO HAY BUG** (la propietaria lo miró; acota bien). **Barrido D2 limpio:** las 5 vistas acotan por su eje
+  (Mi Día/Delegadas/Calendario por `subtasksForGroup`; Semana por `dayMap`; Carga por rangos con `occursOn`). No repetir.
+
+**🔧 IMPLEMENTADO EN SESIÓN 23, pendiente de validación de la propietaria:**
+- **A1 — "Terminar la rutina" con `endDate`** (commit A1). Ver bullet A1 abajo. **Qué mirar:** terminar una rutina (hoja o
+  hija) desde ⋯→borrar→"Terminar la rutina" y RECARGAR → no reaparece; el pasado sigue. Las 4 fantasmas (Ingresos, Bancoos,
+  Picking horario, Revisar Margenes) ya barridas (endDate=17-08) → deben haber desaparecido de los días futuros.
 
 **LUEGO, lo que queda de FASE 5, en orden:**
-1. 🔜 **Sección "Terminadas" en Bloques** — APROBADA, NO montada (se paró para no apilar sobre Bloques sin validar el split).
-   Sin toggle nuevo; solo series terminadas (NO las 774 completadas); contador de cabecera solo activas + la sección con el
-   suyo; en Búsqueda NO salen. Revertir el ocultado duro `isExpiredTemplate` top-level y moverlo a la sección plegada. Minúscula
-   (2 series). Detalle: bullet "Terminadas" más abajo.
-2. ⬜ **Modal de crear: bloque vacío + obliga a elegir** (parte (a) de F5-7). Commit APARTE del compositor.
-3. ⬜ **INV (invisible, cerrar solo): F5-1** (no persistir tarea vacía — OJO: el fix simple tenía RACE, requiere diferir el
-   insert) **+ F5-8** (quitar ruido de consola al arrancar).
+1. 🔜 **A2 — cascada de "quitar solo este día" en contenedor** (aprobado, 3 confirmaciones cerradas). Cascada a hijas
+   INTACTAS (pendiente + sin tiempo + sin excepción); completadas/con-trabajo se quedan y TAPÓN B las cubre.
+2. 🔜 **C — chip de pauta inline** para recurrentes ya existentes (renderizar `RecurrencePickerChip` en vez de la etiqueta
+   gris + enrutar onChange al template/split). DESPUÉS de A. Reabre el candidato aparcado (opción A).
+3. 🔜 **Sección "Terminadas" en Bloques** — APROBADA, NO montada. ⚠️ **RECUENTA antes de construir:** con A1 usando `endDate`,
+   habrá MÁS plantillas con endDate pasado que las 2 que contamos (cada "terminar rutina" añade una). Ya NO es minúscula: al
+   llegar, vuelve a contar. Sin toggle nuevo; solo series terminadas (NO las 774 completadas); en Búsqueda NO salen.
+4. ⬜ **Modal de crear: bloque vacío + obliga a elegir** (parte (a) de F5-7). Commit APARTE.
+5. ⬜ **INV: F5-1** (no persistir vacía — el fix simple tenía RACE, diferir el insert) **+ F5-8** (ruido de consola).
 
-**APARCADO (no construir sin que lo pida):** chip de ETIQUETA en la tanda (candidato, esperar uso real) · toggle "ver
-terminadas" (lo absorbe la sección Terminadas) · `bulkDuplicateTasks` stale-closure `activeDate` (item propio, impacto bajo) ·
-default silencioso en **Calendario/Delegadas/Semana** (puntos de creación top-level sin bloque) · **CORTE** de pendientes
-pasadas de series diarias (FASE 6/7) · las 512 ocurrencias reales que contaminan gráfico/reflexión (FASE 7).
+**APARCADO (no construir sin que lo pida):** chip de ETIQUETA en la tanda · `bulkDuplicateTasks` stale-closure · default
+silencioso en **Calendario/Delegadas/Semana** (creación) · **CORTE** de pendientes pasadas (FASE 6/7) · 512 reales que
+contaminan gráfico/reflexión (FASE 7) · **retirar `is_active` del todo** (hoy vestigial en tareas; ver Modelo de borrado).
 
 ---
 
+#### 📐 MODELO DE BORRADO (decidido sesión 23 — ESPECIFICACIÓN, no tiene fase)
+
+- **Tarea MANUAL:** se borra y punto (`is_deleted:true`).
+- **Tarea RECURRENTE:** dos salidas — **solo este día** (excepción `is_deleted:true` del día) o **terminar la rutina**
+  (`recurrence.endDate = ayer`; ver A1).
+- **CONTENEDOR SIN subtareas:** no es contenedor (se DERIVA de tener hijas, no es estado guardado) → se borra como tarea suelta.
+- **CONTENEDOR CON subtareas:** seleccionarlo selecciona sus HIJAS. **El contenedor NO tiene recurrencia propia** (§16.16);
+  la pregunta de recurrencia se refiere a las HIJAS.
+  - **"Solo este día":** afecta solo a ese día; si desaparecen las hijas de ese día, esa instancia del contenedor ya no está
+    (cascada a hijas INTACTAS — A2). Ningún otro día se toca.
+  - **"Terminar la rutina":** mantiene el pasado íntegro, corta de hoy en adelante = `endDate=ayer` en cada HIJA recurrente
+    (las manuales no se tocan).
+- **Si se borran todas las hijas de un contenedor → pasa a ser tarea suelta** (derivado de `subtasks.length`).
+- **⚠️ PRIMITIVA DE TERMINACIÓN = `recurrence.endDate`, NO `is_active`.** `matchesRecurrence` respeta `endDate` para TODAS las
+  series (top-level e hijas, `instanceEngine.ts:31`). `is_active` en TAREAS lo lee SOLO el motor en `instanceEngine.ts:222` y
+  solo filtra contenedores top-level → terminar una HIJA con `is_active` NO cortaba nada (bug de las 4 fantasmas). **`is_active`
+  queda VESTIGIAL en tareas** (la guarda de :222 se conserva como defensa por filas legadas; comentado en el código).
+  **Retirarlo del todo = item aparte pendiente** (no hacer ahora). *(Nota: `block.isActive` de BLOQUES es otra cosa, feature
+  viva, no relacionada.)*
+
 **FASE 5 — CREACIÓN (activa)**
+- 🔧 **A1 — "Terminar la rutina" con `endDate` (sesión 23, IMPLEMENTADO, pendiente validación).** La rama `series` del borrado
+  (`App.tsx`) pasa de `is_active:false` (memoria, no persistía, no cortaba hijas) a **`recurrence.endDate = ayer`**: si la
+  plantilla tiene pauta propia (hoja/hija) es ella; si es contenedor (sin pauta) se pone endDate a **cada hija recurrente**
+  (manuales intactas). Soft-delete de futuras materializadas INTACTAS ≥ hoy (pendiente+sin tiempo+sin excepción); las que
+  tengan trabajo se quedan (§16.16). **Barrido de las 4 fantasmas** (Ingresos, Bancoos, Picking horario, Revisar Margenes):
+  endDate=17-08, tenían 0 futuras materializadas → barrido limpio. **Auditado el borrado en LOTE** (`bulkDeleteTasks`): correcto
+  (persiste is_deleted + cascada a hijas), sin A1/A2. **Verificado en pantalla (datos de prueba, limpiado):** terminar hoja y
+  contenedor → endDate=17-08 en hoja y en la hija; no reaparecen tras recargar. 184 tests verdes.
 - ✔️ **COMPOSITOR VALIDADO EN PANTALLA (sesión 23) — CERRADO.** La propietaria confirma que funciona. Historial abajo.
 - ✔️ **Compositor — 2 hallazgos de la propietaria al validar, ARREGLADOS (sesión 21, commit compositor-fix):**
   - **1a: el "+ Tarea" GLOBAL (`StickyActionBar`, `App.tsx:442`) NO pasaba por el compositor** → creaba con `handleAddTask()`
@@ -3847,12 +3879,10 @@ pasadas de series diarias (FASE 6/7) · las 512 ocurrencias reales que contamina
     Las **otras hijas del contenedor NO se tocan** (cada una es su propia serie; no hay "serie vieja" a nivel de contenedor).
     **Verificado en pantalla (datos reales, limpiado):** vieja daily `endDate 08-17` (ayer) + nueva weekdays `startDate 08-18`
     (hoy), **ambas con `parent_task_id`=contenedor**; Mi Día = 1 fila. +1 test (isExpiredTemplate de hija con parentTaskId).
-  - ⚠️ **PENDIENTE DE VERIFICAR EN PANTALLA (única cosa del commit no vista, sesión 22): el NO-duplicado en la DEFINICIÓN.**
-    Que bajo un contenedor REAL, tras cambiar la pauta de una hija, NO aparezcan dos hijas con el mismo título (la vieja
-    terminada debe quedar oculta por `isExpiredTemplate`). Cubierto por test unitario + el filtro en el único punto de render
-    (`TaskCard.renderChildIds` modo Bloques + memo de `TaskModal`), PERO no se pudo ver en pantalla: el contenedor de prueba
-    caía en un contexto que Bloques no tenía activo. **Al validar: usar una rutina real y mirar Bloques + el modal del
-    contenedor.** No darlo por bueno hasta verlo.
+  - ✔️ **NO-duplicado en la DEFINICIÓN: VALIDADO EN PANTALLA por la propietaria (sesión 23).** Tras cambiar la pauta de una
+    hija bajo un contenedor real, NO aparecen dos hijas con el mismo título (la vieja terminada queda oculta por
+    `isExpiredTemplate` en `TaskCard.renderChildIds` + memo de `TaskModal`). Era lo único del commit `9a38cee` que quedaba sin
+    ver; cerrado.
   - 🔎 **HALLAZGO durante la verificación (y ARREGLADO en el mismo commit):** en el día del corte se DUPLICABA — la
     instancia vieja ya materializada de ese día seguía viva y la nueva serie generaba también ese día. Fix: el split
     soft-deletea las instancias viejas **pendientes** con fecha ≥ corte (las COMPLETADAS se dejan, §16.16). Verificado:

@@ -997,17 +997,35 @@ export default function App() {
               if (type === 'edit') {
                 setEditingRuleId(ruleId);
               } else {
+                // A1 (sesión 23): TERMINAR LA RUTINA = poner recurrence.endDate = AYER, NO is_active:false.
+                // endDate es la PRIMITIVA DE TERMINACIÓN correcta: matchesRecurrence la respeta para TODAS las series
+                // (top-level e hijas, instanceEngine:31). is_active solo lo mira el motor en contenedores top-level
+                // (instanceEngine:222) → terminar una HIJA con is_active NO cortaba nada (bug de las 4 fantasmas, §16.35).
+                // Modelo §16.16: pasado íntegro, corte de hoy en adelante → endDate = ayer.
+                const yesterday = formatLocalISO(new Date(parseLocalISO(today).getTime() - 86400000));
+                const tpl = tasks[ruleId];
+                // Objetivos: si la plantilla tiene pauta propia (hoja top-level o hija) → es ella. Si es un CONTENEDOR
+                // (sin pauta, §16.16) → terminar la rutina = terminar cada HIJA recurrente (cada una es su serie); las
+                // hijas MANUALES no se tocan. Así endDate es la única primitiva y el pasado de cada serie se conserva.
+                const targets: any[] = tpl?.recurrence
+                  ? [tpl]
+                  : (tpl?.subtasks || []).map((sid: string) => tasks[sid]).filter((c: any) => c && c.isTemplate && c.recurrence);
+                const endRec = (t: any) => ({ ...t.recurrence, endDate: yesterday });
+                // Futuras materializadas INTACTAS (pendiente + sin tiempo + sin excepción) ≥ hoy → soft-delete (con
+                // endDate no regeneran, pero una fila ya materializada seguiría mostrándose vía findLanded). Las que
+                // tengan trabajo encima (completada / con minutos / excepción) NO se tocan (§16.16) — se quedan.
+                const intactFutures = Object.values(tasks).filter((t: any) =>
+                  t && targets.some(g => g.id === t.templateId) && !t.isDeleted
+                  && (t.dueDate || t.instanceDate || '') >= today
+                  && t.status === 'pending' && !t.isException && !(t.actualMinutes && t.actualMinutes > 0));
                 setTasks(prev => {
                   const updated = { ...prev };
-                  if (updated[ruleId]) updated[ruleId] = { ...updated[ruleId], isActive: false, modifiedAt: timestamp };
-                  Object.values(updated).forEach(t => {
-                    if (t && t.templateId === ruleId && !t.isDeleted && t.dueDate && t.dueDate >= today) {
-                      updated[t.id] = { ...t, isDeleted: true, modifiedAt: timestamp };
-                    }
-                  });
+                  targets.forEach(g => { if (updated[g.id]) updated[g.id] = { ...updated[g.id], recurrence: endRec(g), modifiedAt: timestamp }; });
+                  intactFutures.forEach(o => { if (updated[o.id]) updated[o.id] = { ...updated[o.id], isDeleted: true, modifiedAt: timestamp }; });
                   return updated;
                 });
-                persist(supabase.from('tasks').update({ is_active: false, modified_at: timestamp }).eq('id', ruleId), { verbo: 'borrar', titulo: tasks[ruleId]?.title });
+                targets.forEach(g => persist(supabase.from('tasks').update({ recurrence: endRec(g), modified_at: timestamp }).eq('id', g.id), { verbo: 'borrar', titulo: g.title }));
+                intactFutures.forEach(o => persist(supabase.from('tasks').update({ is_deleted: true, modified_at: timestamp }).eq('id', o.id), { verbo: 'borrar', titulo: o.title }));
               }
             }
           }}
