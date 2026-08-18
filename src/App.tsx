@@ -981,14 +981,19 @@ export default function App() {
 
                 // A2 (sesión 23): "quitar SOLO este día" sobre un CONTENEDOR = CASCADA a las hijas del día.
                 // Antes se escribía solo la excepción-borrada del contenedor y no las hijas → TAPÓN B lo resucitaba si
-                // quedaba una hija pendiente persistida ("acepto y no borra"). Ahora se borran las hijas INTACTAS
-                // (pendiente + sin tiempo + sin excepción); las que tienen trabajo (completadas / con tiempo) NO se tocan
-                // (§16.16) y MANTIENEN el contenedor visible (el motor lo pinta mientras le queden hijas; si no queda
-                // ninguna, instanceEngine:285 lo suprime solo → no hace falta excepción de contenedor, ni tocar TAPÓN B).
-                const _day = taskToDelete.instanceDate || taskToDelete.dueDate || activeDate;
+                // quedaba una hija pendiente persistida ("acepto y no borra"). Ahora se borran las hijas INTACTAS; las que
+                // tienen trabajo (completadas / con tiempo) NO se tocan (§16.16) y MANTIENEN el contenedor visible (el motor
+                // lo pinta mientras le queden hijas; si no queda ninguna, instanceEngine:285 lo suprime solo → no hace
+                // falta excepción de contenedor, ni tocar TAPÓN B).
+                // DÍA = activeDate (día VISIBLE), NO la fecha de la instancia: una hija MOVIDA a hoy tiene instanceDate en su
+                // día original → usar instanceDate quitaría el día equivocado (bug de día, sesión 23). Corte clavado en lo que se ve.
+                const _day = activeDate;
                 const _rc = containerDayToggle(taskToDelete, tasks, _day);
                 if (_rc && _rc.children.length > 0) {
-                  const _intacta = (c: Task) => c.status === 'pending' && !c.isException && getTaskRegisteredSelf(c.id, timeEntries, _day) === 0;
+                  // INTACTA = pendiente + sin tiempo registrado ese día + no completada. Se quita el `!isException`
+                  // (sesión 23): editar el título o MOVER una hija a hoy NO es "trabajo" — solo completar o registrar
+                  // tiempo lo es. Sin esto, las hijas movidas a hoy (isException) se trataban como con-trabajo y "no se quitaba nada".
+                  const _intacta = (c: Task) => c.status === 'pending' && getTaskRegisteredSelf(c.id, timeEntries, _day) === 0;
                   const intactas = _rc.children.filter(_intacta);
                   const conTrabajo = _rc.children.filter(c => !_intacta(c));
                   // Todas con trabajo → no se quita nada. AVISO explícito (si no, "acepto y no pasa nada" = el mismo bug).
