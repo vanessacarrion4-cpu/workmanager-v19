@@ -3769,10 +3769,50 @@ borrar, F6-x2) debe cumplirla por diseño.
 > Consolida lo que estaba disperso en **§16.10** (orden), **§16.17** (aparcado), **§16.21** (tabla FASE 5/6), **§16.32**
 > (FASE 5) y **§16.33** (FASE 6), con lo de hoy. **Para el estado VIVO, ESTA es la lista.** Las otras quedan como
 > detalle/histórico. Estados: ⬜ pendiente · 🔧 en curso · ✅ hecho (pendiente validación de la propietaria) · ✔️ validado.
+>
+> 🟢 **El estado VIVO actual está en el bloque «SESIÓN 24» de aquí abajo y en §16.37 (documento para sesión de producto).**
+> El «PUNTO DE RETOMADA fin sesión 23» que sigue queda como HISTÓRICO de esa semana.
 
 ---
 
-#### ⏭️ PUNTO DE RETOMADA (fin sesión 23, 19/08/2026 → retomar sesión 24)
+#### ⏭️ SESIÓN 24 (19/08/2026) — CERRADO / VALIDADO / APARCADO / DESCARTADO
+
+**✅ CERRADO Y EN PRODUCCIÓN (`origin/master` = `a106726`; 184 tests verdes). Pendiente de validación en pantalla donde se indica:**
+- **"Hasta D/M" en la fila — extendido a las 6 vistas** (`2414fbb`). Serie con `endDate` FUTURO = "programada para
+  finalizar" → se ve "hasta D/M" gris tras el título, naranja si quedan ≤14 días. Mi Día ya lo VALIDÓ la propietaria;
+  el resto de vistas (Semana/Bloques/Búsqueda/Calendario/Delegadas) quedan pendientes de su ojo.
+- **BLOQUE 1 · borrado** (`b81a2eb`):
+  - **(a) confirm informativo del bulk:** "Se quitarán N tareas del [día]. Las series se mantienen." (conteo REAL, no `.size`).
+  - **(b) completadas en selección múltiple:** patrón `rootIds` — completada marcada DIRECTAMENTE (raíz) se borra; por
+    cascada de un contenedor sigue protegida.
+  - **(c) aviso rico §16.31:** banda-inventario (resumen por etiqueta + "Ver las N →" con lista agrupada) en
+    `RecurrenceChoiceModal`; modo recurrente (día/serie) y modo manual (`recurrent=false`, "No se puede deshacer desde la
+    app." + Eliminar, reemplaza el `confirm()` nativo). **(c) VERIFICADO en pantalla** (recurrente "Cierre Central Rec" 4
+    subtareas Focus 3/Dirección 1; manual "Accidente Moussa" 12 descendientes). **(a)/(b) NO screen-verificados** (la
+    selección múltiple no se aciona por automatización) → los valida la propietaria por la barra.
+- **BLOQUE 3 · FASE 5** (`a106726`):
+  - **F5-4:** aviso "¿convertir en contenedor?" abre con "Sí, convertir" enfocado (Enter confirma) + Escape cancela.
+    **NO screen-verificado** (no se pudo disparar el aviso por automatización; el foco es determinista) → lo valida la propietaria.
+  - **F5-7(a):** eliminado el fallback silencioso a `blocks[0]`; crear SIN bloque abre un selector "¿En qué bloque?" (sin
+    default) y no crea hasta elegir. **VERIFICADO en pantalla** (Semana → elegí RRHH → creó en RRHH; prueba borrada).
+
+**✔️ VALIDADO POR LA PROPIETARIA EN PANTALLA (sesión 24):** "Hasta D/M" en Mi Día · Finalizadas (sección nivel bloque +
+sub-sección contenedor + Reactivar, ya de sesión 23).
+
+**⏸️ APARCADO — lo decide la propietaria en sesión de PRODUCTO (mañana), no se construye:**
+- **BLOQUE 2 · sacar "terminar la rutina" de debajo de ELIMINAR** (decisión de MODELO). Las 3 preguntas abiertas están en
+  §16.37 · DECISIONES DE PRODUCTO ABIERTAS.
+
+**🗑️ DESCARTADO (sesión 24 — NO se hará; sale del inventario):**
+- **`bulkDuplicateTasks`** (stale-closure de `activeDate` + unificar con `bulkEffectiveIds`) → **descartado**: impacto bajo,
+  operación rara; no compensa. Ya no cuenta como pendiente.
+- **Segundo chip de ETIQUETA en el compositor de tanda** → **descartado**: el compositor es solo-bloque; no se añade.
+- **Default silencioso a `blocks[0]` en Calendario/Semana/Delegadas** → **RESUELTO por F5-7(a)** (esos 3 caminos ahora
+  pasan por el selector de bloque). No es pendiente ni descartado: está hecho.
+
+---
+
+#### ⏭️ PUNTO DE RETOMADA (fin sesión 23, 19/08/2026) — HISTÓRICO
 
 **✔️ CERRADO EN SESIÓN 23 (validado por la propietaria en pantalla):**
 - **F5-6 COMPLETO** (`bf2c9a1`+`9a38cee`) + **Compositor**. **D1 Delegadas: NO HAY BUG**; **barrido D2 limpio** (5 vistas
@@ -3830,9 +3870,10 @@ chip portal+Aplicar (`be028ac`).
 3. ⬜ **Modal de crear: bloque vacío + obliga a elegir** (parte (a) de F5-7). Commit APARTE.
 5. ⬜ **INV: F5-1** (no persistir vacía — el fix simple tenía RACE, diferir el insert) **+ F5-8** (ruido de consola).
 
-**APARCADO (no construir sin que lo pida):** chip de ETIQUETA en la tanda · `bulkDuplicateTasks` stale-closure · default
-silencioso en **Calendario/Delegadas/Semana** (creación) · **CORTE** de pendientes pasadas (FASE 6/7) · 512 reales que
-contaminan gráfico/reflexión (FASE 7) · **retirar `is_active` del todo** (hoy vestigial en tareas; ver Modelo de borrado).
+**APARCADO (histórico sesión 23 — ESTADO ACTUALIZADO en el bloque SESIÓN 24 de arriba):** ~~chip de ETIQUETA en la tanda~~
+(DESCARTADO s24) · ~~`bulkDuplicateTasks` stale-closure~~ (DESCARTADO s24) · ~~default silencioso en Calendario/Delegadas/
+Semana~~ (RESUELTO por F5-7a, s24) · **CORTE de pendientes pasadas** (sigue abierto → §16.37 decisiones) · **512 reales que
+contaminan gráfico/reflexión** (FASE 7) · **retirar `is_active` del todo** (hoy vestigial en tareas; ver Modelo de borrado).
 
 ---
 
@@ -4233,3 +4274,168 @@ que se acumula sola).
 
 **Nota (propietaria):** el lead confirma que la **zona de diagnóstico §16.8 NO es pulido** — resuelve algo que molesta a
 diario (la cabecera confusa). **Cuando llegue FASE 6, va PRIMERA.**
+
+---
+
+## 16.37 ⭐ DOCUMENTO PARA SESIÓN DE PRODUCTO (preparado fin sesión 24, 19/08/2026)
+
+> Para decidir MAÑANA con calma qué entra en FASE 6 y en MEJORAS, y qué funcionalidad exacta de cada cosa. **No se toca
+> código en esa sesión.** El estado de lo hecho esta semana está en el bloque «SESIÓN 24» de §16.35. Esta sección es la
+> revisión item por item + las decisiones abiertas.
+
+### ⚠️ AVISO DE FIABILIDAD (leer primero)
+El inventario de FASE 5 se hizo **leyendo código** y resultó **FALSO** — la creación estaba mucho peor de lo que el doc
+decía (la hija recurrente inline no generaba; 3 caminos metían todo en CM11 en silencio). **No repito eso.** Cada item de
+abajo lleva una marca de cuánto me fío:
+- 🟢 **COMPROBADO EN LA APP** (esta semana, con datos reales o dev server — digo cómo).
+- 🟡 **LEÍDO EN CÓDIGO** esta semana (visto el fichero, no ejecutado en pantalla).
+- 🔴 **SOLO TITULAR DEL DOC** — NO comprobado esta semana; puede haberse caído solo, como pasó con F5-3 y F5-5. **No dar
+  por bueno hasta verlo en la app.**
+
+Y una marca de madurez: **[CONSTRUIBLE]** = funcionalidad decidida, se puede empezar · **[TITULAR VACÍO]** = solo un
+nombre, falta decidir QUÉ hace exactamente (esto es lo que se decide mañana).
+
+---
+
+### A. FASE 6 — DISEÑO/USABILIDAD, revisión item por item
+
+1. **Zona de diagnóstico de la cabecera de Mi Día (§16.8).** 🟡 · **[CONSTRUIBLE]**. Sigue cierto (la cabecera confusa "23
+   DE 42 / PENDIENTES 19" sigue igual; lo confirmé de pasada al trabajar en Mi Día esta semana, pero NO rediseñé nada).
+   §16.8 tiene spec: liderar con **"FALTAN 19"**, degradar "23 hechas de 42" a texto pequeño. La propietaria: **va PRIMERA**
+   en FASE 6. Decidir el detalle visual exacto.
+
+2. **Aviso de borrado recurrente que LISTA (§16.31).** 🟢 · **YA HECHO ESTA SEMANA (BLOQUE 1c)** → **SALE de FASE 6.**
+   Verificado en pantalla. El "+ persist de futuras al terminar la rutina" que colgaba de este item también está hecho (A1,
+   sesión 23). Nada que decidir salvo el refinamiento del BLOQUE 2 (ver decisiones abiertas).
+
+3. **Calendario — "Ir a fecha" no retrocede de mes (§16.21 #5).** 🔴 · **[CONSTRUIBLE]**. NO comprobado esta semana; el doc
+   dice que solo muestra el mes actual y para ir a julio son ~23 clics. Arreglo definido: añadir navegación ‹ mes ›. Falta
+   confirmar en la app que sigue así antes de construir.
+
+4. **Calendario — completar en variante COMPACT (§16.27).** 🔴 · **[CONSTRUIBLE]**. NO comprobado esta semana. El doc dice
+   que la variante COMPACT (Calendario) no tiene checkbox de completar. Semana (misma variante COMPACT) SÍ se arregló y
+   validó (sesión, `dc83604`); Calendario quedó pendiente. Definido: añadir el checkbox a COMPACT también en Calendario.
+   **Verificar en la app que sigue faltando** (Semana y Calendario comparten variante, quizá cayó solo — NO lo di por bueho).
+
+5. **Bloques no completa recurrentes (§16.27 (3)).** 🔴 · decisión, no bug. El doc dice que Bloques es la vista de
+   DEFINICIÓN → se completa en Mi Día, no ahí. **[TITULAR / DECISIÓN]**: ¿se deja así (recomendado) o se quiere completar
+   desde Bloques? No comprobado esta semana.
+
+6. **B3 · acciones escondidas, tanda 2 (§16.21 fila 3).** 🔴 · **[PARCIAL / semi-definido]**. Tanda 1 (⋯ visible) hecha.
+   Tanda 2 pendiente: borrar bloque · borrar persona · editar/borrar tiempos · ver adjuntos · **agrandar el área de toque
+   del ⋯ (24→~44px)**. Lista concreta, pero el "dónde va cada una" no está cerrado. No comprobado esta semana.
+
+7. **Ancho máximo del contenido ~1.200px, centrado (§16.13).** 🔴 · **[CONSTRUIBLE]**. Titular claro (no estirar a todo el
+   ancho en pantallas grandes). No comprobado esta semana.
+
+8. **Checkbox que falta en filas completadas (§16.13).** 🔴 · **[TITULAR VACÍO / posible bug]**. "Revisar por qué una fila
+   completada no muestra su casilla en algún caso" — ni el caso ni la causa están identificados. Necesita reproducirse en la
+   app antes de saber si es bug o diseño.
+
+9. **F6-x1 · badge "en espera" en contenedor CONTRAÍDO (§16.33).** 🔴 · **[CONSTRUIBLE]**. Bien definido en §16.33 (símbolo
+   + número, cuenta `subtasksForGroup` con `onHold`, solo contraído, derivado, distinguible del de una tarea suelta). No
+   comprobado esta semana; la definición es sólida.
+
+10. **F6-x2 · selección múltiple con DOS alcances (etiqueta/día) (§16.33).** 🟡 · **[TITULAR con dependencia resuelta]**. La
+    dependencia (bug de selección §16.34) YA está arreglada → desbloqueado. PERO la funcionalidad exacta (cómo se eligen los
+    dos alcances, qué UI) NO está decidida — es titular. Se decide mañana.
+
+11. **F6-x3 · etiquetar el total histórico en Bloques (§16.33).** 🔴 · **[TITULAR VACÍO]**. Poca definición. Decidir qué
+    significa y para qué.
+
+12. **Hueco en la cabecera del bloque, Bloques (§16.9).** 🔴 · **[TITULAR VACÍO]**. Va con "el rediseño de Bloques de FASE
+    6", que tampoco está especificado. No comprobado.
+
+13. **Unificar Semana con el TaskCard normal (§16.6).** 🟡 · **[PARCIAL]**. Semana ya mueve y togglea por día (hecho). Queda
+    unificar el resto del render con el TaskCard normal. Alcance no cerrado.
+
+14. **Icono de calendario en la fila (§16.10).** 🟡 · **[PARCIAL]**. Hecho en Semana; falta en el resto si se quiere.
+
+15. **Aviso vista de Carga (§16.21 #8).** 🔴 · **[TITULAR VACÍO]**. "Que un contenedor no se proyecte dos veces ni
+    desaparezca; comprobar al rediseñar Carga." Depende de un rediseño de Carga que no existe. No comprobado.
+
+16. **Renombrar "borrar la serie" → "terminar la serie" (§16.21 #7).** 🟢 · **LIGADO A BLOQUE 2.** Esta semana el modal de
+    borrado ya se reescribió (§16.31) y la opción se llama "Terminar la rutina". El renombrado/reubicación definitivo es
+    parte del debate del BLOQUE 2 (decisiones abiertas). No es un item suelto.
+
+---
+
+### B. FASE 7 — MEJORAS (backlog), revisión item por item
+
+**Casi todo es TITULAR VACÍO** (nombres sin funcionalidad decidida). Ninguno comprobado en la app. Lo que hay:
+
+- **Deshacer** (incl. **deshacer borrado de una tarea suelta**, §16.31). 🟡 · **[TITULAR con motivo claro, sin diseño]**. HOY
+  no existe deshacer para una tarea suelta (sí para bloques, vía papelera). El "cómo" (papelera de tareas / toast con
+  deshacer / ventana de gracia) NO está decidido. Refuerza el aviso "No se puede deshacer desde la app" que ya se puso en el
+  borrado manual esta semana.
+- **CORTE de pendientes pasadas + las 512 reales que contaminan gráfico/reflexión.** 🟢 (medido) · **[DECISIÓN DE PRODUCTO]**.
+  Ver decisiones abiertas — es lo más maduro de FASE 7 porque ya está medido (§16.36).
+- **Calibración estimado/real** · **arrastrar lo no completado al día siguiente** · **dependencias** · **búsqueda con
+  filtros** · **seguimiento en Delegadas** · **gráfico elegido/impuesto** · **reflexión mensual** · **promover serie** ·
+  **atajos** · **sincronización con cola**. 🔴 · **[TITULARES VACÍOS]**. Cada uno es un nombre; falta decidir qué hace. Son
+  candidatos a definir en la sesión de producto si alguno sube de prioridad.
+
+---
+
+### C. DECISIONES DE PRODUCTO ABIERTAS (arrastradas, nunca cerradas)
+
+1. **CORTE de pendientes pasadas (§16.36).** HOY NO HAY CORTE: una recurrente diaria 75 días sin hacer acumula 75 pendientes
+   virtuales hacia atrás, sin caducidad. **No es una sola respuesta** (un pago atrasado no caduca como un picking). Decidir:
+   ¿cuántos días atrás sigue "viva" una pendiente recurrente? ¿por tipo? Bloquea que gráfico/reflexión (FASE 7) se
+   construyan sobre datos sucios (512 reales).
+
+2. **BLOQUE 2 · sacar "terminar la rutina" de debajo de ELIMINAR** (mi propuesta, sin construir). Tres preguntas:
+   - **(a)** ¿"Terminar rutina" como **acción propia en el menú ⋯**, separada de Eliminar? (recomendado) ¿u otro sitio?
+   - **(b)** ¿Añadir **"Eliminar la serie entera"** (estado ELIMINADA, a papelera, NO a Finalizadas) al modal de borrado, o
+     dejar el borrado solo con **"quitar este día"** por ahora?
+   - **(c)** ¿El confirm de "Terminar" lleva **banda-inventario** (como §16.31) o basta un **texto simple**?
+
+3. **Semántica de `endDate` FUTURO (§16.35 hallazgo).** PARCIALMENTE resuelto: se eligió la opción 2 ("hasta D/M" en la
+   fila, ya construido y validado en Mi Día). Queda por decidir si **basta con eso** o además quiere una sección
+   "Programadas para finalizar" aparte, o que "Terminar la rutina" sea el único camino canónico. (Ligado al BLOQUE 2.)
+
+4. **Retirar `is_active` del todo en TAREAS** (hoy vestigial; la primitiva de terminación es `recurrence.endDate`). Técnico
+   con cara de modelo. Decidir CUÁNDO (no urge; la guarda de `instanceEngine:222` se conserva como defensa por filas legadas).
+
+5. **Bloques ¿debe completar recurrentes?** (FASE 6 #5 arriba). Recomendación: no (es la vista de definición). Confirmar.
+
+*(FUERA de decisiones: chip de etiqueta en el compositor y refinamientos de `bulkDuplicateTasks` → DESCARTADOS sesión 24.
+Los 3 caminos de creación sin bloque → RESUELTOS por F5-7a.)*
+
+---
+
+### D. DECISIONES DE MODELO de esta semana (consolidadas — ya rigen el código)
+
+1. **Un CONTENEDOR no tiene recurrencia propia** (§16.16 / F5-6). La pauta vive en las HIJAS; `isTemplate:true` en un
+   contenedor es la LLAVE del motor (para que `materializeDay` baje a generar las instancias de las hijas), NO una pauta. El
+   esquema lo permite y `validateTemplate` solo avisa → **si aparece un contenedor con `frequency`, es DATO MALO, no
+   función.** (Sin guarda por código, por decisión.)
+
+2. **CORTE = HOY al cambiar una pauta** (no el día mirado). Se separan dos operaciones: **CREAR** usa el día mirado
+   (`activeDate`); **CAMBIAR una pauta** usa **HOY** (`formatLocalISO(new Date())`). Así el pasado queda intacto mires el día
+   que mires (§16.16: no reescribir el pasado). Cambiar pauta = PARTIR la serie (vieja con `endDate`, nueva desde el corte).
+
+3. **Tres estados distintos: COMPLETADA / FINALIZADA / ELIMINADA.** COMPLETADA = una ocurrencia hecha (1701, `status`).
+   FINALIZADA = la rutina dejó de repetirse (`endDate` pasado; es HISTORIA reactivable, NO basura → se ve en "Finalizadas" y
+   se reactiva). ELIMINADA = soft-delete (`is_deleted`, recuperable en BD, sin deshacer en la app). **"Terminar" NO debe
+   entrar por la puerta de ELIMINAR** (origen del BLOQUE 2). **Primitiva de terminación = `recurrence.endDate`, no
+   `is_active`.**
+
+4. **Acotar al CONTEXTO (acciones Y renderizado).** Un contenedor partido por etiqueta se muestra en varios grupos; **cada
+   acción y cada conteo se acotan al grupo VISIBLE** (`subtasksForGroup`): completar respeta el grupo (etiqueta en Mi Día,
+   persona en Delegadas); el badge cuenta lo que muestra (aplica `isExpiredTemplate`); "en espera" es un CONTADOR del grupo,
+   NO un estado que cascadea al padre. Propagar a hermanas de otras etiquetas = el fallo que se evita. (5 vistas ya acotan
+   por su eje — barrido D2 limpio, sesión 23.)
+
+5. **Conteos sobre `tasks` → SERVER-SIDE siempre.** El cliente Supabase trunca `.select()` a 1000 filas en silencio → `.length`
+   y `.filter().length` dan números FALSOS (falseó 774 vs 1701 completadas, 23 vs 9 huérfanas). Usar `count:'exact'` o
+   filtros server-side; cruces con `.in(ids)`. La app en sí es segura (`useSupabase` pagina con `.range`); el peligro es en
+   probes/mediciones. (Memoria: `criterio-conteos-server-side`.)
+
+6. **El borrado en LOTE solo hace la acción segura.** El bulk siempre "quita este día", nunca corta una serie ("terminar la
+   rutina" es decisión por-serie, solo desde la fila — Option B). Su confirm es INFORMATIVO, no una pregunta. (Sesión 24.)
+
+---
+
+**Estado del documento:** revisado para sesión de producto (sesión 24). Lo marcado 🔴 es lo que hay que MIRAR EN LA APP
+antes de darlo por cierto; lo marcado **[TITULAR VACÍO]** es lo que hay que DEFINIR mañana.
