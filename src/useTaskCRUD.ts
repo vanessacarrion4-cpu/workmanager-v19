@@ -62,6 +62,9 @@ interface UseTaskCRUDOptions {
   setEditingRuleId: (id: string | null) => void;
   setRecurrenceAction: (action: { taskId: string; type: 'edit' | 'delete'; ruleId: string; plain?: boolean } | null) => void;
   setAddSubtaskWarning: (val: { parentTaskId: string; blockId?: string; overrideDate?: string } | null) => void;
+  // F5-7(a) (sesión 24): crear SIN bloque y SIN padre del que heredarlo → abrir el selector de bloque (obliga a elegir),
+  // en vez del fallback silencioso a blocks[0] (el que llenó CM11). Los params se guardan para re-crear al elegir.
+  setBlockChoice: (val: { parentTaskId: string | null; overrideDate?: string; defaultPersonId?: string; initialTitle?: string } | null) => void;
   dashboardTasks: Task[];
 }
 
@@ -75,6 +78,7 @@ export function useTaskCRUD({
   setEditingRuleId,
   setRecurrenceAction,
   setAddSubtaskWarning,
+  setBlockChoice,
   dashboardTasks,
 }: UseTaskCRUDOptions) {
 
@@ -347,8 +351,12 @@ export function useTaskCRUD({
     }
 
     if (!finalBlockId) {
-      // FASE 5 (pendiente de decisión): fallback PROVISIONAL a blocks[0]; no está decidido que una tarea sin bloque deba caer en el primer bloque.
-      finalBlockId = blocks.length > 0 ? blocks[0].id : 'b1';
+      // F5-7(a) (sesión 24): DECISIÓN de la propietaria — una tarea SIEMPRE tiene bloque, elegido A PROPÓSITO. Se
+      // ELIMINA el fallback silencioso a blocks[0] (el default histórico que metió 214 tareas en CM11 sin que nadie
+      // lo decidiera). Sin bloque y sin padre del que heredarlo → abrir el SELECTOR de bloque y NO crear todavía;
+      // al elegir, App re-llama a handleAddTask con el bloque. Cubre los 3 caminos sin bloque: Calendario, Semana, Delegadas.
+      setBlockChoice({ parentTaskId, overrideDate, defaultPersonId, initialTitle });
+      return;
     }
 
     const newTask: Task = {
@@ -443,7 +451,7 @@ export function useTaskCRUD({
     // (el compositor mantiene su propio campo con foco para encadenar).
     if (initialTitle === undefined) setInlineEditingTaskId(id);
     return id;
-  }, [tasks, setTasks, blocks, activeDate, setEditingTaskId, setInlineEditingTaskId]);
+  }, [tasks, setTasks, blocks, activeDate, setEditingTaskId, setInlineEditingTaskId, setBlockChoice]);
 
   const handleUpdateTask = useCallback((updatedTask: Task, options?: { onHoldOnly?: boolean }) => {
     // Suspender/reactivar ("en suspenso") es un cambio de FLAG y nada más: NUNCA debe re-fechar la

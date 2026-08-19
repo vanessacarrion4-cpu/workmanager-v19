@@ -3578,10 +3578,21 @@ y la DECISIÓN F5-7. Cerrada la 6, la 5 es corta salvo esos dos.
   (`useTaskCRUD.ts:428/406`); `commitTitle` solo mira si cambió, no si está vacío (`TaskCard.tsx:256`).
 - **F5-2** (encadenar con Enter) → **NO EXISTE** (nunca se implementó). Enter guarda y sale (`TitleField.tsx:36-39`); no crea la siguiente. Item de FLUJO real.
 - **F5-3** (cursor al título al crear en contenedor) → **YA FUNCIONA** — `doAddTask` hace `setInlineEditingTaskId(id)` + `autoFocus` (`useTaskCRUD.ts:438`, `TitleField.tsx:31`). **Se cae del inventario** (salvo la rama "convertir en contenedor", que abre el modal — ligada a F5-4).
-- **F5-4** (aviso convertir con "Sí" enfocado/Enter) → **NO EXISTE.** El botón no tiene `autoFocus` ni hay handler de Enter (`App.tsx:847-882`). Item de FLUJO real.
+- **F5-4** (aviso convertir con "Sí" enfocado/Enter) → ✅ **HECHO (sesión 24, BLOQUE 3).** El botón "Sí, convertir"
+  lleva `autoFocus` + anillo de foco visible (un botón enfocado se activa con Enter de forma nativa) y el contenedor del
+  modal tiene `onKeyDown` para Escape → cancela. Verificar en pantalla: al añadir subtarea a una hoja CON datos, el aviso
+  abre con "Sí, convertir" ya enfocado → Enter confirma, Escape cancela.
 - **F5-5** (poner pauta a tarea NORMAL desde la fila) → **CABLEADO** (chip editable presente y conectado a la conversión manual→recurrente, `TaskCard.tsx:715-731` + `useTaskCRUD.ts:647-716`). No es "construir": es **VALIDAR en pantalla** (nunca se comprobó, §16.29).
 - **F5-6** (cambiar pauta de RECURRENTE desde la fila) → **SIGUE VIVO**; se puede REUTILIZAR lo existente (ver PASO 1). No hace falta picker nuevo.
 - **F5-7** (Mi Día → bloque por defecto) → **DECISIÓN (sesión 21, corregida): la tarea SIEMPRE tiene bloque (NO nulo). El formulario deja de PRESELECCIONAR el primero y OBLIGA a elegir bloque antes de crear.** NO bloque "Sin asignar", NO recordar el último. Las 214 de CM11 NO se tocan. **Sin bloqueo técnico ni migración:** `block_id` sigue `NOT NULL` (verificado: esquema PostgREST `required=[id,block_id,title,priority,on_hold]`) — y como toda tarea tendrá bloque, no hace falta tocar el esquema. Cambio = UI del formulario de creación: quitar la preselección + exigir elección; y quitar el fallback silencioso a `blocks[0]` (`useTaskCRUD.ts:345-347` y `:921`) para que no "acepte un valor ya puesto". **Origen del volumen de CM11 (214): default histórico del formulario (preselección de CM11), NO un bloque de trabajo limpio.** ✅ **Alcance decidido (propietaria, OPCIÓN 1): (a) el MODAL de crear** = campo de bloque vacío, no deja guardar sin elegir; **(b) el ALTA RÁPIDA de Mi Día** ("+ Nueva tarea") = al iniciar la tanda eliges bloque (SIN default); la tarea se crea en ese bloque con el título enfocado, y **Enter encadena creando más tareas EN ESE MISMO bloque** hasta que cambies o salgas (elección explícita una vez por tanda, NO "recordar el último"). → **F5-7(alta rápida) y F5-2 (Enter) son UN solo flujo de creación rápida**; se construyen juntos. Toca `doAddTask` (quitar el fallback silencioso a `blocks[0]`) + el flujo del "+ Nueva tarea".
+  ✅ **HECHO (sesión 24, BLOQUE 3) — parte (a):** eliminado el fallback silencioso a `blocks[0]` en `doAddTask`
+  (`useTaskCRUD.ts`). Ahora, crear SIN bloque y SIN padre del que heredarlo → abre un **SELECTOR DE BLOQUE** ("¿En qué
+  bloque?", sin default, `App.tsx` estado `blockChoice`) y NO crea hasta elegir; al elegir, re-llama a `handleAddTask` con
+  el bloque. Cubre los 3 caminos que creaban sin bloque: **Calendario** (CalendarView:376), **Semana** (WeekView:561),
+  **Delegadas** (DelegadasView:530). El compositor de Mi Día (parte b, sesión 23) ya obligaba a elegir. **VERIFICADO en
+  pantalla (dev):** "Añadir" en un día de Semana → abre el selector con todos los bloques activos; elegir RRHH creó la
+  tarea en RRHH (b7); tarea de prueba borrada. No hay más `blocks[0]` silencioso en la creación → CM11 deja de ser el
+  vertedero por defecto. TaskModal es solo edición (siempre trae bloque) → no necesita cambio.
 - **F5-8** (ruido de consola al arrancar) → **SIGUE VIVO.** Trío `[SUPABASE] Loading/Loaded/successfully` (`useSupabase.ts:299/366/454`) + `[REPAIR]`/limpieza condicionales. Item técnico menor.
 
 ### 16.33 Items NUEVOS de FASE 6 (sesión 21) — solo documentados, sin implementar.

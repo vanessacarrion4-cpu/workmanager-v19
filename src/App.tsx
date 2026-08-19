@@ -67,6 +67,9 @@ export default function App() {
   // `plain:true` (§16.31, sesión 24): contenedor MANUAL (no recurrente) → mismo modal en modo borrado-directo
   // (banda-inventario + "No se puede deshacer desde la app.", sin opción "este día / serie").
   const [recurrenceAction, setRecurrenceAction] = useState<{ taskId: string; type: 'edit' | 'delete'; ruleId: string; plain?: boolean } | null>(null);
+  // F5-7(a) (sesión 24): selector de bloque cuando se crea SIN bloque (Calendario/Semana/Delegadas). Guarda los params
+  // de la creación pendiente; al elegir bloque se re-llama a handleAddTask con él. Sustituye al default silencioso a CM11.
+  const [blockChoice, setBlockChoice] = useState<{ parentTaskId: string | null; overrideDate?: string; defaultPersonId?: string; initialTitle?: string } | null>(null);
   const [instancesModalTask, setInstancesModalTask] = useState<Task | null>(null);
   const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
   const [pendingDateChange, setPendingDateChange] = useState<{ task: any; newDate: string } | null>(null);
@@ -214,7 +217,7 @@ export default function App() {
   } = useTaskCRUD({
     tasks, setTasks, blocks, activeDate,
     setEditingTaskId, setInlineEditingTaskId, setEditingRuleId,
-    setRecurrenceAction, setAddSubtaskWarning, dashboardTasks,
+    setRecurrenceAction, setAddSubtaskWarning, setBlockChoice, dashboardTasks,
   });
 
   const {
@@ -824,7 +827,10 @@ export default function App() {
 
       {/* Modal aviso: añadir subtarea a tarea con fecha */}
       {addSubtaskWarning && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setAddSubtaskWarning(null); } }}
+        >
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAddSubtaskWarning(null)} />
           <div className="relative bg-bg-card border border-border-main rounded-3xl p-6 shadow-2xl max-w-sm w-full z-10">
             <div className="text-center mb-5">
@@ -878,11 +884,50 @@ export default function App() {
                   }).eq('id', parentTaskId), { verbo: 'guardar', titulo: tasks[parentTaskId]?.title });
                   setTimeout(() => setEditingTaskId(id), 50);
                 }}
-                className="flex-1 py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/80 transition-all"
+                autoFocus
+                className="flex-1 py-3 rounded-2xl bg-turquesa text-white font-black text-sm hover:bg-turquesa/80 transition-all focus:outline-none focus:ring-2 focus:ring-turquesa/60 focus:ring-offset-2 focus:ring-offset-bg-card"
               >
                 Sí, convertir
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* F5-7(a): SELECTOR DE BLOQUE al crear sin bloque (Calendario/Semana/Delegadas). Obliga a elegir; no hay default. */}
+      {blockChoice && (
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setBlockChoice(null); } }}
+        >
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setBlockChoice(null)} />
+          <div className="relative bg-bg-card border border-border-main rounded-3xl p-6 shadow-2xl max-w-sm w-full z-10">
+            <div className="text-center mb-5">
+              <div className="text-3xl mb-3">📥</div>
+              <h3 className="text-white font-black text-lg mb-2">¿En qué bloque?</h3>
+              <p className="text-text-secondary text-sm leading-relaxed">Elige el bloque de la nueva tarea. No hay bloque por defecto.</p>
+            </div>
+            <div className="max-h-[50vh] overflow-y-auto space-y-2">
+              {blocks.filter((b: any) => b.isActive).map((b: any, i: number) => (
+                <button
+                  key={b.id}
+                  autoFocus={i === 0}
+                  onClick={() => {
+                    const p = blockChoice;
+                    setBlockChoice(null);
+                    handleAddTask(p.parentTaskId, b.id, p.overrideDate, p.defaultPersonId, p.initialTitle);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded-2xl border border-border-main text-left text-white hover:border-turquesa hover:bg-bg-main transition-all focus:outline-none focus:ring-2 focus:ring-turquesa/60"
+                  style={{ borderLeftColor: b.color, borderLeftWidth: 3 }}
+                >
+                  <span className="text-xl shrink-0">{b.icon}</span>
+                  <span className="font-bold text-sm truncate">{b.name}</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setBlockChoice(null)} className="w-full mt-4 py-3 text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-white transition-all">
+              Cancelar
+            </button>
           </div>
         </div>
       )}
