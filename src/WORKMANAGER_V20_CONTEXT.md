@@ -3856,6 +3856,23 @@ La app MEZCLA tres estados que la propietaria distingue. Hay que separarlos:
   "Programadas para finalizar" aparte; (4) que "Terminar la rutina" sea el único camino canónico y el modal solo edite
   la fecha de una pauta activa.
 
+**"HASTA D/M" en la fila (variante A+color) — IMPLEMENTADO en Mi Día (sesión 23), PENDIENTE validación en pantalla:**
+- Decisión (opción 2 de la propietaria): una serie con `endDate` en el FUTURO = "programada para finalizar" → hay que
+  VERLO en la fila, sin sección nueva ni aviso. El día que la fecha pase, salta sola a Finalizadas.
+- Regla elegida = **A + color**: se muestra SIEMPRE que la serie tenga fin puesto (texto gris), y vira a **naranja
+  (bold)** cuando quedan **≤14 días**. Formato **numérico "hasta D/M"** (p.ej. "hasta 30/9"), sin ceros.
+- `TaskCard.endDateSuffix(rec, todayISO)` (módulo): null si no hay endDate o si ya pasó (`daysLeft<0` → esa serie es
+  FINALIZADA, va a su sección, no a la fila activa); `{text, near}` con `near = daysLeft<=14`.
+- Render: detrás del título (la columna de pauta del raíl es `w-[48px]` fija y no cabe), `shrink-0`, gris
+  `text-secondary/60` o naranja `dark:text-naranja text-naranja-light` bold. Gate: **solo `variant==='DASHBOARD'`
+  (Mi Día) y `!hasSubtasks`** (los contenedores no tienen una endDate única; es por-serie) — a decisión de la
+  propietaria antes de extenderlo a Semana/Bloques/Búsqueda.
+- **VERIFICADO por DOM (dev server):** con dos series de test (crearhija→30/9, fd z→25/8) las dos filas mostraron
+  "hasta 30/9" en `rgba(148,163,184,.6)` peso 500 (gris) y "hasta 25/8" en `rgb(249,115,22)` peso 700 (naranja).
+  Datos de test restaurados (endDate quitado). 184 tests verdes. Falta el OK visual de la propietaria.
+- **Qué mirar:** en Mi Día, una serie recurrente con fin puesto a futuro → "hasta D/M" gris detrás del título;
+  si el fin está a ≤2 semanas → naranja. Sin fin → nada. Contenedores → nada (es por-serie).
+
 **SECCIÓN "FINALIZADAS" en Bloques — IMPLEMENTADA (Bloque 3, sesión 23), VALIDADA:**
 - **Nivel BLOQUE** (`BlocksView`): memo `finalizadasTasks` (top-level con endDate pasado) + sección plegada "Finalizadas (N)"
   al final del bloque, orden por fecha de fin, con botón **Reactivar**.

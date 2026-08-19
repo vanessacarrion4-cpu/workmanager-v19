@@ -60,6 +60,22 @@ function recurrenceLabel(rec: any, refDate?: string | null): string {
   return String(freq || '');
 }
 
+/**
+ * Sesión 23 (variante A+color): sufijo "hasta D/M" para una serie con fecha de fin PROGRAMADA (endDate ≥ hoy).
+ * Se muestra SIEMPRE que la serie tenga fin puesto (gris); vira a naranja cuando quedan ≤14 días ("esto se acaba").
+ * NO se muestra si el fin ya pasó (esa serie es FINALIZADA, va a su sección, no a la fila activa) → devuelve null.
+ * Solo aplica en Mi Día (variant DASHBOARD) de momento, a decisión de la propietaria antes de extenderlo.
+ */
+function endDateSuffix(rec: any, todayISO: string): { text: string; near: boolean } | null {
+  if (!rec || !rec.endDate) return null;
+  const parts = String(rec.endDate).split('-');
+  const y = parseInt(parts[0], 10), m = parseInt(parts[1], 10), d = parseInt(parts[2], 10);
+  if (!y || !m || !d) return null;
+  const daysLeft = Math.round((new Date(rec.endDate + 'T12:00:00').getTime() - new Date(todayISO + 'T12:00:00').getTime()) / 86400000);
+  if (daysLeft < 0) return null; // fin pasado → serie finalizada, no en la fila activa
+  return { text: `hasta ${d}/${m}`, near: daysLeft <= 14 };
+}
+
 export function TaskCard({
   task, 
   variant, 
@@ -607,6 +623,24 @@ export function TaskCard({
                   </button>
                 );
               })()}
+            {/* "hasta D/M" — fin PROGRAMADO de la serie (variante A+color, sesión 23). Solo Mi Día por ahora.
+                Detrás del título (la columna de pauta del raíl es de 48px fijos y no cabe). Gris normal; naranja
+                si quedan ≤14 días. No aparece si no hay fin, ni si el fin ya pasó (esa va a Finalizadas). */}
+            {variant === 'DASHBOARD' && !hasSubtasks && (() => {
+              const _rec = (task.templateId)
+                ? allTasksMap[task.templateId]?.recurrence
+                : (task.isTemplate && task.recurrence ? task.recurrence : null);
+              const _suf = endDateSuffix(_rec, formatLocalISO(new Date()));
+              if (!_suf) return null;
+              return (
+                <span
+                  title={`Esta serie está programada para finalizar el ${_suf.text.replace('hasta ', '')}`}
+                  className={`shrink-0 ml-1.5 text-[10px] whitespace-nowrap tabular-nums ${_suf.near ? 'font-bold dark:text-naranja text-naranja-light' : 'font-medium dark:text-text-secondary/60 text-text-secondary-light/60'}`}
+                >
+                  {_suf.text}
+                </span>
+              );
+            })()}
             {/* Spacer: empuja el raíl a la derecha. El título (izquierda) mide su texto y cede
                 este hueco; se trunca solo al chocar con el raíl. */}
             <div className="flex-1 min-w-0" />
