@@ -133,6 +133,7 @@ export function TaskCard({
 
   // A (sesión 19): "ver completadas" POR CONTENEDOR (solo Bloques). No global → abrir uno no llena los demás.
   const [showCompletedChildren, setShowCompletedChildren] = useState(false);
+  const [finalizadasHijasOpen, setFinalizadasHijasOpen] = useState(false); // Finalizadas: sub-sección plegada dentro del contenedor (Bloques)
   // Lista de hijas a PINTAR (memoizada → `values` estable para Framer Motion Reorder, arregla el arrastre flaky):
   //  - Bloques: getVisibleSubtasksForBloques (regla canónica) con el "ver completadas" local.
   //  - Mi Día / resto: (subtasksForGroup || task.subtasks) filtrado por el hideCompleted global (comportamiento previo).
@@ -150,6 +151,18 @@ export function TaskCard({
     }));
   }, [blocksMode, showCompletedChildren, subtasksForGroup, task, allTasksMap, hideCompleted]);
   const hiddenCompletedCount = blocksMode ? hiddenCompletedCountForBloques(task, allTasksMap) : 0;
+
+  // FINALIZADAS dentro del contenedor (sesión 23, solo Bloques): hijas-serie terminadas (endDate pasado) que
+  // renderChildIds oculta. Van en una sub-sección plegada al final de las hijas, reactivables — así se ven en Bloques
+  // (al expandir el contenedor) y se reactivan en SU contexto, sin descolocarlas al final del bloque.
+  const finalizadasHijas = useMemo(() => {
+    if (!blocksMode) return [];
+    const todayISO = formatLocalISO(new Date());
+    return (task.subtasks || [])
+      .map((id: string) => allTasksMap[id])
+      .filter((s: any) => s && isExpiredTemplate(s, todayISO))
+      .sort((a: any, b: any) => (b.recurrence?.endDate || '').localeCompare(a.recurrence?.endDate || ''));
+  }, [blocksMode, task.subtasks, allTasksMap]);
 
   // Highlight helper: resalta el texto coincidente con fondo amarillo
   const HighlightText = ({ text }: { text: string }) => {
@@ -980,6 +993,36 @@ export function TaskCard({
                     </Reorder.Item>
                   ))}
                 </Reorder.Group>
+              )}
+
+              {/* ── FINALIZADAS dentro del contenedor (sesión 23, solo Bloques): sub-sección plegada, reactivable ── */}
+              {blocksMode && finalizadasHijas.length > 0 && (
+                <div className="pt-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setFinalizadasHijasOpen(v => !v); }}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg dark:text-text-secondary/70 text-text-secondary-light/70 hover:opacity-80 transition-all"
+                  >
+                    <ChevronDown size={12} className={`transition-transform ${finalizadasHijasOpen ? '' : '-rotate-90'}`} />
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em]">Finalizadas ({finalizadasHijas.length})</span>
+                  </button>
+                  {finalizadasHijasOpen && (
+                    <div className="space-y-1 pl-2">
+                      {finalizadasHijas.map((s: any) => (
+                        <div key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg dark:bg-bg-card/20 bg-white/40">
+                          <span className="flex-1 min-w-0 truncate text-[12px] font-bold dark:text-text-secondary text-text-secondary-light line-through capitalize">{s.title}</span>
+                          <span className="text-[9px] font-bold dark:text-text-secondary/50 text-text-secondary-light/50 whitespace-nowrap">fin {s.recurrence?.endDate}</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onUpdateTask({ ...s, recurrence: { ...s.recurrence, startDate: formatLocalISO(new Date()), endDate: undefined } }); }}
+                            title="Reactivar: vuelve a repetirse de hoy en adelante (sin recuperar el hueco)"
+                            className="flex items-center gap-1 px-2 py-1 rounded-md bg-turquesa/10 border border-turquesa/40 text-turquesa text-[9px] font-black uppercase tracking-widest hover:bg-turquesa/20 transition-all shrink-0"
+                          >
+                            <RefreshCw size={10} /> Reactivar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* A (sesión 19): "ver completadas (N)" POR CONTENEDOR. Aparece si hay completadas ocultas — así un

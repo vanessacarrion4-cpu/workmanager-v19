@@ -148,6 +148,7 @@ export function BlocksManagerView({
     try { localStorage.setItem('wm-blocks-hide-completed', String(hideCompleted)); } catch { /* noop */ }
   }, [hideCompleted]);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [finalizadasOpen, setFinalizadasOpen] = useState(false); // Finalizadas: sección plegada al final del bloque
 
   // Notify parent of expand state changes
   React.useEffect(() => {
@@ -211,6 +212,17 @@ export function BlocksManagerView({
       return taskMatchesSearch(t, searchQuery);
     }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
   }, [selectedBlock, allTasksMap, hideCompleted, searchQuery]);
+
+  // FINALIZADAS (sesión 23): series TOP-LEVEL terminadas (endDate pasado) de este bloque. NO son basura — son historia,
+  // reactivables. Van en su propia sección plegada al final del bloque, orden por fecha de fin (reciente arriba).
+  const finalizadasTasks = useMemo(() => {
+    if (!selectedBlock) return [];
+    const todayISO = formatLocalISO(new Date());
+    return Object.values(allTasksMap).filter((t: any) =>
+      t && t.blockId === selectedBlock.id && !t.parentTaskId && !t.templateId && !t.isDeleted
+      && isExpiredTemplate(t, todayISO)
+    ).sort((a: any, b: any) => (b.recurrence?.endDate || '').localeCompare(a.recurrence?.endDate || ''));
+  }, [selectedBlock, allTasksMap]);
 
   // Cuando hay búsqueda activa, expandir automáticamente contenedores con coincidencias en subtareas
   useEffect(() => {
@@ -438,6 +450,36 @@ export function BlocksManagerView({
               )}
             </div>
           </div>
+
+          {/* ── FINALIZADAS (sesión 23): sección plegada al final del bloque, historia reactivable ── */}
+          {finalizadasTasks.length > 0 && (
+            <div className="pt-4">
+              <button
+                onClick={() => setFinalizadasOpen(v => !v)}
+                className="w-full flex items-center gap-2 px-4 py-2.5 rounded-2xl dark:bg-bg-main/40 bg-gray-100/60 border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:opacity-80 transition-all"
+              >
+                <ChevronRight size={14} className={`transition-transform ${finalizadasOpen ? 'rotate-90' : ''}`} />
+                <span className="text-[11px] font-black uppercase tracking-[0.2em]">Finalizadas ({finalizadasTasks.length})</span>
+              </button>
+              {finalizadasOpen && (
+                <div className="mt-2 space-y-1">
+                  {finalizadasTasks.map((t: any) => (
+                    <div key={t.id} className="flex items-center gap-3 px-4 py-2 rounded-xl dark:bg-bg-card/30 bg-white/50 border dark:border-border-main/50 border-border-main-light/50">
+                      <span className="flex-1 min-w-0 truncate text-[13px] font-bold dark:text-text-secondary text-text-secondary-light line-through capitalize">{t.title}</span>
+                      <span className="text-[10px] font-bold dark:text-text-secondary/60 text-text-secondary-light/60 whitespace-nowrap">fin {t.recurrence?.endDate}</span>
+                      <button
+                        onClick={() => onUpdateTask({ ...t, recurrence: { ...t.recurrence, startDate: formatLocalISO(new Date()), endDate: undefined } })}
+                        title="Reactivar: vuelve a repetirse de hoy en adelante (sin recuperar el hueco)"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-turquesa/10 border border-turquesa/40 text-turquesa text-[10px] font-black uppercase tracking-widest hover:bg-turquesa/20 transition-all shrink-0"
+                      >
+                        <RotateCcw size={12} /> Reactivar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </motion.div>
     </>

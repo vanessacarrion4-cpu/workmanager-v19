@@ -3828,7 +3828,21 @@ La app MEZCLA tres estados que la propietaria distingue. Hay que separarlos:
   propietaria la piensa como ACABADA. **ANOTADO (no cambiar aún): sacar "terminar la rutina" de la puerta de ELIMINAR** —
   entrar por el borrado a un estado que no es borrado es lo que le hizo pensar que las había perdido.
 
-**SECCIÓN "FINALIZADAS" en Bloques (aprobada, plan — PENDIENTE de construir tras validar la creación de hijas):**
+**SECCIÓN "FINALIZADAS" en Bloques — IMPLEMENTADA (Bloque 3, sesión 23, pendiente validación de la propietaria):**
+- **Nivel BLOQUE** (`BlocksView`): memo `finalizadasTasks` (top-level con endDate pasado) + sección plegada "Finalizadas (N)"
+  al final del bloque, orden por fecha de fin, con botón **Reactivar**.
+- **Nivel CONTENEDOR** (`TaskCard`, solo Bloques): memo `finalizadasHijas` (hijas-plantilla con endDate pasado) + sub-sección
+  plegada "Finalizadas (N)" al final de las hijas, con **Reactivar**.
+- **Reactivar** = `onUpdateTask({...t, recurrence:{...recurrence, startDate=HOY, endDate:undefined}})` → `recurrenceChanged` es
+  false (solo cambian startDate/endDate) → NO dispara split → genera de hoy en adelante, sin regenerar el hueco.
+- **VERIFICADO en pantalla:** sub-sección de contenedor "Cierre Propias" → "Finalizadas (2)" con Revisar Margenes / Hacer
+  cuadro Resumen + Reactivar → reactivar quitó endDate y puso startDate=hoy (datos de prueba restaurados). La sección de
+  NIVEL BLOQUE usa el mismo patrón pero no se pudo navegar a b3/b7 en automatización → la valida la propietaria.
+- **Qué mirar (validación):** en un bloque con series finalizadas (b7 RRHH: Firmas RRHH, Revisar nóminas, Mirar situación CV)
+  → "Finalizadas (3)" al final; dentro de un contenedor con hijas finalizadas (Cierre Propias) → sub-sección "Finalizadas";
+  Reactivar → vuelve a la lista activa y genera de hoy.
+
+**Plan original (referencia):**
 - **Nombre: "Finalizadas"** (no "Terminadas"). Al final de cada bloque, PLEGADA, contador propio, orden por fecha de fin (reciente arriba).
 - **Cada finalizada lleva acción REACTIVAR:** quitar `endDate` + `startDate=hoy` → genera de hoy en adelante, **sin regenerar el
   hueco** [endDate..hoy] (arranque limpio desde hoy; el pasado real —completadas— se conserva como excepciones). *(Instinto de
