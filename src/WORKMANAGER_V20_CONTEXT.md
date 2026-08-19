@@ -3828,7 +3828,35 @@ La app MEZCLA tres estados que la propietaria distingue. Hay que separarlos:
   propietaria la piensa como ACABADA. **ANOTADO (no cambiar aún): sacar "terminar la rutina" de la puerta de ELIMINAR** —
   entrar por el borrado a un estado que no es borrado es lo que le hizo pensar que las había perdido.
 
-**SECCIÓN "FINALIZADAS" en Bloques — IMPLEMENTADA (Bloque 3, sesión 23, pendiente validación de la propietaria):**
+**BLOQUES 1/2/3 (sesión 23) — VALIDADOS EN PANTALLA por la propietaria (2026-08-19):**
+- **Bloque 1 (chips):** Fecha/Etiqueta/Bloque/Estimado persisten OK (reload-persist) → NO tocados. Solo Recurrencia
+  fallaba en silencio (backdrop atrapado por ancestro `transform` → onChange al cerrar nunca aplicaba) → fix portal +
+  botón Aplicar. Validado.
+- **Bloque 2 (limpieza):** 9 huérfanas soft-borradas (0 historia), Gestión campaña 17-08 (día quitado, serie intacta),
+  `useSupabaseData.ts` borrado (código muerto, `.select()` sin paginar). Validado.
+- **Bloque 3 (Finalizadas):** sección nivel bloque + sub-sección contenedor + Reactivar. Validado.
+
+**🔴 HALLAZGO (sesión 23, DIAGNOSTICADO, sin arreglar) — dos caminos para finalizar, solo uno cuenta:**
+- **Camino A — "Terminar la rutina" (Mi Día → borrar → serie):** `App.tsx:1057,1065` escribe
+  `recurrence.endDate = AYER` (`today - 1 día`). Como AYER `< HOY`, `isExpiredTemplate` = true → aparece en Finalizadas. ✓
+- **Camino B — modal "Termina → El [fecha]" (`TaskModal.tsx:716,726`) y chip inline (`Chips.tsx:558,563`):** escriben
+  `recurrence.endDate = la fecha que elige la usuaria` (default al activar = **+6 meses**, futuro). MISMO campo, MISMO
+  formato. La diferencia es el VALOR.
+- **Causa raíz:** `isExpiredTemplate` (`utils.ts:98`) usa `endDate < todayISO` (estricto). Una serie con `endDate = HOY`
+  o **futuro** NO está expirada → no sale en Finalizadas. Si por el modal pone la fecha de hoy o deja el default de
+  +6 meses, la serie sigue ACTIVA (correcto: `matchesRecurrence` genera hasta e incluyendo endDate), solo que aún no
+  ha terminado → por eso no aparece en Finalizadas.
+- **`recurrenceChanged` (`utils.ts:80`) NO incluye endDate/startDate** → cambiar endDate por el modal NO dispara split;
+  solo actualiza la plantilla. (Bien.)
+- **Otros caminos que ponen endDate:** solo A (ayer), B-modal, B-chip. Reactivar (TaskCard/BlocksView) pone
+  `endDate=undefined` (lo quita). No hay más.
+- **Semántica pendiente de decisión de la propietaria:** una serie con `endDate` en el FUTURO = "programada para
+  finalizar", no "finalizada". Hoy: activa y visible en Bloques como regla normal; entra en Finalizadas sola cuando la
+  fecha pasa. Opciones sin construir: (1) dejarlo así; (2) mostrar "Finaliza el DD/MM" en la fila activa; (3) sección
+  "Programadas para finalizar" aparte; (4) que "Terminar la rutina" sea el único camino canónico y el modal solo edite
+  la fecha de una pauta activa.
+
+**SECCIÓN "FINALIZADAS" en Bloques — IMPLEMENTADA (Bloque 3, sesión 23), VALIDADA:**
 - **Nivel BLOQUE** (`BlocksView`): memo `finalizadasTasks` (top-level con endDate pasado) + sección plegada "Finalizadas (N)"
   al final del bloque, orden por fecha de fin, con botón **Reactivar**.
 - **Nivel CONTENEDOR** (`TaskCard`, solo Bloques): memo `finalizadasHijas` (hijas-plantilla con endDate pasado) + sub-sección
