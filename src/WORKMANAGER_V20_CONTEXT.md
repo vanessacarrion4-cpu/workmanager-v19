@@ -3800,6 +3800,27 @@ contaminan gráfico/reflexión (FASE 7) · **retirar `is_active` del todo** (hoy
 
 ---
 
+#### 📐 MODELO DE ESTADOS: COMPLETADA / FINALIZADA / ELIMINADA (decidido sesión 23 — ESPECIFICACIÓN)
+
+La app MEZCLA tres estados que la propietaria distingue. Hay que separarlos:
+- **COMPLETADA** — una OCURRENCIA que hizo. Es un hecho consumado (§16.16). `status='completed'`. **1701** vivas (server-side).
+- **FINALIZADA** — la RUTINA dejó de repetirse. NO la hizo ni la borró: terminó. `recurrence.endDate` pasado, `is_deleted=false`.
+  **13** (12 reales + 1 prueba). **Es HISTORIA de la propietaria, NO basura. Debe verse y poder REACTIVARSE.**
+- **ELIMINADA** — la borró; no quería que existiera. `is_deleted=true` (soft-delete, recuperable en BD).
+- **⚠️ El problema:** "terminar la rutina" se alcanza por el botón **ELIMINAR** y el sistema la trata como borrada; la
+  propietaria la piensa como ACABADA. **ANOTADO (no cambiar aún): sacar "terminar la rutina" de la puerta de ELIMINAR** —
+  entrar por el borrado a un estado que no es borrado es lo que le hizo pensar que las había perdido.
+
+**SECCIÓN "FINALIZADAS" en Bloques (aprobada, plan — PENDIENTE de construir tras validar la creación de hijas):**
+- **Nombre: "Finalizadas"** (no "Terminadas"). Al final de cada bloque, PLEGADA, contador propio, orden por fecha de fin (reciente arriba).
+- **Cada finalizada lleva acción REACTIVAR:** quitar `endDate` + `startDate=hoy` → genera de hoy en adelante, **sin regenerar el
+  hueco** [endDate..hoy] (arranque limpio desde hoy; el pasado real —completadas— se conserva como excepciones). *(Instinto de
+  la propietaria = desde hoy; coincide. La alternativa —regenerar el hueco para "ponerse al día"— NO se quiere.)*
+- **Las HIJAS finalizadas también en Bloques.** RECOMENDACIÓN: sub-sección "Finalizadas (N)" **DENTRO del contenedor** (al final
+  de sus hijas, plegada, con reactivar), visible al expandir el contenedor en Bloques — así una hija finalizada se reactiva en
+  SU contexto y no se descoloca al final del bloque. Bloque-nivel = las 5 top-level; contenedor-nivel = las 7 hijas.
+- NO toca Búsqueda; NO toca las 1701 completadas.
+
 #### 📐 MODELO DE BORRADO (decidido sesión 23 — ESPECIFICACIÓN, no tiene fase)
 
 - **Tarea MANUAL:** se borra y punto (`is_deleted:true`).
