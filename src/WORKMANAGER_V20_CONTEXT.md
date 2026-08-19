@@ -3809,6 +3809,14 @@ contaminan gráfico/reflexión (FASE 7) · **retirar `is_active` del todo** (hoy
 
 ---
 
+#### 🧹 LIMPIEZA DE DATOS (Bloque 2, sesión 23 — hecho, verificado antes de borrar)
+- **9 hijas recurrentes HUÉRFANAS** (padre contenedor borrado, de mayo, 0 instancias completadas) → **soft-delete** (is_deleted:true).
+  Eran restos de contenedores duplicados borrados ("Rutinas mañana" dup, "rec cont sabado"); sus versiones vivas siguen.
+- **"Gestión campaña" día 17-08** (el 1 resucitado por TAPÓN B) → soft-delete de sus **hijas pendientes de ESE día** (instancias
+  17-08, no las plantillas) → el día se va, la serie sigue otros días.
+- **`useSupabaseData.ts` BORRADO** (código muerto: no se importaba en ningún sitio; usaba `.select()` sin paginar → el patrón
+  que falseaba conteos). La app carga por `useSupabase` (que sí pagina). Los docs aún lo mencionan como histórico.
+
 #### 📐 MODELO DE ESTADOS: COMPLETADA / FINALIZADA / ELIMINADA (decidido sesión 23 — ESPECIFICACIÓN)
 
 La app MEZCLA tres estados que la propietaria distingue. Hay que separarlos:
