@@ -3754,13 +3754,28 @@ borrar, F6-x2) debe cumplirla por diseño.
 - **A2 — cascada "quitar solo este día" (fila)** (`c89b898`) — VALIDADO.
 - **A3-bulk — borrado en lote usa `bulkEffectiveIds` + guarda de tiempo, Option B** (`674a498`) — VALIDADO (pasos 1/2/3).
 
-**🔴 EN CURSO / PRIORIDAD (sesión 23→24):**
-- **#4a contador del contenedor** (`badge` no aplicaba `isExpiredTemplate` → decía 5, mostraba 4). **ARREGLADO** en
-  `TaskCard` (badge cuenta lo que muestra). Confirmar en pantalla (Bloques, "Rutinas Mañana" b1: badge 4→1; "Cierre
-  Propias" b2: baja 2). **Las series terminadas NO se pierden** — 12 vivas en BD, solo ocultas (5 top-level + 7 hijas).
-- **🔜 SECCIÓN "TERMINADAS" en Bloques (APROBADA, prioridad tras el contador).** Al final de cada bloque, PLEGADA, contador
-  propio, ordenada por fecha de fin (reciente arriba). Solo series terminadas (endDate pasado); NO las 774 completadas; en
-  Búsqueda NO salen. **Recuento real: 12 series terminadas** (ya no 2). Revertir el ocultado duro y darles ese destino.
+**🔴 PRIORIDAD 1 — BUG DE CREACIÓN DE HIJAS RECURRENTES INLINE EN MI DÍA (diagnosticado sesión 23, SIN ARREGLAR):**
+- **Síntoma:** crear una hija recurrente inline en Mi Día → la pauta SE VE en la fila pero NO genera (la app enseña que
+  funcionó y no). Desde el modal de Bloques sí funciona.
+- **ROOT (`doAddTask:345`):** una hija hereda el `isTemplate` del padre bajo el que se crea. En **Bloques** el padre es la
+  PLANTILLA (`isTemplate=true`) → hija plantilla → genera. En **Mi Día** el padre es la INSTANCIA (`inst-cont-día`) →
+  `cameFromInstance=true` → hija `isTemplate=false` (manual). Al añadir recurrencia, `handleUpdateTask` branch 696-732 pone
+  `isTemplate=true` en el PADRE pero **nunca en la HIJA** → hija queda `recurrence` + `isTemplate=false` →
+  `resolveChildForDay:161` la trata como MANUAL → no genera. (b) La fila muestra la pauta porque lee `task.recurrence` para
+  la etiqueta, independiente de `isTemplate` → enseña una pauta que el motor ignora.
+- **(c)** solo HIJAS. Las HOJAS top-level inline funcionan (branch 734-765 pone isTemplate + crea 1ª instancia). **(d)** el
+  compositor crea solo-bloque sin recurrencia → no afectado.
+- **RECUENTO (server-side, fiable):** **0 rutinas rotas VIVAS.** Histórico **5**, todas creadas 18-08, todas de PRUEBA
+  ("Preuba rec", "PRUEBA REC UNO", "PRUEBA RECURRENTE 1808/2"), **todas ya borradas por la propietaria** → ninguna rutina
+  real perdida. (Las reales se crearon por el modal → bien.) **Reparable EN SITIO:** poner `isTemplate=true` a la hija → genera.
+- **ARREGLO (pendiente de OK):** en branch 696-732, además de convertir el padre, poner `isTemplate=true` en la HIJA + crear su
+  1ª instancia (espejo de la conversión top-level). Pequeño. **Opción A (bloquear el chip inline en Mi Día) innecesaria** dado
+  0 rotas vivas + arreglo rápido, salvo que la propietaria prefiera el interino.
+
+**🔴 PRIORIDAD 2 — FINALIZADAS (13 vivas, invisibles). Ver bloque MODELO abajo.**
+- **#4a contador ✔️ VALIDADO** (era lag de despliegue; ahora badge correcto).
+- **13 series FINALIZADAS vivas en BD, solo ocultas** (server-side, 128 plantillas): **12 reales** (5 top-level + 7 hijas)
+  + 1 de prueba. NINGUNA borrada. Hoy NO hay forma de verlas ni reactivarlas en la app → sección Finalizadas + reactivar.
 
 **LUEGO, en orden:**
 1. 🔜 **#1 completadas en bulk (cascada protege / selección directa borra)** — reusar heurístico `rootIds` (ver bullet
