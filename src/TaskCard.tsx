@@ -342,6 +342,20 @@ export function TaskCard({
           <div className="w-1.5 h-6 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
           <span className="text-[11px] font-bold dark:text-white text-text-main-light truncate flex-1 uppercase tracking-tight"><HighlightText text={task.title} /></span>
           {(task.templateId || task.recurrence) && <RefreshCw size={10} className="text-turquesa shrink-0" />}
+          {/* "hasta D/M" — fin programado de la serie (variante A+color, sesión 23). Mismo criterio en COMPACT. */}
+          {!hasSubtasks && (() => {
+            const _rec = task.templateId ? allTasksMap[task.templateId]?.recurrence : (task.isTemplate && task.recurrence ? task.recurrence : null);
+            const _suf = endDateSuffix(_rec, formatLocalISO(new Date()));
+            if (!_suf) return null;
+            return (
+              <span
+                title={`Esta serie está programada para finalizar el ${_suf.text.replace('hasta ', '')}`}
+                className={`shrink-0 text-[10px] whitespace-nowrap tabular-nums ${_suf.near ? 'font-bold dark:text-naranja text-naranja-light' : 'font-medium dark:text-text-secondary/60 text-text-secondary-light/60'}`}
+              >
+                {_suf.text}
+              </span>
+            );
+          })()}
           {task.attachments && task.attachments.length > 0 && (
             <span title={`${task.attachments.length} adjunto${task.attachments.length > 1 ? 's' : ''}`} className="flex items-center gap-0.5 shrink-0">
               <Paperclip size={10} className="text-azul" />
@@ -623,10 +637,12 @@ export function TaskCard({
                   </button>
                 );
               })()}
-            {/* "hasta D/M" — fin PROGRAMADO de la serie (variante A+color, sesión 23). Solo Mi Día por ahora.
+            {/* "hasta D/M" — fin PROGRAMADO de la serie (variante A+color, sesión 23). En TODAS las vistas
+                (Mi Día validado; extendido a Semana/Bloques/Búsqueda + Calendario/Delegadas que comparten variant).
                 Detrás del título (la columna de pauta del raíl es de 48px fijos y no cabe). Gris normal; naranja
-                si quedan ≤14 días. No aparece si no hay fin, ni si el fin ya pasó (esa va a Finalizadas). */}
-            {variant === 'DASHBOARD' && !hasSubtasks && (() => {
+                si quedan ≤14 días. No aparece si no hay fin, ni si el fin ya pasó (esa va a Finalizadas), ni en
+                contenedores (el fin es por-serie, no tienen uno único). */}
+            {!hasSubtasks && (() => {
               const _rec = (task.templateId)
                 ? allTasksMap[task.templateId]?.recurrence
                 : (task.isTemplate && task.recurrence ? task.recurrence : null);

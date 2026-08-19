@@ -3856,7 +3856,10 @@ La app MEZCLA tres estados que la propietaria distingue. Hay que separarlos:
   "Programadas para finalizar" aparte; (4) que "Terminar la rutina" sea el único camino canónico y el modal solo edite
   la fecha de una pauta activa.
 
-**"HASTA D/M" en la fila (variante A+color) — IMPLEMENTADO en Mi Día (sesión 23), PENDIENTE validación en pantalla:**
+**"HASTA D/M" en la fila (variante A+color) — VALIDADO en Mi Día + EXTENDIDO a todas las vistas (sesión 23):**
+- Extensión (tras validar Mi Día): se quitó el gate `variant==='DASHBOARD'`. El render principal (DASHBOARD/FULL)
+  cubre Mi Día + Bloques + Búsqueda + Delegadas; el render COMPACT (línea 321, propio) recibió su propia copia del
+  sufijo tras el icono de recurrencia → Semana + Calendario. Mismo criterio en las 6 vistas. `!hasSubtasks` en ambas.
 - Decisión (opción 2 de la propietaria): una serie con `endDate` en el FUTURO = "programada para finalizar" → hay que
   VERLO en la fila, sin sección nueva ni aviso. El día que la fecha pase, salta sola a Finalizadas.
 - Regla elegida = **A + color**: se muestra SIEMPRE que la serie tenga fin puesto (texto gris), y vira a **naranja
