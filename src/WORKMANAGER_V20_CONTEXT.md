@@ -3754,7 +3754,16 @@ borrar, F6-x2) debe cumplirla por diseño.
 - **A2 — cascada "quitar solo este día" (fila)** (`c89b898`) — VALIDADO.
 - **A3-bulk — borrado en lote usa `bulkEffectiveIds` + guarda de tiempo, Option B** (`674a498`) — VALIDADO (pasos 1/2/3).
 
-**🔧 PRIORIDAD 1 — BUG DE CREACIÓN DE HIJAS RECURRENTES INLINE (ARREGLADO sesión 23, pendiente validación propietaria):**
+**✔️ PRIORIDAD 1 — BUG DE CREACIÓN DE HIJAS RECURRENTES INLINE — VALIDADO POR LA PROPIETARIA (sesión 23):** creó una hija
+recurrente inline en Mi Día, aplicó con el botón "Aplicar" del chip, y GENERA. Incluye: fix isTemplate+carrera (`e09f882`),
+chip portal+Aplicar (`be028ac`).
+- **SWEEP de los demás chips (Bloque 1, sesión 23): SOLO recurrencia fallaba. Los otros NO se tocan.** Recurrencia era la ÚNICA
+  que aplicaba `onChange` SOLO al cerrar (backdrop) sin botón → pérdida silenciosa. Los demás llaman `onChange` en la ACCIÓN
+  explícita: Fecha/Etiqueta/Bloque/TaskType/Delegación aplican+cierran al ELEGIR; Hora (botón OK) y Estimado (TimePopover
+  confirmar) por botón. **Fecha verificada con reload-persist** (due_date→Mañana persistió); el resto por código (mismo patrón
+  apply-on-action) + uso diario de la propietaria. Portal solo en recurrencia (los demás no lo necesitan para no perder datos).
+  *Nota: todos comparten el transform-trap del backdrop → cierre por-fuera algo torpe, pero sin pérdida → no se toca.*
+- **Diagnóstico/arreglo (referencia):**
 - **ARREGLO:** en `handleUpdateTask` branch 696, la hija que gana pauta se convierte en PLANTILLA-hija (isTemplate:true,
   dueDate:null) + se crea su 1ª instancia (espejo del top-level). **Hallazgo durante la verificación:** el `setTimeout` que
   ponía isTemplate:true perdía la CARRERA contra el upsert general (que escribía isTemplate:false del param viejo) → la hija
