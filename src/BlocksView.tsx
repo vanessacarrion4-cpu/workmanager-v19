@@ -498,7 +498,7 @@ export function BlocksManagerView({
           onComplete={() => bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
           onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
           onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
-          onDelete={() => { if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) { bulkDeleteTasks && bulkDeleteTasks(); } }}
+          onDelete={() => { bulkDeleteTasks && bulkDeleteTasks(); /* (a) sesión 24: confirm informativo en el hook (conteo real) */ }}
           onCancel={onToggleSelectionMode}
           isMobile={window.innerWidth < 768}
         />

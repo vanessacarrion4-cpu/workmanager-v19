@@ -60,7 +60,7 @@ interface UseTaskCRUDOptions {
   setEditingTaskId: (id: string | null) => void;
   setInlineEditingTaskId: (id: string | null) => void;
   setEditingRuleId: (id: string | null) => void;
-  setRecurrenceAction: (action: { taskId: string; type: 'edit' | 'delete'; ruleId: string } | null) => void;
+  setRecurrenceAction: (action: { taskId: string; type: 'edit' | 'delete'; ruleId: string; plain?: boolean } | null) => void;
   setAddSubtaskWarning: (val: { parentTaskId: string; blockId?: string; overrideDate?: string } | null) => void;
   dashboardTasks: Task[];
 }
@@ -132,11 +132,12 @@ export function useTaskCRUD({
         handleDeleteTask(effectiveId);
       }
     } else {
-      // Aviso igual que el tapón del checkbox: borrar un CONTENEDOR se lleva sus subtareas (soft-delete
-      // recursivo, recuperable en BD; pero silencioso). Se cuenta con `collectDeletableTasks` (mismo conjunto
-      // que borra el hook) menos la propia tarea. Para una HOJA (n=0) no se pregunta.
+      // §16.31 (sesión 24): borrar un CONTENEDOR MANUAL se lleva sus subtareas (soft-delete recursivo, recuperable
+      // en BD pero SIN botón deshacer en la app). Antes: `confirm()` nativo que solo daba el número. Ahora: si tiene
+      // hijas (n>0) abre el MISMO modal en modo `plain` (banda-inventario que LISTA lo que se va + "No se puede
+      // deshacer desde la app."). Para una HOJA (n=0) no se pregunta (como hoy).
       const n = task ? collectDeletableTasks(effectiveId, tasks).length - 1 : 0;
-      if (n > 0 && !confirm(`¿Borrar «${task?.title || 'sin título'}» y sus ${n} subtarea${n !== 1 ? 's' : ''}?`)) return;
+      if (n > 0) { setRecurrenceAction({ taskId: effectiveId, type: 'delete', ruleId: '', plain: true }); return; }
       handleDeleteTask(effectiveId);
     }
   }, [tasks, dashboardTasks, setRecurrenceAction, setTasks]);

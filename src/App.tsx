@@ -19,7 +19,7 @@ import { reconcileDay, containerDayToggle } from './fase3Contracts'; // C3: mapa
 import { getTaskRegisteredSelf } from './utils'; // A2: detectar "hija con tiempo registrado" ESE DÍA (guarda de intacta). Self, no Combo: Combo exige la tarea en el mapa y una instancia hija es virtual → devolvía 0.
 import { toast } from './toast'; // A2: avisar cuando "quitar el día" no quita nada (todas con trabajo)
 import { useSupabase } from './useSupabase';
-import { useTaskCRUD } from './useTaskCRUD';
+import { useTaskCRUD, collectDeletableTasks } from './useTaskCRUD';
 import { useTaskOrdering } from './useTaskOrdering';
 import { useBlockHandlers } from './useBlockHandlers';
 import { useTimerHandlers } from './useTimerHandlers';
@@ -64,7 +64,9 @@ export default function App() {
   const [inlineEditingTaskId, setInlineEditingTaskId] = useState<string | null>(null);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
-  const [recurrenceAction, setRecurrenceAction] = useState<{ taskId: string; type: 'edit' | 'delete'; ruleId: string } | null>(null);
+  // `plain:true` (§16.31, sesión 24): contenedor MANUAL (no recurrente) → mismo modal en modo borrado-directo
+  // (banda-inventario + "No se puede deshacer desde la app.", sin opción "este día / serie").
+  const [recurrenceAction, setRecurrenceAction] = useState<{ taskId: string; type: 'edit' | 'delete'; ruleId: string; plain?: boolean } | null>(null);
   const [instancesModalTask, setInstancesModalTask] = useState<Task | null>(null);
   const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
   const [pendingDateChange, setPendingDateChange] = useState<{ task: any; newDate: string } | null>(null);
@@ -464,11 +466,7 @@ export default function App() {
           onComplete={() => bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
           onChangeTime={() => setBulkTimeModal(true)}
           onDuplicate={() => bulkDuplicateTasks()}
-          onDelete={() => {
-            if (confirm(`¿Eliminar ${selectedTaskIds.size} tarea${selectedTaskIds.size > 1 ? 's' : ''}?`)) {
-              bulkDeleteTasks();
-            }
-          }}
+          onDelete={() => bulkDeleteTasks() /* (a) sesión 24: el confirm informativo vive en el hook (conteo real) */}
         />
 
         {/* Content Container */}
@@ -950,17 +948,27 @@ export default function App() {
         const rDate = rTask?.dueDate || rTask?.instanceDate || null;
         const rc = rTask ? containerDayToggle(rTask, tasks, rDate) : null;
         const rPending = rc ? rc.children.filter((c: Task) => c.status !== 'completed').length : 0;
+        // §16.31: lista de hijas para la banda-inventario. Recurrente → hijas del DÍA (rc.children, incluye completadas).
+        // Plain (contenedor manual) → todas las descendientes que borra collectDeletableTasks, menos la propia.
+        const rChildren = recurrenceAction.plain
+          ? collectDeletableTasks(recurrenceAction.taskId, tasks).filter((t: Task) => t.id !== recurrenceAction.taskId)
+          : (rc ? rc.children : []);
         return (
         <RecurrenceChoiceModal
           type={recurrenceAction.type}
           task={rTask}
           pendingChildCount={rPending}
+          items={rChildren}
+          recurrent={!recurrenceAction.plain}
           onClose={() => setRecurrenceAction(null)}
           onConfirm={(choice) => {
-            const { taskId, type, ruleId } = recurrenceAction;
+            const { taskId, type, ruleId, plain } = recurrenceAction;
             setRecurrenceAction(null);
             const today = formatLocalISO(new Date());
             const timestamp = new Date().toISOString();
+
+            // §16.31 plain: contenedor manual → borrado directo (no hay "este día / serie").
+            if (plain) { handleDeleteTask(taskId); return; }
 
             if (choice === 'instance') {
               if (type === 'edit') {

@@ -11,6 +11,7 @@ import { supabase } from './supabaseClient';
 import { resolveTaskId, materializeDay } from './instanceEngine';
 import { getTaskRegisteredSelf } from './utils'; // A3-bulk: guarda de borrado (no tocar las que tienen tiempo ese día)
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan (agrupadas por lote)
+import { toast } from './toast'; // (a) sesión 24: confirm informativo del bulk / aviso "nada que quitar"
 
 interface UseBulkActionsOptions {
   tasks: Record<string, Task>;
@@ -269,6 +270,32 @@ export function useBulkActions({
     const { ids: effectiveIds } = bulkEffectiveIds(selectedTaskIds, tasks, activeDate, resolve);
     const targetIds = effectiveIds.filter(id => getTaskRegisteredSelf(id, timeEntries, activeDate) === 0);
 
+    // (b) sesión 24: COMPLETADAS en selección múltiple. El bulk protege las completadas SIEMPRE (bulkEffectiveIds las
+    // excluye) porque lo normal es que entren por CASCADA de un contenedor seleccionado y no se ven. PERO una completada
+    // que la propietaria marca DIRECTAMENTE (raíz de la selección: su padre NO está seleccionado) la eligió a propósito
+    // → se borra. Patrón rootIds (el mismo de bulkDuplicateTasks): raíz = sin padre, o con el padre fuera de la selección.
+    // Solo hojas (un contenedor completado es raro; no se fuerza). Estas SÍ saltan la guarda de tiempo (es intencional).
+    const isRootSel = (id: string): boolean => {
+      const t = resolve(id);
+      if (!t) return false;
+      if (!t.parentTaskId) return true;
+      return !selectedTaskIds.has(t.parentTaskId);
+    };
+    const directCompletedIds = Array.from(selectedTaskIds).filter(id => {
+      const t = resolve(id);
+      return !!t && t.status === 'completed' && !(t.subtasks && t.subtasks.length > 0) && isRootSel(id);
+    }).map(id => resolve(id)!.id);
+
+    const allTargetIds = Array.from(new Set([...targetIds, ...directCompletedIds]));
+
+    // (a) sesión 24: CONFIRM INFORMATIVO. El bulk hace SOLO la acción segura (quita del día, nunca la serie) → no
+    // pregunta "¿seguro?", INFORMA qué hace. Conteo REAL (allTargetIds), no selectedTaskIds.size (un contenedor cuenta
+    // como 1 pero baja a N hijas). El confirm vive AQUÍ (antes en App.tsx/BlocksView con .size) para usar el N verdadero.
+    const n = allTargetIds.length;
+    if (n === 0) { toast.warn('No hay nada que quitar: las completadas (en cascada) y las series se conservan.'); return; }
+    const dayLabel = new Date(activeDate + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    if (!confirm(`Se quitarán ${n} ${n === 1 ? 'tarea' : 'tareas'} del ${dayLabel}. Las series se mantienen.`)) return;
+
     const realIds = new Set<string>();             // filas reales → UPDATE is_deleted
     const virginObjs: Record<string, Task> = {};   // instancias VÍRGENES → materializar excepción borrada
 
@@ -283,7 +310,7 @@ export function useBulkActions({
       if (obj && obj.templateId) virginObjs[obj.id] = obj;
     };
 
-    targetIds.forEach(id => addTarget(id));
+    allTargetIds.forEach(id => addTarget(id));
 
     // §16.16 (modelo corregido): "ser contenedor" NO es un estado guardado, se DERIVA de tener hijas.
     // Al vaciar de golpe no hay nada que "degradar": la tarea deja de agruparse como contenedor sola,

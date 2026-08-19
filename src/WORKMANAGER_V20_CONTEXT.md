@@ -3474,12 +3474,28 @@ check** `rowCompleted` (`TaskCard:267-271`, hoy `isContainerCompleteOnDay` = tod
 tapón** (`TaskCard:470-477`) vuelve a contar el subconjunto (usando el mismo `containerDayToggle` con restrictIds) → "1
 subtarea" marcará 1. Cubrir con test el caso "1/marca 1". **No arreglado — esperando decisión.**
 
-### 16.31 Borrado de contenedor partido — el aviso debe LISTAR, no solo contar (sesión 20). Sin implementar.
+### 16.31 Borrado de contenedor partido — el aviso debe LISTAR, no solo contar (sesión 20). ✅ IMPLEMENTADO (sesión 24).
 
-> 🔗 **ENLAZADO (sesión 23): el BORRADO EN LOTE (barra de selección) es OTRA instancia de este mismo problema.** Su
-> confirm nativo "¿Eliminar N tareas?" (App.tsx:467) tampoco dice QUÉ se borra. Cuando se unifique el bulk con la pregunta
-> "este día / serie" (síntoma 1, ver §16.35 A3-bulk), debe usar **este mismo modal de §16.31** (resumen por etiqueta +
-> total + "Ver las N →" desplegable) en vez del confirm nativo. No tiene que ser el mismo commit, pero va aquí anotado.
+> ✅ **HECHO (sesión 24, BLOQUE 1c).** `RecurrenceChoiceModal` (Modals.tsx) lleva ahora la BANDA-INVENTARIO
+> (`DeleteInventoryBand`): resumen por etiqueta (`tags[0]||'resto'`, mismo criterio que filters.ts:301) + total +
+> "Ver las N →" desplegable (lista agrupada, scroll, ✓ en completadas). Formato ÚNICO sin umbral. Dos modos:
+> - **recurrente** (`recurrent=true`): banda "Quitar este día se lleva N subtareas:" + opciones "Quitar solo el DÍA" /
+>   "Terminar la rutina" (sin cambios en esas acciones).
+> - **manual** (`recurrent=false`, prop nueva; se llega vía `recurrenceAction.plain` desde handleDeleteTaskRequest path 3):
+>   banda "Esto borra «X» y se lleva N subtareas:" + "No se puede deshacer desde la app." + [Eliminar] / [Cancelar].
+>   Reemplaza el `confirm()` nativo del no-recurrente. La lista N = `collectDeletableTasks` (todas las descendientes).
+> - **hoja** (n=0): sin modal, borrado directo (como antes).
+> **VERIFICADO en pantalla (dev):** recurrente "Cierre Central Rec" → "Quitar este día se lleva 4 subtareas: 🎯 Focus (3)
+> · 🚀 Dirección (1)", "Ver las 4 →" despliega los 4 títulos agrupados. Manual "Accidente Moussa" → "Esto borra … y se
+> lleva 12 subtareas: ⏰ Con Hora (1) · 🎯 Focus (11)" + "No se puede deshacer desde la app." + Eliminar. Ambos cancelados,
+> sin mutar datos. El GATE de "terminar la rutina" (persist de futuras) ya se resolvió en la sesión 23 (A1).
+>
+> 🔗 **BULK (BLOQUE 1a, sesión 24): NO usa este modal — decisión de la propietaria.** El bulk hace SOLO la acción segura
+> (quita del día, nunca la serie), así que su confirm es INFORMATIVO, no el modal-inventario: "Se quitarán N tareas del
+> [día]. Las series se mantienen." (conteo REAL vía `allTargetIds`, no `.size`). Vive en `bulkDeleteTasks` (useBulkActions).
+> **BLOQUE 1b:** las COMPLETADAS marcadas DIRECTAMENTE (raíz de la selección, patrón rootIds) se borran; las que entran por
+> CASCADA de un contenedor seleccionado siguen protegidas. (a)/(b) verificados por build+184 tests; pendientes validación
+> en pantalla de la propietaria (la selección múltiple no se pudo dirigir por automatización).
 
 **Hallazgo de la usuaria:** un contenedor partido por etiqueta se borra desde un grupo, se lleva las hijas de los OTROS
 grupos (que no ve), y el aviso solo da un número → no se entera de lo que pierde. **Decisión tomada (no reabrir):** borrar
