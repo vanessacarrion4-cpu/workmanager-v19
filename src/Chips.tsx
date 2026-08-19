@@ -5,6 +5,7 @@
  * BlockPickerChip, DelegationChip
  */
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Clock, X, RefreshCw, Check, ChevronLeft, ChevronRight, ChevronDown,
   Compass, Target, Grid2X2, User, Users, Globe, PlusCircle,
@@ -401,6 +402,10 @@ export function RecurrencePickerChip({ value, onChange, muted = false, defaultDa
         )}
       </button>
  
+      {/* PORTAL (sesión 23): el picker se renderiza en document.body para ESCAPAR de cualquier ancestro con
+          `transform` (Framer Motion en Mi Día) — si no, el backdrop `fixed inset-0` se ancla a ese ancestro y NO
+          cubre la pantalla → clicar fuera no cierra → onChange (que dispara al cerrar) nunca aplica la pauta. */}
+      {createPortal(
       <AnimatePresence>
         {show && (
           <>
@@ -569,6 +574,17 @@ export function RecurrencePickerChip({ value, onChange, muted = false, defaultDa
               )}
 
               <div className="h-px dark:bg-border-main bg-border-main-light" />
+              {/* APLICAR (sesión 23): confirmación EXPLÍCITA. Antes la pauta solo se aplicaba al cerrar el popover
+                  (handleClose) → si el cierre fallaba, se perdía el cambio sin avisar. Ahora hay un botón claro que
+                  aplica + cierra. Clicar fuera (backdrop) sigue aplicando también. */}
+              {localValue && (
+                <button
+                  onClick={handleClose}
+                  className="w-full text-center py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-azul text-white hover:bg-azul/80"
+                >
+                  Aplicar
+                </button>
+              )}
               <button
                 onClick={() => {
                   if (localValue) {
@@ -586,7 +602,8 @@ export function RecurrencePickerChip({ value, onChange, muted = false, defaultDa
             </motion.div>
           </>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body)}
     </div>
   );
 }
