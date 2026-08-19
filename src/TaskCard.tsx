@@ -720,11 +720,15 @@ export function TaskCard({
                         return <span className="text-[11px] font-medium dark:text-text-secondary text-text-secondary-light whitespace-nowrap">{recurrenceLabel(task.recurrence, task.dueDate)}</span>;
                       }
                       if (!hasSubtasks && !task.templateId && !task.isTemplate) {
+                        // (b) sesión 23: una HOJA MANUAL (ni plantilla ni instancia) NO tiene recurrencia ACTIVA — el motor
+                        // la ignora. Si por un estado roto/legado tuviera `recurrence`, NO se muestra como pauta (sería una
+                        // pauta falsa). El chip es solo el afordance para AÑADIR (que convierte a plantilla vía handleUpdateTask).
+                        // En el flujo normal una hoja manual tiene recurrence=undefined → sin cambio.
                         return (
-                          <div className={railCol(!!task.recurrence)}>
+                          <div className={railCol(false)}>
                             <RecurrencePickerChip
                               muted
-                              value={task.recurrence}
+                              value={undefined}
                               defaultDate={dayForTotals} // C4: la pauta arranca el día que se mira (Mi Día), no hoy
                               // Punto 1: NO pre-poner isTemplate ni anular dueDate aquí. Solo fijar la
                               // recurrencia y dejar que handleUpdateTask haga la conversión manual→plantilla

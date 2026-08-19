@@ -3754,7 +3754,16 @@ borrar, F6-x2) debe cumplirla por diseño.
 - **A2 — cascada "quitar solo este día" (fila)** (`c89b898`) — VALIDADO.
 - **A3-bulk — borrado en lote usa `bulkEffectiveIds` + guarda de tiempo, Option B** (`674a498`) — VALIDADO (pasos 1/2/3).
 
-**🔴 PRIORIDAD 1 — BUG DE CREACIÓN DE HIJAS RECURRENTES INLINE EN MI DÍA (diagnosticado sesión 23, SIN ARREGLAR):**
+**🔧 PRIORIDAD 1 — BUG DE CREACIÓN DE HIJAS RECURRENTES INLINE (ARREGLADO sesión 23, pendiente validación propietaria):**
+- **ARREGLO:** en `handleUpdateTask` branch 696, la hija que gana pauta se convierte en PLANTILLA-hija (isTemplate:true,
+  dueDate:null) + se crea su 1ª instancia (espejo del top-level). **Hallazgo durante la verificación:** el `setTimeout` que
+  ponía isTemplate:true perdía la CARRERA contra el upsert general (que escribía isTemplate:false del param viejo) → la hija
+  quedaba is_template=false igual. Fix robusto: flag `_thisBecameTemplate` que hace que el upsert general escriba el estado
+  CONVERTIDO directamente (sin carrera). Aplica a hoja top-level Y hija (arregla también la carrera latente del top-level).
+  **(b) fila honesta:** una hoja manual (ni plantilla ni instancia) ya no muestra una pauta que el motor ignora (chip a vacío;
+  `TaskCard`). **VERIFICADO en pantalla + BD:** crear hija recurrente inline en Mi Día → is_template=true + recurrence +
+  due_date=null + instancia → genera. Datos de prueba limpiados. 184 tests.
+- **Diagnóstico original (referencia):**
 - **Síntoma:** crear una hija recurrente inline en Mi Día → la pauta SE VE en la fila pero NO genera (la app enseña que
   funcionó y no). Desde el modal de Bloques sí funciona.
 - **ROOT (`doAddTask:345`):** una hija hereda el `isTemplate` del padre bajo el que se crea. En **Bloques** el padre es la

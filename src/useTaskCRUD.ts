@@ -612,6 +612,12 @@ export function useTaskCRUD({
       ? childrenToMoveWithContainer(_prevContainer, tasks, _containerOldDate)
       : [];
 
+    // Conversión manual→plantilla (hoja top-level O hija): si la tarea pasa a plantilla en el updater de estado,
+    // el UPSERT GENERAL de abajo NO debe pisarla con is_template=false del `updatedTask` (param viejo). Antes se
+    // confiaba en un setTimeout que "ganaba la carrera" — no es fiable (sesión 23: la hija quedaba is_template=false).
+    // Este flag hace que el upsert general escriba el estado CONVERTIDO directamente. No hay carrera.
+    let _thisBecameTemplate = false;
+
     setTasks(prev => {
       const updated = { ...prev };
       const timestamp = new Date().toISOString();
@@ -729,6 +735,40 @@ export function useTaskCRUD({
               .eq('id', parent.id), { verbo: 'guardar', titulo: parent.title });
           }, 0);
         }
+
+        // 🔴 BUG hija recurrente inline (sesión 23): la HIJA que gana recurrencia debe convertirse en PLANTILLA-hija
+        // (isTemplate:true), no solo el padre. En Mi Día la hija nace isTemplate=false (creada bajo la INSTANCIA del
+        // contenedor, doAddTask:345 cameFromInstance) y antes se quedaba así → recurrence + isTemplate=false →
+        // resolveChildForDay la trataba como MANUAL → NO generaba (mostraba la pauta pero no actuaba). Espejo EXACTO de
+        // la conversión top-level (734-802): la hija pasa a plantilla (dueDate=null) + se crea su 1ª instancia para que
+        // siga visible su día. parent_task_id de la instancia = null (materializeDay re-anida por templateId, evita fuga).
+        // Solo el caso ROTO: hija manual (sin templateId, no plantilla) que gana pauta; un template-hijo ya va por el split.
+        if (!updatedTask.isTemplate && !updatedTask.templateId) {
+          _thisBecameTemplate = true; // el upsert general escribirá is_template:true (sin carrera)
+          const _cDate = updatedTask.dueDate || formatLocalISO(new Date());
+          const _cInstId = `inst-${templateIdFromInstanceId(updatedTask.id)}-${_cDate}`;
+          const _cts = new Date().toISOString();
+          updated[updatedTask.id] = { ...updated[updatedTask.id], isTemplate: true, dueDate: null, dueTime: null, modifiedAt: _cts };
+          updated[_cInstId] = {
+            ...updatedTask, id: _cInstId, templateId: updatedTask.id, parentTaskId: null,
+            dueDate: _cDate, instanceDate: _cDate, isTemplate: false, isException: true,
+            existsInSupabase: true, recurrence: null, createdAt: _cts, modifiedAt: _cts,
+          };
+          setTimeout(() => {
+            persist(supabase.from('tasks')
+              .update({ is_template: true, due_date: null, due_time: null, recurrence: updatedTask.recurrence, modified_at: _cts })
+              .eq('id', updatedTask.id), { verbo: 'guardar', titulo: updatedTask.title });
+            persist(supabase.from('tasks').upsert({
+              id: _cInstId, block_id: updatedTask.blockId, parent_task_id: null, template_id: updatedTask.id,
+              instance_date: _cDate, title: updatedTask.title, notes: updatedTask.notes || '',
+              attachments: updatedTask.attachments || [], priority: 'media', status: updatedTask.status,
+              due_date: _cDate, due_time: updatedTask.dueTime || null, estimated_minutes: updatedTask.estimatedMinutes || 0,
+              actual_minutes: updatedTask.actualMinutes || 0, tags: updatedTask.tags || [], delegation: updatedTask.delegation || null,
+              is_template: false, is_active: true, is_exception: true, is_deleted: false, recurrence: null,
+              created_at: _cts, modified_at: _cts,
+            }, { onConflict: 'id' }), { verbo: 'guardar', titulo: updatedTask.title });
+          }, 0);
+        }
       }
 
       if (
@@ -737,6 +777,7 @@ export function useTaskCRUD({
         !updatedTask.templateId &&
         !updatedTask.isTemplate
       ) {
+        _thisBecameTemplate = true; // el upsert general escribirá is_template:true (sin depender del setTimeout)
         const instanceDate = updatedTask.dueDate || formatLocalISO(new Date());
         const instanceId = `inst-${templateIdFromInstanceId(updatedTask.id)}-${instanceDate}`;
         const instanceTimestamp = new Date().toISOString();
@@ -879,8 +920,10 @@ export function useTaskCRUD({
           notes: updatedTask.notes || '',
           priority: 'media',
           status: updatedTask.status,
-          due_date: updatedTask.dueDate || null,
-          due_time: updatedTask.dueTime || null,
+          // _thisBecameTemplate: la tarea se acaba de convertir en plantilla (hoja/hija que gana pauta) → escribir el
+          // estado CONVERTIDO (is_template:true, sin dueDate/dueTime), no el del param viejo. Evita la carrera con el setTimeout.
+          due_date: _thisBecameTemplate ? null : (updatedTask.dueDate || null),
+          due_time: _thisBecameTemplate ? null : (updatedTask.dueTime || null),
           completed_at: updatedTask.completedAt || null,
           estimated_minutes: updatedTask.estimatedMinutes || 0,
           actual_minutes: updatedTask.actualMinutes || 0,
@@ -888,7 +931,7 @@ export function useTaskCRUD({
           total_registered_combo: updatedTask.totalRegisteredCombo || 0,
           tags: updatedTask.tags || [],
           order: updatedTask.order || 0,
-          is_template: isInstance ? false : (updatedTask.isTemplate || false),
+          is_template: isInstance ? false : (_thisBecameTemplate || updatedTask.isTemplate || false),
           is_active: updatedTask.isActive !== false,
           is_exception: isInstance ? true : (updatedTask.isException || false),
           is_deleted: updatedTask.isDeleted || false,
