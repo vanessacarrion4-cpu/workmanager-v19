@@ -731,6 +731,17 @@ export function TaskModal({
                               className="w-full p-2 dark:bg-bg-secondary bg-bg-secondary-light border dark:border-border-main border-border-main-light rounded-xl text-[11px] font-bold text-turquesa outline-none text-center"
                             />
                           )}
+                          {/* BLOQUE 2 (sesión 25): TERMINAR se hace aquí, poniendo fecha hasta. Atajo que pone la fecha
+                              correcta (AYER) para que la rutina termine ahora → deja de repetirse desde hoy y pasa a
+                              Finalizadas, sin tener que teclear la fecha de ayer a mano. Al Guardar se aplica. */}
+                          <button
+                            onClick={() => {
+                              const y = new Date(); y.setDate(y.getDate() - 1);
+                              setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: formatLocalISO(y) } }));
+                            }}
+                            title="Pone la fecha de fin en ayer: la rutina deja de repetirse desde hoy y pasa a Finalizadas (reactivable)."
+                            className="w-full mt-1 px-2 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-rosa/15 text-rosa border border-rosa/30 hover:bg-rosa/25 transition-all"
+                          >Terminar hoy</button>
                         </div>
                       </div>
                     )}

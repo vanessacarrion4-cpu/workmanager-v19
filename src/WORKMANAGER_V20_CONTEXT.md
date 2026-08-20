@@ -4458,3 +4458,18 @@ antes de darlo por cierto; lo marcado **[TITULAR VACÍO]** es lo que hay que DEF
   DESMONTABA** y perdía el foco. Fix (`TaskModal.tsx`): la condición pasa a `endDate != null` (verdadero para `''`, falso
   para `undefined`/`null`) → el input no se desmonta mientras se edita; solo desaparece con "Nunca". **Verificado:** tras
   vaciar el input, sigue montado.
+
+**BLOQUE 2 · TERMINAR sale de ELIMINAR (decisión de la propietaria, distinta al paquete):**
+- **Terminar NO es una acción del menú ⋯.** Se hace en el MODAL poniendo **fecha hasta**. Se AÑADE un atajo **"Terminar
+  hoy"** junto al campo (`TaskModal.tsx`): pone `endDate = AYER` → la rutina deja de repetirse desde hoy y pasa a
+  Finalizadas (reactivable), sin teclear la fecha a mano. Al Guardar se aplica (y el fix (a) lo refresca al instante).
+- **Se QUITA "Terminar la rutina" del diálogo de Eliminar** (`Modals.tsx`, solo modo borrado; en Editar se mantiene "Toda
+  la serie"). En su lugar, un aviso: "¿Terminar la rutina? No la borres: ábrela (editar) y ponle fecha hasta → pasa a
+  Finalizadas." Eliminar queda solo para eliminar ("quitar solo este día" + el borrado completo del contenedor manual).
+- **DESCARTADO del paquete** (decisión propietaria): NO se añade "Eliminar la serie entera" como tercera opción; NO hace
+  falta banda-inventario al terminar (terminar no destruye nada).
+- **Modelo de un solo camino por cosa:** COMPLETAR = la fila · TERMINAR = el modal (fecha hasta) → Finalizadas · ELIMINAR
+  = borrar → papelera.
+- **VERIFICADO en pantalla:** diálogo de Eliminar sin "Terminar la rutina" + aviso presente; atajo pone ayer; guardar →
+  fuera de Mi Día + en Finalizadas ("fin 2026-08-19"), sin recargar; persistido como FINALIZADA (endDate, `is_deleted:false`).
+  184 tests verdes.
