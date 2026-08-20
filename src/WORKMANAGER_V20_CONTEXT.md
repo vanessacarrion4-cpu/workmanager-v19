@@ -4473,3 +4473,28 @@ antes de darlo por cierto; lo marcado **[TITULAR VACÍO]** es lo que hay que DEF
 - **VERIFICADO en pantalla:** diálogo de Eliminar sin "Terminar la rutina" + aviso presente; atajo pone ayer; guardar →
   fuera de Mi Día + en Finalizadas ("fin 2026-08-19"), sin recargar; persistido como FINALIZADA (endDate, `is_deleted:false`).
   184 tests verdes.
+
+### Sesión 26 — dos regresiones de la sesión 25 (validación de la propietaria)
+
+**🔴 PARTE 4 (arreglada) — terminar dejaba la instancia persistida de hoy en Mi Día.** El fix (a) de sesión 25 recogía
+las instancias intactas posteriores al corte para soft-borrarlas PERO filtraba `!t.isException`. Las rutinas reales tienen
+instancias persistidas de hoy con `is_exception:true` (movidas/tocadas) → se saltaban → quedaban visibles hasta recargar.
+**Diferencia con la verificación de sesión 25:** ZZTEST era una hoja creada por probe SIN instancia persistida (virgen →
+refrescaba); las reales SÍ tienen instancia persistida. **Reproducido** con test que imita el caso (plantilla + instancia
+`is_exception:true` de hoy): antes del fix se quedaba; después desaparece al instante. **Fix:** en `_termIntact`
+(`useTaskCRUD.ts`) se QUITA `!isException` (mover/editar NO es "trabajo", §16.35 A2) y se usa `getTaskRegisteredSelf`
+(con `timeEntries`, ahora prop del hook) como guarda de "sin trabajo" (completada o tiempo → se conserva). Verificado
+(fail→work): la instancia se soft-borra, la plantilla queda FINALIZADA. Texto del aviso acortado (sin "No la borres").
+
+**🔴 PARTE 2 (DIAGNOSTICADA, NO arreglada — pendiente de OK de la propietaria) — la cascada NO protegía las completadas.**
+- **DAÑO:** 2 completadas reales soft-borradas desde `b81a2eb` ("Verduras vivas cobro diario" 08-20; "Recepcionar albaranes"
+  08-20). **RECUPERADAS** (is_deleted:false). 0 restantes en la ventana.
+- **ROOT CAUSE (verificado, código + datos):** al marcar un contenedor, `toggleTaskSelection` (`App.tsx:154`) mete sus
+  hijas renderizadas (la completada incluida) en `selectedTaskIds`. Una hija recurrente completada tiene `parent_task_id =
+  null` (dato real de las 2 víctimas). `isRootSel` (`useBulkActions.ts:281`): `if (!t.parentTaskId) return true` → con
+  parentTaskId nulo devuelve **true siempre** → la trata como "raíz / marcada directamente" → entra en `directCompletedIds`
+  → se borra aunque el contenedor esté seleccionado (cascada). La hipótesis de la propietaria era exacta.
+- **FIX PROPUESTO (sin aplicar):** `isRootSel` no puede fiarse de `parentTaskId` (las recurrentes lo tienen null). Hay que
+  mapear la hija completada a SU contenedor y ver si ese contenedor está en la selección — o, más simple y seguro, exigir
+  que la completada esté en la selección **por sí sola** (no arrastrada por su contenedor). Pendiente de decidir el enfoque
+  con la propietaria antes de tocar (pidió el alcance del daño antes que el fix).

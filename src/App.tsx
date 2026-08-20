@@ -217,7 +217,7 @@ export default function App() {
   } = useTaskCRUD({
     tasks, setTasks, blocks, activeDate,
     setEditingTaskId, setInlineEditingTaskId, setEditingRuleId,
-    setRecurrenceAction, setAddSubtaskWarning, setBlockChoice, dashboardTasks,
+    setRecurrenceAction, setAddSubtaskWarning, setBlockChoice, dashboardTasks, timeEntries,
   });
 
   const {

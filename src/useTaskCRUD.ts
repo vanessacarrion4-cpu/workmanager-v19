@@ -15,7 +15,7 @@ import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeIns
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
 import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mudo en vez de morir en consola
 import { validateTemplate, writesOwnStatusOnToggle, containerDayToggle, childrenToMoveWithContainer } from './fase3Contracts'; // §16.16: invariante + selección día-scoped del toggle (C1) + arrastre de hijas al mover contenedor (b2)
-import { isTaskCompleted, recurrenceChanged } from './utils'; // §16.16: completado DERIVADO; F5-6: cambio de pauta
+import { isTaskCompleted, recurrenceChanged, getTaskRegisteredSelf } from './utils'; // §16.16: completado DERIVADO; F5-6: cambio de pauta; Parte 4: guarda "sin trabajo" al terminar
 
 /**
  * collectDeletableTasks — el CONJUNTO que borra `handleDeleteTask` (camino real, puro, testeable).
@@ -66,6 +66,7 @@ interface UseTaskCRUDOptions {
   // en vez del fallback silencioso a blocks[0] (el que llenó CM11). Los params se guardan para re-crear al elegir.
   setBlockChoice: (val: { parentTaskId: string | null; overrideDate?: string; defaultPersonId?: string; initialTitle?: string } | null) => void;
   dashboardTasks: Task[];
+  timeEntries: any[]; // Parte 4 (sesión 26): guarda "sin trabajo" al terminar (no borrar instancias con tiempo registrado)
 }
 
 export function useTaskCRUD({
@@ -80,6 +81,7 @@ export function useTaskCRUD({
   setAddSubtaskWarning,
   setBlockChoice,
   dashboardTasks,
+  timeEntries,
 }: UseTaskCRUDOptions) {
 
   const handleEditTaskRequest = useCallback((taskId: string | null) => {
@@ -627,17 +629,21 @@ export function useTaskCRUD({
     // Este flag hace que el upsert general escriba el estado CONVERTIDO directamente. No hay carrera.
     let _thisBecameTemplate = false;
 
-    // Bug (a) sesión 25: TERMINAR una serie = poner recurrence.endDate en el PASADO (atajo "Terminar hoy" o fecha a mano).
-    // `recurrenceChanged` ignora endDate → no entra en el split; el genérico actualiza la plantilla (occursOn deja de
-    // generar las VÍRGENES → ok), PERO una instancia YA MATERIALIZADA/persistida posterior al corte NO se limpia → se
-    // quedaba en pantalla hasta recargar ("el dato se guarda, la pantalla no se entera"). Recogemos las INTACTAS
-    // (pendientes, sin excepción, sin tiempo) con fecha > endDate para soft-borrarlas tras guardar (§16.16: no tocar
-    // completadas ni con trabajo). Mismo criterio que A1. Solo aplica a plantilla-hoja (top-level o hija, sin templateId).
+    // Bug (a) sesión 25 (+ Parte 4 sesión 26): TERMINAR una serie = poner recurrence.endDate en el PASADO (atajo "Terminar
+    // hoy" o fecha a mano). `recurrenceChanged` ignora endDate → no entra en el split; el genérico actualiza la plantilla
+    // (occursOn deja de generar las VÍRGENES → ok), PERO una instancia YA MATERIALIZADA/PERSISTIDA posterior al corte NO se
+    // limpiaba → se quedaba en pantalla. Recogemos las INTACTAS con fecha > endDate para soft-borrarlas tras guardar.
+    // ⚠️ INTACTA = pendiente + SIN TRABAJO (no completada, sin tiempo registrado). Se QUITA `!isException` (Parte 4): las
+    // rutinas reales tienen instancias persistidas de hoy con `is_exception:true` (movidas/tocadas), y MOVER/EDITAR NO es
+    // "trabajo" (§16.35 A2, misma corrección que la cascada de fila) → esas también deben irse al terminar; si no, se
+    // quedaban visibles. "Trabajo" = completada o tiempo registrado (getTaskRegisteredSelf, fiable con instancias virtuales).
+    // Solo aplica a plantilla-hoja (top-level o hija, sin templateId).
     const _termCut = (updatedTask.isTemplate && !updatedTask.templateId && updatedTask.recurrence?.endDate
       && updatedTask.recurrence.endDate < formatLocalISO(new Date())) ? updatedTask.recurrence.endDate : null;
     const _termIntact = _termCut ? Object.values(tasks).filter((t: Task) =>
       !!t && t.templateId === updatedTask.id && !t.isDeleted && t.status === 'pending'
-      && !t.isException && !(t.actualMinutes && t.actualMinutes > 0)
+      && !(t.actualMinutes && t.actualMinutes > 0)
+      && getTaskRegisteredSelf(t.id, timeEntries, t.dueDate || t.instanceDate || activeDate) === 0
       && ((t.dueDate || t.instanceDate || '') > _termCut!)) : [];
 
     setTasks(prev => {
