@@ -627,6 +627,19 @@ export function useTaskCRUD({
     // Este flag hace que el upsert general escriba el estado CONVERTIDO directamente. No hay carrera.
     let _thisBecameTemplate = false;
 
+    // Bug (a) sesión 25: TERMINAR una serie = poner recurrence.endDate en el PASADO (atajo "Terminar hoy" o fecha a mano).
+    // `recurrenceChanged` ignora endDate → no entra en el split; el genérico actualiza la plantilla (occursOn deja de
+    // generar las VÍRGENES → ok), PERO una instancia YA MATERIALIZADA/persistida posterior al corte NO se limpia → se
+    // quedaba en pantalla hasta recargar ("el dato se guarda, la pantalla no se entera"). Recogemos las INTACTAS
+    // (pendientes, sin excepción, sin tiempo) con fecha > endDate para soft-borrarlas tras guardar (§16.16: no tocar
+    // completadas ni con trabajo). Mismo criterio que A1. Solo aplica a plantilla-hoja (top-level o hija, sin templateId).
+    const _termCut = (updatedTask.isTemplate && !updatedTask.templateId && updatedTask.recurrence?.endDate
+      && updatedTask.recurrence.endDate < formatLocalISO(new Date())) ? updatedTask.recurrence.endDate : null;
+    const _termIntact = _termCut ? Object.values(tasks).filter((t: Task) =>
+      !!t && t.templateId === updatedTask.id && !t.isDeleted && t.status === 'pending'
+      && !t.isException && !(t.actualMinutes && t.actualMinutes > 0)
+      && ((t.dueDate || t.instanceDate || '') > _termCut!)) : [];
+
     setTasks(prev => {
       const updated = { ...prev };
       const timestamp = new Date().toISOString();
@@ -854,6 +867,21 @@ export function useTaskCRUD({
 
       return updated;
     });
+
+    // Bug (a): tras actualizar la plantilla (con endDate pasado), soft-borrar las instancias intactas posteriores al
+    // corte → Mi Día/Semana/etc. se enteran SIN recargar (no queda una instancia landed colgando). Persistente en BD.
+    if (_termIntact.length) {
+      const _ts = new Date().toISOString();
+      setTasks(prev => {
+        const n = { ...prev };
+        _termIntact.forEach(o => { if (n[o.id]) n[o.id] = { ...n[o.id], isDeleted: true, modifiedAt: _ts }; });
+        return n;
+      });
+      _termIntact.forEach(o => persist(
+        supabase.from('tasks').update({ is_deleted: true, modified_at: _ts }).eq('id', o.id),
+        { verbo: 'guardar', titulo: o.title }));
+    }
+
     // NO se resetea aquí el estado de edición (editingTaskId / inlineEditingTaskId): guardar NO debe
     // apagar la edición ni cerrar el modal. El modal cierra por su propio onClose (TaskModal.handleSave);
     // la edición inline del título sale en su commit (TaskCard.commitTitle). Antes, este reset por-guardado

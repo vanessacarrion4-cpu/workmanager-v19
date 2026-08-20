@@ -701,25 +701,29 @@ export function TaskModal({
                           </div>
                         )}
 
-                        {/* Termina */}
+                        {/* Termina. Bug (b) sesión 25: el input de fecha se renderizaba con `{endDate && <input>}`;
+                            al teclear, si el valor quedaba vacío un instante, onChange ponía endDate='' → la condición
+                            se volvía falsa → el input se DESMONTABA y perdía el foco ("se come la entrada"). Ahora la
+                            condición es `endDate != null` (verdadero también para '', falso para undefined/null) → el
+                            input NO se desmonta mientras se edita; solo desaparece con "Nunca" (endDate=undefined). */}
                         <div className="space-y-1">
                           <label className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest">Termina</label>
                           <div className="flex gap-2">
                             <button
                               onClick={() => setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: undefined } }))}
-                              className={`flex-1 px-2 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!localTask.recurrence!.endDate ? 'bg-turquesa text-white' : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light'}`}
+                              className={`flex-1 px-2 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${localTask.recurrence!.endDate == null ? 'bg-turquesa text-white' : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light'}`}
                             >Nunca</button>
                             <button
                               onClick={() => {
-                                if (!localTask.recurrence!.endDate) {
+                                if (localTask.recurrence!.endDate == null) {
                                   const d = new Date(); d.setMonth(d.getMonth() + 6);
                                   setLocalTask(prev => ({ ...prev, recurrence: { ...prev.recurrence!, endDate: formatLocalISO(d) } }));
                                 }
                               }}
-                              className={`flex-1 px-2 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${localTask.recurrence!.endDate ? 'bg-turquesa text-white' : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light'}`}
+                              className={`flex-1 px-2 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${localTask.recurrence!.endDate != null ? 'bg-turquesa text-white' : 'dark:bg-bg-secondary bg-bg-secondary-light dark:text-text-secondary text-text-secondary-light'}`}
                             >El</button>
                           </div>
-                          {localTask.recurrence!.endDate && (
+                          {localTask.recurrence!.endDate != null && (
                             <input
                               type="date"
                               value={localTask.recurrence!.endDate}

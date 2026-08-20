@@ -4439,3 +4439,22 @@ Los 3 caminos de creación sin bloque → RESUELTOS por F5-7a.)*
 
 **Estado del documento:** revisado para sesión de producto (sesión 24). Lo marcado 🔴 es lo que hay que MIRAR EN LA APP
 antes de darlo por cierto; lo marcado **[TITULAR VACÍO]** es lo que hay que DEFINIR mañana.
+
+---
+
+## 16.38 Sesión 25 — dos bugs de terminación + TERMINAR sale de ELIMINAR
+
+**BLOQUE 1 · dos bugs (VERIFICADOS en pantalla, datos de test limpiados):**
+- **(a) "Finalizo una rutina y sigue saliendo en Mi Día hasta recargar" — REFRESCO, no persistencia.** Terminar = poner
+  `recurrence.endDate` en el pasado. `recurrenceChanged` IGNORA endDate → no entra en el split; cae al upsert genérico,
+  que actualiza la plantilla (las instancias VÍRGENES dejan de generarse por `occursOn` → ok) PERO **no limpiaba las
+  instancias YA MATERIALIZADAS/persistidas posteriores al corte** → se quedaban en pantalla hasta recargar. Fix en
+  `handleUpdateTask` (`useTaskCRUD.ts`): al guardar una plantilla-hoja con `endDate < hoy`, se recogen sus instancias
+  INTACTAS (pendientes, sin excepción, sin tiempo) con fecha > endDate y se **soft-borran (estado + BD)** tras el update.
+  Mismo criterio que A1 (§16.16: no tocar completadas ni con trabajo). **Verificado:** terminar por el atajo → sale de Mi
+  Día al instante Y entra en Finalizadas al instante, sin recargar.
+- **(b) El campo de fecha "hasta" se comía la entrada al teclear.** El input estaba `{endDate && <input type="date">}`;
+  al teclear, si el valor quedaba vacío un instante, `onChange` ponía `endDate=''` → condición falsa → **el input se
+  DESMONTABA** y perdía el foco. Fix (`TaskModal.tsx`): la condición pasa a `endDate != null` (verdadero para `''`, falso
+  para `undefined`/`null`) → el input no se desmonta mientras se edita; solo desaparece con "Nunca". **Verificado:** tras
+  vaciar el input, sigue montado.
