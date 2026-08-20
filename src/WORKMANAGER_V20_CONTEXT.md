@@ -4527,3 +4527,32 @@ El número cambia con la fecha (`isExpiredTemplate` = `endDate < HOY`) y con rea
 + 4 hijas. Top: Revisión rentas (30/06) · Delmer (04/06) · Revisar nóminas tiendas propias (29/07) · Mirar situación CV
 (19/08) · Firmas RRHH (19/08). Hijas: Evolució Situació Clara Sibils (12/06) · Pasar albaranes a Bego (18/08) · Revisar
 Margenes (17/08) · Hacer cuadro Resumen (17/08). El "13" de la sesión 23 incluía 1 de test + varias reactivadas después.
+
+### 🔴 Sesión 26 (2ª tanda) — la guarda de TIEMPO del bulk protege PENDIENTES con tiempo (DIAGNOSTICADO, sin arreglar)
+
+**Síntoma (propietaria):** contenedor "Verduras Vivas", 4 hijas (1 completada + 3 pendientes). Marca el contenedor →
+Eliminar → quedan la completada (correcto) Y **"Envío Facturas"** (pendiente). El badge pasó de 3 a 1, no a 0. El confirm
+ya salía con un número que no cuadraba.
+- **ROOT CAUSE (verificado, código + datos):** `bulkDeleteTasks` (`useBulkActions.ts:316`):
+  `targetIds = effectiveIds.filter(id => getTaskRegisteredSelf(id, timeEntries, activeDate) === 0)`. `effectiveIds` son las
+  **PENDIENTES** del día (bulkEffectiveIds ya excluye completadas). Esa guarda de tiempo (A3-bulk, §16.35, "preservar
+  trabajo") se aplica a las PENDIENTES → una pendiente CON tiempo se salta. "Envío Facturas" tiene un `time_entry`
+  `duration:5, date:2026-08-19` (subtask_id = su plantilla) → `getTaskRegisteredSelf` lo casa por plantilla+día → la salva.
+  **La propietaria NO pidió esto:** una pendiente con tiempo sigue siendo pendiente y debe quitarse del día; lo que se
+  preserva es lo COMPLETADO (ya excluido). → **La guarda de tiempo sobra en el bulk** (o debe aplicarse solo si se quisiera
+  preservar trabajo pendiente, que no es el caso).
+- **CONFIRM:** el número salía de `allTargetIds.length` = pendientes-sin-tiempo + completadas-directas. En su caso 2 (las 2
+  pendientes sin tiempo), no 3 → por eso "no cuadraba": la misma guarda excluía Envío Facturas también del conteo.
+- **BADGE:** cuenta bien. Tras el borrado queda 1 pendiente viva (Envío Facturas) → badge 1 correcto. No es bug de badge;
+  refleja la pendiente que la guarda salvó mal.
+- **ALCANCE medido:** bajo los 2 contenedores tocados hoy, 2 filas pendientes vivas con tiempo en su día que la guarda
+  salvaría ("Verduras vivas envio facturas" 19/08; una instancia pendiente de "Verduras vivas cobro diario" 17/08). El
+  número exacto de "creí quitar y sigue ahí" depende del día mirado en cada bulk. Regla para encontrarlas: pendiente viva,
+  hija de contenedor, con `time_entry` en su `due_date`.
+- **FIX (sin aplicar, pendiente de la propietaria):** quitar la guarda de tiempo del bulk (que `targetIds = effectiveIds`).
+  Las completadas ya están protegidas por `bulkEffectiveIds` + `bulkCompletedDirectIds` (cascada). Así una pendiente con
+  tiempo se quita del día como el resto.
+
+**✅ Verificado aparte (petición de la propietaria, NO bug):** desde el modal de una SUBTAREA recurrente el atajo "Terminar
+hoy" existe y funciona igual que en una hoja top-level → pone `endDate=ayer` en la plantilla-hija, la subtarea sale de Mi
+Día al instante y queda FINALIZADA (verificado en pantalla con una hija recurrente de test; endDate=2026-08-20 persistido).
