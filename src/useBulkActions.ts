@@ -117,6 +117,51 @@ export function bulkEffectiveIds(
 }
 
 /**
+ * bulkCompletedDirectIds — COMPLETADAS a borrar en un bulk (camino PURO, testeable). Regla: una completada se borra SOLO
+ * si la propietaria la marcó DIRECTAMENTE (sola), NO arrastrada por un contenedor seleccionado (cascada → protegida).
+ *
+ * ⚠️ NO se fía de `parentTaskId` (una hija RECURRENTE lo tiene `null` — el motor re-anida por templateId; ese fue el bug
+ * que borró 2 completadas reales, sesión 25). En su lugar reconstruye las HIJAS DEL DÍA de los CONTENEDORES seleccionados
+ * (mismo mapeo que `bulkEffectiveIds`: manual por parentTaskId===instancia|plantilla; recurrente por la plantilla de la
+ * hija que apunta al contenedor) y protege esas. Una completada fuera de ese conjunto = marcada sola → se borra.
+ */
+export function bulkCompletedDirectIds(
+  selectedIds: Iterable<string>,
+  tasks: Record<string, Task>,
+  activeDate: string,
+  resolve: (id: string) => Task | undefined,
+): string[] {
+  const sel = new Set(selectedIds);
+  const cascadeChildIds = new Set<string>();
+  for (const id of sel) {
+    const cont = tasks[id] || resolve(id);
+    if (!cont || !(cont.subtasks && cont.subtasks.length > 0)) continue; // no es contenedor
+    const instanceDate = cont.instanceDate || cont.dueDate;
+    Object.values(tasks).forEach((t: Task) => {
+      if (!t || t.isDeleted) return;
+      if ((t.parentTaskId === id || (!!cont.templateId && t.parentTaskId === cont.templateId)) && t.dueDate === activeDate) {
+        cascadeChildIds.add(t.id); return;
+      }
+      if (t.templateId && instanceDate) {
+        const tmpl = tasks[t.templateId];
+        if (tmpl && (tmpl.parentTaskId === id || (!!cont.templateId && tmpl.parentTaskId === cont.templateId)) && t.dueDate === activeDate) {
+          cascadeChildIds.add(t.id); return;
+        }
+      }
+    });
+    (cont.subtasks || []).forEach(sid => cascadeChildIds.add(sid)); // fallback: subtareas directas
+  }
+  const out: string[] = [];
+  for (const id of sel) {
+    const t = resolve(id);
+    if (t && t.status === 'completed' && !(t.subtasks && t.subtasks.length > 0) && !cascadeChildIds.has(id)) {
+      out.push(t.id);
+    }
+  }
+  return out;
+}
+
+/**
  * bulkUpdatesForTask — guard del "mover a fecha" en lote (item 2, sesión 19).
  *
  * Una acción masiva que cambia `dueDate` NO debe tocar el `due_date` de una tarea COMPLETADA: mover al
@@ -270,21 +315,20 @@ export function useBulkActions({
     const { ids: effectiveIds } = bulkEffectiveIds(selectedTaskIds, tasks, activeDate, resolve);
     const targetIds = effectiveIds.filter(id => getTaskRegisteredSelf(id, timeEntries, activeDate) === 0);
 
-    // (b) sesión 24: COMPLETADAS en selección múltiple. El bulk protege las completadas SIEMPRE (bulkEffectiveIds las
-    // excluye) porque lo normal es que entren por CASCADA de un contenedor seleccionado y no se ven. PERO una completada
-    // que la propietaria marca DIRECTAMENTE (raíz de la selección: su padre NO está seleccionado) la eligió a propósito
-    // → se borra. Patrón rootIds (el mismo de bulkDuplicateTasks): raíz = sin padre, o con el padre fuera de la selección.
-    // Solo hojas (un contenedor completado es raro; no se fuerza). Estas SÍ saltan la guarda de tiempo (es intencional).
-    const isRootSel = (id: string): boolean => {
-      const t = resolve(id);
-      if (!t) return false;
-      if (!t.parentTaskId) return true;
-      return !selectedTaskIds.has(t.parentTaskId);
-    };
-    const directCompletedIds = Array.from(selectedTaskIds).filter(id => {
-      const t = resolve(id);
-      return !!t && t.status === 'completed' && !(t.subtasks && t.subtasks.length > 0) && isRootSel(id);
-    }).map(id => resolve(id)!.id);
+    // (b) sesión 24 + FIX sesión 26 (Parte 2): COMPLETADAS en selección múltiple. El bulk protege las completadas por
+    // defecto (bulkEffectiveIds las excluye) porque lo normal es que entren por CASCADA de un contenedor seleccionado y no
+    // se ven. PERO una completada que la propietaria marca DIRECTAMENTE (sola, no arrastrada por su contenedor) la eligió a
+    // propósito → se borra.
+    //
+    // ⚠️ EL BUG (sesión 25): distinguíamos "directa" mirando `parentTaskId` (isRootSel). Pero una hija RECURRENTE tiene
+    // `parent_task_id = null` (el motor re-anida por templateId) → isRootSel devolvía true SIEMPRE → una completada
+    // recurrente arrastrada por su contenedor se trataba como "directa" y se BORRABA (destruyó 2 completadas reales).
+    //
+    // FIX: no fiarse de `parentTaskId`. Se reconstruye el conjunto de HIJAS DEL DÍA de los CONTENEDORES seleccionados
+    // (incluidas las completadas), con el mismo mapeo que `bulkEffectiveIds` (manual: parentTaskId === instancia o
+    // plantilla del contenedor; recurrente: la plantilla de la hija apunta al contenedor). Una completada se borra SOLO si
+    // NO está en ese conjunto (= la marcaste sola, sin su contenedor). Cascada → protegida; directa → se borra.
+    const directCompletedIds = bulkCompletedDirectIds(selectedTaskIds, tasks, activeDate, resolve);
 
     const allTargetIds = Array.from(new Set([...targetIds, ...directCompletedIds]));
 

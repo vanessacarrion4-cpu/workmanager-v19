@@ -4494,7 +4494,36 @@ refrescaba); las reales SÍ tienen instancia persistida. **Reproducido** con tes
   null` (dato real de las 2 víctimas). `isRootSel` (`useBulkActions.ts:281`): `if (!t.parentTaskId) return true` → con
   parentTaskId nulo devuelve **true siempre** → la trata como "raíz / marcada directamente" → entra en `directCompletedIds`
   → se borra aunque el contenedor esté seleccionado (cascada). La hipótesis de la propietaria era exacta.
-- **FIX PROPUESTO (sin aplicar):** `isRootSel` no puede fiarse de `parentTaskId` (las recurrentes lo tienen null). Hay que
-  mapear la hija completada a SU contenedor y ver si ese contenedor está en la selección — o, más simple y seguro, exigir
-  que la completada esté en la selección **por sí sola** (no arrastrada por su contenedor). Pendiente de decidir el enfoque
-  con la propietaria antes de tocar (pidió el alcance del daño antes que el fix).
+- **FIX APLICADO (sesión 26, aprobado por la propietaria):** se sustituye `isRootSel` por `bulkCompletedDirectIds`
+  (`useBulkActions.ts`, helper PURO y testeado). No se fía de `parentTaskId`: reconstruye las HIJAS DEL DÍA de los
+  contenedores seleccionados (mismo mapeo que `bulkEffectiveIds` — manual por parentTaskId===instancia|plantilla;
+  recurrente por la plantilla de la hija que apunta al contenedor) y una completada se borra SOLO si NO está en ese
+  conjunto (= marcada sola). **Cascada → protegida; directa → se borra.**
+- **VERIFICACIÓN:** ⚠️ **NO se pudo verificar por la barra de selección** (el checkbox no se acciona por automatización —
+  dicho ya 2 veces; ni se pudo renderizar un contenedor sintético). En su lugar, **4 tests unitarios** del helper cubren el
+  escenario EXACTO del daño (hija recurrente completada con `parentTaskId=null` bajo contenedor seleccionado → protegida;
+  marcada sola → se borra; hija manual bajo contenedor → protegida). 188 tests verdes. **Pendiente de validación de la
+  propietaria POR LA BARRA** (pasos exactos entregados).
+- **📏 LÍNEA BASE (no borrar):** 2 completadas dañadas y recuperadas ("Verduras vivas cobro diario", "Recepcionar
+  albaranes", ambas 08-20). **Si tras este fix aparece OTRA completada borrada por cascada, el fix NO cerró.** Sonda:
+  `is_deleted:true AND status='completed'` con `modified_at` posterior a este commit.
+- **🔎 BARRIDO de `parentTaskId` (pedido: barrer, no arreglar). La misma mina (asumir que una hija tiene padre no-nulo):**
+  - 🔴 **`bulkDuplicateTasks` rootIds** (`useBulkActions.ts:394`): patrón IDÉNTICO al bug (`if (!task.parentTaskId) return
+    true; return !selectedTaskIds.has(task.parentTaskId)`). Duplicar en lote una hija recurrente la trataría como raíz →
+    copia colgada mal (top-level en vez de bajo el contenedor). (bulkDuplicate está "descartado" en §16.35, pero la mina es
+    real si se retoma.)
+  - 🟠 **DelegadasView** (`:141-149, 167-170`): clasifica raíz vs subtarea por `parentTaskId` (+ `(isTemplate||!templateId)`).
+    Una hija recurrente delegada con `parentTaskId=null` cae fuera de ambas listas → no se agruparía bajo su contenedor en
+    Delegadas. Latente (depende de si delega subtareas recurrentes).
+  - 🟠 **fase3Contracts.ts:246 `hasChildren`** (`some(t => t.parentTaskId === task.id)`): si corre sobre tasks CRUDAS (no
+    materializadas), no ve hijas recurrentes (parentTaskId=null). Latente (verificar contexto de llamada).
+  - 🟢 **SEGUROS (usan el patrón correcto: comprueban también `templateId → template.parentTaskId`, o corren sobre el estado
+    MATERIALIZADO donde `parentTaskId` sí está):** `filters.ts:95-104,209-213` (referencia) · `bulkEffectiveIds` (y el nuevo
+    `bulkCompletedDirectIds`) · `containerDayToggle`/`fase3Contracts:190,231-233` · `instanceEngine` (materializeDay PONE
+    parentTaskId en las hijas renderizadas, `:154,163,174`) · `App.tsx addSubtaskWarning` (usa un id de contenedor conocido).
+
+### Recuento FINALIZADAS (sesión 26): **9 reales** (no 13)
+El número cambia con la fecha (`isExpiredTemplate` = `endDate < HOY`) y con reactivaciones. Hoy (2026-08-20): 5 top-level
++ 4 hijas. Top: Revisión rentas (30/06) · Delmer (04/06) · Revisar nóminas tiendas propias (29/07) · Mirar situación CV
+(19/08) · Firmas RRHH (19/08). Hijas: Evolució Situació Clara Sibils (12/06) · Pasar albaranes a Bego (18/08) · Revisar
+Margenes (17/08) · Hacer cuadro Resumen (17/08). El "13" de la sesión 23 incluía 1 de test + varias reactivadas después.
