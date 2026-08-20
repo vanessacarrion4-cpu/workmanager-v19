@@ -4255,6 +4255,10 @@ que se acumula sola).
 - ⏸️ **(2) CORTE para pendientes pasadas → ITEM PROPIO FASE 6/7, NO decidido.** Decisión de producto y **no es una sola
   respuesta**: un pago atrasado no caduca igual que un picking. Cuántos días atrás sigue "viva" una pendiente recurrente.
   Pensarlo con calma. (Origen del hueco: Q4 = hoy no hay corte.)
+  - 📌 **EJEMPLOS CONCRETOS (sesión 26) — 5 pendientes pasadas con tiempo apuntado, NO tocadas (decisión propietaria: no
+    las quiso quitar, llevan meses ahí; entran AQUÍ, no en el fix del bulk):** Selecció RRHH (12/05) · Rutinas mañana
+    (13/05) · Gestión campaña (13/05 y 28/07) · Pago nóminas (31/07). Son el caso vivo de este CORTE: pendientes viejas con
+    trabajo apuntado que siguen en su día. Cuando se decida el corte, decidir qué pasa con estas.
 - 🔗 **(4) Enlace FASE 7:** las **512 reales** contaminarían el **gráfico elegido/impuesto** y la **reflexión mensual**
   (FASE 7). Que no se construyan encima sin saberlo → resolver el CORTE (2) antes o a la vez.
 
@@ -4612,3 +4616,31 @@ QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el pl
 
 ### TRAMO 2 · Entrada del día — pendiente de paquete
 ### TRAMO 3 · Reporte del día — pendiente de paquete
+
+---
+
+## 16.40 ⚠️ RIESGO DE SEGURIDAD CONOCIDO — todos los datos abiertos a la clave anon (sesión 26, no arreglar hoy)
+
+**No puede desaparecer de la conversación: es TODO el trabajo de la propietaria el que está expuesto.**
+
+**Lo medido (evidencia, no supuesto):**
+- En el panel: `tasks` y `work_blocks` salen **UNRESTRICTED** (sin RLS). El resto (attachments, delegation_*, meetings,
+  persons, task_subtasks, time_entries) tienen RLS activado.
+- **PERO la clave `anon` lee y escribe también las de RLS:** verificado que `anon` hace SELECT sobre `time_entries`,
+  `persons`, `meetings` y devuelve filas → sus políticas son `using(true)` = **permisivas = abiertas**. Y la app escribe en
+  ellas con `anon` → INSERT/UPDATE también permitido. (`task_subtasks`/`attachments` dieron 0 filas: tablas vacías, no
+  restringidas.)
+- **Conclusión:** la inconsistencia de toggles (unas UNRESTRICTED, otras RLS) es **cosmética**. Funcionalmente **TODAS las
+  tablas están abiertas a la clave anon**, no solo las dos sin RLS.
+
+**El riesgo real:** la clave `anon` va **incrustada en el JS del frontend** (pública). Cualquiera con la URL de la app +
+devtools puede **leer, escribir y borrar TODOS los datos** (tareas, bloques, tiempos, personas, reuniones). En los dos
+estados. Exposición práctica = quién tenga/descubra la URL (hoy, uso personal, no compartida → riesgo bajo pero real).
+
+**Arreglo de verdad (proyecto propio, NO hoy):** Supabase **Auth** (login) + políticas RLS **RESTRICTIVAS** por usuario
+(`auth.uid() = user_id`, con `user_id` en cada tabla) en TODAS las tablas + añadir login a la app. Grande y transversal.
+Se planifica; no urge para una app de un solo usuario que no se comparte. **Mientras tanto:** no dar por hecho que las
+tablas "con RLS" están protegidas — no lo están.
+
+**Las 2 tablas nuevas (settings, day_snapshots)** se crean con RLS + política permisiva (igual que la mayoría), para que
+funcionen con `anon` como el resto — heredan el mismo riesgo, que se resolverá con el arreglo transversal.
