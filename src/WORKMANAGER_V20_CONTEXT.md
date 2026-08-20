@@ -4549,9 +4549,23 @@ ya salía con un número que no cuadraba.
   salvaría ("Verduras vivas envio facturas" 19/08; una instancia pendiente de "Verduras vivas cobro diario" 17/08). El
   número exacto de "creí quitar y sigue ahí" depende del día mirado en cada bulk. Regla para encontrarlas: pendiente viva,
   hija de contenedor, con `time_entry` en su `due_date`.
-- **FIX (sin aplicar, pendiente de la propietaria):** quitar la guarda de tiempo del bulk (que `targetIds = effectiveIds`).
-  Las completadas ya están protegidas por `bulkEffectiveIds` + `bulkCompletedDirectIds` (cascada). Así una pendiente con
-  tiempo se quita del día como el resto.
+- **✅ FIX APLICADO (sesión 26, aprobado):** quitada la guarda de tiempo (`targetIds = effectiveIds`, sin
+  `getTaskRegisteredSelf`). Las completadas siguen protegidas por `bulkEffectiveIds` (las excluye) + `bulkCompletedDirectIds`
+  (cascada). Una pendiente con tiempo se quita del día como el resto. 188 tests verdes. **NO verificado por la barra** (el
+  checkbox no se acciona por automatización) → pendiente de validación de la propietaria por la barra.
+- **BARRIDO de supervivientes (listado, NO tocado — pendiente de confirmación de la propietaria):** 7 pendientes vivas
+  (instancia recurrente) con `time_entry` en su día: Selecció RRHH (12/05) · Rutinas mañana (13/05) · Gestión campaña
+  (13/05 y 28/07) · Pago nóminas (31/07) · Verduras vivas cobro diario (17/08) · Verduras vivas envio facturas (19/08).
+  Las 2 de Verduras vivas son de su bulk reciente; las 5 antiguas son de provenencia incierta. Se borran (soft-delete) solo
+  las que ella confirme.
+
+**🔴 DOS MINAS LATENTES de `parentTaskId` (anotadas por petición de la propietaria — MISMA mina que borró 2 completadas, sin
+arreglar):** el patrón "asumir que una hija tiene padre no-nulo" falla con hijas recurrentes (`parentTaskId=null`). Vivas en:
+- **DelegadasView** (`:141-149, 167-170`): agrupa raíz vs subtarea por `parentTaskId`; una hija recurrente delegada
+  (`parentTaskId=null`) cae fuera de ambas listas → no se agruparía bajo su contenedor.
+- **fase3Contracts.ts:246 `hasChildren`** (`some(t => t.parentTaskId === task.id)`): sobre tasks crudas no ve hijas
+  recurrentes (parentTaskId=null).
+- Patrón correcto (referencia): comprobar TAMBIÉN `templateId → template.parentTaskId` (como `filters.ts` / `bulkEffectiveIds`).
 
 **✅ Verificado aparte (petición de la propietaria, NO bug):** desde el modal de una SUBTAREA recurrente el atajo "Terminar
 hoy" existe y funciona igual que en una hoja top-level → pone `endDate=ayer` en la plantilla-hija, la subtarea sale de Mi

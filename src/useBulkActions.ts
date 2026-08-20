@@ -9,7 +9,6 @@ import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { resolveTaskId, materializeDay } from './instanceEngine';
-import { getTaskRegisteredSelf } from './utils'; // A3-bulk: guarda de borrado (no tocar las que tienen tiempo ese día)
 import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan (agrupadas por lote)
 import { toast } from './toast'; // (a) sesión 24: confirm informativo del bulk / aviso "nada que quitar"
 
@@ -308,12 +307,15 @@ export function useBulkActions({
     // de su resolución ad-hoc antigua (que cascadeaba TODAS las hijas y usaba instanceDate). El helper baja los
     // contenedores a sus hijas PENDIENTES del día VISIBLE (`dueDate===activeDate`), excluye completadas y de otros días,
     // y NO incluye el contenedor en sí → se resuelve por sus hijas (si no queda ninguna, el motor lo suprime). Es
-    // siempre "QUITA ESTE DÍA", nunca la serie. GUARDA propia del borrado: además, no tocar las que tengan TIEMPO
-    // registrado ese día (§16.16: preservar trabajo). → guarda efectiva = pendiente + sin tiempo + no completada.
-    // "Terminar la rutina" NO existe en el bulk (Option B, decisión propietaria sesión 23): es decisión por serie,
-    // solo desde la fila (⋯→Eliminar→Terminar), donde se ve el nombre. Así el bulk nunca corta N series de un clic.
+    // siempre "QUITA ESTE DÍA", nunca la serie. "Terminar la rutina" NO existe en el bulk (Option B, sesión 23): es
+    // decisión por serie, solo desde la fila. Así el bulk nunca corta N series de un clic.
+    //
+    // ⚠️ FIX sesión 26 (aprobado): SE QUITA la guarda de tiempo (`getTaskRegisteredSelf===0`). Se aplicaba a las
+    // PENDIENTES → una pendiente con tiempo apuntado se saltaba del borrado (dejó "Envío Facturas" sin quitar). Decisión
+    // de la propietaria: una pendiente con tiempo SIGUE siendo pendiente y debe quitarse del día; lo que se preserva es
+    // lo COMPLETADO, y eso ya lo cubren `bulkEffectiveIds` (las excluye) + `bulkCompletedDirectIds` (cascada protege).
     const { ids: effectiveIds } = bulkEffectiveIds(selectedTaskIds, tasks, activeDate, resolve);
-    const targetIds = effectiveIds.filter(id => getTaskRegisteredSelf(id, timeEntries, activeDate) === 0);
+    const targetIds = effectiveIds;
 
     // (b) sesión 24 + FIX sesión 26 (Parte 2): COMPLETADAS en selección múltiple. El bulk protege las completadas por
     // defecto (bulkEffectiveIds las excluye) porque lo normal es que entren por CASCADA de un contenedor seleccionado y no
