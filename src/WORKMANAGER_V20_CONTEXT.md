@@ -4570,3 +4570,45 @@ arreglar):** el patrón "asumir que una hija tiene padre no-nulo" falla con hija
 **✅ Verificado aparte (petición de la propietaria, NO bug):** desde el modal de una SUBTAREA recurrente el atajo "Terminar
 hoy" existe y funciona igual que en una hoja top-level → pone `endDate=ayer` en la plantilla-hija, la subtarea sale de Mi
 Día al instante y queda FINALIZADA (verificado en pantalla con una hija recurrente de test; endDate=2026-08-20 persistido).
+
+---
+
+## 16.39 FASE 6 — CABECERA · FOTO · ENTRADA · REPORTE (diseño grande, 4 piezas, 3 tramos)
+
+**Un diseño, entregado en 3 tramos, un commit por tramo:** (1) Cabecera + Foto · (2) Entrada del día · (3) Reporte.
+Definición CERRADA por la propietaria; si aparece un hueco → PARAR y preguntar, no rellenar. La spec íntegra la dio la
+propietaria (sesión 26); aquí quedan las decisiones y el estado.
+
+**🧭 PRINCIPIO RECTOR (propietaria):** cuando se dude entre "el conjunto del DÍA" y "LO QUE QUEDA", la respuesta es **LO QUE
+QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el plan. El repaso del plan lo verá el REPORTE.
+
+### TRAMO 1 · Cabecera + Foto — spec finalizada (pendiente de crear tablas + construir)
+- **Cabecera** sustituye a las 3 tarjetas (Pendientes/Pendiente/Registrado, desaparecen). SIN caja, principio de página.
+  Fila: "FALTAN" + nº pendientes (grande) · "N hechas de M" + pendiente en horas (azul) · empujado a la derecha la
+  **COMPARACIÓN** (cambio a §16.8, decisión propietaria: `estimatedCompleted` · `registered`, etiquetadas; asumido a
+  propósito que no son estrictamente comparables — NO "corregir" a "dos medidas distintas") · enlace "Desglose" · barra de
+  progreso a todo el ancho (turquesa, % del día) que hace de separador. Debe ocupar bastante menos alto (~recuperar los ~180px).
+- **Números:** todos ya existen en `getStatsForDay` (`filters.ts`) → la cabecera es casi solo render. Reglas §16.8 intactas
+  (pendientes = hojas; contenedores no cuentan; hechas+faltan=total; registrado = único por fecha de registro).
+- **DESGLOSE = estimado PENDIENTE** (decisión propietaria, por el principio rector): por tipo (core/ad-hoc) y por bloque, en
+  tiempo, de más a menos, cada uno con su punto/barrita. Plegable, cerrado por defecto, recuerda apertura en `localStorage`.
+- **FOTO:** 📌 en la cabecera. Al fijar guarda nº hojas del día + estimado total del día + hora. Línea "Fijado a las 8:40 ·
+  +3 tareas · +45m". **Delta NETO** (actual − foto); **si sale NEGATIVO se muestra tal cual** ("−2 tareas · −30m" = aligeró
+  el día), no se oculta ni se pone a 0. Re-fijar = fila nueva (no acumula, no actualiza). Opcional. Aviso de
+  sobreplanificación al fijar si estimado del día > jornada (no bloquea).
+- **PERSISTENCIA (decisión propietaria: BD, trabaja en 2 máquinas; localStorage descartado para histórico):**
+  - **`day_snapshots`** (tabla nueva): TODAS las fijaciones, una FILA por fijación (no upsert). Columnas: `id` (text PK,
+    `snap-<ts>`), `date` (text 'YYYY-MM-DD', indexado), `taken_at` (timestamptz, hora), `task_count` (int), `estimated_minutes`
+    (int), `created_at`. La foto "activa" del día = la de mayor `taken_at`; histórico = todas las filas del `date`. Consulta
+    por rango de fechas con índice en `date` → sin problema con cientos/miles de filas.
+  - **`settings`** (tabla nueva, GENÉRICA clave/valor — decisión propietaria: "van a venir más ajustes, no una tabla por
+    cada uno"): `key` (text PK), `value` (jsonb), `updated_at`. Jornada = key `workday_minutes` (default 480 si no hay fila).
+    Editable inline con clic en el aviso de sobreplanificación. Va a BD porque alimenta el REPORTE ("día sobreplanificado").
+  - **La propietaria ejecuta el SQL** (como siempre); yo construyo tras crear las tablas.
+- **Reserva de sitio:** líneas compactas bajo la de foto para ENTRADA (tramo 2) y acceso a REPORTE (tramo 3).
+- **Ficheros previstos:** `DashboardView.tsx` (cabecera + foto), `filters.ts` (desglose pendiente por tipo/bloque), carga
+  de las 2 tablas (useSupabase o similar), constantes. `SummaryCard` queda sin uso (solo se usa aquí).
+- **NO construir retén** (cuenta en el previsto, sin estado especial).
+
+### TRAMO 2 · Entrada del día — pendiente de paquete
+### TRAMO 3 · Reporte del día — pendiente de paquete
