@@ -149,7 +149,7 @@ export function RecurrenceChoiceModal({ type, task = null, pendingChildCount = 0
             )}
             {isDelete && (
               <p className="text-[11px] font-bold text-text-secondary/70 leading-relaxed px-1">
-                ¿Terminar la rutina? No la borres: ábrela (editar) y ponle <span className="text-turquesa">fecha hasta</span> → pasa a Finalizadas.
+                ¿Terminar la rutina? Ábrela (editar) y ponle <span className="text-turquesa">fecha hasta</span> → pasa a Finalizadas.
               </p>
             )}
             <button
