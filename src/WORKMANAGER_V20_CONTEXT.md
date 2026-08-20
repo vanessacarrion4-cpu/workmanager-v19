@@ -4617,6 +4617,35 @@ QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el pl
 ### TRAMO 2 · Entrada del día — pendiente de paquete
 ### TRAMO 3 · Reporte del día — pendiente de paquete
 
+### AUDITORÍA DE NÚMEROS DE CONTENEDOR (sesión 26) — principio + estado verificado
+**🧭 PRINCIPIO (propietaria):** un contenedor mide SIEMPRE lo mismo que muestra debajo. Si la lista oculta algo, el total
+no lo cuenta. El mismo contenedor no puede dar números distintos según la vista salvo que la vista mida otra cosa a
+propósito Y lo diga en pantalla.
+
+**Estado por item (🟢 = confirmado; 🟡 = leído en código, sin confirmar en pantalla; ⚪ = por diseño):**
+- **#1 🟢 Bloques, estimado = `getTaskEstimatedCombo` (todo el subárbol, incluye finalizadas/completadas).** Caso real de la
+  propietaria ("2h10m con hijas a 0m"). → **ARREGLO:** mismo conjunto que la lista (excluir expiradas). **+ F6-x3:** como
+  Bloques es DEFINICIÓN, el número es del conjunto completo, no de un día → que la pantalla lo diga (con este arreglo).
+- **#2 🟢 Semana usa cálculo propio.** CONFIRMADO en pantalla: Semana NO muestra contenedores por nombre; agrupa por
+  día→BLOQUE con "X/Y · tiempo" (agregación propia, `getTaskMins` + sumas de bloque) + total del día. Estructura y lógica
+  distintas del resto. **BONUS:** salen números NUEVOS a auditar (X/Y y tiempo por bloque/día en Semana). → **ARREGLO:**
+  unificar con TaskCard (o etiquetar que Semana mide otra cosa).
+- **#3 🟡 Calendario/Búsqueda: estimado sin acotar al día** (`getTaskEstimatedPending`, todos los días; sin `dayForTotals`).
+  NO confirmado en pantalla por mí. → Calendario es por día → debe acotar (ARREGLO si se confirma). Búsqueda no tiene día →
+  decidir qué mostrar. **Pendiente de confirmar en pantalla.**
+- **#4 ⚪ Estimado excluye completadas** (por diseño). → ETIQUETA: que se lea "pendiente".
+- **#5 ⚪ Badge = solo pendientes** (post #4a). Coherente con lo que oculta la lista. Nada.
+- **#6 🟢 "N reglas" cuenta CONTENEDORES como reglas.** CONFIRMADO con datos reales: en CM11l, de 11 "reglas", **5 son
+  contenedores** (Lineas de vida 12 hijas, Rutinas mañana 136, prueba rec, PRUEBA REC 1808, pruebaaaa) + varias plantillas
+  SIN pauta (test). Un contenedor es carpeta, no regla. → **ARREGLO:** excluir contenedores (mismo criterio que la cabecera
+  de Mi Día). **BONUS:** el conteo también incluye plantillas inertes sin pauta; y baila con la fecha (UI 12 / probe 11 por
+  el límite `endDate < hoy`).
+- **#7 🟡 Registrado de contenedor manual SIN fecha = histórico entero** (`getTaskRegisteredCombo` sin `filterDate` cuando
+  no hay `dayForTotals`). NO confirmado en pantalla. → **Pendiente de confirmar**; arreglo si ocurre.
+- **⚠️ NOTA DE MÉTODO:** los probes de esta auditoría fallaron primero por seleccionar `subtasks` (NO es columna — bug #18);
+  los contenedores se detectan por `parent_task_id` de las hijas. Corregido. Recordatorio: nunca `select('subtasks')`.
+- **ORDEN acordado:** confirmar los 🟡 (#3, #7) en pantalla → mapa verificado → OK de la propietaria → arreglos → tramo 1.
+
 ---
 
 ## 16.40 ⚠️ RIESGO DE SEGURIDAD CONOCIDO — todos los datos abiertos a la clave anon (sesión 26, no arreglar hoy)
