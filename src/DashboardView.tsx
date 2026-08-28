@@ -329,6 +329,7 @@ export function DashboardView({
         jornada={jornada}
         onFijar={() => { fijar(stats.total, stats.estimatedTotal, stats.completed).catch(() => {}); }}
         onSetJornada={setJornada}
+        onOpenTimeHistory={() => setShowTimeHistory(true)}
       />
 
       {/* Task Groups */}

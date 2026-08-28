@@ -4624,6 +4624,15 @@ QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el pl
 - **VERIFICADO en pantalla:** cabecera renderiza (FALTAN 29 / "0 hechas de 29" / 3h50m pendiente / comparación / barra);
   NÚMEROS CUADRAN (desglose por tipo Core 2h55 + Ad-hoc 55m = 230m = el pendiente); FIJAR persiste en `day_snapshots` con
   `completed_count`; Re-fijar guarda una 2ª fila (TODAS). Fijaciones de prueba borradas (día real limpio). 184 tests.
+- **2 fallos visuales del desglose corregidos (sesión 26, verificado en modo CLARO):** (1) "Queda por tipo" — el
+  Ad-hoc no tenía texto: heredaba color blanco = invisible sobre fondo claro (su hipótesis "texto blanco sobre fondo
+  blanco", confirmada: color `rgb(248,250,252)` = fondo body). Fix: color explícito `dark:text-white text-text-main-light`.
+  (2) "Queda por bloque" — barras no cuadraban con las cifras (Bancos 50m salía la MÁS LARGA): el contenedor de barra era
+  `flex-1 max-w-[160px]`, ancho variable por fila según el texto. Fix: contenedor fijo `w-[140px] shrink-0` + ancho
+  clampeado `min(100, minutos/maxBloque·100)`. Verificado: contenedores TODOS a 140px, fills 100/100/100/83 → las tres de
+  1h iguales, Bancos (50m) la más corta. Ordenadas desc. ("1h" NO es redondeo: `formatMinutes` da "1h" solo para 60m exactos.)
+  Restaurado además el "Registrado hoy ›" como botón clicable → historial de tiempos (el "Ver historial" que colgaba de la
+  tarjeta Registrado borrada; ella pidió avisar si desaparecía algo que usara).
 - **Reservado (sin construir):** línea "Entró hoy" (tramo 2) bajo la foto; enlace "Reporte ›" (tramo 4) junto a Desglose.
 
 ### TRAMO 1 · Cabecera + Foto — spec (histórico)

@@ -18,7 +18,7 @@ function hhmm(iso: string): string {
 }
 
 export function DayHeader({
-  stats, blocks, latest, jornada, onFijar, onSetJornada,
+  stats, blocks, latest, jornada, onFijar, onSetJornada, onOpenTimeHistory,
 }: {
   stats: DayStats;
   blocks: any[];
@@ -26,6 +26,7 @@ export function DayHeader({
   jornada: number;
   onFijar: () => void;
   onSetJornada: (min: number) => void;
+  onOpenTimeHistory: () => void; // restaura el "Ver historial" que colgaba de la tarjeta Registrado (sesión 26)
 }) {
   const [open, setOpen] = useState<boolean>(() => {
     try { return localStorage.getItem(DESGLOSE_KEY) === '1'; } catch { return false; }
@@ -70,10 +71,14 @@ export function DayHeader({
             <span className="text-sm font-black dark:text-white text-text-main-light tabular-nums">{formatMinutes(stats.estimatedCompleted)}</span>
           </div>
           <span className="text-text-secondary/40 pb-0.5">·</span>
-          <div className="flex flex-col items-end leading-tight">
-            <span className="text-[9px] font-black uppercase tracking-widest text-morado">Registrado hoy</span>
+          <button
+            onClick={onOpenTimeHistory}
+            title="Ver historial de tiempos registrados"
+            className="flex flex-col items-end leading-tight group/reg"
+          >
+            <span className="text-[9px] font-black uppercase tracking-widest text-morado group-hover/reg:underline">Registrado hoy ›</span>
             <span className="text-sm font-black text-morado tabular-nums">{formatMinutes(stats.registered)}</span>
-          </div>
+          </button>
         </div>
 
         {/* FIJAR */}
@@ -130,8 +135,9 @@ export function DayHeader({
       {/* DESGLOSE (estimado PENDIENTE = lo que QUEDA; la barra de arriba es % completado → no se contradicen) */}
       {open && (
         <div className="mt-3 space-y-2">
-          <div className="flex items-center gap-4 text-[11px] font-bold flex-wrap">
-            <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Queda por tipo</span>
+          {/* color EXPLÍCITO (sesión 26): sin él, en modo CLARO el texto heredaba blanco = invisible sobre fondo blanco. */}
+          <div className="flex items-center gap-4 text-[11px] font-bold flex-wrap dark:text-white text-text-main-light">
+            <span className="text-[9px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Queda por tipo</span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-turquesa" /> Core {formatMinutes(stats.byType.core)}</span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rosa" /> Ad-hoc {formatMinutes(stats.byType.adhoc)}</span>
           </div>
@@ -141,8 +147,8 @@ export function DayHeader({
               {stats.byBlock.slice(0, 8).map(b => (
                 <div key={b.blockId} className="flex items-center gap-2 text-[11px] font-bold">
                   <span className="w-24 truncate dark:text-text-secondary text-text-secondary-light">{blockName(b.blockId)}</span>
-                  <div className="flex-1 h-1.5 rounded-full dark:bg-white/5 bg-black/5 overflow-hidden max-w-[160px]">
-                    <div className="h-full rounded-full" style={{ width: `${Math.round((b.minutes / maxBlock) * 100)}%`, backgroundColor: blockColor(b.blockId) }} />
+                  <div className="w-[140px] shrink-0 h-1.5 rounded-full dark:bg-white/5 bg-black/5 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.round((b.minutes / (maxBlock || 1)) * 100))}%`, backgroundColor: blockColor(b.blockId) }} />
                   </div>
                   <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(b.minutes)}</span>
                 </div>
