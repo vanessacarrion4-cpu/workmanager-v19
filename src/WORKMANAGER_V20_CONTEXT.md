@@ -4749,11 +4749,14 @@ propósito Y lo diga en pantalla.
   decidir qué mostrar. **Pendiente de confirmar en pantalla.**
 - **#4 ⚪ Estimado excluye completadas** (por diseño). → ETIQUETA: que se lea "pendiente".
 - **#5 ⚪ Badge = solo pendientes** (post #4a). Coherente con lo que oculta la lista. Nada.
-- **#6 🟢 "N reglas" cuenta CONTENEDORES como reglas.** CONFIRMADO con datos reales: en CM11l, de 11 "reglas", **5 son
-  contenedores** (Lineas de vida 12 hijas, Rutinas mañana 136, prueba rec, PRUEBA REC 1808, pruebaaaa) + varias plantillas
-  SIN pauta (test). Un contenedor es carpeta, no regla. → **ARREGLO:** excluir contenedores (mismo criterio que la cabecera
-  de Mi Día). **BONUS:** el conteo también incluye plantillas inertes sin pauta; y baila con la fecha (UI 12 / probe 11 por
-  el límite `endDate < hoy`).
+- **#6 ✅ ARREGLADO (sesión 26, `BlocksView.tsx:637`).** El chip contaba `isTemplate && !parent && !expired` → metía
+  contenedores, plantillas inertes de test Y (el "3.er sitio" del 12-vs-11) una **instancia ascendida** con `templateId`
+  puesto que la lista del detalle sí ocultaba (`inst-t-1778012355951-2026-05-05` "Prueba recurrente…", en CM11l → chip 11 /
+  lista 10). **Nueva definición:** REGLA = plantilla CON PAUTA (`recurrence.frequency`), SIN `templateId`, no expirada,
+  **anidada o no** (la mayoría lo están: Central 0 top → 25 reales; Bancos 23; CM11l 10). CONTENEDOR = plantilla sin pauta
+  con hijas = carpeta, se muestra aparte (`· N carpetas`, oculto si 0). Basura inerte y ascendidas: fuera. **VERIFICADO en
+  pantalla (DOM) contra probe:** CM11l `10 reglas · 5 carpetas`, Central `25 · 6`, Bancos `23 · 2`, Finca `11 · 3`,
+  RRHH `4 · 3`, Clientes `5 · 1`, Family `1 · 1`. 12-vs-11 CERRADO.
 - **#7 🟡 Registrado de contenedor manual SIN fecha = histórico entero** (`getTaskRegisteredCombo` sin `filterDate` cuando
   no hay `dayForTotals`). NO confirmado en pantalla. → **Pendiente de confirmar**; arreglo si ocurre.
 - **⚠️ NOTA DE MÉTODO:** los probes de esta auditoría fallaron primero por seleccionar `subtasks` (NO es columna — bug #18);

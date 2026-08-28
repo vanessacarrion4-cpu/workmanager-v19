@@ -634,7 +634,23 @@ export function BlocksManagerView({
                   </div>
                   <div className="flex items-center gap-4">
                     <p className="text-[10px] font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em]">
-                      {Object.values(allTasksMap).filter((t: any) => t && t.blockId === block.id && t.isTemplate && !t.parentTaskId && !isExpiredTemplate(t, formatLocalISO(new Date()))).length} reglas · {Object.values(allTasksMap).filter((t: any) => t && t.blockId === block.id && !t.isTemplate && !t.templateId && !t.parentTaskId).length} manuales
+                      {(() => {
+                        // #6 (sesión 26): una REGLA es una plantilla CON PAUTA (recurrence.frequency); un CONTENEDOR es una
+                        // carpeta (plantilla sin pauta con hijas), NO una regla. Se cuentan las reglas REALES aunque estén
+                        // anidadas en carpetas (mismo criterio que Mi Día; la mayoría lo están). Excluidas: instancias
+                        // ascendidas (templateId, el "3.er sitio" del 12-vs-11), series terminadas (expired) y basura inerte.
+                        const today = formatLocalISO(new Date());
+                        const all = Object.values(allTasksMap) as any[];
+                        const inBlock = all.filter((t: any) => t && t.blockId === block.id && !t.isDeleted);
+                        const hasChildren = (id: string) => all.some((c: any) => c && !c.isDeleted && c.parentTaskId === id);
+                        const reglas = inBlock.filter((t: any) => t.isTemplate && t.recurrence?.frequency && !t.templateId && !isExpiredTemplate(t, today)).length;
+                        const carpetas = inBlock.filter((t: any) => t.isTemplate && !t.recurrence?.frequency && !t.templateId && hasChildren(t.id)).length;
+                        const manuales = inBlock.filter((t: any) => !t.isTemplate && !t.templateId && !t.parentTaskId).length;
+                        const partes = [`${reglas} regla${reglas === 1 ? '' : 's'}`];
+                        if (carpetas > 0) partes.push(`${carpetas} carpeta${carpetas === 1 ? '' : 's'}`);
+                        partes.push(`${manuales} manual${manuales === 1 ? '' : 'es'}`);
+                        return partes.join(' · ');
+                      })()}
                     </p>
                   </div>
                 </div>
