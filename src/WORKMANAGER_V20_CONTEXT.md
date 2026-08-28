@@ -4681,7 +4681,7 @@ QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el pl
   de las 2 tablas (useSupabase o similar), constantes. `SummaryCard` queda sin uso (solo se usa aquí).
 - **NO construir retén** (cuenta en el previsto, sin estado especial).
 
-### TRAMO 4 · REPORTE DEL DÍA — ✅ CONSTRUIDO (sesión 26); pendiente: la propietaria crea la tabla `day_reports` + validar en pantalla
+### TRAMO 4 · REPORTE DEL DÍA — ✅ CONSTRUIDO Y VERIFICADO (sesión 26); tabla `day_reports` creada. Pendiente solo validación visual de la propietaria
 
 **Ficheros:** `filters.ts` (`computeVerdict` sentencia §16.42 + `getReportBreakdown` desglose día completo + `collectLeafTasks`
 extraído y compartido con `getStatsForDay`), `useDayReport.ts` (hook: carga/upsert por `date`), `DayReportModal.tsx`
@@ -4691,8 +4691,9 @@ extraído y compartido con `getStatsForDay`), `useDayReport.ts` (hook: carga/ups
 Desviación "—"; con foto → "Día cumplido: 0m de 3h 50m previstas", Tiempo "0m de 3h 50m", Desviación "+0m". Desglose día
 completo por tipo/bloque/etiqueta cuadra. Fijación de prueba borrada (día real limpio). 194 tests (computeVerdict 10 casos
 + getReportBreakdown incluye completadas, la cabecera no).
-**PENDIENTE:** la propietaria ejecuta el SQL de `day_reports` (§16.42); hasta entonces el reporte se ve pero GUARDAR falla
-(carga es tolerante, no rompe). Verificación de guardado/persistencia queda para cuando exista la tabla.
+**GUARDADO VERIFICADO end-to-end (BD real, 29/08):** marcar motivo + nota + Guardar → fila en `day_reports`
+(`verdict:'sin_fijar'`, `motivos:['prioridad']`, `nota`, `measures` snapshot con nulls por sin-foto) → recarga → REPRECARGA
+(motivo marcado + nota). Fila de prueba borrada. Tabla creada por la propietaria. Solo falta su validación visual.
 
 *(spec debajo)*
 
