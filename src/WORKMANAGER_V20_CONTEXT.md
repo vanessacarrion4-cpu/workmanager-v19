@@ -4963,6 +4963,18 @@ sobre botones de color (correctos).
 **→ Decisión de la propietaria:** ¿arreglar en una tanda (dar variante clara explícita a los de ALTA confianza + verificar
 los de MEDIA)? Criterio: `dark:text-white text-text-main-light` para cabeceras; para "Hoy/Mañana" mirar el fondo real del botón.
 
+**✅ RESUELTO (sesión 26) — NO es sistémico, hay regla de facto.** Verificado uno a uno en modo CLARO:
+- **Los tokens `bg-card` (#1E293B) y `bg-main` (#0B1120) son OSCUROS y NO tienen variante clara** → todo modal/tarjeta/
+  popover construido sobre ellos SIGUE OSCURO en modo claro → `text-white` dentro es CORRECTO. Regla de facto: **superficie
+  oscura → texto blanco (bien); superficie CLARA → `text-text-main-light`.** No hace falta refactor de sistema.
+- **FALSOS POSITIVOS confirmados (sobre superficie oscura, NO tocar):** `App:846/915` y `Modals:105` (modales `bg-bg-card`
+  #1E293B), `DashboardView:307/323` "Hoy/Mañana" (botón `bg-bg-main` #0B1120, verificado texto blanco sobre rgb(11,17,32)).
+- **BUGS REALES = texto sobre superficie CLARA (los únicos):** (1) popover "Ir a fecha" (`bg-card-light`) — arreglado §16.42;
+  (2) `BlocksView:513` `<h2>Bloques` (título sobre la PÁGINA clara) — ARREGLADO (`dark:text-white text-text-main-light`,
+  verificado rgb(15,23,42)). Los MEDIA restantes viven en tarjetas/popovers oscuros → no muerden.
+- **Respuesta a "¿cuántas dependen del fondo del padre?":** TODAS, pero el fondo es determinista (oscuro=bien). Bugs reales
+  hallados = 2, ambos arreglados. No es "falta de regla"; es superficie-clara puntual.
+
 ## 16.45 CIERRE DEL DÍA · REPASO DE LO NO HECHO — spec (sesión de producto, PENDIENTE de construir; va detrás de lo en marcha)
 
 **DÓNDE:** al final del REPORTE del día (tramo 4), debajo de todo.

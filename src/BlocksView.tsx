@@ -510,7 +510,7 @@ export function BlocksManagerView({
             <Grid2X2 size={24} />
           </div>
           <div>
-            <h2 className="text-3xl font-black text-white">Bloques</h2>
+            <h2 className="text-3xl font-black dark:text-white text-text-main-light">Bloques</h2>
             <p className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em]">Contextos de trabajo</p>
           </div>
         </div>
