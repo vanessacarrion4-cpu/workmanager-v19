@@ -4672,7 +4672,8 @@ QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el pl
     (int), `created_at`. La foto "activa" del día = la de mayor `taken_at`; histórico = todas las filas del `date`. Consulta
     por rango de fechas con índice en `date` → sin problema con cientos/miles de filas.
   - **`settings`** (tabla nueva, GENÉRICA clave/valor — decisión propietaria: "van a venir más ajustes, no una tabla por
-    cada uno"): `key` (text PK), `value` (jsonb), `updated_at`. Jornada = key `workday_minutes` (default 480 si no hay fila).
+    cada uno"): `key` (text PK), `value` (jsonb), `updated_at`. Jornada = key `jornada_minutes` (default 480 si no hay fila;
+    así está en el código: `useDaySnapshot.ts`).
     Editable inline con clic en el aviso de sobreplanificación. Va a BD porque alimenta el REPORTE ("día sobreplanificado").
   - **La propietaria ejecuta el SQL** (como siempre); yo construyo tras crear las tablas.
 - **Reserva de sitio:** líneas compactas bajo la de foto para ENTRADA (tramo 2) y acceso a REPORTE (tramo 3).
@@ -4680,7 +4681,6 @@ QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el pl
   de las 2 tablas (useSupabase o similar), constantes. `SummaryCard` queda sin uso (solo se usa aquí).
 - **NO construir retén** (cuenta en el previsto, sin estado especial).
 
-### TRAMO 2 · Entrada del día — pendiente de paquete
 ### TRAMO 4 · REPORTE DEL DÍA — spec CERRADA por la propietaria (sesión 26), pendiente de construir
 
 **QUÉ ES:** el resumen del día con valoración automática, para poder ponerle nota sabiendo lo que ha pasado.
@@ -4693,8 +4693,10 @@ consultar el de DÍAS PASADOS (con eso hay histórico sin construir nada más �
    partida, NO motivo de incumplimiento). Umbrales: ver §16.42.
 2. **LAS TRES MEDIDAS** debajo: Cumplimiento (N de M tareas) · Tiempo (X de Y horas previstas) · Desviación de la foto
    (cuánto se añadió respecto a lo fijado). La sentencia sale del TIEMPO; las otras dos se muestran igual.
-3. **ENTRADA DEL DÍA** en su versión de cierre (la lista completa de lo que entró).
-4. **EL DESGLOSE DEL DÍA** incluyendo POR ETIQUETA (además de tipo y bloque). Misma razón que en la cabecera.
+3. **ENTRADA DEL DÍA** en su versión de cierre = **la lista completa de lo que entró, desplegada por defecto** (no el
+   resumen compacto de una línea de la cabecera). [confirmado por la propietaria]
+4. **EL DESGLOSE DEL DÍA** por tipo, bloque y ETIQUETA. En el reporte es el **DÍA COMPLETO (hechas + pendientes)**, no
+   "lo que queda": la cabecera es "qué hago ahora", el reporte es "cómo ha ido". [confirmado por la propietaria]
 5. **MOTIVO** — tres opciones, se pueden marcar VARIAS: Desviación estimado↔real · Cambio de prioridad (da igual si
    voluntaria o impuesta) · Dependo de otro. Más un CAMPO LIBRE. Todo OPCIONAL: si no marco nada, no pasa nada; el reporte
    vale por sí solo.
@@ -4792,25 +4794,25 @@ Contenido OK, jerarquía no. Cambios (`DayHeader.tsx`, `DashboardView.tsx` barra
   arreglados y desplegados en `b342951` — veía bundle viejo en caché; refresco duro. Re-confirmados aquí: Ad-hoc visible,
   barras 100/100/100/83 (Bancos la más corta), "1h"=60m exactos (no redondeo).
 
-## 16.42 REPORTE (tramo 4) — umbrales de la sentencia + modelo de datos ⏳ PROPUESTA, PENDIENTE DE APROBAR
-
-**⚠️ NADA de esto se construye hasta que la propietaria apruebe umbrales y SQL.**
+## 16.42 REPORTE (tramo 4) — umbrales de la sentencia + modelo de datos ✅ APROBADO por la propietaria (sesión 26)
 
 **Definiciones (todo en minutos):**
-- `previsto` = `foto.estimated_minutes` (lo fijado) si hay foto hoy; si no, `stats.estimatedTotal` (el plan actual del día).
+- `previsto` = `foto.estimated_minutes` (lo fijado). **SOLO existe si hay foto hoy.** Sin foto NO se inventa (ver caso 4).
 - `jornada` = configurable (`settings.jornada_minutes`, default 480).
 - `registrado` = `stats.registered` (suma de `time_entries` del día). = la X de "X de Y horas".
 - `añadido` = `stats.estimatedTotal − foto.estimated_minutes` (solo medible si hay foto; es la desviación de la foto).
 - `hechas_tras_fijar` = `stats.completed − foto.completed_count` (para la medida de cumplimiento).
 
-**Sentencia (PROPUESTA de umbrales, prioridad de arriba a abajo):**
-1. **Sobreplanificado** si `previsto > jornada × 1.25` → "Día sobreplanificado: {previsto}h previstas". (Condición de
-   partida; se muestra aunque luego cumplas.) *(1.25 = margen para no disparar por 8h05 vs 8h; con jornada 8h salta a partir de 10h.)*
+**Sentencia (umbrales APROBADOS, prioridad de arriba a abajo):**
+1. **Sobreplanificado** si hay foto y `previsto > jornada` → "Día sobreplanificado: {previsto}h previstas". *(Sin ×1.25:
+   la propietaria lo quiere sensible — con jornada 8h, 9h ya sobreplanifica. Si con el uso salta demasiado, se sube.)*
 2. **Desviado** si hay foto y `añadido ≥ max(60, previsto × 0.25)` → "Día desviado: entraron {añadido}h no previstas".
    *(Entró ≥1h nueva, o ≥25% de lo fijado.)*
-3. **Cumplido** en el resto → "Día cumplido: {registrado}h de {previsto}h previstas". *(El plan se mantuvo; NO mide
-   productividad, mide estabilidad del plan — por eso no hay veredicto "flojo".)*
-- Sin foto: no se puede medir desviación → nunca "desviado"; queda sobreplanificado (por el plan actual) o cumplido.
+3. **Cumplido** si hay foto y no cae en 1 ni 2 → "Día cumplido: {registrado}h de {previsto}h previstas". *(Mide
+   estabilidad del plan, NO productividad — por eso no hay veredicto "flojo".)*
+4. **Sin fijar** (NO hay foto) → "Día sin fijar". NO hay veredicto de cumplimiento ni previsto (calcularlo sobre el plan
+   actual mentiría a favor: incluiría lo que entró después → nunca saldría "desviado"). Se muestran solo las medidas
+   calculables: cumplimiento (N de M tareas) y tiempo REGISTRADO (sin "de Y"), + desglose + entrada. Sin desviación.
 
 **Modelo de datos (PROPUESTA) — tabla nueva `day_reports`, una fila por día (upsert por `date`):**
 - `verdict` y las 3 medidas se RECALCULAN en vivo al abrir (los datos del día están congelados tras medianoche), pero se
