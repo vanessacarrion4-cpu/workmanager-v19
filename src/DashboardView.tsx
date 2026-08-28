@@ -233,37 +233,36 @@ export function DashboardView({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="space-y-5"
+      className="space-y-3"
     >
-      {/* Date Header — barra ligera (sin caja/sombra): la fecha es contexto, no el dato principal (§16.41 diseño p1) */}
+      {/* FILA 1 · FECHA — a la IZQUIERDA, silenciosa (§16.43): contexto, no titular. Sin caja/sombra/icono decorativo. */}
       <div className="flex flex-col">
-        <div className="grid grid-cols-3 items-center py-0.5">
-          {/* Izquierda: navegación */}
-          <div className="flex gap-1.5 items-center">
-            <button onClick={() => onDayChange(-1)} className="p-2 dark:hover:bg-bg-main hover:bg-bg-secondary-light rounded-xl transition-all dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light">
-              <ChevronRight size={18} className="rotate-180" />
+        <div className="flex items-center gap-2 py-0.5">
+          {/* navegación */}
+          <div className="flex gap-1 items-center">
+            <button onClick={() => onDayChange(-1)} className="p-1.5 dark:hover:bg-bg-main hover:bg-bg-secondary-light rounded-lg transition-all dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light">
+              <ChevronRight size={16} className="rotate-180" />
             </button>
             <button
               onClick={() => { const today = formatLocalISO(new Date()); onSetDate(today); }}
-              className="px-4 py-1.5 bg-turquesa/10 text-turquesa rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-turquesa hover:text-white transition-all"
+              className="px-3 py-1 bg-turquesa/10 text-turquesa rounded-lg font-black uppercase text-[10px] tracking-widest hover:bg-turquesa hover:text-white transition-all"
             >
               HOY
             </button>
-            <button onClick={() => onDayChange(1)} className="p-2 dark:hover:bg-bg-main hover:bg-bg-secondary-light rounded-xl transition-all dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light">
-              <ChevronRight size={18} />
+            <button onClick={() => onDayChange(1)} className="p-1.5 dark:hover:bg-bg-main hover:bg-bg-secondary-light rounded-lg transition-all dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light">
+              <ChevronRight size={16} />
             </button>
           </div>
 
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1.5">
-              <CalendarIcon2 size={14} className="text-turquesa" />
+          <div className="ml-1">
+            <div className="flex items-center">
               <div className="relative">
                 <button
                   onClick={() => setShowDashboardCalendar(!showDashboardCalendar)}
-                  className="text-base font-bold capitalize dark:text-text-secondary text-text-secondary-light flex items-center gap-1.5 hover:text-turquesa transition-all"
+                  className="text-[13px] font-medium capitalize dark:text-text-secondary text-text-secondary-light flex items-center gap-1 hover:text-turquesa transition-all"
                 >
                   {dayName}, {dayNum}
-                  <ChevronDown size={13} className={`transition-transform duration-300 ${showDashboardCalendar ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={12} className={`transition-transform duration-300 ${showDashboardCalendar ? 'rotate-180' : ''}`} />
                 </button>
 
                 <AnimatePresence>

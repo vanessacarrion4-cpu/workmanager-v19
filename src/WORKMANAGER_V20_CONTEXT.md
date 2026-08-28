@@ -4849,3 +4849,26 @@ create policy day_reports_all on day_reports for all to anon, authenticated usin
 grant all on day_reports to anon, authenticated;
 ```
 (Mismo patrón permisivo que `settings`/`day_snapshots` — hereda el riesgo §16.40, se resolverá con el arreglo transversal.)
+
+## 16.43 CINTA DE MI DÍA — rediseño de jerarquía en 4 filas (sesión 26, spec de la propietaria)
+
+Mismo sistema (slate + turquesa); cambia la JERARQUÍA y el reparto, no el estilo. Se lee en 3 tiempos: ESTADO → MEDIDAS →
+ACCIONES. Sin cajas/sombras/bordes, sin iconos decorativos, un solo acento.
+- **FILA 1 · FECHA** (`DashboardView`): `‹ HOY › sábado, 29 de agosto ⌄`, **a la izquierda** (era centrada), 13px peso 500
+  slate-500, sin icono de calendario. Alto mínimo.
+- **FILA 2 · ESTADO + MEDIDAS** (`DayHeader`): héroe = "FALTAN" (eyebrow 10px) + **"28 · 5h 44m" como UNA unidad**
+  (nº 40px extrabold slate-900 + punto separador slate-300 + tiempo 20px semibold slate-500) + "**1 de 29 hechas**"
+  (concordancia corregida, 12px). Medidas = "ESTIMADO VS REGISTRADO HOY" + dos números 18px iguales con regla vertical;
+  **SIN enlace historial** (se fue a la fila 4). Misma línea base.
+- **FILA 3 · META** (solo si aplica): foto + entrada, 12px slate-500, silenciosas.
+- **FILA 4 · BARRA + ACCIONES**: barra 6px (track visible, relleno turquesa, sin "%") ocupa el hueco; acciones a la
+  derecha en horizontal `Fijar · Desglose · Reporte · Historial`, 11px uppercase 600. Responsive: en estrecho medidas bajan
+  bajo el héroe y acciones bajo la barra (flex-wrap), sin scroll horizontal.
+- **DISCIPLINA DE COLOR (lo importante):** SOLO **Fijar** lleva turquesa (única acción que cambia estado); Desglose/Reporte/
+  Historial en slate → turquesa al hover; los datos SIEMPRE en slate, nunca en color (fuera el azul y el morado). Quitado el
+  "3%" (la barra + "N de M hechas" ya lo dicen).
+- **VERIFICADO por DOM (independiente del ancho):** tamaños (héroe 40px, tiempo 20px, medidas 18px), color-discipline
+  EXACTA en oscuro (héroe/medidas neutros; Fijar rgb(20,184,166)=turquesa; Desglose/Reporte/Historial rgb(148,163,184)=
+  slate-400), sin "3%", sin enlace historial en medidas, "0 de 3 hechas". 194 tests.
+- **NO verificable por mí (panel oculto → `<main>` colapsa a 0px):** el ALTO real (<120px sin meta) y el layout lado-a-lado
+  vs apilado. Queda para el ojo de la propietaria. Los tokens llevan variante clara+oscura explícita (patrón §16.41).

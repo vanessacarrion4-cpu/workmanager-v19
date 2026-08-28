@@ -1,7 +1,7 @@
 // DayHeader.tsx — TRAMO 1 (CABECERA + FOTO). Sustituye a las 3 tarjetas (Pendientes/Pendiente/Registrado).
 // Sin caja: contenido directo sobre el fondo, al margen de las filas. Reglas de cálculo en §16.8 (getStatsForDay).
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Camera } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { DayStats, EntradaForDay } from './filters';
 import { formatMinutes } from './utils';
 import { TAG_LABELS } from './constants';
@@ -61,64 +61,34 @@ export function DayHeader({
 
   return (
     <div className="pt-1 pb-2">
-      {/* FILA PRINCIPAL — izquierda y derecha a la MISMA línea base (items-end). Único acento = turquesa (lo accionable). */}
+      {/* FILA 2 · ESTADO (héroe) + MEDIDAS — misma línea base. Datos en slate, nunca en color (§16.43). */}
       <div className="flex items-end justify-between gap-8 flex-wrap">
-        {/* IZQUIERDA: los dos datos que miro cada día, con aire */}
-        <div className="flex items-end gap-8">
-          {/* FALTAN */}
-          <div className="flex flex-col leading-none">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] dark:text-text-secondary text-text-secondary-light">Faltan</span>
-            <span className="text-5xl font-black dark:text-white text-text-main-light tabular-nums mt-1.5">{stats.pending}</span>
-          </div>
-          {/* hechas / pendiente — neutro (el color no aporta significado aquí) */}
-          <div className="flex flex-col leading-tight">
-            <span className="text-[11px] font-bold dark:text-text-secondary text-text-secondary-light">{stats.completed} hechas de {stats.total}</span>
-            <span className="mt-0.5">
-              <span className="text-xl font-black dark:text-white text-text-main-light tabular-nums">{formatMinutes(stats.estimatedPending)}</span>
-              <span className="ml-1 text-[11px] font-bold dark:text-text-secondary text-text-secondary-light">pendiente</span>
+        {/* HÉROE: "28 · 5h 44m" = una sola unidad tipográfica (el estado del día en una lectura) */}
+        <div className="flex flex-col leading-none">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] dark:text-text-secondary text-text-secondary-light">Faltan</span>
+          <div className="flex items-baseline gap-1.5 mt-1.5">
+            <span className="text-[40px] font-extrabold tracking-tight leading-none tabular-nums dark:text-white text-text-main-light">{stats.pending}</span>
+            <span className="text-[20px] font-semibold leading-none dark:text-text-secondary text-text-secondary-light">
+              <span className="dark:text-white/25 text-black/20 mr-1.5">·</span>{formatMinutes(stats.estimatedPending)}
             </span>
           </div>
+          <span className="text-[12px] mt-1.5 dark:text-text-secondary text-text-secondary-light tabular-nums">{stats.completed} de {stats.total} hechas</span>
         </div>
 
-        {/* DERECHA: comparación (una unidad) + acciones de bajo peso, todo a la misma base */}
-        <div className="flex items-end gap-6">
-          {/* COMPARACIÓN: la misma medida vista dos veces — etiqueta común y números enfrentados (§16.8 a propósito, p2) */}
-          <div className="flex flex-col items-end leading-tight">
-            <span className="text-[9px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Estimado vs registrado hoy</span>
-            <div className="flex items-baseline gap-2.5 mt-0.5">
-              <span className="text-xl font-black dark:text-white text-text-main-light tabular-nums">{formatMinutes(stats.estimatedCompleted)}</span>
-              <span className="w-px h-4 self-center dark:bg-border-main bg-border-main-light" />
-              <span className="text-xl font-black dark:text-white text-text-main-light tabular-nums">{formatMinutes(stats.registered)}</span>
-              <button
-                onClick={onOpenTimeHistory}
-                title="Ver historial de tiempos registrados"
-                className="text-[10px] font-black uppercase tracking-wider text-turquesa hover:underline self-center"
-              >historial ›</button>
-            </div>
-          </div>
-
-          {/* ACCIONES ocasionales: bajo peso, como enlaces (no compiten con los datos) */}
-          <div className="flex items-center gap-4 pb-1">
-            <button
-              onClick={doFijar}
-              title="Fijar el día: guarda cuántas tareas y cuánto tiempo tienes previstos ahora. Luego verás lo que se añada."
-              className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-turquesa hover:underline"
-            >
-              <Camera size={13} /> {latest ? 'Re-fijar' : 'Fijar'}
-            </button>
-            <button onClick={toggle} className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-turquesa hover:underline">
-              Desglose {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-            </button>
-            <button onClick={onOpenReport} className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-turquesa hover:underline">
-              Reporte ›
-            </button>
+        {/* MEDIDAS: estimado vs registrado — misma medida dos veces, mismo color (la etiqueta ya los distingue). Sin enlace (fila 4). */}
+        <div className="flex flex-col leading-tight pb-1">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] dark:text-text-secondary text-text-secondary-light">Estimado vs registrado hoy</span>
+          <div className="flex items-baseline gap-3 mt-1">
+            <span className="text-[18px] font-bold tabular-nums dark:text-white text-text-main-light">{formatMinutes(stats.estimatedCompleted)}</span>
+            <span className="w-px h-4 self-center dark:bg-border-main bg-border-main-light" />
+            <span className="text-[18px] font-bold tabular-nums dark:text-white text-text-main-light">{formatMinutes(stats.registered)}</span>
           </div>
         </div>
       </div>
 
-      {/* LÍNEA DE LA FOTO (si hay fijación hoy) */}
+      {/* FILA 3 · META (foto + entrada) — contexto silencioso, solo si aplica */}
       {latest && (
-        <div className="mt-1.5 text-[11px] font-bold dark:text-text-secondary text-text-secondary-light">
+        <div className="mt-1.5 text-[12px] font-medium dark:text-text-secondary text-text-secondary-light">
           Fijado a las {hhmm(latest.taken_at)}
           <span className="mx-1.5 opacity-40">·</span>
           <span className="tabular-nums">{fmtSigned0(stats.total - latest.task_count)} tarea{Math.abs(stats.total - latest.task_count) === 1 ? '' : 's'}</span>
@@ -132,7 +102,7 @@ export function DayHeader({
         <div className="mt-1.5">
           <button
             onClick={() => setEntOpen(o => !o)}
-            className="flex items-center gap-1.5 text-[11px] font-bold dark:text-text-secondary text-text-secondary-light hover:text-verde group/ent"
+            className="flex items-center gap-1.5 text-[12px] font-medium dark:text-text-secondary text-text-secondary-light hover:text-turquesa group/ent"
           >
             {entOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
             <span>
@@ -182,12 +152,25 @@ export function DayHeader({
         </div>
       )}
 
-      {/* BARRA DE PROGRESO — % del día COMPLETADO. Track visible + % a un lado → se lee como barra incluso a 0%. */}
-      <div className="mt-3 flex items-center gap-2.5">
-        <div className="flex-1 h-2 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
+      {/* FILA 4 · BARRA (progreso, hace de separador) + ACCIONES. Sin "%": la barra y "N de M hechas" ya lo dicen (§16.43).
+          Un solo acento: Fijar (única acción que cambia estado); Desglose/Reporte/Historial en slate → turquesa al hover. */}
+      <div className="mt-3 flex items-center gap-4 flex-wrap">
+        <div className="flex-1 min-w-[140px] h-1.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
           <div className="h-full rounded-full bg-turquesa transition-all" style={{ width: `${pct}%` }} />
         </div>
-        <span className="text-[10px] font-black tabular-nums dark:text-text-secondary text-text-secondary-light w-9 text-right">{pct}%</span>
+        <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wider">
+          <button
+            onClick={doFijar}
+            title="Fijar el día: guarda cuántas tareas y cuánto tiempo tienes previstos ahora. Luego verás lo que se añada."
+            className="text-turquesa hover:text-turquesa/80 transition-colors"
+          >{latest ? 'Re-fijar' : 'Fijar'}</button>
+          <span className="dark:text-white/20 text-black/20">·</span>
+          <button onClick={toggle} className="dark:text-text-secondary text-text-secondary-light hover:text-turquesa transition-colors">Desglose</button>
+          <span className="dark:text-white/20 text-black/20">·</span>
+          <button onClick={onOpenReport} className="dark:text-text-secondary text-text-secondary-light hover:text-turquesa transition-colors">Reporte</button>
+          <span className="dark:text-white/20 text-black/20">·</span>
+          <button onClick={onOpenTimeHistory} className="dark:text-text-secondary text-text-secondary-light hover:text-turquesa transition-colors">Historial</button>
+        </div>
       </div>
 
       {/* DESGLOSE (estimado PENDIENTE = lo que QUEDA; la barra de arriba es % completado → no se contradicen).
