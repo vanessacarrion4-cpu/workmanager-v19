@@ -4744,9 +4744,14 @@ propósito Y lo diga en pantalla.
   día→BLOQUE con "X/Y · tiempo" (agregación propia, `getTaskMins` + sumas de bloque) + total del día. Estructura y lógica
   distintas del resto. **BONUS:** salen números NUEVOS a auditar (X/Y y tiempo por bloque/día en Semana). → **ARREGLO:**
   unificar con TaskCard (o etiquetar que Semana mide otra cosa).
-- **#3 🟡 Calendario/Búsqueda: estimado sin acotar al día** (`getTaskEstimatedPending`, todos los días; sin `dayForTotals`).
-  NO confirmado en pantalla por mí. → Calendario es por día → debe acotar (ARREGLO si se confirma). Búsqueda no tiene día →
-  decidir qué mostrar. **Pendiente de confirmar en pantalla.**
+- **#3 CALENDARIO ✅ ARREGLADO (sesión 26, `CalendarView.tsx`):** los dos `<TaskCard>` del detalle del día no pasaban
+  `dayForTotals` → un contenedor mostraría el estimado de TODOS los días. Fix: `dayForTotals={selectedDay}` en ambos → los
+  totales del contenedor se acotan al día (misma vía `containerEstimatedForDay`/`containerRegisteredForDay` ya probada en Mi
+  Día). Calendario rinde sin errores. Impacto visible LIMITADO: en el detalle los contenedores se pintan como cabeceras
+  (título+conteo), no como tarjetas con estimado; solo la rama de tarjeta individual (subtasksForGroup vacío) lo mostraba.
+  No verificable el número por el panel oculto (navegación de calendario no automatizable) → **eyeball de la propietaria.**
+  **BÚSQUEDA:** pendiente de decisión (ver §16.42-bis / propuesta en chat: no tiene día → tratar como DEFINICIÓN, igual que
+  Bloques). NO tocada.
 - **#4 ⚪ Estimado excluye completadas** (por diseño). → ETIQUETA: que se lea "pendiente".
 - **#5 ⚪ Badge = solo pendientes** (post #4a). Coherente con lo que oculta la lista. Nada.
 - **#6 ✅ ARREGLADO (sesión 26, `BlocksView.tsx:637`).** El chip contaba `isTemplate && !parent && !expired` → metía

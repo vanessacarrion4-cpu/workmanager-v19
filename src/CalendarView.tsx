@@ -422,10 +422,11 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                                     {/* Subtareas con sangría */}
                                     <div className="space-y-2 ml-4 border-l-2 dark:border-border-main border-border-main-light pl-3">
                                       {subtaskObjects.map((sub: any) => (
-                                        <TaskCard 
+                                        <TaskCard
                                           key={sub.id}
-                                          task={sub} 
+                                          task={sub}
                                           variant="COMPACT"
+                                          dayForTotals={selectedDay}
                                           allTasksMap={monthMap}
                                           people={people}
                                           onAddPerson={onAddPerson}
@@ -455,10 +456,11 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                               } else {
                                 // Tarea individual normal
                                 return (
-                                  <TaskCard 
+                                  <TaskCard
                                     key={task.id}
-                                    task={task} 
+                                    task={task}
                                     variant="COMPACT"
+                                    dayForTotals={selectedDay}
                                     allTasksMap={monthMap}
                                     people={people}
                                     onAddPerson={onAddPerson}
