@@ -45,6 +45,7 @@ export interface DayStats {
   // TRAMO 1 (cabecera): desglose del ESTIMADO PENDIENTE (lo que queda) — por tipo y por bloque.
   byType: { core: number; adhoc: number };
   byBlock: Array<{ blockId: string; minutes: number }>;
+  byTag: Array<{ tag: string; minutes: number }>; // por ETIQUETA (tags[0]) — resume lo que Mi Día tiene agrupado debajo
 }
 
 // ─────────────────────────────────────────────
@@ -382,14 +383,21 @@ export function getStatsForDay(
   // Desglose del ESTIMADO PENDIENTE (mismo conjunto que estimatedPending): por tipo (core/ad-hoc) y por bloque.
   const byType = { core: 0, adhoc: 0 };
   const blockMap = new Map<string, number>();
+  const tagMap = new Map<string, number>();
   pendingTasks.forEach(t => {
     const est = t.estimatedMinutes || 0;
     if (est <= 0) return;
     if (t.taskType === 'adhoc') byType.adhoc += est; else byType.core += est;
     blockMap.set(t.blockId, (blockMap.get(t.blockId) || 0) + est);
+    // etiqueta primaria = misma que usa groupTasksByTag para colocar la tarea en Mi Día
+    const tag = (t.tags && t.tags[0]) || 'resto';
+    tagMap.set(tag, (tagMap.get(tag) || 0) + est);
   });
   const byBlock = Array.from(blockMap.entries())
     .map(([blockId, minutes]) => ({ blockId, minutes }))
+    .sort((a, b) => b.minutes - a.minutes);
+  const byTag = Array.from(tagMap.entries())
+    .map(([tag, minutes]) => ({ tag, minutes }))
     .sort((a, b) => b.minutes - a.minutes);
 
   return {
@@ -402,6 +410,7 @@ export function getStatsForDay(
     registered,
     byType,
     byBlock,
+    byTag,
   };
 }
 

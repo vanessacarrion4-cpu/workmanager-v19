@@ -4743,3 +4743,30 @@ tablas "con RLS" están protegidas — no lo están.
 
 **Las 2 tablas nuevas (settings, day_snapshots)** se crean con RLS + política permisiva (igual que la mayoría), para que
 funcionen con `anon` como el resto — heredan el mismo riesgo, que se resolverá con el arreglo transversal.
+
+## 16.41 CABECERA Mi Día — rediseño de jerarquía + desglose por etiqueta (sesión 26, feedback de diseño de la propietaria)
+
+Contenido OK, jerarquía no. Cambios (`DayHeader.tsx`, `DashboardView.tsx` barra de fecha, `filters.ts` byTag):
+1. **Barra de fecha aligerada** (`DashboardView` ~229): quitada la caja (bg-card, shadow-xl, rounded-[2rem], p-4) → fila
+   plana `py-0.5`, fecha `text-base` secundaria (era `text-xl` blanca). La fecha es contexto, no el dato. `space-y-10`→`5`.
+2. **Comparación como UNIDAD:** etiqueta común "ESTIMADO VS REGISTRADO HOY" + los dos números enfrentados con un separador
+   vertical (regla `w-px`), no dos bloques con un punto. Se lee como una medida vista dos veces (§16.8, a propósito).
+3. **Disciplina de color:** UN acento = turquesa, SOLO en lo accionable (historial ›, Fijar, Desglose). Los datos, neutros
+   (quitados azul del pendiente y morado del registrado). Los puntos del desglose por tipo (turquesa/rosa) y los colores de
+   bloque SÍ significan (se quedan).
+4. **FIJAR de bajo peso:** de botón con borde a enlace texto+icono, igual que Desglose (acción ocasional, no un dato).
+5. **Alineación:** izquierda y derecha a la MISMA línea base (`items-end` + `justify-between`). Verificado: FALTAN y los
+   números de la comparación a bottom 315–316px.
+6. **Barra de progreso legible a 0%:** track `h-2` con fondo visible (`black/10`) + número `{pct}%` al lado → se lee como
+   barra siempre, no como línea separadora.
+- **DESGLOSE en DOS COLUMNAS** (aprovecha el hueco derecho): izquierda tipo+bloque, derecha **por ETIQUETA** (nuevo,
+  `stats.byTag` = estimado pendiente por `tags[0]`, misma clave que `groupTasksByTag`, desc, con barrita). RAZÓN de la
+  propietaria: Mi Día ya está agrupado por etiqueta, así que le resume lo que tiene debajo y es **con lo que decide qué
+  hacer ahora** (¿me queda una hora de Focus o está todo en Espera?); el bloque dice de qué proyecto queda, útil pero no
+  hace elegir. **Va también en el REPORTE (tramo 4).**
+- **VERIFICADO en pantalla (dev, hoy 28/08, modo claro):** dos columnas (x=328 / x=801); etiqueta = ⏳ En Espera 3h25m (100%)
+  + ⏰ Con Hora 25m (12%), desc; cuadre 230m pendiente = Core 175+Ad-hoc 55 = Espera 205+Con Hora 25. Comparación como unidad,
+  Fijar/Desglose ligeros, 0% visible, base alineada. 184 tests verdes.
+- **NOTA a la propietaria:** los 2 fallos que reportó como "sin arreglar" (Ad-hoc invisible, barras por bloque) YA estaban
+  arreglados y desplegados en `b342951` — veía bundle viejo en caché; refresco duro. Re-confirmados aquí: Ad-hoc visible,
+  barras 100/100/100/83 (Bancos la más corta), "1h"=60m exactos (no redondeo).
