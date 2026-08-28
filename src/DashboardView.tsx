@@ -259,9 +259,10 @@ export function DashboardView({
               <div className="relative">
                 <button
                   onClick={() => setShowDashboardCalendar(!showDashboardCalendar)}
-                  className="text-[13px] font-medium capitalize dark:text-text-secondary text-text-secondary-light flex items-center gap-1 hover:text-turquesa transition-all"
+                  className="text-[15px] font-semibold dark:text-text-secondary text-slate-700 flex items-center gap-1 hover:text-turquesa transition-all"
                 >
-                  {dayName}, {dayNum}
+                  {/* Solo la 1ª letra en mayúscula: `capitalize` de CSS ponía "31 De Agosto" (mayúscula por palabra). §16.43 item 3. */}
+                  {dayName.charAt(0).toUpperCase() + dayName.slice(1)}, {dayNum}
                   <ChevronDown size={12} className={`transition-transform duration-300 ${showDashboardCalendar ? 'rotate-180' : ''}`} />
                 </button>
 

@@ -86,7 +86,7 @@ export function DayReportModal({
         <div className="flex items-center justify-between mb-5">
           <div>
             <h3 className="text-lg font-black dark:text-white text-text-main-light uppercase tracking-widest">Reporte del día</h3>
-            <p className="text-[11px] text-turquesa font-black mt-0.5 capitalize">{fechaLarga}</p>
+            <p className="text-[11px] text-turquesa font-black mt-0.5">{fechaLarga}</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center dark:text-text-secondary text-text-secondary-light dark:bg-bg-main bg-gray-100 rounded-xl border dark:border-border-main border-border-main-light">
             <X size={16} />

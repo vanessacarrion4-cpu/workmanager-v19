@@ -4909,3 +4909,19 @@ ACCIONES. Sin cajas/sombras/bordes, sin iconos decorativos, un solo acento.
   slate-400), sin "3%", sin enlace historial en medidas, "0 de 3 hechas". 194 tests.
 - **NO verificable por mí (panel oculto → `<main>` colapsa a 0px):** el ALTO real (<120px sin meta) y el layout lado-a-lado
   vs apilado. Queda para el ojo de la propietaria. Los tokens llevan variante clara+oscura explícita (patrón §16.41).
+
+**2ª VUELTA (sesión 26) — feedback de la propietaria sobre la cinta:**
+- **item 1 · el "desierto del medio":** `justify-between` mandaba héroe y medidas a los bordes (vacío enorme en ancho).
+  Ahora AGRUPADOS a la izquierda en un **grid `grid-cols-[auto_auto] gap-x-16`** (~64px fijos), resto libre a la derecha. Los
+  NÚMEROS de las dos columnas comparten LÍNEA BASE vía `items-baseline` del grid (verificado: héroe 898 / medidas 901 ≈ 3px,
+  antes descolgado ~18px).
+- **item 2 · acciones:** FIJAR pasa a **chip** (`bg-turquesa/10 text-turquesa rounded-lg`, sin borde); Desglose/Reporte/
+  Historial suben contraste a **slate-600** (claro) / slate-400 (oscuro), hover turquesa; **separación extra** (gap-5) entre
+  Fijar y el trío → "una acción · tres accesos".
+- **item 3 · fecha:** subida a **15px, peso 600, slate-700** (se había quedado más pequeña que un dato). **Bug capitalize
+  arreglado:** el `capitalize` de CSS ponía "31 De Agosto" (mayúscula por palabra) → ahora solo la 1ª letra a mano
+  ("Sábado, 29 de agosto"). Mismo bug arreglado en `DayReportModal` (fecha del modal).
+- **Barrido `capitalize` (item 6 relacionado):** bugs de fecha ("de X"→"De X"): `DashboardView:262` ✅, `DayReportModal:89`
+  ✅, `CalendarView:356` (detalle del día — pendiente, va con el commit del calendario). OK (una palabra + número):
+  `CalendarView:136` "Agosto 2026". Title-casing INTENCIONAL de títulos de tarea (NO tocar): `TaskCard:613/614/1072`,
+  `Modals:65`, `BlocksView:468`.
