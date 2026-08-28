@@ -19,6 +19,8 @@ import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
 import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completado POR DÍA para el filtro "ocultar completadas"
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
+import { DayHeader } from './DayHeader'; // TRAMO 1: cabecera + foto (sustituye a las 3 tarjetas)
+import { useDaySnapshot } from './useDaySnapshot';
 
 interface DashboardViewProps {
   tasks: Task[];
@@ -193,6 +195,9 @@ export function DashboardView({
     return s;
   }, [dayTasks, allTasksMap, timeEntries, activeDate]);
 
+  // TRAMO 1 (foto del día): fijaciones + jornada del día activo.
+  const { latest: daySnapshot, jornada, fijar, setJornada } = useDaySnapshot(activeDate);
+
   const groupedTasks = useMemo(() => {
     return groupTasksByTag(
       filteredDayTasks,
@@ -312,48 +317,19 @@ export function DashboardView({
                 </AnimatePresence>
               </div>
             </div>
-            <motion.p
-              key={stats.completed}
-              initial={{ scale: 1.4, opacity: 0.6 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-              className="text-[9px] font-bold uppercase tracking-[0.2em]"
-              style={{ color: '#14B8A6' }}
-            >{stats.completed} de {stats.total} completadas</motion.p>
           </div>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* PENDIENTES (antes "Tareas"): el número = HOJAS PENDIENTES (sueltas + hijas, nunca contenedores;
-            getStatsForDay ya cuenta hojas). El anillo se rellena con completado/total. Las horas del card
-            "Pendiente" ya son estimatedPending → mismo conjunto, y cuadra con la "Carga" del Calendario. */}
-        <SummaryCard
-          label="Pendientes"
-          value={stats.pending}
-          progress={(stats.completed / (stats.total || 1)) * 100}
-          color="turquesa"
-        />
-        {/* PENDIENTE */}
-        <SummaryCard
-          label="Pendiente"
-          value={formatMinutes(stats.estimatedPending)}
-          subtitle={stats.estimatedTotal > 0 ? `de ${formatMinutes(stats.estimatedTotal)} estimado` : null}
-          progress={stats.estimatedTotal > 0 ? ((stats.estimatedTotal - stats.estimatedPending) / stats.estimatedTotal) * 100 : 0}
-          color="azul"
-        />
-        {/* REGISTRADO */}
-        <SummaryCard
-          label="Registrado"
-          value={formatMinutes(stats.registered)}
-          color="morado"
-          onClick={() => setShowTimeHistory(true)}
-          clickable={true}
-        />
-      </div>
-
-      <div className="h-px dark:bg-border-main/50 bg-border-main-light/50" />
+      {/* TRAMO 1: CABECERA + FOTO (sustituye a las 3 tarjetas). Sin caja; la barra de progreso hace de separador. */}
+      <DayHeader
+        stats={stats}
+        blocks={blocks}
+        latest={daySnapshot}
+        jornada={jornada}
+        onFijar={() => { fijar(stats.total, stats.estimatedTotal, stats.completed).catch(() => {}); }}
+        onSetJornada={setJornada}
+      />
 
       {/* Task Groups */}
       <div className="space-y-3 pb-32">
@@ -754,43 +730,4 @@ function TimeEntryItem({ entry, allTasksMap, onDelete, onUpdate }: any) {
   );
 }
 
-export function SummaryCard({ label, value, total, progress, color, subtitle, clickable, onClick }: any) {
-  return (
-    <div
-      onClick={clickable ? onClick : undefined}
-      className={`dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-[2rem] p-4 shadow-xl relative overflow-hidden group ${clickable ? 'cursor-pointer hover:border-morado/50 transition-all' : ''}`}
-    >
-      <div className="relative z-10">
-        <p className="text-[10px] font-bold dark:text-text-secondary text-text-secondary-light uppercase tracking-[0.2em] mb-2">{label}</p>
-        <div className="flex items-center justify-between gap-3">
-          <h4 className="text-2xl font-black dark:text-white text-text-main-light">
-            {total !== undefined ? `${value}/${total}` : value}
-          </h4>
-          {progress !== undefined && (
-            <span className={`text-xs font-black text-${color}`}>{Math.round(progress)}%</span>
-          )}
-        </div>
-        {subtitle && (
-          <p className="text-[10px] dark:text-text-secondary/60 text-text-secondary-light/60 mt-0.5">{subtitle}</p>
-        )}
-        {clickable && (
-          <p className="text-[9px] text-morado/60 mt-1 uppercase tracking-widest font-bold">Ver historial →</p>
-        )}
-      </div>
-
-      {progress !== undefined && (
-        <div className="mt-3">
-          <div className="h-1.5 dark:bg-bg-main/50 bg-bg-main-light/30 rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${Math.min(progress, 100)}%` }}
-              className={`h-full bg-${color}`}
-            />
-          </div>
-        </div>
-      )}
-
-      <div className={`absolute -bottom-10 -right-10 w-24 h-24 bg-${color} opacity-5 blur-[60px] group-hover:opacity-10 transition-opacity`} />
-    </div>
-  );
-}
+// SummaryCard BORRADO (sesión 26, tramo 1): las 3 tarjetas se sustituyeron por DayHeader. Sin componentes muertos.

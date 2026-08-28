@@ -42,6 +42,9 @@ export interface DayStats {
   estimatedCompleted: number;
   estimatedTotal: number;
   registered: number;
+  // TRAMO 1 (cabecera): desglose del ESTIMADO PENDIENTE (lo que queda) — por tipo y por bloque.
+  byType: { core: number; adhoc: number };
+  byBlock: Array<{ blockId: string; minutes: number }>;
 }
 
 // ─────────────────────────────────────────────
@@ -376,6 +379,19 @@ export function getStatsForDay(
     .filter(e => e && e.date === activeDate)
     .reduce((acc, e) => acc + (e.duration || 0), 0);
 
+  // Desglose del ESTIMADO PENDIENTE (mismo conjunto que estimatedPending): por tipo (core/ad-hoc) y por bloque.
+  const byType = { core: 0, adhoc: 0 };
+  const blockMap = new Map<string, number>();
+  pendingTasks.forEach(t => {
+    const est = t.estimatedMinutes || 0;
+    if (est <= 0) return;
+    if (t.taskType === 'adhoc') byType.adhoc += est; else byType.core += est;
+    blockMap.set(t.blockId, (blockMap.get(t.blockId) || 0) + est);
+  });
+  const byBlock = Array.from(blockMap.entries())
+    .map(([blockId, minutes]) => ({ blockId, minutes }))
+    .sort((a, b) => b.minutes - a.minutes);
+
   return {
     total: leafTasks.length,
     completed: completedTasks.length,
@@ -383,6 +399,8 @@ export function getStatsForDay(
     estimatedTotal,
     estimatedCompleted,
     estimatedPending,
-    registered
+    registered,
+    byType,
+    byBlock,
   };
 }

@@ -4612,7 +4612,21 @@ propietaria (sesión 26); aquí quedan las decisiones y el estado.
 **🧭 PRINCIPIO RECTOR (propietaria):** cuando se dude entre "el conjunto del DÍA" y "LO QUE QUEDA", la respuesta es **LO QUE
 QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el plan. El repaso del plan lo verá el REPORTE.
 
-### TRAMO 1 · Cabecera + Foto — spec finalizada (pendiente de crear tablas + construir)
+### TRAMO 1 · Cabecera + Foto — ✅ CONSTRUIDO (sesión 26), pendiente validación de la propietaria
+- **Ficheros:** `DayHeader.tsx` (nuevo, la cabecera), `useDaySnapshot.ts` (nuevo, foto: `day_snapshots` + jornada en
+  `settings`), `filters.ts` (`getStatsForDay` amplía con `byType`/`byBlock` del estimado pendiente), `DashboardView.tsx`
+  (sustituye las 3 tarjetas por `<DayHeader>` + cablea el hook; quita la línea de completadas duplicada). **`SummaryCard`
+  BORRADA** (sin uso). Tabla `day_snapshots` + columna `completed_count` creadas por la propietaria.
+- **Decisiones aplicadas (aprobadas):** jornada en `settings.jornada_minutes` (default 480), editable en el aviso de
+  sobreplanificación; la foto guarda `task_count`, `estimated_minutes` Y `completed_count` (para que el reporte distinga lo
+  hecho tras fijar); la cabecera usa la ÚLTIMA fijación del día pero se guardan TODAS; delta neto (se muestra negativo);
+  desglose en localStorage; comparación estimado-hecho · registrado-hoy (§16.8 modificado a propósito); barra = % completado.
+- **VERIFICADO en pantalla:** cabecera renderiza (FALTAN 29 / "0 hechas de 29" / 3h50m pendiente / comparación / barra);
+  NÚMEROS CUADRAN (desglose por tipo Core 2h55 + Ad-hoc 55m = 230m = el pendiente); FIJAR persiste en `day_snapshots` con
+  `completed_count`; Re-fijar guarda una 2ª fila (TODAS). Fijaciones de prueba borradas (día real limpio). 184 tests.
+- **Reservado (sin construir):** línea "Entró hoy" (tramo 2) bajo la foto; enlace "Reporte ›" (tramo 4) junto a Desglose.
+
+### TRAMO 1 · Cabecera + Foto — spec (histórico)
 - **Cabecera** sustituye a las 3 tarjetas (Pendientes/Pendiente/Registrado, desaparecen). SIN caja, principio de página.
   Fila: "FALTAN" + nº pendientes (grande) · "N hechas de M" + pendiente en horas (azul) · empujado a la derecha la
   **COMPARACIÓN** (cambio a §16.8, decisión propietaria: `estimatedCompleted` · `registered`, etiquetadas; asumido a
