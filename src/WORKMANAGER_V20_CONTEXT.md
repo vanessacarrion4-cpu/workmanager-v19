@@ -4933,3 +4933,9 @@ ACCIONES. Sin cajas/sombras/bordes, sin iconos decorativos, un solo acento.
   redondeada. Texto neutro (`text-slate-600 dark:text-text-secondary`, explícito → no se pierde en claro). **VERIFICADO en
   pantalla (Aug 28):** Core 100% verde + Ad-hoc 31% verde claro; bloques con su color; En Espera naranja 100% + Con Hora
   turquesa 12%. 3 columnas, 1 eyebrow.
+- **item 5 · CONTRASTE del popover "Ir a fecha" (`DashboardComponents.tsx`):** estaba construido dark-first con `text-white`
+  y `text-text-main` (#F8FAFC, casi blanco) SIN variante clara → en modo CLARO invisible sobre fondo blanco. Arreglado con
+  color explícito: mes (`dark:text-white text-text-main-light`), números de día (`dark:text-text-main text-text-main-light`),
+  hover de las flechas. **VERIFICADO en modo CLARO:** mes "Agosto 2026" `rgb(15,23,42)` sobre blanco, días `rgb(15,23,42)`.
+  Además `CalendarView:356` (detalle del día) tenía el bug de `capitalize` de fecha → arreglado (1ª letra a mano).
+  De paso confirmado en CLARO: acciones de la cinta slate-600 `rgb(71,85,105)`, fecha slate-700 `rgb(51,65,85)`.

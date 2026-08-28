@@ -353,8 +353,8 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                         <ChevronRight size={20} className="rotate-180" />
                      </button>
                      <div>
-                        <h3 className="text-2xl font-black dark:text-white text-text-main-light capitalize">
-                          {new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).format(parseLocalISO(selectedDay))}
+                        <h3 className="text-2xl font-black dark:text-white text-text-main-light">
+                          {(() => { const s = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).format(parseLocalISO(selectedDay)); return s.charAt(0).toUpperCase() + s.slice(1); })()}
                         </h3>
                         <div className="flex items-center gap-3 mt-1">
                           {selectedDay >= formatLocalISO(new Date()) && (

@@ -43,16 +43,16 @@ export function DashboardHarmonicCalendar({ activeDate, onSetDate, onClose }: an
       <div className="flex items-center justify-between px-1">
         <button 
           onClick={() => setCurrentMonth(new Date(year, month - 1))} 
-          className="w-8 h-8 flex items-center justify-center hover:bg-bg-main rounded-lg transition-all text-text-secondary hover:text-white"
+          className="w-8 h-8 flex items-center justify-center hover:bg-bg-main rounded-lg transition-all text-text-secondary dark:hover:text-white hover:text-text-main-light"
         >
           <ChevronLeft size={16} />
         </button>
-        <span className="font-black text-xs uppercase tracking-[0.2em] text-white">
+        <span className="font-black text-xs uppercase tracking-[0.2em] dark:text-white text-text-main-light">
           {monthNames[month]} {year}
         </span>
         <button 
           onClick={() => setCurrentMonth(new Date(year, month + 1))} 
-          className="w-8 h-8 flex items-center justify-center hover:bg-bg-main rounded-lg transition-all text-text-secondary hover:text-white"
+          className="w-8 h-8 flex items-center justify-center hover:bg-bg-main rounded-lg transition-all text-text-secondary dark:hover:text-white hover:text-text-main-light"
         >
           <ChevronRight size={16} />
         </button>
@@ -77,7 +77,7 @@ export function DashboardHarmonicCalendar({ activeDate, onSetDate, onClose }: an
               className={`
                 aspect-square flex flex-col items-center justify-center rounded-xl text-[11px] font-bold transition-all relative
                 ${isSelected ? 'bg-turquesa text-white shadow-lg shadow-turquesa/20 scale-105 z-10' : 'bg-bg-main/50'}
-                ${!isSelected && d.current ? 'text-text-main hover:bg-turquesa/10 hover:text-turquesa border border-border-main/30' : ''}
+                ${!isSelected && d.current ? 'dark:text-text-main text-text-main-light hover:bg-turquesa/10 hover:text-turquesa border border-border-main/30' : ''}
                 ${!d.current ? 'text-text-secondary/20 border-none bg-transparent' : ''}
                 ${isToday && !isSelected ? 'border-turquesa/50' : ''}
               `}
