@@ -4925,3 +4925,11 @@ ACCIONES. Sin cajas/sombras/bordes, sin iconos decorativos, un solo acento.
   ✅, `CalendarView:356` (detalle del día — pendiente, va con el commit del calendario). OK (una palabra + número):
   `CalendarView:136` "Agosto 2026". Title-casing INTENCIONAL de títulos de tarea (NO tocar): `TaskCard:613/614/1072`,
   `Modals:65`, `BlocksView:468`.
+- **item 4 · DESGLOSE con color (rediseño):** tres columnas IDÉNTICAS (`DesRow`: nombre · barra · valor a la derecha),
+  ordenadas desc, normalizadas contra el máximo de SU columna. Un solo eyebrow "Queda por" + Tipo/Bloque/Etiqueta. El COLOR
+  de la barra IDENTIFICA la entidad: ETIQUETA = color real (`getTagColor`→hex: con_hora turquesa, focus azul, dirección
+  morado, espera naranja); BLOQUE = `block.color`; TIPO = dos tonos de la familia verde (core `#10B981` saturado, ad-hoc
+  `#6EE7B7` claro — no dos colores). Sin puntitos (la barra lleva el color). Barra 6px, track `slate-200`/`white-10`,
+  redondeada. Texto neutro (`text-slate-600 dark:text-text-secondary`, explícito → no se pierde en claro). **VERIFICADO en
+  pantalla (Aug 28):** Core 100% verde + Ad-hoc 31% verde claro; bloques con su color; En Espera naranja 100% + Con Hora
+  turquesa 12%. 3 columnas, 1 eyebrow.

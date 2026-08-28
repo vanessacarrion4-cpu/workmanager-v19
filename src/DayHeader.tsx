@@ -5,12 +5,33 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { DayStats, EntradaForDay } from './filters';
 import { formatMinutes } from './utils';
 import { TAG_LABELS } from './constants';
+import { getTagColor } from './helpers';
 import { DaySnapshot } from './useDaySnapshot';
 
 const DESGLOSE_KEY = 'wm_desglose_open';
 const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const tagLabel = (tag: string): string => (TAG_LABELS as any)[tag]?.label || tag;
-const tagIcon = (tag: string): string => (TAG_LABELS as any)[tag]?.icon || '•';
+
+// Color de ENTIDAD para las barras del desglose (§16.43 2ª vuelta, item 4): el color no decora, IDENTIFICA — la barra de
+// cada etiqueta/bloque/tipo lleva su propio color (el mismo que en el resto de la app), para reconocer sin leer.
+const NAME_HEX: Record<string, string> = { turquesa: '#14B8A6', azul: '#3B82F6', morado: '#8B5CF6', naranja: '#F97316', rosa: '#EC4899', verde: '#10B981' };
+const tagHex = (tag: string): string => NAME_HEX[getTagColor(tag as any)] || '#94A3B8';
+// TIPO: dos tonos de UNA familia (verde), no dos colores: core saturado, ad-hoc más claro.
+const CORE_HEX = '#10B981';
+const ADHOC_HEX = '#6EE7B7';
+
+// Fila del desglose — idéntica en las tres columnas: nombre · barra (color de entidad) · valor a la derecha.
+function DesRow({ name, minutes, pct, color }: { name: string; minutes: number; pct: number; color: string }) {
+  return (
+    <div className="flex items-center gap-2 text-[11px] font-bold">
+      <span className="w-16 shrink-0 truncate dark:text-text-secondary text-slate-600">{name}</span>
+      <div className="flex-1 h-1.5 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+      </div>
+      <span className="w-12 shrink-0 text-right tabular-nums dark:text-text-secondary text-slate-600">{formatMinutes(minutes)}</span>
+    </div>
+  );
+}
 
 function fmtSigned(minutes: number): string {
   const s = minutes < 0 ? '−' : '+';
@@ -172,49 +193,36 @@ export function DayHeader({
         </div>
       </div>
 
-      {/* DESGLOSE (estimado PENDIENTE = lo que QUEDA; la barra de arriba es % completado → no se contradicen).
-          Dos columnas: izquierda tipo+bloque (de qué proyecto queda), derecha etiqueta (con lo que decide qué hacer ahora). */}
+      {/* DESGLOSE — estimado PENDIENTE (lo que QUEDA). Tres columnas IDÉNTICAS (nombre·barra·valor); el color de la barra
+          identifica la entidad (§16.43 2ª vuelta, item 4). Un solo eyebrow "Queda por" + Tipo·Bloque·Etiqueta. */}
       {open && (
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3">
-          {/* COLUMNA IZQUIERDA: tipo + bloque */}
-          <div className="space-y-2">
-            {/* color EXPLÍCITO (sesión 26): sin él, en modo CLARO el texto heredaba blanco = invisible sobre fondo blanco. */}
-            <div className="flex items-center gap-4 text-[11px] font-bold flex-wrap dark:text-white text-text-main-light">
-              <span className="text-[9px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Queda por tipo</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-turquesa" /> Core {formatMinutes(stats.byType.core)}</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rosa" /> Ad-hoc {formatMinutes(stats.byType.adhoc)}</span>
+        <div className="mt-3">
+          <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Queda por</span>
+          <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-x-8 gap-y-4">
+            {/* TIPO — dos tonos de la misma familia (verde), sin puntitos (la barra ya lleva el color) */}
+            <div className="space-y-1.5">
+              <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/60">Tipo</span>
+              {[{ n: 'Core', m: stats.byType.core, c: CORE_HEX }, { n: 'Ad-hoc', m: stats.byType.adhoc, c: ADHOC_HEX }]
+                .filter(x => x.m > 0).sort((a, b) => b.m - a.m).map(x => {
+                  const max = Math.max(stats.byType.core, stats.byType.adhoc) || 1;
+                  return <DesRow key={x.n} name={x.n} minutes={x.m} pct={Math.min(100, Math.round((x.m / max) * 100))} color={x.c} />;
+                })}
             </div>
-            {stats.byBlock.length > 0 && (
-              <div className="space-y-1">
-                <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Queda por bloque</span>
-                {stats.byBlock.slice(0, 8).map(b => (
-                  <div key={b.blockId} className="flex items-center gap-2 text-[11px] font-bold">
-                    <span className="w-24 truncate dark:text-text-secondary text-text-secondary-light">{blockName(b.blockId)}</span>
-                    <div className="w-[120px] shrink-0 h-1.5 rounded-full dark:bg-white/5 bg-black/5 overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.round((b.minutes / (maxBlock || 1)) * 100))}%`, backgroundColor: blockColor(b.blockId) }} />
-                    </div>
-                    <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(b.minutes)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* COLUMNA DERECHA: etiqueta — resume lo que Mi Día tiene agrupado debajo (§16.41 p·etiqueta) */}
-          {stats.byTag.length > 0 && (
-            <div className="space-y-1">
-              <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Queda por etiqueta</span>
-              {stats.byTag.slice(0, 8).map(g => (
-                <div key={g.tag} className="flex items-center gap-2 text-[11px] font-bold">
-                  <span className="w-24 truncate dark:text-text-secondary text-text-secondary-light">{tagIcon(g.tag)} {tagLabel(g.tag)}</span>
-                  <div className="w-[120px] shrink-0 h-1.5 rounded-full dark:bg-white/5 bg-black/5 overflow-hidden">
-                    <div className="h-full rounded-full dark:bg-white/40 bg-black/40" style={{ width: `${Math.min(100, Math.round((g.minutes / (maxTag || 1)) * 100))}%` }} />
-                  </div>
-                  <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(g.minutes)}</span>
-                </div>
+            {/* BLOQUE — color propio de cada bloque */}
+            <div className="space-y-1.5">
+              <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/60">Bloque</span>
+              {stats.byBlock.slice(0, 8).map(b => (
+                <DesRow key={b.blockId} name={blockName(b.blockId)} minutes={b.minutes} pct={Math.min(100, Math.round((b.minutes / (maxBlock || 1)) * 100))} color={blockColor(b.blockId)} />
               ))}
             </div>
-          )}
+            {/* ETIQUETA — color real de cada etiqueta (el de sus cabeceras en Mi Día) */}
+            <div className="space-y-1.5">
+              <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/60">Etiqueta</span>
+              {stats.byTag.slice(0, 8).map(g => (
+                <DesRow key={g.tag} name={tagLabel(g.tag)} minutes={g.minutes} pct={Math.min(100, Math.round((g.minutes / (maxTag || 1)) * 100))} color={tagHex(g.tag)} />
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
