@@ -4752,10 +4752,13 @@ propósito Y lo diga en pantalla.
   - **¿Cuadra con Mi Día del mismo día? NO, en 3 cosas:** (1) X/Y es pendientes/total vs "N de M hechas" + FALTAN de la
     cabecera; (2) el tiempo de Semana incluye completadas (estimado TOTAL) mientras la cabecera muestra estimado PENDIENTE →
     en un día con trabajo hecho, Semana marca MÁS; (3) % sobre 480 fijo, no sobre la jornada.
-  - **→ DECISIÓN de la propietaria:** Semana mide OTRA COSA a propósito (carga estimada TOTAL del día + pendientes/total),
-    pero no lo dice en pantalla y choca con Mi Día. Opciones: (a) unificar con el criterio de Mi Día (pendiente, hechas/
-    total, jornada configurable); (b) etiquetar en pantalla que Semana mide "carga estimada total del día". PENDIENTE de que
-    ella elija; NO tocado.
+  - **→ DECISIÓN de la propietaria: opción (a) UNIFICAR con Mi Día. ✅ HECHO (sesión 26, `WeekView.tsx`):**
+    (1) **X/Y = HECHAS/total** (antes pendientes/total): los conteos ahora filtran `status === 'completed'` (`hechasCount`/
+    `bHechas`/`tipoHechas`). En pantalla: un día con 1 completada de 2 muestra `1/2` (antes habría sido `2/2`).
+    (2) **Tiempo = PENDIENTE:** `getTaskMins` ahora devuelve 0 para hojas/subtareas completadas → bloques, tipos y total del
+    día miden lo que queda por delante, no el total con completadas. (3) **% contra la JORNADA configurable** (`useJornada`
+    lee `settings.jornada_minutes`), no 480 fijos (`MINS_CAPACITY_DAY` eliminado). Nuevo hook `useJornada.ts` (solo-lectura).
+    Semana es vista de PLANIFICACIÓN → mide lo pendiente. VERIFICADO en pantalla el flip de X/Y; tiempo/jornada por código.
 - **#3 CALENDARIO ✅ ARREGLADO (sesión 26, `CalendarView.tsx`):** los dos `<TaskCard>` del detalle del día no pasaban
   `dayForTotals` → un contenedor mostraría el estimado de TODOS los días. Fix: `dayForTotals={selectedDay}` en ambos → los
   totales del contenedor se acotan al día (misma vía `containerEstimatedForDay`/`containerRegisteredForDay` ya probada en Mi

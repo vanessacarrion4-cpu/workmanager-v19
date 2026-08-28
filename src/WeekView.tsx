@@ -19,6 +19,7 @@ import { materializeDay } from './instanceEngine';
 import { formatMinutes, getTaskEstimatedCombo } from './utils';
 import { MonthDatePicker } from './TimeComponents';
 import { TAG_LABELS } from './constants';
+import { useJornada } from './useJornada';
 
 // ─── Colores carga ────────────────────────────────────────────────────────────
 function getPctColor(pct: number): string {
@@ -59,15 +60,17 @@ function formatDayLabel(dateStr: string) {
 // ─── Minutos de una tarea para un día ────────────────────────────────────────
 // Trabaja sobre el mapa YA materializado del día (materializeDay): las subtareas
 // presentes son exactamente las que ocurren ese día, así que basta con sumarlas.
+// #2 (sesión 26): Semana es vista de PLANIFICACIÓN → mide lo PENDIENTE (lo que queda por delante), no el total con
+// completadas. Una hoja/subtarea completada aporta 0.
 function getTaskMins(task: Task, dayMap: Record<string, Task>): number {
-  // Tarea hoja (sin subtareas): su propio estimatedMinutes
+  // Tarea hoja (sin subtareas): su estimado si está pendiente; 0 si ya está hecha
   if (!task.subtasks || task.subtasks.length === 0) {
-    return task.estimatedMinutes || 0;
+    return task.status === 'completed' ? 0 : (task.estimatedMinutes || 0);
   }
-  // Contenedor: sumar las subtareas materializadas de este día
+  // Contenedor: sumar las subtareas materializadas de este día que sigan PENDIENTES
   return task.subtasks.reduce((acc, subId) => {
     const sub = dayMap[subId];
-    if (!sub || sub.isDeleted) return acc;
+    if (!sub || sub.isDeleted || sub.status === 'completed') return acc;
     return acc + (sub.estimatedMinutes || 0);
   }, 0);
 }
@@ -79,7 +82,6 @@ function getEffectiveType(task: Task): 'core' | 'adhoc' | 'sin' {
   return 'sin';
 }
 
-const MINS_CAPACITY_DAY = 480;
 const TURQUESA = '#14B8A6';
 const ROSA = '#EC4899';
 
@@ -159,6 +161,7 @@ export function WeekView({
   onRecurrenceDateChange: (task: Task, newDate: string) => void;
 }) {
   const today = formatLocalISO(new Date());
+  const jornada = useJornada(); // #2: % de carga contra la jornada real, no 480 fijos
 
   const [weekStart, setWeekStart] = useState(() => formatLocalISO(getMondayOfWeek(new Date())));
   const [showWeekend, setShowWeekend] = useState(false);
@@ -218,11 +221,11 @@ export function WeekView({
       const registeredMins = timeEntries
         .filter(e => e.date === date)
         .reduce((acc, e) => acc + (e.duration || 0), 0);
-      const pct = Math.round((estimatedMins / MINS_CAPACITY_DAY) * 100);
+      const pct = Math.round((estimatedMins / (jornada || 480)) * 100);
       map[date] = { estimatedMins, registeredMins, pct };
     });
     return map;
-  }, [days, tasksByDay, timeEntries, dayData]);
+  }, [days, tasksByDay, timeEntries, dayData, jornada]);
 
   const toggleBlock = (date: string, blockId: string) => {
     const key = `${date}__${blockId}`;
@@ -260,7 +263,7 @@ export function WeekView({
     const dayMap = dayData[date]?.map ?? {};
     const key = `${date}__${block.id}`;
     const isExpanded = expandedBlocks.has(key);
-    const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
+    const hechasCount = blockTasks.filter(t => t.status === 'completed').length;
     const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
     const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
     const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
@@ -270,7 +273,7 @@ export function WeekView({
           className="w-full flex items-center gap-1.5 px-2 py-1.5 hover:dark:bg-white/5 hover:bg-black/5 transition-all rounded-xl">
           <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
           <span className="text-[10px] font-black dark:text-white text-text-main-light truncate flex-1 text-left uppercase tracking-wide">{block.icon} {block.name}</span>
-          <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">{pendingCount}/{blockTasks.length}</span>
+          <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">{hechasCount}/{blockTasks.length}</span>
           {blockMins > 0 && <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(blockMins)}</span>}
           {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
         </button>
@@ -305,14 +308,14 @@ export function WeekView({
       const key = `${date}__tipo__${tipo.id}`;
       const isExpanded = expandedBlocks.has(key);
       const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
-      const pendingCount = tipoTasks.filter(t => t.status !== 'completed').length;
+      const hechasCount = tipoTasks.filter(t => t.status === 'completed').length;
       return (
         <div key={tipo.id} className="rounded-xl overflow-hidden">
           <button onClick={() => toggleBlock(date, `tipo__${tipo.id}`)}
             className="w-full flex items-center gap-1.5 px-2 py-1.5 hover:dark:bg-white/5 hover:bg-black/5 transition-all rounded-xl">
             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tipo.color }} />
             <span className="text-[10px] font-black truncate flex-1 text-left uppercase tracking-wide" style={{ color: tipo.color }}>{tipo.label}</span>
-            <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">{pendingCount}/{tipoTasks.length}</span>
+            <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">{hechasCount}/{tipoTasks.length}</span>
             {tipoMins > 0 && <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(tipoMins)}</span>}
             {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
           </button>
@@ -325,7 +328,7 @@ export function WeekView({
                         const bTasks = tipoTasks.filter(t => t.blockId === block.id);
                         if (bTasks.length === 0) return null;
                         const bMins = bTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
-                        const bPending = bTasks.filter(t => t.status !== 'completed').length;
+                        const bHechas = bTasks.filter(t => t.status === 'completed').length;
                         const bKey = `${date}__tipo__${tipo.id}__bloque__${block.id}`;
                         const isBExpanded = expandedBlocks.has(bKey);
                         return (
@@ -334,7 +337,7 @@ export function WeekView({
                               className="w-full flex items-center gap-1 px-1 py-1 rounded-lg hover:dark:bg-white/5 hover:bg-black/5 transition-all">
                               <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block" style={{ backgroundColor: block.color }} />
                               <span className="text-[8px] font-black uppercase tracking-widest dark:text-white/60 text-text-main-light/60 flex-1 text-left">{block.icon} {block.name}</span>
-                              <span className="text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0">{bPending}/{bTasks.length}</span>
+                              <span className="text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0">{bHechas}/{bTasks.length}</span>
                               {bMins > 0 && <span className="text-[8px] font-black dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0 ml-1">{formatMinutes(bMins)}</span>}
                               {isBExpanded ? <ChevronUp size={8} className="shrink-0 opacity-30 ml-0.5" /> : <ChevronDown size={8} className="shrink-0 opacity-30 ml-0.5" />}
                             </button>
@@ -432,7 +435,7 @@ export function WeekView({
           // Para días pasados: mostrar registrado; para hoy/futuro: estimado
           const displayMins = isPast ? registeredMins : estimatedMins;
           const displayPct = isPast
-            ? Math.round((registeredMins / MINS_CAPACITY_DAY) * 100)
+            ? Math.round((registeredMins / (jornada || 480)) * 100)
             : pct;
 
           return (
@@ -487,7 +490,7 @@ export function WeekView({
                       const key = `${date}__${block.id}`;
                       const isExpanded = expandedBlocks.has(key);
                       const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
-                      const pendingCount = blockTasks.filter(t => t.status !== 'completed').length;
+                      const hechasCount = blockTasks.filter(t => t.status === 'completed').length;
                       const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
                       const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
                       return (
@@ -496,7 +499,7 @@ export function WeekView({
                             className="w-full flex items-center gap-1.5 px-2 py-1.5 hover:dark:bg-white/5 hover:bg-black/5 transition-all rounded-xl">
                             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
                             <span className="text-[10px] font-black dark:text-white text-text-main-light truncate flex-1 text-left uppercase tracking-wide">{block.icon} {block.name}</span>
-                            <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">{pendingCount}/{blockTasks.length}</span>
+                            <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">{hechasCount}/{blockTasks.length}</span>
                             {blockMins > 0 && <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(blockMins)}</span>}
                             {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
                           </button>
@@ -509,7 +512,7 @@ export function WeekView({
                                     const tipoTasks = blockTasks.filter(t => getEffectiveType(t) === tipoId);
                                     if (tipoTasks.length === 0) return null;
                                     const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
-                                    const tipoPending = tipoTasks.filter(t => t.status !== 'completed').length;
+                                    const tipoHechas = tipoTasks.filter(t => t.status === 'completed').length;
                                     const tipoColor = tipoId === 'core' ? TURQUESA : tipoId === 'adhoc' ? ROSA : '#6B7280';
                                     const tipoLabel = tipoId === 'core' ? '⬡ Core' : tipoId === 'adhoc' ? '◇ Adhoc' : '— Sin tipo';
                                     const tipoKey = `${date}__${block.id}__tipo__${tipoId}`;
@@ -520,7 +523,7 @@ export function WeekView({
                                           className="w-full flex items-center gap-1 px-1 py-1 rounded-lg hover:dark:bg-white/5 hover:bg-black/5 transition-all">
                                           <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block" style={{ backgroundColor: tipoColor }} />
                                           <span className="text-[8px] font-black uppercase tracking-widest flex-1 text-left" style={{ color: tipoColor }}>{tipoLabel}</span>
-                                          <span className="text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0">{tipoPending}/{tipoTasks.length}</span>
+                                          <span className="text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0">{tipoHechas}/{tipoTasks.length}</span>
                                           {tipoMins > 0 && <span className="text-[8px] font-black dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0 ml-1">{formatMinutes(tipoMins)}</span>}
                                           {isTipoExpanded ? <ChevronUp size={8} className="shrink-0 opacity-30 ml-0.5" /> : <ChevronDown size={8} className="shrink-0 opacity-30 ml-0.5" />}
                                         </button>
