@@ -135,23 +135,23 @@ export function RecurrenceChoiceModal({ type, task = null, pendingChildCount = 0
                   : 'Los cambios afectan solo a este día.'}
               </span>
             </button>
-            {/* BLOQUE 2 (sesión 25): "Terminar la rutina" SALE del diálogo de Eliminar. Terminar no es borrar: se hace
-                en el modal con "fecha hasta" (atajo "Terminar hoy") → va a Finalizadas, reactivable. Eliminar queda solo
-                para eliminar. En EDITAR se mantiene "Toda la serie (futuro)". */}
-            {!isDelete && (
-              <button
-                onClick={() => onConfirm('series')}
-                className="w-full p-4 rounded-2xl text-left text-white transition-all shadow-xl bg-azul shadow-azul/20"
-              >
-                <span className="block text-sm font-black">Toda la serie (futuro)</span>
-                <span className="block text-xs font-bold text-white/80 mt-0.5 leading-relaxed">Los cambios afectan a todas las futuras.</span>
-              </button>
-            )}
-            {isDelete && (
-              <p className="text-[11px] font-bold text-text-secondary/70 leading-relaxed px-1">
-                ¿Terminar la rutina? Ábrela (editar) y ponle <span className="text-turquesa">fecha hasta</span> → pasa a Finalizadas.
-              </p>
-            )}
+            {/* CAMBIO DE DECISIÓN (sesión 26, propietaria): "Terminar la rutina" VUELVE al diálogo de Eliminar (revierte la
+                salida de la sesión 25). Está en el MISMO modal → cubre contenedor Y subtarea recurrente por igual. Terminar
+                NO borra: pone endDate=ayer (A1) → la rutina pasa a FINALIZADAS y es reactivable. El modal con "Terminar hoy"
+                (fecha hasta) SE QUEDA también: dos caminos para lo mismo, a propósito. En EDITAR es "Toda la serie (futuro)". */}
+            <button
+              onClick={() => onConfirm('series')}
+              className={`w-full p-4 rounded-2xl text-left text-white transition-all shadow-xl ${isDelete ? 'bg-rosa shadow-rosa/20' : 'bg-azul shadow-azul/20'}`}
+            >
+              <span className="block text-sm font-black">
+                {isDelete ? 'Terminar la rutina' : 'Toda la serie (futuro)'}
+              </span>
+              <span className="block text-xs font-bold text-white/80 mt-0.5 leading-relaxed">
+                {isDelete
+                  ? 'Deja de repetirse de hoy en adelante. Lo ya hecho se conserva; pasa a Finalizadas (reactivable).'
+                  : 'Los cambios afectan a todas las futuras.'}
+              </span>
+            </button>
             <button
               onClick={onClose}
               className="w-full py-3 text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-white transition-all"

@@ -4478,6 +4478,32 @@ antes de darlo por cierto; lo marcado **[TITULAR VACÍO]** es lo que hay que DEF
   fuera de Mi Día + en Finalizadas ("fin 2026-08-19"), sin recargar; persistido como FINALIZADA (endDate, `is_deleted:false`).
   184 tests verdes.
 
+### Sesión 26 (cierre) — bulk en línea limpia + "Terminar" vuelve a Eliminar (CAMBIO DE DECISIÓN)
+
+**✅ BULK — LÍNEA LIMPIA (aprobado). `targetIds = bulkEffectiveIds(...)`, cero excepciones.** Tras 3 bugs en el mismo sitio
+(borraba completadas → salvaba pendientes con tiempo → no borraba nada), la propietaria decide: el bulk es EXACTAMENTE "las
+hijas PENDIENTES del día del contenedor marcado; las completadas se quedan; nada más". Se quitan los DOS añadidos que vivían
+sobre el núcleo: la **guarda de tiempo** (26a) y la función **`bulkCompletedDirectIds`** (26b, "completada marcada sola se
+borra"). **`bulkCompletedDirectIds` BORRADO** (helper + 4 tests). Coste asumido: no se puede borrar una completada
+marcándola sola en el bulk → se hace desde el ⋯ de su fila (sigue funcionando). El núcleo `bulkEffectiveIds` ya excluye
+completadas por construcción, así que el borrado en lote es una sola línea sin excepciones. **NO verificado por la barra**
+(el checkbox no se acciona por automatización) → la propietaria lo valida por la barra.
+- **COSMÉTICO (aprobado):** `toggleTaskSelection` (`App.tsx`) ya NO marca las hijas COMPLETADAS al seleccionar un contenedor
+  (antes se veían seleccionadas y no se borraban = mentira en pantalla). Se marca el contenedor + sus hijas pendientes.
+
+**🔄 CAMBIO DE DECISIÓN (propietaria, sesión 26) — "Terminar la rutina" VUELVE al diálogo de Eliminar.** Revierte la salida
+de la sesión 25 (BLOQUE 2). **Razón de la propietaria:** conceptualmente eliminar ≠ terminar, lo asume; en el uso real le
+resulta más práctico terminar **desde donde ve la tarea** que abriendo el modal. Esa distinción la calibra ella.
+- **Está en LOS DOS:** contenedor Y subtarea recurrente. Como ambos usan el MISMO `RecurrenceChoiceModal`, restaurar el botón
+  ahí los cubre por igual (antes estaba "a medias" en el bundle viejo).
+- **El modal con "Terminar hoy" (fecha hasta) SE QUEDA también** — dos caminos para lo mismo, a propósito.
+- **Texto QUITADO** del diálogo ("¿Terminar la rutina? Ábrela editar…") — ya no aplica.
+- **Terminar por el diálogo → FINALIZADAS + reactivable, NO soft-borrada** (usa A1: `endDate=ayer`, `is_deleted=false`).
+  **VERIFICADO en pantalla (contenedor de test):** terminar "PRUEBA REC 1808" por el diálogo → sus 4 hijas quedaron
+  `endDate=ayer` (`is_deleted=false`) → FINALIZADAS. La subtarea usa el MISMO A1 sobre su plantilla-hoja (idéntico camino que
+  las hijas del contenedor, ya ejercitado) → mismo resultado; el ⋯ anidado de la subtarea no se pudo accionar por
+  automatización (dicho), pero el mecanismo es el mismo y quedó confirmado. Datos de test restaurados.
+
 ### Sesión 26 — dos regresiones de la sesión 25 (validación de la propietaria)
 
 **🔴 PARTE 4 (arreglada) — terminar dejaba la instancia persistida de hoy en Mi Día.** El fix (a) de sesión 25 recogía

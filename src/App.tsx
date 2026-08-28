@@ -151,7 +151,10 @@ export default function App() {
         subs.forEach(subId => next.delete(subId));
       } else {
         next.add(taskId);
-        subs.forEach(subId => next.add(subId));
+        // Cosmético (sesión 26): al marcar un contenedor NO se marcan sus hijas COMPLETADAS — el bulk nunca las borra
+        // (bulkEffectiveIds las excluye), así que marcarlas era "mentira en pantalla" (se veían seleccionadas y no se iban).
+        // Una completada está persistida (status en `tasks`); una virgen/pendiente no está o no es 'completed' → se marca.
+        subs.forEach(subId => { if (tasks[subId]?.status === 'completed') return; next.add(subId); });
       }
       return next;
     });

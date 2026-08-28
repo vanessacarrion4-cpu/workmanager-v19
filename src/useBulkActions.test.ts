@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from 'vitest';
 import { Task } from './types';
-import { bulkEffectiveIds, bulkUpdatesForTask, bulkUpsertStatusFields, bulkCompletedDirectIds } from './useBulkActions';
+import { bulkEffectiveIds, bulkUpdatesForTask, bulkUpsertStatusFields } from './useBulkActions';
 
 const WED = '2026-07-15';
 const THU = '2026-07-16';
@@ -138,48 +138,5 @@ describe('bulkUpdatesForTask (guard "mover a fecha")', () => {
     const upd: Partial<Task> = { dueDate: THU, tags: ['focus'] };
     bulkUpdatesForTask(upd, done);
     expect(upd).toEqual({ dueDate: THU, tags: ['focus'] });
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// bulkCompletedDirectIds — Parte 2 (sesión 26). Fija el bug que BORRÓ 2 completadas
-// reales: una hija recurrente completada tiene parentTaskId=null, y la heurística
-// vieja (isRootSel) la trataba como "marcada directamente" aunque entrara por CASCADA
-// de su contenedor. Ahora la cascada protege; solo se borra la marcada SOLA.
-// ─────────────────────────────────────────────────────────────────────────────
-describe('bulkCompletedDirectIds (Parte 2: la cascada protege las completadas)', () => {
-  const runC = (tasks: Record<string, Task>, sel: string[], day = WED) =>
-    bulkCompletedDirectIds(sel, tasks, day, (id) => tasks[id]).sort();
-
-  // Escenario EXACTO del daño: contenedor recurrente con hija recurrente COMPLETADA cuya
-  // instancia persistida tiene parentTaskId=null (como las 2 víctimas reales).
-  const bugTasks = () => byId([
-    task({ id: 'inst-CONT-2026-07-15', templateId: 'CONT', dueDate: WED, subtasks: ['inst-CH-2026-07-15'] }), // contenedor renderizado
-    task({ id: 'CONT', isTemplate: true, subtasks: ['CH'] }),                                                  // plantilla contenedor
-    task({ id: 'CH', isTemplate: true, parentTaskId: 'CONT', recurrence: { frequency: 'daily', startDate: '2026-01-01' } as any }), // plantilla hija
-    task({ id: 'inst-CH-2026-07-15', templateId: 'CH', parentTaskId: null as any, dueDate: WED, status: 'completed', isException: true }), // ⚠️ completada, parent NULL
-  ]);
-
-  it('CASCADA: contenedor seleccionado (arrastra la hija) → la completada NO se borra', () => {
-    // toggleTaskSelection mete contenedor + hijas renderizadas en la selección
-    expect(runC(bugTasks(), ['inst-CONT-2026-07-15', 'inst-CH-2026-07-15'])).toEqual([]);
-  });
-
-  it('DIRECTA: la completada marcada SOLA (sin su contenedor) → se borra', () => {
-    expect(runC(bugTasks(), ['inst-CH-2026-07-15'])).toEqual(['inst-CH-2026-07-15']);
-  });
-
-  it('hija MANUAL completada bajo contenedor seleccionado → protegida (parentTaskId a la plantilla)', () => {
-    const tasks = byId([
-      task({ id: 'inst-CONT-2026-07-15', templateId: 'CONT', dueDate: WED, subtasks: ['man'] }),
-      task({ id: 'CONT', isTemplate: true, subtasks: ['man'] }),
-      task({ id: 'man', parentTaskId: 'CONT', dueDate: WED, status: 'completed' }),
-    ]);
-    expect(runC(tasks, ['inst-CONT-2026-07-15', 'man'])).toEqual([]);
-  });
-
-  it('las pendientes no entran aquí (esto es SOLO completadas)', () => {
-    const tasks = byId([task({ id: 'P', dueDate: WED, status: 'pending' })]);
-    expect(runC(tasks, ['P'])).toEqual([]);
   });
 });
