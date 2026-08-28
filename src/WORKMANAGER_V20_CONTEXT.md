@@ -4649,9 +4649,13 @@ no lo cuenta. El mismo contenedor no puede dar números distintos según la vist
 propósito Y lo diga en pantalla.
 
 **Estado por item (🟢 = confirmado; 🟡 = leído en código, sin confirmar en pantalla; ⚪ = por diseño):**
-- **#1 🟢 Bloques, estimado = `getTaskEstimatedCombo` (todo el subárbol, incluye finalizadas/completadas).** Caso real de la
-  propietaria ("2h10m con hijas a 0m"). → **ARREGLO:** mismo conjunto que la lista (excluir expiradas). **+ F6-x3:** como
-  Bloques es DEFINICIÓN, el número es del conjunto completo, no de un día → que la pantalla lo diga (con este arreglo).
+- **#1 ✅ HECHO (sesión 26) + F6-x3.** Nuevo helper `containerEstimatedForBloques` (`filters.ts`): suma el estimado de las
+  hijas que la LISTA muestra (`getVisibleSubtasksForBloques` + sin finalizadas), recursivo — el contenedor mide lo que
+  muestra. Reemplaza `getTaskEstimatedCombo` (que incluía finalizadas → el "2h10m con hijas a 0m"). **F6-x3:** tooltip en el
+  chip de estimado en Bloques ("Estimado de la DEFINICIÓN: todas las reglas, el conjunto completo, no un día. Las
+  finalizadas no cuentan"). **Verificado por probe sobre datos reales:** Cierre Propias 230m→155m (2 finalizadas), Selecció
+  RRHH 15m→0m, Gestión campaña 65m→60m. La lectura en pantalla de Bloques no se pudo automatizar → eyeball de la propietaria.
+  Los otros números (#2, #3, #6, #7) quedan APARCADOS con el mapa hecho (no afectan a la cabecera de Mi Día).
 - **#2 🟢 Semana usa cálculo propio.** CONFIRMADO en pantalla: Semana NO muestra contenedores por nombre; agrupa por
   día→BLOQUE con "X/Y · tiempo" (agregación propia, `getTaskMins` + sumas de bloque) + total del día. Estructura y lógica
   distintas del resto. **BONUS:** salen números NUEVOS a auditar (X/Y y tiempo por bloque/día en Semana). → **ARREGLO:**

@@ -15,7 +15,7 @@
  */
 
 import { Task } from './types';
-import { isTaskCompleted } from './utils';
+import { isTaskCompleted, isExpiredTemplate } from './utils';
 import { belongsToDay } from './instanceEngine'; // FASE 3: única definición de "pertenece a un día"
 
 // ─────────────────────────────────────────────
@@ -160,6 +160,26 @@ export function getVisibleSubtasksForBloques(
     }
   }
   return out.sort((a, b) => ((allTasksMap[a]?.order ?? 999) - (allTasksMap[b]?.order ?? 999)));
+}
+
+/**
+ * #1 (sesión 26): estimado de un CONTENEDOR en BLOQUES = suma del estimado de las hijas que la LISTA MUESTRA
+ * (`getVisibleSubtasksForBloques` + sin finalizadas), recursivo. Antes se usaba `getTaskEstimatedCombo` (TODO el
+ * subárbol, incluidas las hijas FINALIZADAS/expiradas que la lista OCULTA) → el total no cuadraba con las filas
+ * visibles (el "2h10m con las hijas a 0m" de la propietaria). Un contenedor mide lo que muestra debajo. F6-x3: en
+ * Bloques (DEFINICIÓN) el conjunto es COMPLETO (todas las hijas visibles, no un día), no acotado a una fecha.
+ */
+export function containerEstimatedForBloques(
+  container: Task, allTasksMap: Record<string, Task>, showCompleted: boolean, todayISO: string,
+): number {
+  let total = 0;
+  for (const id of getVisibleSubtasksForBloques(container, allTasksMap, showCompleted)) {
+    const c = allTasksMap[id];
+    if (!c || isExpiredTemplate(c, todayISO)) continue; // dropExpired (igual que renderChildIds)
+    if (c.subtasks && c.subtasks.length > 0) total += containerEstimatedForBloques(c, allTasksMap, showCompleted, todayISO);
+    else total += c.estimatedMinutes || 0;
+  }
+  return total;
 }
 
 /**

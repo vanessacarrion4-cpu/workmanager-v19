@@ -20,7 +20,7 @@ import {
   getTaskEstimatedPending, getTaskRegisteredCombo, formatMinutes, isExpiredTemplate
 } from './utils';
 import { containerEstimatedForDay, containerRegisteredForDay, isContainerCompleteOnDay, containerDayToggle } from './fase3Contracts'; // FASE 3: totales + completado derivado del contenedor + selección real del día (tapón)
-import { getVisibleSubtasksForBloques, hiddenCompletedCountForBloques } from './filters'; // A (sesión 19): render de Bloques por regla canónica
+import { getVisibleSubtasksForBloques, hiddenCompletedCountForBloques, containerEstimatedForBloques } from './filters'; // A (sesión 19): render de Bloques por regla canónica; #1 (s26): estimado = lo que muestra
 import { getTagColor } from './helpers';
 import { TitleField } from './TitleField';
 import {
@@ -212,8 +212,10 @@ export function TaskCard({
         return acc + getTaskEstimatedPending(subId, allTasksMap);
       }, 0);
     } else if (task.isTemplate && !task.templateId) {
-      // Template en BlocksView: mostrar estimado base (suma de subtemplates, sin filtrar por estado)
-      return getTaskEstimatedCombo(task.id, allTasksMap);
+      // #1 (sesión 26): en Bloques el total del contenedor MIDE LO QUE MUESTRA (hijas visibles, sin finalizadas),
+      // no el combo entero (que incluía finalizadas → "2h10m con hijas a 0m"). Una hoja-plantilla usa su propio estimado.
+      if (!hasSubtasks) return task.estimatedMinutes || 0;
+      return containerEstimatedForBloques(task, allTasksMap, showCompletedChildren, formatLocalISO(new Date()));
     } else if (hasSubtasks && dayForTotals) {
       // Contenedor (fuera de grupos) con día conocido: estimado de las hijas DEL DÍA
       return containerEstimatedForDay(task.id, allTasksMap, dayForTotals);
@@ -688,7 +690,10 @@ export function TaskCard({
                 </div>
                 {/* TIEMPOS: estimado · registrado · play (pegados) */}
                 <div className="flex items-center">
-                  <div className="w-[42px] shrink-0 flex items-center justify-end overflow-hidden">
+                  <div
+                    className="w-[42px] shrink-0 flex items-center justify-end overflow-hidden"
+                    title={blocksMode && hasSubtasks ? 'Estimado de la DEFINICIÓN: todas las reglas del contenedor (el conjunto completo, no un día). Las finalizadas no cuentan.' : undefined}
+                  >
                     {!inMeeting && (() => {
                       const estVal = hasSubtasks ? totalEstimated : task.estimatedMinutes;
                       const estEmpty = !hasSubtasks && !(estVal > 0); // sin estimado → columna vacía (hover)
