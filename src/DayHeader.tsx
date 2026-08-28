@@ -1,7 +1,7 @@
 // DayHeader.tsx — TRAMO 1 (CABECERA + FOTO). Sustituye a las 3 tarjetas (Pendientes/Pendiente/Registrado).
 // Sin caja: contenido directo sobre el fondo, al margen de las filas. Reglas de cálculo en §16.8 (getStatsForDay).
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, BarChart3, FileText, History } from 'lucide-react';
 import { DayStats, EntradaForDay } from './filters';
 import { formatMinutes } from './utils';
 import { TAG_LABELS } from './constants';
@@ -82,26 +82,29 @@ export function DayHeader({
 
   return (
     <div className="pt-1 pb-2">
-      {/* FILA 2 · ESTADO (héroe) + MEDIDAS — AGRUPADOS a la izquierda (grid, separación fija ~64px), no a los bordes.
-          Los NÚMEROS de las dos columnas comparten LÍNEA BASE (items-baseline del grid). §16.43 2ª vuelta, item 1. */}
-      <div className="grid grid-cols-[auto_auto] gap-x-16 gap-y-1 items-baseline w-fit">
-        {/* eyebrows (fila 1) */}
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] dark:text-text-secondary text-text-secondary-light">Faltan</span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] dark:text-text-secondary text-text-secondary-light">Estimado vs registrado hoy</span>
-        {/* números (fila 2, misma línea base) */}
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[40px] font-extrabold tracking-tight leading-none tabular-nums dark:text-white text-text-main-light">{stats.pending}</span>
-          <span className="text-[20px] font-semibold leading-none dark:text-text-secondary text-text-secondary-light">
-            <span className="dark:text-white/25 text-black/20 mr-1.5">·</span>{formatMinutes(stats.estimatedPending)}
-          </span>
+      {/* FILA 2 · ESTADO (héroe) + MEDIDAS — agrupados a la izquierda. Los NÚMEROS alineados por su LÍNEA BASE exacta:
+          el eyebrow va en `absolute` (fuera del flujo) → no descuadra la base. §16.43 3ª vuelta, item 2. */}
+      <div className="flex items-baseline gap-16 w-fit pt-5">
+        {/* HÉROE */}
+        <div className="relative">
+          <span className="absolute bottom-full left-0 mb-1 whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.2em] dark:text-text-secondary text-text-secondary-light">Faltan</span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[40px] font-extrabold tracking-tight leading-none tabular-nums dark:text-white text-text-main-light">{stats.pending}</span>
+            <span className="text-[20px] font-semibold leading-none dark:text-text-secondary text-text-secondary-light">
+              <span className="dark:text-white/25 text-black/20 mr-1.5">·</span>{formatMinutes(stats.estimatedPending)}
+            </span>
+          </div>
+          <span className="block mt-1.5 text-[12px] dark:text-text-secondary text-text-secondary-light tabular-nums">{stats.completed} de {stats.total} hechas</span>
         </div>
-        <div className="flex items-baseline gap-3">
-          <span className="text-[18px] font-bold tabular-nums dark:text-white text-text-main-light">{formatMinutes(stats.estimatedCompleted)}</span>
-          <span className="w-px h-4 self-center dark:bg-border-main bg-border-main-light" />
-          <span className="text-[18px] font-bold tabular-nums dark:text-white text-text-main-light">{formatMinutes(stats.registered)}</span>
+        {/* MEDIDAS */}
+        <div className="relative">
+          <span className="absolute bottom-full left-0 mb-1 whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.2em] dark:text-text-secondary text-text-secondary-light">Estimado vs registrado hoy</span>
+          <div className="flex items-baseline gap-3">
+            <span className="text-[18px] leading-none font-bold tabular-nums dark:text-white text-text-main-light">{formatMinutes(stats.estimatedCompleted)}</span>
+            <span className="w-px h-4 self-center dark:bg-border-main bg-border-main-light" />
+            <span className="text-[18px] leading-none font-bold tabular-nums dark:text-white text-text-main-light">{formatMinutes(stats.registered)}</span>
+          </div>
         </div>
-        {/* subtexto (fila 3, solo bajo el héroe) */}
-        <span className="text-[12px] dark:text-text-secondary text-text-secondary-light tabular-nums">{stats.completed} de {stats.total} hechas</span>
       </div>
 
       {/* FILA 3 · META (foto + entrada) — contexto silencioso, solo si aplica */}
@@ -176,38 +179,39 @@ export function DayHeader({
         <div className="flex-1 min-w-[140px] h-1.5 rounded-full dark:bg-white/10 bg-black/10 overflow-hidden">
           <div className="h-full rounded-full bg-turquesa transition-all" style={{ width: `${pct}%` }} />
         </div>
-        {/* "una acción · tres accesos": Fijar es chip de acción (cambia estado); el resto, enlaces. §16.43 2ª vuelta, item 2. */}
-        <div className="flex items-center gap-5">
+        {/* De un vistazo: UN botón sólido (Fijar, la acción) + TRES enlaces con icono (accesos). §16.43 3ª vuelta, item 4. */}
+        <div className="flex items-center gap-6">
           <button
             onClick={doFijar}
             title="Fijar el día: guarda cuántas tareas y cuánto tiempo tienes previstos ahora. Luego verás lo que se añada."
-            className="px-3 py-1.5 rounded-lg bg-turquesa/10 text-turquesa hover:bg-turquesa/20 text-[11px] font-bold uppercase tracking-wider transition-colors"
+            className="px-3.5 py-1.5 rounded-lg bg-turquesa text-white hover:bg-turquesa/90 text-[11px] font-bold uppercase tracking-wider transition-colors shrink-0"
           >{latest ? 'Re-fijar' : 'Fijar'}</button>
-          <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wider">
-            <button onClick={toggle} className="text-slate-600 dark:text-slate-400 hover:text-turquesa dark:hover:text-turquesa transition-colors">Desglose</button>
-            <span className="text-slate-300 dark:text-white/20">·</span>
-            <button onClick={onOpenReport} className="text-slate-600 dark:text-slate-400 hover:text-turquesa dark:hover:text-turquesa transition-colors">Reporte</button>
-            <span className="text-slate-300 dark:text-white/20">·</span>
-            <button onClick={onOpenTimeHistory} className="text-slate-600 dark:text-slate-400 hover:text-turquesa dark:hover:text-turquesa transition-colors">Historial</button>
+          <div className="flex items-center gap-4 text-[10px] font-semibold uppercase tracking-wider">
+            <button onClick={toggle} className="flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:text-turquesa dark:hover:text-turquesa transition-colors"><BarChart3 size={11} /> Desglose</button>
+            <button onClick={onOpenReport} className="flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:text-turquesa dark:hover:text-turquesa transition-colors"><FileText size={11} /> Reporte</button>
+            <button onClick={onOpenTimeHistory} className="flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:text-turquesa dark:hover:text-turquesa transition-colors"><History size={11} /> Historial</button>
           </div>
         </div>
       </div>
 
-      {/* DESGLOSE — estimado PENDIENTE (lo que QUEDA). Tres columnas IDÉNTICAS (nombre·barra·valor); el color de la barra
-          identifica la entidad (§16.43 2ª vuelta, item 4). Un solo eyebrow "Queda por" + Tipo·Bloque·Etiqueta. */}
+      {/* DESGLOSE — estimado PENDIENTE (lo que QUEDA). TIPO = línea compacta (solo 2 valores, no merece columna, §16.43 3ª
+          vuelta item 3); BLOQUE y ETIQUETA a mitades, que es donde sí hacen falta las barras. Color de barra = entidad. */}
       {open && (
         <div className="mt-3">
-          <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Queda por</span>
-          <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-x-8 gap-y-4">
-            {/* TIPO — dos tonos de la misma familia (verde), sin puntitos (la barra ya lleva el color) */}
-            <div className="space-y-1.5">
-              <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/60">Tipo</span>
-              {[{ n: 'Core', m: stats.byType.core, c: CORE_HEX }, { n: 'Ad-hoc', m: stats.byType.adhoc, c: ADHOC_HEX }]
-                .filter(x => x.m > 0).sort((a, b) => b.m - a.m).map(x => {
-                  const max = Math.max(stats.byType.core, stats.byType.adhoc) || 1;
-                  return <DesRow key={x.n} name={x.n} minutes={x.m} pct={Math.min(100, Math.round((x.m / max) * 100))} color={x.c} />;
-                })}
-            </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Queda por</span>
+            {/* TIPO en una línea, con su punto de color delante (familia verde: core saturado, ad-hoc claro) */}
+            <span className="flex items-center gap-3 text-[11px] font-bold dark:text-text-secondary text-slate-600">
+              {stats.byType.core > 0 && (
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: CORE_HEX }} /> Core {formatMinutes(stats.byType.core)}</span>
+              )}
+              {stats.byType.core > 0 && stats.byType.adhoc > 0 && <span className="text-text-secondary/40">·</span>}
+              {stats.byType.adhoc > 0 && (
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ADHOC_HEX }} /> Ad-hoc {formatMinutes(stats.byType.adhoc)}</span>
+              )}
+            </span>
+          </div>
+          <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
             {/* BLOQUE — color propio de cada bloque */}
             <div className="space-y-1.5">
               <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/60">Bloque</span>

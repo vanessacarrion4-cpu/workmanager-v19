@@ -4933,6 +4933,18 @@ ACCIONES. Sin cajas/sombras/bordes, sin iconos decorativos, un solo acento.
   redondeada. Texto neutro (`text-slate-600 dark:text-text-secondary`, explícito → no se pierde en claro). **VERIFICADO en
   pantalla (Aug 28):** Core 100% verde + Ad-hoc 31% verde claro; bloques con su color; En Espera naranja 100% + Con Hora
   turquesa 12%. 3 columnas, 1 eyebrow.
+
+**3ª VUELTA (sesión 26):**
+- **item 1 · fecha** subida a **17px, peso 600, slate-800** (`DashboardView`) — seguía leyéndose menos que los datos.
+- **item 2 · línea base EXACTA:** los eyebrows en flujo descuadraban la base; ahora van en `absolute` (fuera del flujo) y
+  las dos columnas se alinean por `items-baseline` sobre los NÚMEROS + `leading-none` en ambos → héroe 863 / medidas 861 (~2px,
+  antes ~7px). Verificado en pantalla.
+- **item 3 · TIPO fuera de columna:** dos valores no merecen columna. Ahora **línea compacta** junto al eyebrow
+  ("Queda por · ● Core 2h 55m · ● Ad-hoc 55m", punto de color familia verde). BLOQUE y ETIQUETA se reparten a **2 columnas**
+  (donde sí hacen falta barras). Verificado.
+- **item 4 · acciones "de un vistazo":** FIJAR = **botón SÓLIDO** (turquesa pleno, texto blanco); Desglose/Reporte/Historial =
+  enlaces **slate-500 más pequeños** (10px) con **icono propio** (BarChart3/FileText/History) para distinguirse, hover
+  turquesa; **más aire** (gap-6) entre Fijar y el trío. Verificado: Fijar rgb(20,184,166)+blanco, enlaces slate-500 con svg.
 - **item 5 · CONTRASTE del popover "Ir a fecha" (`DashboardComponents.tsx`):** estaba construido dark-first con `text-white`
   y `text-text-main` (#F8FAFC, casi blanco) SIN variante clara → en modo CLARO invisible sobre fondo blanco. Arreglado con
   color explícito: mes (`dark:text-white text-text-main-light`), números de día (`dark:text-text-main text-text-main-light`),
