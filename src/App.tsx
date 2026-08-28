@@ -13,7 +13,7 @@ import { WorkBlock, Task, ViewType, TagType, TimeEntry, Person, DelegationMeetin
 import { COLORS } from './constants';
 import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { filterTasksForDay } from './filters';
+import { filterTasksForDay, getEntradaForDay } from './filters';
 import { materializeInstanceById } from './instanceEngine';
 import { reconcileDay, containerDayToggle } from './fase3Contracts'; // C3: mapa del día sin fuga; §16.28: nº hijas pendientes del día para el modal de papelera
 import { getTaskRegisteredSelf } from './utils'; // A2: detectar "hija con tiempo registrado" ESE DÍA (guarda de intacta). Self, no Combo: Combo exige la tarea en el mapa y una instancia hija es virtual → devolvía 0.
@@ -212,6 +212,10 @@ export default function App() {
     });
     return map;
   }, [activeDayMap, tasks, dashboardTasks, activeDate]);
+
+  // TRAMO 2 (entrada del día): qué se CREÓ el día visto. Necesita el mapa COMPLETO `tasks` (no el day-scoped),
+  // porque algo creado hoy puede vencer en otra fecha. §16.39 tramo 2.
+  const entradaDelDia = useMemo(() => getEntradaForDay(activeDate, tasks), [activeDate, tasks]);
 
   // --- Hooks ---
   const {
@@ -482,6 +486,7 @@ export default function App() {
               <DashboardView
                 tasks={dashboardTasks}
                 allTasksMap={dashboardTasksMap}
+                entrada={entradaDelDia}
                 blocks={blocks}
                 people={people}
                 onAddPerson={handleAddPerson}

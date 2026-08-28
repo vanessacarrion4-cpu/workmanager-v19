@@ -15,7 +15,7 @@ import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { getTaskEstimatedCombo, formatMinutes } from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
+import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay } from './filters';
 import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completado POR DÍA para el filtro "ocultar completadas"
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
@@ -25,6 +25,7 @@ import { useDaySnapshot } from './useDaySnapshot';
 interface DashboardViewProps {
   tasks: Task[];
   allTasksMap: Record<string, Task>;
+  entrada?: EntradaForDay | null; // TRAMO 2: qué se creó el día visto (calculado en App con el mapa completo)
   blocks: WorkBlock[];
   people?: Person[];
   onAddPerson?: (name: string) => void;
@@ -78,7 +79,7 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({
-  tasks, allTasksMap, blocks, people = [], onAddPerson, onRenamePerson, onDeletePerson,
+  tasks, allTasksMap, entrada = null, blocks, people = [], onAddPerson, onRenamePerson, onDeletePerson,
   timeEntries = [], activeTimer, onStartTimer, onStopTimer, onToggle, onDelete, onAddTask,
   onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId,
   onOpenTimePanel, activeDate, onSetDate, onDayChange, onReorderTasks, onReorderSubtasks, onBatchUpdateOrder,
@@ -327,6 +328,7 @@ export function DashboardView({
         blocks={blocks}
         latest={daySnapshot}
         jornada={jornada}
+        entrada={entrada}
         onFijar={() => { fijar(stats.total, stats.estimatedTotal, stats.completed).catch(() => {}); }}
         onSetJornada={setJornada}
         onOpenTimeHistory={() => setShowTimeHistory(true)}

@@ -4633,7 +4633,24 @@ QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el pl
   1h iguales, Bancos (50m) la más corta. Ordenadas desc. ("1h" NO es redondeo: `formatMinutes` da "1h" solo para 60m exactos.)
   Restaurado además el "Registrado hoy ›" como botón clicable → historial de tiempos (el "Ver historial" que colgaba de la
   tarjeta Registrado borrada; ella pidió avisar si desaparecía algo que usara).
-- **Reservado (sin construir):** línea "Entró hoy" (tramo 2) bajo la foto; enlace "Reporte ›" (tramo 4) junto a Desglose.
+- **Reservado (sin construir):** enlace "Reporte ›" (tramo 4) junto a Desglose.
+
+### TRAMO 2 · Entrada del día — ✅ CONSTRUIDO (sesión 26), pendiente validación de la propietaria
+- **Qué es:** línea compacta bajo la foto que dice **qué se CREÓ el día que miro** ("Entró el jueves 20 · 7 tareas
+  (1 para hoy · 6 más adelante)"), desplegable a la lista de esas tareas (título · para hoy/día de vencimiento · tiempo).
+- **Ficheros:** `filters.ts` (`getEntradaForDay(dayISO, allTasks)` + tipos `EntradaItem`/`EntradaForDay`), `DayHeader.tsx`
+  (línea + lista desplegable, en el hueco reservado del tramo 2), `App.tsx` (`entradaDelDia` = useMemo con el mapa
+  COMPLETO `tasks`; se pasa a `DashboardView`), `DashboardView.tsx` (reenvía `entrada` a `DayHeader`).
+- **DECISIONES (aprobadas por la propietaria):** (1) el día es el que MIRO (`activeDate`); el texto lo nombra
+  ("Entró el jueves 20") para no confundir al mirar un día pasado. (2) una REGLA NUEVA (template) **NO cuenta** como
+  entrada — opción (a), decisión explícita, no omisión (excluida por `!isTemplate`). (3) "para hoy" = `dueDate===día`,
+  "más adelante" = el resto (futuras y SIN fecha). (4) se cuenta CADA fila real que entró (contenedores e hijas por igual).
+- **Fuente = mapa COMPLETO `tasks`** (no el day-scoped `dashboardTasksMap`): algo creado hoy puede vencer en otra fecha,
+  y el day-scoped solo trae lo que pertenece a ESE día. Cálculo por `createdAt` local (no UTC).
+- **VERIFICADO en pantalla (dev, datos reales, modo claro) contra probe de la BD:** día 20/08 → "Entró el jueves 20 · 7
+  tareas (1 para hoy · 6 más adelante)"; los 7 ítems, su orden (para hoy primero, luego por creación), sus fechas de
+  vencimiento como día de la semana y el tiempo (solo si >0) COINCIDEN con la BD. Día sin creaciones (27/08) → la línea
+  NO aparece (sin ruido). 184 tests verdes.
 
 ### TRAMO 1 · Cabecera + Foto — spec (histórico)
 - **Cabecera** sustituye a las 3 tarjetas (Pendientes/Pendiente/Registrado, desaparecen). SIN caja, principio de página.

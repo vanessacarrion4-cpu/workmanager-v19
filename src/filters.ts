@@ -404,3 +404,65 @@ export function getStatsForDay(
     byBlock,
   };
 }
+
+// ─────────────────────────────────────────────
+// TRAMO 2 · ENTRADA DEL DÍA — "qué entró el día que miro"
+// ─────────────────────────────────────────────
+// Cuenta cada tarea REAL (no template, no borrada, no instancia recurrente) cuya fecha de CREACIÓN local coincide con el
+// día visto. Fuente = mapa COMPLETO de tareas (no el day-scoped), porque algo creado hoy puede vencer en otra fecha.
+// DECISIONES (aprobadas por la propietaria, §16.39 tramo 2):
+//  · El día es el que MIRO (activeDate): el texto lo nombra ("Entró el jueves 21") para que no haya ambigüedad al mirar
+//    un día pasado.
+//  · Una REGLA NUEVA (template, is_template) NO cuenta como entrada — opción (a). Ya excluida por `!isTemplate`.
+//  · "para hoy" = dueDate === día;  "más adelante" = el resto (fechas futuras y sin fecha).
+//  · Se cuenta CADA fila que entró (contenedores e hijas por igual): son ítems de trabajo distintos que llegaron ese día.
+export interface EntradaItem {
+  id: string;
+  title: string;
+  blockId: string;
+  dueDate: string | null;
+  estimatedMinutes: number;
+  taskType?: 'core' | 'adhoc';
+  forToday: boolean; // dueDate === día visto
+}
+export interface EntradaForDay {
+  day: string;
+  total: number;
+  forToday: number;
+  later: number;
+  items: EntradaItem[]; // ordenadas: primero "para hoy", luego por hora de creación
+}
+
+function createdLocalISO(createdAt: string): string {
+  const d = new Date(createdAt);
+  if (isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export function getEntradaForDay(dayISO: string, allTasks: Record<string, Task>): EntradaForDay {
+  const items: EntradaItem[] = [];
+  Object.values(allTasks).forEach((t: any) => {
+    if (!t || t.isTemplate || t.isDeleted) return;          // regla nueva (template) NO cuenta — decisión (a)
+    if (String(t.id).startsWith('inst-')) return;           // instancias recurrentes no son "entradas"
+    if (!t.createdAt || createdLocalISO(t.createdAt) !== dayISO) return;
+    const forToday = t.dueDate === dayISO;
+    items.push({
+      id: t.id,
+      title: t.title || '',
+      blockId: t.blockId,
+      dueDate: t.dueDate ?? null,
+      estimatedMinutes: t.estimatedMinutes || 0,
+      taskType: t.taskType,
+      forToday,
+    });
+  });
+  items.sort((a, b) => {
+    if (a.forToday !== b.forToday) return a.forToday ? -1 : 1; // "para hoy" primero
+    return String(allTasks[a.id]?.createdAt || '').localeCompare(String(allTasks[b.id]?.createdAt || ''));
+  });
+  const forToday = items.filter(i => i.forToday).length;
+  return { day: dayISO, total: items.length, forToday, later: items.length - forToday, items };
+}

@@ -2,11 +2,12 @@
 // Sin caja: contenido directo sobre el fondo, al margen de las filas. Reglas de cálculo en §16.8 (getStatsForDay).
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Camera } from 'lucide-react';
-import { DayStats } from './filters';
+import { DayStats, EntradaForDay } from './filters';
 import { formatMinutes } from './utils';
 import { DaySnapshot } from './useDaySnapshot';
 
 const DESGLOSE_KEY = 'wm_desglose_open';
+const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
 function fmtSigned(minutes: number): string {
   const s = minutes < 0 ? '−' : '+';
@@ -16,14 +17,21 @@ function hhmm(iso: string): string {
   const d = new Date(iso);
   return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
+// "jueves 21" a partir de 'YYYY-MM-DD' (fecha local, sin desfase de zona)
+function diaLargo(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(y, (m || 1) - 1, d || 1);
+  return `${WEEKDAYS[date.getDay()]} ${d}`;
+}
 
 export function DayHeader({
-  stats, blocks, latest, jornada, onFijar, onSetJornada, onOpenTimeHistory,
+  stats, blocks, latest, jornada, entrada, onFijar, onSetJornada, onOpenTimeHistory,
 }: {
   stats: DayStats;
   blocks: any[];
   latest: DaySnapshot | null;
   jornada: number;
+  entrada: EntradaForDay | null; // TRAMO 2: qué se creó el día que miro
   onFijar: () => void;
   onSetJornada: (min: number) => void;
   onOpenTimeHistory: () => void; // restaura el "Ver historial" que colgaba de la tarjeta Registrado (sesión 26)
@@ -32,6 +40,7 @@ export function DayHeader({
     try { return localStorage.getItem(DESGLOSE_KEY) === '1'; } catch { return false; }
   });
   const toggle = () => setOpen(o => { const n = !o; try { localStorage.setItem(DESGLOSE_KEY, n ? '1' : '0'); } catch {} return n; });
+  const [entOpen, setEntOpen] = useState(false); // lista de entradas (efímera, no persiste)
 
   // Aviso de sobreplanificación (al fijar, si el estimado del día supera la jornada). No bloquea.
   const [overWarn, setOverWarn] = useState<number | null>(null);
@@ -108,7 +117,43 @@ export function DayHeader({
         </div>
       )}
 
-      {/* TRAMO 2 (reservado): "Entró hoy: …" irá aquí, como otra línea compacta bajo la de la foto. */}
+      {/* TRAMO 2 · ENTRADA DEL DÍA — qué se creó el día que miro. Solo se muestra si entró algo (día sin creaciones = sin ruido). */}
+      {entrada && entrada.total > 0 && (
+        <div className="mt-1.5">
+          <button
+            onClick={() => setEntOpen(o => !o)}
+            className="flex items-center gap-1.5 text-[11px] font-bold dark:text-text-secondary text-text-secondary-light hover:text-verde group/ent"
+          >
+            {entOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            <span>
+              Entró el {diaLargo(entrada.day)}
+              <span className="mx-1.5 opacity-40">·</span>
+              <span className="tabular-nums dark:text-white text-text-main-light">{entrada.total}</span> tarea{entrada.total === 1 ? '' : 's'}
+              {entrada.forToday > 0 && entrada.later > 0 && (
+                <span className="opacity-70"> ({entrada.forToday} para hoy · {entrada.later} más adelante)</span>
+              )}
+              {entrada.forToday > 0 && entrada.later === 0 && <span className="opacity-70"> (para hoy)</span>}
+              {entrada.forToday === 0 && entrada.later > 0 && <span className="opacity-70"> (todas más adelante)</span>}
+            </span>
+          </button>
+          {entOpen && (
+            <div className="mt-1.5 ml-4 pl-3 border-l dark:border-border-main border-border-main-light space-y-1">
+              {entrada.items.map(it => (
+                <div key={it.id} className="flex items-center gap-2 text-[11px]">
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${it.taskType === 'adhoc' ? 'bg-rosa' : 'bg-turquesa'}`} />
+                  <span className="dark:text-white text-text-main-light truncate max-w-[340px]">{it.title || '(sin título)'}</span>
+                  <span className={`text-[9px] font-black uppercase tracking-wider shrink-0 ${it.forToday ? 'text-verde' : 'dark:text-text-secondary text-text-secondary-light'}`}>
+                    {it.forToday ? 'para hoy' : (it.dueDate ? diaLargo(it.dueDate) : 'sin fecha')}
+                  </span>
+                  {it.estimatedMinutes > 0 && (
+                    <span className="text-[10px] tabular-nums dark:text-text-secondary text-text-secondary-light shrink-0">{formatMinutes(it.estimatedMinutes)}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* AVISO DE SOBREPLANIFICACIÓN (al fijar) */}
       {overWarn != null && (
