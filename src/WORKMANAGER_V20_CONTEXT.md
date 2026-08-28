@@ -4962,3 +4962,26 @@ sobre botones de color (correctos).
 
 **→ Decisión de la propietaria:** ¿arreglar en una tanda (dar variante clara explícita a los de ALTA confianza + verificar
 los de MEDIA)? Criterio: `dark:text-white text-text-main-light` para cabeceras; para "Hoy/Mañana" mirar el fondo real del botón.
+
+## 16.45 CIERRE DEL DÍA · REPASO DE LO NO HECHO — spec (sesión de producto, PENDIENTE de construir; va detrás de lo en marcha)
+
+**DÓNDE:** al final del REPORTE del día (tramo 4), debajo de todo.
+**QUÉ MUESTRA:** "Te quedan N sin hacer" + la LISTA de lo que quedó pendiente ese día.
+**CADA TAREA TIENE SUS SALIDAS, se decide UNA A UNA (nunca automático):** Completar · Pasar a mañana · Pasar a otro día ·
+Eliminar. Las que no se tocan se quedan donde están.
+- **"Pasar a otro día" MUESTRA IMPACTO:** al elegir fecha, decir lo que YA hay ese día ("martes 2 · ya tienes 6h15"). No
+  mover a ciegas ni caer en un día imposible.
+- **Botón "ARRASTRAR TODO"** para tandas sin decidir una a una. Debe decir CUÁNTO TIEMPO se está moviendo.
+- **RECURRENTES:** SÍ se arrastran, igual que las demás. Si se arrastra la de hoy a mañana y mañana la rutina genera la suya,
+  se VEN LAS DOS y la app AVISA al arrastrar. NO fusionar ni bloquear: decide la propietaria.
+- **TAREAS CON TIEMPO APUNTADO sin completar:** se arrastran igual, pero se MARCAN en la lista para distinguirlas (no es lo
+  mismo no haber empezado que dejarlo a medias).
+- **RUTINAS PASADAS NO HECHAS:** se quedan en su día y SIGUEN CONTANDO. Sin corte por antigüedad (DECISIÓN TOMADA).
+  Consecuencia anotada: hoy son ~858 y solo crecen. NO afectan a los contadores de Mi Día ni de contenedores (ya verificado,
+  §16 capa-donde-se-lee). Cuando se construya el análisis histórico se decidirá si entran en ese cálculo, CON EL DATO
+  DELANTE, no antes.
+
+**APROBADO EN CONCEPTO, SIN DEFINIR — PAPELERA:** no una pila de deshacer general (eso es un proyecto), sino una PANTALLA con
+lo borrado de los últimos días + botón RESTAURAR. Todo se borra en soft-delete → los datos YA están (no hay que construir el
+almacenamiento, solo la vista). [las 5 basuras de CM11l ya barridas en soft-delete son un primer caso real recuperable]
+**DESCARTADO:** atajos de teclado.
