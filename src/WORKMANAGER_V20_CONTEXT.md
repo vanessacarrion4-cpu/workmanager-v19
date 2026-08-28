@@ -4757,8 +4757,13 @@ propósito Y lo diga en pantalla.
   con hijas = carpeta, se muestra aparte (`· N carpetas`, oculto si 0). Basura inerte y ascendidas: fuera. **VERIFICADO en
   pantalla (DOM) contra probe:** CM11l `10 reglas · 5 carpetas`, Central `25 · 6`, Bancos `23 · 2`, Finca `11 · 3`,
   RRHH `4 · 3`, Clientes `5 · 1`, Family `1 · 1`. 12-vs-11 CERRADO.
-- **#7 🟡 Registrado de contenedor manual SIN fecha = histórico entero** (`getTaskRegisteredCombo` sin `filterDate` cuando
-  no hay `dayForTotals`). NO confirmado en pantalla. → **Pendiente de confirmar**; arreglo si ocurre.
+- **#7 ✅ ARREGLADO (sesión 26, `TaskCard.tsx` totalRegistered).** CONFIRMADO que muerde: 84 contenedores manuales sin
+  fecha, muchos con histórico grande sumado (probe: "Cierre Central" 660m/4 fechas, "Salario MCL" 480m/3, "cierre eam"
+  310m/8, "Soriano" 300m/3…). En Bloques (dayForTotals=null) el `else` usaba `getTaskRegisteredCombo` con `filterDate=
+  undefined` → historial entero. **Fix:** nueva rama `hasSubtasks && !registeredFilterDate` → **0** (contenedor sin NINGUNA
+  fecha ni día no suma histórico; el tiempo por día se ve en Mi Día; coherente con contenedores-plantilla que ya daban 0).
+  Un contenedor CON fecha mantiene su filtrado; Mi Día intacto (usa `dayForTotals`, rama previa). **VERIFICADO en pantalla:**
+  "Cierre Central" pasó de 660m a **0m**; estimado intacto (Previsional 4h 15m, etc.).
 - **⚠️ NOTA DE MÉTODO:** los probes de esta auditoría fallaron primero por seleccionar `subtasks` (NO es columna — bug #18);
   los contenedores se detectan por `parent_task_id` de las hijas. Corregido. Recordatorio: nunca `select('subtasks')`.
 - **ORDEN acordado:** confirmar los 🟡 (#3, #7) en pantalla → mapa verificado → OK de la propietaria → arreglos → tramo 1.

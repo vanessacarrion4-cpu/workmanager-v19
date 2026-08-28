@@ -237,8 +237,13 @@ export function TaskCard({
     } else if (hasSubtasks && dayForTotals) {
       // Contenedor (fuera de grupos) con día conocido: registrado de las hijas DEL DÍA (sin tiempo propio)
       return containerRegisteredForDay(task.id, allTasksMap, timeEntries, dayForTotals);
+    } else if (hasSubtasks && !registeredFilterDate) {
+      // #7 (sesión 26): CONTENEDOR sin NINGUNA fecha (ni día de vista ni dueDate → Bloques/Delegadas/Búsqueda) NO debe
+      // sumar el histórico entero de todas las fechas (era "Cierre Central 660m en 4 fechas"). El tiempo por día se ve en
+      // Mi Día; aquí es la DEFINICIÓN. Coherente con los contenedores-plantilla (que ya devuelven 0).
+      return 0;
     } else {
-      // Instancia o tarea manual: filtrar por fecha si la tiene
+      // Instancia o tarea manual (o contenedor CON fecha): filtrar por fecha
       return getTaskRegisteredCombo(task.id, allTasksMap, timeEntries, new Set(), registeredFilterDate);
     }
   })();
