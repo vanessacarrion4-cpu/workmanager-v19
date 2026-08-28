@@ -4765,8 +4765,10 @@ propósito Y lo diga en pantalla.
   Día). Calendario rinde sin errores. Impacto visible LIMITADO: en el detalle los contenedores se pintan como cabeceras
   (título+conteo), no como tarjetas con estimado; solo la rama de tarjeta individual (subtasksForGroup vacío) lo mostraba.
   No verificable el número por el panel oculto (navegación de calendario no automatizable) → **eyeball de la propietaria.**
-  **BÚSQUEDA:** pendiente de decisión (ver §16.42-bis / propuesta en chat: no tiene día → tratar como DEFINICIÓN, igual que
-  Bloques). NO tocada.
+  **BÚSQUEDA ✅ YA CONSISTENTE (sesión 26, SIN cambio de código):** la propuesta era "que Búsqueda diga lo mismo que Bloques"
+  → VERIFICADO en pantalla que YA lo hace tras el #7: "Cierre Central" da `0 · 0m · 0m` en las dos vistas, "Previsional" da
+  `7 · 4h 15m · 0m` en las dos. El total de un contenedor no depende de `blocksMode`; el registrado ya lo puso a 0 el #7
+  (contenedor sin fecha) y el estimado ya usaba la vía de definición (dayless) en ambas. No se toca (habría sido no-op).
 - **#4 ⚪ Estimado excluye completadas** (por diseño). → ETIQUETA: que se lea "pendiente".
 - **#5 ⚪ Badge = solo pendientes** (post #4a). Coherente con lo que oculta la lista. Nada.
 - **#6 ✅ ARREGLADO (sesión 26, `BlocksView.tsx:637`).** El chip contaba `isTemplate && !parent && !expired` → metía
