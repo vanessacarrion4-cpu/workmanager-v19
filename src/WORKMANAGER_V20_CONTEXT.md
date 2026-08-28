@@ -4939,3 +4939,26 @@ ACCIONES. Sin cajas/sombras/bordes, sin iconos decorativos, un solo acento.
   hover de las flechas. **VERIFICADO en modo CLARO:** mes "Agosto 2026" `rgb(15,23,42)` sobre blanco, días `rgb(15,23,42)`.
   Además `CalendarView:356` (detalle del día) tenía el bug de `capitalize` de fecha → arreglado (1ª letra a mano).
   De paso confirmado en CLARO: acciones de la cinta slate-600 `rgb(71,85,105)`, fecha slate-700 `rgb(51,65,85)`.
+
+## 16.44 BARRIDO DE CONTRASTE en modo CLARO (sesión 26, item 6) — REPORTE, sin tocar
+
+Patrón recurrente (ya salió 3+ veces): texto con color casi-blanco (`text-white` o `text-text-main` = #F8FAFC) SIN variante
+clara → invisible sobre fondo claro. Ya arreglados: desglose (§16.41), mes del calendario (§16.42/item 5). Barrido del resto
+(candidatos `text-white` sin `dark:`, sin `bg-<color>` en la misma línea; excluidos ternarios `isDarkMode`, checkmarks e iconos):
+
+**ALTA confianza (cabeceras de modal/sección — casi seguro invisibles en claro):**
+- `App.tsx:846, 915` — `<h3>` de diálogos de confirmación (p.ej. "¿Convertir en tarea contenedora?").
+- `Modals.tsx:105` — `<h3>` título de modal.
+- `BlocksView.tsx:513` — `<h2>` (cabecera del detalle de bloque, por confirmar en claro).
+- `DashboardView.tsx:307, 323` — "Hoy"/"Mañana" (atajos del popover, sobre `bg-bg-main` = claro en modo claro).
+
+**Media (spans que dependen del fondo del PADRE — verificar antes de arreglar):**
+- `App.tsx:346, 348, 354, 928` · `Chips.tsx:741, 753, 903, 940` · `DelegadasView.tsx:531` · `Modals.tsx:127` ·
+  `TimeComponents.tsx:29`.
+
+**Falsos positivos confirmados (NO tocar):** `App.tsx:377` (ternario `isDarkMode`), `Chips.tsx:88/99` (`bg-core/bg-adhoc`),
+checkmarks `App.tsx:1285`/`TimeComponents.tsx:257` (sobre fondo de color). La mayoría de los ~101 `text-white` totales van
+sobre botones de color (correctos).
+
+**→ Decisión de la propietaria:** ¿arreglar en una tanda (dar variante clara explícita a los de ALTA confianza + verificar
+los de MEDIA)? Criterio: `dark:text-white text-text-main-light` para cabeceras; para "Hoy/Mañana" mirar el fondo real del botón.
