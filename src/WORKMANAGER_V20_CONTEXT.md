@@ -4589,13 +4589,20 @@ ya salía con un número que no cuadraba.
   Las 2 de Verduras vivas son de su bulk reciente; las 5 antiguas son de provenencia incierta. Se borran (soft-delete) solo
   las que ella confirme.
 
-**🔴 DOS MINAS LATENTES de `parentTaskId` (anotadas por petición de la propietaria — MISMA mina que borró 2 completadas, sin
-arreglar):** el patrón "asumir que una hija tiene padre no-nulo" falla con hijas recurrentes (`parentTaskId=null`). Vivas en:
-- **DelegadasView** (`:141-149, 167-170`): agrupa raíz vs subtarea por `parentTaskId`; una hija recurrente delegada
-  (`parentTaskId=null`) cae fuera de ambas listas → no se agruparía bajo su contenedor.
-- **fase3Contracts.ts:246 `hasChildren`** (`some(t => t.parentTaskId === task.id)`): sobre tasks crudas no ve hijas
-  recurrentes (parentTaskId=null).
-- Patrón correcto (referencia): comprobar TAMBIÉN `templateId → template.parentTaskId` (como `filters.ts` / `bulkEffectiveIds`).
+**✅ DOS MINAS `parentTaskId` — INVESTIGADAS CON PROBE (sesión 26, BLOQUE A): NINGUNA MUERDE.** Verificado sobre datos
+reales (2774 tasks); se dejan SIN tocar (no arreglar lo que no muerde). Evidencia:
+- **fase3Contracts.ts:246 `hasChildren`** (`some(t => t.parentTaskId === task.id)`): mide "¿es una CARPETA?" (hijas por
+  `parentTaskId`), NO "¿tiene instancias?". Los 87 templates recurrentes con hijas-por-`templateId` (instancias) devuelven
+  `hasChildren=false` a propósito → una regla pura no es carpeta. Es el check CORRECTO para la invariante "pauta+carpeta no
+  conviven". Además solo es un aviso al editar plantilla. **Sin síntoma.**
+- **DelegadasView** (`:141-149, 167-170`): de 147 delegadas, 106 subtareas con padre y **0 huérfanas** (0 padres
+  inexistentes/borrados). Las 6 instancias `inst-` con `parentTaskId=null` quedan EXCLUIDAS por el guard `(isTemplate ||
+  !templateId)` — que es justo lo que evita el patrón peligroso. La agrupación no falla. **Sin síntoma de la mina.**
+- **HALLAZGO ADYACENTE (no es la mina) — 1 delegación escondida:** de esas 6, cinco están bien excluidas (su plantilla ya
+  se muestra delegada a la misma persona, evita duplicar). UNA —`"Revisión rentas"` (`inst-t-1777364639722-2027-02-04`),
+  delegada a `p-1777214602703`, plantilla NO delegada— tiene delegación INDIVIDUAL en la instancia → no aparece en Delegadas.
+  1 tarea, fecha futura lejana (2027). **NO tocado:** tocar el dedup de Delegadas arriesga los otros 5. Pendiente de decisión
+  de la propietaria (¿mostrar instancias con delegación individual distinta de la plantilla?).
 
 **✅ Verificado aparte (petición de la propietaria, NO bug):** desde el modal de una SUBTAREA recurrente el atajo "Terminar
 hoy" existe y funciona igual que en una hoja top-level → pone `endDate=ayer` en la plantilla-hija, la subtarea sale de Mi
