@@ -4612,7 +4612,7 @@ propietaria (sesión 26); aquí quedan las decisiones y el estado.
 **🧭 PRINCIPIO RECTOR (propietaria):** cuando se dude entre "el conjunto del DÍA" y "LO QUE QUEDA", la respuesta es **LO QUE
 QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el plan. El repaso del plan lo verá el REPORTE.
 
-### TRAMO 1 · Cabecera + Foto — ✅ CONSTRUIDO (sesión 26), pendiente validación de la propietaria
+### TRAMO 1 · Cabecera + Foto — ✅ CONSTRUIDO Y VALIDADO por la propietaria (sesión 26). Incluye el rediseño §16.41.
 - **Ficheros:** `DayHeader.tsx` (nuevo, la cabecera), `useDaySnapshot.ts` (nuevo, foto: `day_snapshots` + jornada en
   `settings`), `filters.ts` (`getStatsForDay` amplía con `byType`/`byBlock` del estimado pendiente), `DashboardView.tsx`
   (sustituye las 3 tarjetas por `<DayHeader>` + cablea el hook; quita la línea de completadas duplicada). **`SummaryCard`
@@ -4635,7 +4635,7 @@ QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el pl
   tarjeta Registrado borrada; ella pidió avisar si desaparecía algo que usara).
 - **Reservado (sin construir):** enlace "Reporte ›" (tramo 4) junto a Desglose.
 
-### TRAMO 2 · Entrada del día — ✅ CONSTRUIDO (sesión 26), pendiente validación de la propietaria
+### TRAMO 2 · Entrada del día — ✅ CONSTRUIDO Y VALIDADO por la propietaria (sesión 26)
 - **Qué es:** línea compacta bajo la foto que dice **qué se CREÓ el día que miro** ("Entró el jueves 20 · 7 tareas
   (1 para hoy · 6 más adelante)"), desplegable a la lista de esas tareas (título · para hoy/día de vencimiento · tiempo).
 - **Ficheros:** `filters.ts` (`getEntradaForDay(dayISO, allTasks)` + tipos `EntradaItem`/`EntradaForDay`), `DayHeader.tsx`
@@ -4681,7 +4681,28 @@ QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el pl
 - **NO construir retén** (cuenta en el previsto, sin estado especial).
 
 ### TRAMO 2 · Entrada del día — pendiente de paquete
-### TRAMO 3 · Reporte del día — pendiente de paquete
+### TRAMO 4 · REPORTE DEL DÍA — spec CERRADA por la propietaria (sesión 26), pendiente de construir
+
+**QUÉ ES:** el resumen del día con valoración automática, para poder ponerle nota sabiendo lo que ha pasado.
+**CONSULTABLE SIEMPRE** (no solo al cerrar): accesible desde la cabecera junto a Desglose ("Reporte ›"), y se puede
+consultar el de DÍAS PASADOS (con eso hay histórico sin construir nada más — navegas al día y abres el reporte).
+
+**QUÉ MUESTRA:**
+1. **SENTENCIA INICIAL** automática, calculada sobre TIEMPO: "Día cumplido: 5h de 6h previstas" · "Día desviado: entraron
+   2h no previstas" · "Día sobreplanificado: 12h previstas" (cuando lo previsto superaba la jornada; es condición de
+   partida, NO motivo de incumplimiento). Umbrales: ver §16.42.
+2. **LAS TRES MEDIDAS** debajo: Cumplimiento (N de M tareas) · Tiempo (X de Y horas previstas) · Desviación de la foto
+   (cuánto se añadió respecto a lo fijado). La sentencia sale del TIEMPO; las otras dos se muestran igual.
+3. **ENTRADA DEL DÍA** en su versión de cierre (la lista completa de lo que entró).
+4. **EL DESGLOSE DEL DÍA** incluyendo POR ETIQUETA (además de tipo y bloque). Misma razón que en la cabecera.
+5. **MOTIVO** — tres opciones, se pueden marcar VARIAS: Desviación estimado↔real · Cambio de prioridad (da igual si
+   voluntaria o impuesta) · Dependo de otro. Más un CAMPO LIBRE. Todo OPCIONAL: si no marco nada, no pasa nada; el reporte
+   vale por sí solo.
+6. **SE GUARDA TODO:** valoración automática, opciones marcadas y nota, con la fecha.
+
+**NO construir un "cerrar el día" obligatorio.** El día se congela solo a medianoche. El reporte + la nota ES el cierre.
+Obligatorio dejaría huecos en el histórico los días que se olvide.
+**USA `completed_count` de la foto** para distinguir lo hecho DESPUÉS de fijar de lo que ya estaba hecho antes de planificar.
 
 ### AUDITORÍA DE NÚMEROS DE CONTENEDOR (sesión 26) — principio + estado verificado
 **🧭 PRINCIPIO (propietaria):** un contenedor mide SIEMPRE lo mismo que muestra debajo. Si la lista oculta algo, el total
@@ -4770,3 +4791,45 @@ Contenido OK, jerarquía no. Cambios (`DayHeader.tsx`, `DashboardView.tsx` barra
 - **NOTA a la propietaria:** los 2 fallos que reportó como "sin arreglar" (Ad-hoc invisible, barras por bloque) YA estaban
   arreglados y desplegados en `b342951` — veía bundle viejo en caché; refresco duro. Re-confirmados aquí: Ad-hoc visible,
   barras 100/100/100/83 (Bancos la más corta), "1h"=60m exactos (no redondeo).
+
+## 16.42 REPORTE (tramo 4) — umbrales de la sentencia + modelo de datos ⏳ PROPUESTA, PENDIENTE DE APROBAR
+
+**⚠️ NADA de esto se construye hasta que la propietaria apruebe umbrales y SQL.**
+
+**Definiciones (todo en minutos):**
+- `previsto` = `foto.estimated_minutes` (lo fijado) si hay foto hoy; si no, `stats.estimatedTotal` (el plan actual del día).
+- `jornada` = configurable (`settings.jornada_minutes`, default 480).
+- `registrado` = `stats.registered` (suma de `time_entries` del día). = la X de "X de Y horas".
+- `añadido` = `stats.estimatedTotal − foto.estimated_minutes` (solo medible si hay foto; es la desviación de la foto).
+- `hechas_tras_fijar` = `stats.completed − foto.completed_count` (para la medida de cumplimiento).
+
+**Sentencia (PROPUESTA de umbrales, prioridad de arriba a abajo):**
+1. **Sobreplanificado** si `previsto > jornada × 1.25` → "Día sobreplanificado: {previsto}h previstas". (Condición de
+   partida; se muestra aunque luego cumplas.) *(1.25 = margen para no disparar por 8h05 vs 8h; con jornada 8h salta a partir de 10h.)*
+2. **Desviado** si hay foto y `añadido ≥ max(60, previsto × 0.25)` → "Día desviado: entraron {añadido}h no previstas".
+   *(Entró ≥1h nueva, o ≥25% de lo fijado.)*
+3. **Cumplido** en el resto → "Día cumplido: {registrado}h de {previsto}h previstas". *(El plan se mantuvo; NO mide
+   productividad, mide estabilidad del plan — por eso no hay veredicto "flojo".)*
+- Sin foto: no se puede medir desviación → nunca "desviado"; queda sobreplanificado (por el plan actual) o cumplido.
+
+**Modelo de datos (PROPUESTA) — tabla nueva `day_reports`, una fila por día (upsert por `date`):**
+- `verdict` y las 3 medidas se RECALCULAN en vivo al abrir (los datos del día están congelados tras medianoche), pero se
+  GUARDA un snapshot del veredicto al guardar la nota, para que el histórico sea estable aunque cambien datos.
+- Motivos como `text[]` con claves fijas: `desviacion` | `prioridad` | `dependencia`. Nota `text` libre. Todo opcional.
+
+```sql
+create table if not exists day_reports (
+  id           text primary key,
+  date         text not null unique,           -- YYYY-MM-DD, una fila por día
+  verdict      text,                            -- 'cumplido' | 'desviado' | 'sobreplanificado' (snapshot al guardar)
+  measures     jsonb,                           -- {previsto, registrado, anadido, hechas, total, hechas_tras_fijar} (snapshot)
+  motivos      text[] default '{}',             -- ['desviacion','prioridad','dependencia']
+  nota         text,
+  created_at   timestamptz default now(),
+  updated_at   timestamptz default now()
+);
+alter table day_reports enable row level security;
+create policy day_reports_all on day_reports for all to anon, authenticated using (true) with check (true);
+grant all on day_reports to anon, authenticated;
+```
+(Mismo patrón permisivo que `settings`/`day_snapshots` — hereda el riesgo §16.40, se resolverá con el arreglo transversal.)
