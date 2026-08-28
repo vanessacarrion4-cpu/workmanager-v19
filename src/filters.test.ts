@@ -211,3 +211,99 @@ describe('getVisibleSubtasksForBloques (regla canónica de Bloques)', () => {
     expect(hiddenCompletedCountForBloques(m['C'], m)).toBe(1);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRAMO 4 · computeVerdict — sentencia automática del Reporte (§16.42, umbrales aprobados).
+// Mide estabilidad del plan. Sin foto no se inventa previsto.
+// ─────────────────────────────────────────────────────────────────────────────
+import { computeVerdict } from './filters';
+
+const S = (o: Partial<{ completed: number; total: number; registered: number; estimatedTotal: number }> = {}) =>
+  ({ completed: 0, total: 0, registered: 0, estimatedTotal: 0, ...o });
+
+describe('computeVerdict — sentencia del reporte', () => {
+  it('sin foto → "Día sin fijar", sin previsto ni desviación inventados', () => {
+    const v = computeVerdict(S({ completed: 3, total: 8, registered: 240, estimatedTotal: 600 }), null, 480);
+    expect(v.key).toBe('sin_fijar');
+    expect(v.sentence).toBe('Día sin fijar');
+    expect(v.previsto).toBeNull();
+    expect(v.anadido).toBeNull();
+    expect(v.hechasTrasFijar).toBeNull();
+    expect(v.registrado).toBe(240); // lo calculable sí se muestra
+    expect(v.hechas).toBe(3);
+    expect(v.total).toBe(8);
+  });
+
+  it('sobreplanificado: previsto > jornada (sensible, sin ×1.25) — 9h con jornada 8h ya salta', () => {
+    const v = computeVerdict(S({ estimatedTotal: 540 }), { estimated_minutes: 540, completed_count: 0 }, 480);
+    expect(v.key).toBe('sobreplanificado');
+    expect(v.sentence).toBe('Día sobreplanificado: 9h previstas');
+  });
+
+  it('previsto == jornada NO es sobreplanificado (estricto >)', () => {
+    const v = computeVerdict(S({ estimatedTotal: 480, registered: 300 }), { estimated_minutes: 480, completed_count: 0 }, 480);
+    expect(v.key).toBe('cumplido');
+  });
+
+  it('desviado: añadido ≥ max(1h, 25% del previsto)', () => {
+    // previsto 360 (6h), 25% = 90m; añadido 120 ≥ 90 → desviado
+    const v = computeVerdict(S({ estimatedTotal: 480 }), { estimated_minutes: 360, completed_count: 0 }, 600);
+    expect(v.key).toBe('desviado');
+    expect(v.sentence).toBe('Día desviado: entraron 2h no previstas');
+  });
+
+  it('desviado frontera: el suelo de 1h manda cuando 25% es menor', () => {
+    // previsto 120, 25% = 30 → max(60,30)=60. añadido 60 → desviado; 59 → cumplido
+    expect(computeVerdict(S({ estimatedTotal: 180 }), { estimated_minutes: 120, completed_count: 0 }, 600).key).toBe('desviado');
+    expect(computeVerdict(S({ estimatedTotal: 179 }), { estimated_minutes: 120, completed_count: 0 }, 600).key).toBe('cumplido');
+  });
+
+  it('cumplido: dentro de jornada y sin desviación → "X de Y previstas"', () => {
+    const v = computeVerdict(S({ registered: 300, estimatedTotal: 360 }), { estimated_minutes: 360, completed_count: 0 }, 480);
+    expect(v.key).toBe('cumplido');
+    expect(v.sentence).toBe('Día cumplido: 5h de 6h previstas');
+  });
+
+  it('sobreplanificado tiene prioridad sobre desviado', () => {
+    const v = computeVerdict(S({ estimatedTotal: 900 }), { estimated_minutes: 720, completed_count: 0 }, 480);
+    expect(v.key).toBe('sobreplanificado'); // 720>480 gana aunque añadido=180 también dispararía desviado
+  });
+
+  it('día aligerado (añadido negativo) → cumplido, nunca desviado', () => {
+    const v = computeVerdict(S({ registered: 200, estimatedTotal: 300 }), { estimated_minutes: 360, completed_count: 0 }, 480);
+    expect(v.key).toBe('cumplido');
+    expect(v.anadido).toBe(-60);
+  });
+
+  it('hechasTrasFijar = completadas − foto.completed_count', () => {
+    const v = computeVerdict(S({ completed: 5, total: 10, estimatedTotal: 360 }), { estimated_minutes: 360, completed_count: 2 }, 480);
+    expect(v.hechasTrasFijar).toBe(3);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRAMO 4 · getReportBreakdown — el desglose del REPORTE es el DÍA COMPLETO
+// (hechas + pendientes), a diferencia del de la cabecera (solo pendientes). §16.42.
+// ─────────────────────────────────────────────────────────────────────────────
+import { getReportBreakdown } from './filters';
+
+describe('getReportBreakdown — día completo (incluye completadas)', () => {
+  it('cuenta las completadas; la cabecera (getStatsForDay) NO', () => {
+    const hecha = task({ id: 'H', dueDate: WED, status: 'completed', estimatedMinutes: 60, taskType: 'core', tags: ['focus'], blockId: 'b1' });
+    const pend = task({ id: 'P', dueDate: WED, status: 'pending', estimatedMinutes: 30, taskType: 'adhoc', tags: ['espera'], blockId: 'b1' });
+    const ts = [hecha, pend];
+    const m = mapOf(ts);
+
+    // Cabecera: solo pendiente (30m adhoc/espera)
+    const stats = getStatsForDay(ts, m, [], WED);
+    expect(stats.byType).toEqual({ core: 0, adhoc: 30 });
+    expect(stats.byTag).toEqual([{ tag: 'espera', minutes: 30 }]);
+
+    // Reporte: día completo (90m = 60 core/focus + 30 adhoc/espera)
+    const rep = getReportBreakdown(ts, m, WED);
+    expect(rep.byType).toEqual({ core: 60, adhoc: 30 });
+    expect(rep.byBlock).toEqual([{ blockId: 'b1', minutes: 90 }]);
+    // por etiqueta, de más a menos: focus(60) antes que espera(30)
+    expect(rep.byTag).toEqual([{ tag: 'focus', minutes: 60 }, { tag: 'espera', minutes: 30 }]);
+  });
+});

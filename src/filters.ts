@@ -15,7 +15,7 @@
  */
 
 import { Task } from './types';
-import { isTaskCompleted, isExpiredTemplate } from './utils';
+import { isTaskCompleted, isExpiredTemplate, formatMinutes } from './utils';
 import { belongsToDay } from './instanceEngine'; // FASE 3: única definición de "pertenece a un día"
 
 // ─────────────────────────────────────────────
@@ -339,35 +339,40 @@ export function groupTasksByTag(
  * Calcula las estadísticas del día (tareas, tiempo estimado, registrado).
  * Usa dayTasks (ya filtradas) y cuenta las subtareas hoja.
  */
+// Hojas del día (tareas simples de hoy + subtareas hoja de los contenedores). Única definición, compartida por
+// getStatsForDay (cabecera) y getReportBreakdown (reporte) para que midan sobre el MISMO conjunto.
+export function collectLeafTasks(
+  dayTasks: Task[],
+  allTasksMap: Record<string, Task>,
+  activeDate: string
+): Task[] {
+  const leafTasks: Task[] = [];
+  const seenIds = new Set<string>();
+  const addLeaf = (task: Task) => {
+    if (seenIds.has(task.id)) return;
+    seenIds.add(task.id);
+    leafTasks.push(task);
+  };
+  dayTasks.forEach((t: Task) => {
+    if (!t.subtasks || t.subtasks.length === 0) {
+      if (t.dueDate === activeDate) addLeaf(t); // tarea simple: solo si es de hoy
+    } else {
+      const visibleSubs = getVisibleSubtasksForDay(t, allTasksMap, activeDate, { hideDelegatedNoTag: true });
+      visibleSubs.forEach((sub: Task) => {
+        if (!sub.subtasks || sub.subtasks.length === 0) addLeaf(sub);
+      });
+    }
+  });
+  return leafTasks;
+}
+
 export function getStatsForDay(
   dayTasks: Task[],
   allTasksMap: Record<string, Task>,
   timeEntries: any[],
   activeDate: string
 ): DayStats {
-  const leafTasks: Task[] = [];
-  const seenIds = new Set<string>();
-
-  const addLeaf = (task: Task) => {
-    if (seenIds.has(task.id)) return;
-    seenIds.add(task.id);
-    leafTasks.push(task);
-  };
-
-  dayTasks.forEach((t: Task) => {
-    if (!t.subtasks || t.subtasks.length === 0) {
-      // Tarea simple: solo contar si es de hoy
-      if (t.dueDate === activeDate) addLeaf(t);
-    } else {
-      // Contenedor: solo contar sus subtareas hoja de hoy
-      const visibleSubs = getVisibleSubtasksForDay(t, allTasksMap, activeDate, { hideDelegatedNoTag: true });
-      visibleSubs.forEach((sub: Task) => {
-        if (!sub.subtasks || sub.subtasks.length === 0) {
-          addLeaf(sub);
-        }
-      });
-    }
-  });
+  const leafTasks = collectLeafTasks(dayTasks, allTasksMap, activeDate);
 
   const completedTasks = leafTasks.filter(t => isTaskCompleted(t.id, allTasksMap));
   const pendingTasks = leafTasks.filter(t => !isTaskCompleted(t.id, allTasksMap));
@@ -474,4 +479,90 @@ export function getEntradaForDay(dayISO: string, allTasks: Record<string, Task>)
   });
   const forToday = items.filter(i => i.forToday).length;
   return { day: dayISO, total: items.length, forToday, later: items.length - forToday, items };
+}
+
+// ─────────────────────────────────────────────
+// TRAMO 4 · REPORTE — sentencia automática sobre TIEMPO (§16.42, umbrales aprobados)
+// ─────────────────────────────────────────────
+// Mide ESTABILIDAD DEL PLAN (no productividad): ¿se mantuvo lo fijado, entró de más, o se planificó por encima de la
+// jornada? Sin foto NO hay "previsto" real → no se inventa (calcularlo sobre el plan actual mentiría: incluiría lo que
+// entró después, nunca saldría "desviado").
+export type VerdictKey = 'cumplido' | 'desviado' | 'sobreplanificado' | 'sin_fijar';
+export interface DayVerdict {
+  key: VerdictKey;
+  sentence: string;
+  hasFoto: boolean;
+  previsto: number | null;        // minutos fijados (null sin foto)
+  registrado: number;             // minutos registrados hoy
+  anadido: number | null;         // estimatedTotal actual − previsto (null sin foto)
+  hechas: number;                 // tareas completadas
+  total: number;                  // tareas del día
+  hechasTrasFijar: number | null; // completadas − foto.completed_count (null sin foto)
+}
+
+// foto: forma mínima (no acoplamos filters.ts al hook). estimatedTotalNow = stats.estimatedTotal (plan actual del día).
+export function computeVerdict(
+  stats: { completed: number; total: number; registered: number; estimatedTotal: number },
+  foto: { estimated_minutes: number; completed_count: number } | null,
+  jornada: number
+): DayVerdict {
+  const registrado = stats.registered;
+  const hechas = stats.completed;
+  const total = stats.total;
+
+  if (!foto) {
+    return {
+      key: 'sin_fijar', sentence: 'Día sin fijar', hasFoto: false,
+      previsto: null, registrado, anadido: null, hechas, total, hechasTrasFijar: null,
+    };
+  }
+
+  const previsto = foto.estimated_minutes;
+  const anadido = stats.estimatedTotal - previsto;
+  const hechasTrasFijar = hechas - foto.completed_count;
+
+  let key: VerdictKey;
+  let sentence: string;
+  if (previsto > jornada) {
+    key = 'sobreplanificado';
+    sentence = `Día sobreplanificado: ${formatMinutes(previsto)} previstas`;
+  } else if (anadido >= Math.max(60, Math.round(previsto * 0.25))) {
+    key = 'desviado';
+    sentence = `Día desviado: entraron ${formatMinutes(anadido)} no previstas`;
+  } else {
+    key = 'cumplido';
+    sentence = `Día cumplido: ${formatMinutes(registrado)} de ${formatMinutes(previsto)} previstas`;
+  }
+
+  return { key, sentence, hasFoto: true, previsto, registrado, anadido, hechas, total, hechasTrasFijar };
+}
+
+// Desglose del REPORTE = el DÍA COMPLETO (hechas + pendientes), por tipo/bloque/etiqueta. Misma forma que el desglose de
+// la cabecera (byType/byBlock/byTag) pero sobre TODAS las hojas, no solo las pendientes (§16.42, confirmado: el reporte es
+// "cómo ha ido", no "qué queda"). Suma estimatedMinutes.
+export interface DayBreakdown {
+  byType: { core: number; adhoc: number };
+  byBlock: Array<{ blockId: string; minutes: number }>;
+  byTag: Array<{ tag: string; minutes: number }>;
+}
+export function getReportBreakdown(
+  dayTasks: Task[],
+  allTasksMap: Record<string, Task>,
+  activeDate: string
+): DayBreakdown {
+  const leaves = collectLeafTasks(dayTasks, allTasksMap, activeDate);
+  const byType = { core: 0, adhoc: 0 };
+  const blockMap = new Map<string, number>();
+  const tagMap = new Map<string, number>();
+  leaves.forEach(t => {
+    const est = t.estimatedMinutes || 0;
+    if (est <= 0) return;
+    if (t.taskType === 'adhoc') byType.adhoc += est; else byType.core += est;
+    blockMap.set(t.blockId, (blockMap.get(t.blockId) || 0) + est);
+    const tag = (t.tags && t.tags[0]) || 'resto';
+    tagMap.set(tag, (tagMap.get(tag) || 0) + est);
+  });
+  const byBlock = Array.from(blockMap.entries()).map(([blockId, minutes]) => ({ blockId, minutes })).sort((a, b) => b.minutes - a.minutes);
+  const byTag = Array.from(tagMap.entries()).map(([tag, minutes]) => ({ tag, minutes })).sort((a, b) => b.minutes - a.minutes);
+  return { byType, byBlock, byTag };
 }

@@ -28,7 +28,7 @@ function diaLargo(iso: string): string {
 }
 
 export function DayHeader({
-  stats, blocks, latest, jornada, entrada, onFijar, onSetJornada, onOpenTimeHistory,
+  stats, blocks, latest, jornada, entrada, onFijar, onSetJornada, onOpenTimeHistory, onOpenReport,
 }: {
   stats: DayStats;
   blocks: any[];
@@ -38,6 +38,7 @@ export function DayHeader({
   onFijar: () => void;
   onSetJornada: (min: number) => void;
   onOpenTimeHistory: () => void; // restaura el "Ver historial" que colgaba de la tarjeta Registrado (sesión 26)
+  onOpenReport: () => void;      // TRAMO 4: abre el Reporte del día
 }) {
   const [open, setOpen] = useState<boolean>(() => {
     try { return localStorage.getItem(DESGLOSE_KEY) === '1'; } catch { return false; }
@@ -108,7 +109,9 @@ export function DayHeader({
             <button onClick={toggle} className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-turquesa hover:underline">
               Desglose {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
             </button>
-            {/* TRAMO 4 (reservado): enlace "Reporte ›" irá aquí, junto a Desglose. */}
+            <button onClick={onOpenReport} className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-turquesa hover:underline">
+              Reporte ›
+            </button>
           </div>
         </div>
       </div>

@@ -15,12 +15,14 @@ import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { getTaskEstimatedCombo, formatMinutes } from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay } from './filters';
+import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown } from './filters';
 import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completado POR DÍA para el filtro "ocultar completadas"
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
 import { DayHeader } from './DayHeader'; // TRAMO 1: cabecera + foto (sustituye a las 3 tarjetas)
 import { useDaySnapshot } from './useDaySnapshot';
+import { DayReportModal } from './DayReportModal'; // TRAMO 4: reporte del día
+import { useDayReport } from './useDayReport';
 
 interface DashboardViewProps {
   tasks: Task[];
@@ -199,6 +201,15 @@ export function DashboardView({
   // TRAMO 1 (foto del día): fijaciones + jornada del día activo.
   const { latest: daySnapshot, jornada, fijar, setJornada } = useDaySnapshot(activeDate);
 
+  // TRAMO 4 (reporte del día): valoración automática + motivos/nota guardados.
+  const [showReport, setShowReport] = useState(false);
+  const { report: dayReport, guardar: guardarReport } = useDayReport(activeDate);
+  const verdict = useMemo(
+    () => computeVerdict(stats, daySnapshot ? { estimated_minutes: daySnapshot.estimated_minutes, completed_count: daySnapshot.completed_count } : null, jornada),
+    [stats, daySnapshot, jornada]
+  );
+  const reportBreakdown = useMemo(() => getReportBreakdown(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
+
   const groupedTasks = useMemo(() => {
     return groupTasksByTag(
       filteredDayTasks,
@@ -332,6 +343,7 @@ export function DashboardView({
         onFijar={() => { fijar(stats.total, stats.estimatedTotal, stats.completed).catch(() => {}); }}
         onSetJornada={setJornada}
         onOpenTimeHistory={() => setShowTimeHistory(true)}
+        onOpenReport={() => setShowReport(true)}
       />
 
       {/* Task Groups */}
@@ -627,6 +639,22 @@ export function DashboardView({
           </div>
         )}
       </div>
+
+      {/* TRAMO 4: Reporte del día */}
+      <DayReportModal
+        open={showReport}
+        onClose={() => setShowReport(false)}
+        activeDate={activeDate}
+        verdict={verdict}
+        breakdown={reportBreakdown}
+        entrada={entrada}
+        blocks={blocks}
+        report={dayReport}
+        onGuardar={async (motivos, nota) => { await guardarReport(verdict.key, {
+          previsto: verdict.previsto, registrado: verdict.registrado, anadido: verdict.anadido,
+          hechas: verdict.hechas, total: verdict.total, hechasTrasFijar: verdict.hechasTrasFijar,
+        }, motivos, nota); }}
+      />
 
       {/* Modal historial de tiempo registrado */}
       {showTimeHistory && (

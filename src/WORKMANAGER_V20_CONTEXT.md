@@ -4681,7 +4681,20 @@ QUEDA**. La cabecera es para decidir **qué hacer AHORA**, no para repasar el pl
   de las 2 tablas (useSupabase o similar), constantes. `SummaryCard` queda sin uso (solo se usa aquí).
 - **NO construir retén** (cuenta en el previsto, sin estado especial).
 
-### TRAMO 4 · REPORTE DEL DÍA — spec CERRADA por la propietaria (sesión 26), pendiente de construir
+### TRAMO 4 · REPORTE DEL DÍA — ✅ CONSTRUIDO (sesión 26); pendiente: la propietaria crea la tabla `day_reports` + validar en pantalla
+
+**Ficheros:** `filters.ts` (`computeVerdict` sentencia §16.42 + `getReportBreakdown` desglose día completo + `collectLeafTasks`
+extraído y compartido con `getStatsForDay`), `useDayReport.ts` (hook: carga/upsert por `date`), `DayReportModal.tsx`
+(el modal), `DayHeader.tsx` (enlace "Reporte ›" junto a Desglose + prop `onOpenReport`), `DashboardView.tsx` (estado
+`showReport`, hook, `verdict`/`reportBreakdown` por useMemo, render del modal).
+**VERIFICADO en pantalla (dev, 28/08):** sin fijar → "Día sin fijar", Cumplimiento 0 de 29, Tiempo 0m (sin "de Y"),
+Desviación "—"; con foto → "Día cumplido: 0m de 3h 50m previstas", Tiempo "0m de 3h 50m", Desviación "+0m". Desglose día
+completo por tipo/bloque/etiqueta cuadra. Fijación de prueba borrada (día real limpio). 194 tests (computeVerdict 10 casos
++ getReportBreakdown incluye completadas, la cabecera no).
+**PENDIENTE:** la propietaria ejecuta el SQL de `day_reports` (§16.42); hasta entonces el reporte se ve pero GUARDAR falla
+(carga es tolerante, no rompe). Verificación de guardado/persistencia queda para cuando exista la tabla.
+
+*(spec debajo)*
 
 **QUÉ ES:** el resumen del día con valoración automática, para poder ponerle nota sabiendo lo que ha pasado.
 **CONSULTABLE SIEMPRE** (no solo al cerrar): accesible desde la cabecera junto a Desglose ("Reporte ›"), y se puede
