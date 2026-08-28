@@ -4740,10 +4740,22 @@ propósito Y lo diga en pantalla.
   finalizadas no cuentan"). **Verificado por probe sobre datos reales:** Cierre Propias 230m→155m (2 finalizadas), Selecció
   RRHH 15m→0m, Gestión campaña 65m→60m. La lectura en pantalla de Bloques no se pudo automatizar → eyeball de la propietaria.
   Los otros números (#2, #3, #6, #7) quedan APARCADOS con el mapa hecho (no afectan a la cabecera de Mi Día).
-- **#2 🟢 Semana usa cálculo propio.** CONFIRMADO en pantalla: Semana NO muestra contenedores por nombre; agrupa por
-  día→BLOQUE con "X/Y · tiempo" (agregación propia, `getTaskMins` + sumas de bloque) + total del día. Estructura y lógica
-  distintas del resto. **BONUS:** salen números NUEVOS a auditar (X/Y y tiempo por bloque/día en Semana). → **ARREGLO:**
-  unificar con TaskCard (o etiquetar que Semana mide otra cosa).
+- **#2 🔎 SEMANA — AUDITADA (sesión 26, NO tocada; decisión de la propietaria).** Qué mide exactamente (`WeekView.tsx`):
+  - **X/Y por bloque/día = PENDIENTES / TOTAL** (`{pendingCount}/{blockTasks.length}`, línea 273). El TOTAL **incluye
+    completadas**. OJO: NO es "hechas/total" — la X es pendientes (= FALTAN). Leerlo como "hechas/total" engaña.
+  - **Tiempo por bloque/día = ESTIMADO** (`getTaskMins`), suma de TODAS las tareas del día del bloque **incluidas las
+    completadas**. No es registrado, no es solo-pendiente.
+  - **% de carga = estimado_del_día / 480 min FIJOS** (`MINS_CAPACITY_DAY`, línea 82), NO la jornada configurable
+    (`settings.jornada_minutes`) que usa la cabecera. Si cambia la jornada, Semana no lo refleja.
+  - **Conjunto** = `materializeDay` (instancias del día) + manuales top-level con `dueDate` ese día, en bloques ACTIVOS.
+    **Sin ocultar completadas.**
+  - **¿Cuadra con Mi Día del mismo día? NO, en 3 cosas:** (1) X/Y es pendientes/total vs "N de M hechas" + FALTAN de la
+    cabecera; (2) el tiempo de Semana incluye completadas (estimado TOTAL) mientras la cabecera muestra estimado PENDIENTE →
+    en un día con trabajo hecho, Semana marca MÁS; (3) % sobre 480 fijo, no sobre la jornada.
+  - **→ DECISIÓN de la propietaria:** Semana mide OTRA COSA a propósito (carga estimada TOTAL del día + pendientes/total),
+    pero no lo dice en pantalla y choca con Mi Día. Opciones: (a) unificar con el criterio de Mi Día (pendiente, hechas/
+    total, jornada configurable); (b) etiquetar en pantalla que Semana mide "carga estimada total del día". PENDIENTE de que
+    ella elija; NO tocado.
 - **#3 CALENDARIO ✅ ARREGLADO (sesión 26, `CalendarView.tsx`):** los dos `<TaskCard>` del detalle del día no pasaban
   `dayForTotals` → un contenedor mostraría el estimado de TODOS los días. Fix: `dayForTotals={selectedDay}` en ambos → los
   totales del contenedor se acotan al día (misma vía `containerEstimatedForDay`/`containerRegisteredForDay` ya probada en Mi
