@@ -644,6 +644,25 @@ export function TaskCard({
                   </button>
                 );
               })()}
+            {/* F6-x1 (§16.33): en un CONTENEDOR CONTRAÍDO, indicador de hijas EN ESPERA (onHold) del grupo visible — símbolo
+                ⏳ + número, DISTINTO del reloj de una tarea suelta en espera (para no leer el contenedor como suspendido).
+                DERIVADO, no persiste. Al desplegar desaparece (ya se ven las hijas). "En espera" NO cascadea (es contador). */}
+            {hasSubtasks && !isExpanded && (() => {
+              const subIds: string[] = subtasksForGroup || task.subtasks || [];
+              const espera = subIds.filter((sid: string) => {
+                const s = allTasksMap[sid];
+                return s && !s.isDeleted && s.status !== 'completed' && s.onHold;
+              }).length;
+              if (espera === 0) return null;
+              return (
+                <span
+                  title={`${espera} subtarea${espera !== 1 ? 's' : ''} en espera`}
+                  className="shrink-0 ml-1 inline-flex items-center gap-0.5 px-1.5 h-[18px] rounded-full text-[10px] font-bold dark:bg-white/10 bg-black/[0.07] dark:text-text-secondary text-text-secondary-light tabular-nums"
+                >
+                  ⏳ {espera}
+                </span>
+              );
+            })()}
             {/* "hasta D/M" — fin PROGRAMADO de la serie (variante A+color, sesión 23). En TODAS las vistas
                 (Mi Día validado; extendido a Semana/Bloques/Búsqueda + Calendario/Delegadas que comparten variant).
                 Detrás del título (la columna de pauta del raíl es de 48px fijos y no cabe). Gris normal; naranja

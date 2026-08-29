@@ -160,6 +160,19 @@ export default function App() {
     });
   }, [tasks]);
 
+  // F6-x2 (§16.33): selección con DOS ALCANCES (por etiqueta / global del día). Toggle en LOTE: si TODOS los ids ya están
+  // seleccionados → deseleccionar; si no → seleccionar todos. El alcance (qué ids) lo calcula DashboardView (grupo o día).
+  // Criterio = el DÍA, no la visibilidad (los ids incluyen hijas de contenedores contraídos). Nunca sale del día.
+  const selectScope = useCallback((ids: string[]) => {
+    if (!ids.length) return;
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      const allSelected = ids.every(id => next.has(id));
+      ids.forEach(id => allSelected ? next.delete(id) : next.add(id));
+      return next;
+    });
+  }, []);
+
   // --- Data Loading ---
   useSupabase({ setBlocks, setTasks, setPeople, setMeetings, setTimeEntries, setIsDataLoaded });
 
@@ -551,6 +564,8 @@ export default function App() {
                 selectionMode={selectionMode}
                 selectedTaskIds={selectedTaskIds}
                 onToggleTaskSelection={toggleTaskSelection}
+                onSelectScope={selectScope}
+                onEnsureSelectionMode={() => setSelectionMode(true)}
                 onToggleSelectionMode={toggleSelectionMode}
                 bulkUpdateTasks={bulkUpdateTasks}
                 bulkDeleteTasks={bulkDeleteTasks}

@@ -63,6 +63,8 @@ interface DashboardViewProps {
   selectionMode?: boolean;
   selectedTaskIds?: Set<string>;
   onToggleTaskSelection?: ((taskId: string) => void) | null;
+  onSelectScope?: ((ids: string[]) => void) | null; // F6-x2: seleccionar todo un grupo/día (dos alcances)
+  onEnsureSelectionMode?: (() => void) | null;
   onToggleSelectionMode?: (() => void) | null;
   bulkUpdateTasks?: ((updates: Partial<Task>) => void) | null;
   bulkDeleteTasks?: (() => void) | null;
@@ -91,6 +93,7 @@ export function DashboardView({
   onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null, onGoToTemplate = null,
   onAddTimeEntry = null,
   selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null,
+  onSelectScope = null, onEnsureSelectionMode = null,
   onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null,
   bulkDuplicateTasks = null, bulkDelegateModal = false, setBulkDelegateModal = null,
   bulkDateModal = false, setBulkDateModal = null, bulkTimeModal = false, setBulkTimeModal = null,
@@ -214,6 +217,17 @@ export function DashboardView({
   const reportBreakdown = useMemo(() => getReportBreakdown(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
   // FASE 6 (cierre del día): hojas pendientes del día para el "Repaso de lo no hecho".
   const pendingLeaves = useMemo(() => getPendingLeavesForDay(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
+
+  // F6-x2 (§16.33): ids seleccionables de un conjunto de entradas de grupo = contenedor + sus hijas PENDIENTES del día
+  // (aunque el contenedor esté contraído; el alcance es el DÍA, no la visibilidad). Mismo criterio que toggleTaskSelection.
+  const groupSelectIds = (entries: any[]): string[] => {
+    const ids: string[] = [];
+    entries.forEach(({ task, subtasksForGroup: stfg }: any) => {
+      ids.push(task.id);
+      if (stfg && stfg.length) stfg.forEach((sid: string) => { if (allTasksMap[sid]?.status !== 'completed') ids.push(sid); });
+    });
+    return ids;
+  };
 
   const groupedTasks = useMemo(() => {
     return groupTasksByTag(
@@ -353,6 +367,21 @@ export function DashboardView({
 
       {/* Task Groups */}
       <div className="space-y-3 pb-32">
+        {/* F6-x2 (§16.33): seleccionar TODO EL DÍA (alcance global; atraviesa etiquetas, dentro del día). Solo en selección. */}
+        {selectionMode && (() => {
+          const dayIds = Object.values(groupedTasks).flat().flatMap((e: any) => groupSelectIds([e]));
+          if (dayIds.length === 0) return null;
+          const all = dayIds.every((id: string) => selectedTaskIds.has(id));
+          return (
+            <button
+              onClick={() => { onEnsureSelectionMode?.(); onSelectScope?.(dayIds); }}
+              className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-azul hover:opacity-80"
+            >
+              <span className={`w-4 h-4 rounded border-2 flex items-center justify-center ${all ? 'bg-azul border-azul' : 'border-azul/40'}`}>{all && <CheckCircle2 size={11} className="text-white" />}</span>
+              Seleccionar todo el día
+            </button>
+          );
+        })()}
         {(Object.entries(groupedTasks) as [TagType, { task: Task, subtasksForGroup: string[] | null }[]][]).map(([tag, tagEntries]) => {
           if (tagEntries.length === 0) return null;
           const isBlockExpanded = expandedBlocks.has(tag);
@@ -383,6 +412,16 @@ export function DashboardView({
                   </motion.div>
                 </button>
                 <div className="flex items-center gap-1.5 text-[10px] font-black">
+                  {/* F6-x2: seleccionar TODO EL GRUPO de esta etiqueta (alcance por etiqueta). Solo en selección. */}
+                  {selectionMode && (() => {
+                    const gIds = groupSelectIds(tagEntries);
+                    const all = gIds.length > 0 && gIds.every((id: string) => selectedTaskIds.has(id));
+                    return (
+                      <button onClick={() => { onEnsureSelectionMode?.(); onSelectScope?.(gIds); }} title="Seleccionar todo el grupo" className="mr-1">
+                        <span className={`w-4 h-4 rounded border-2 flex items-center justify-center ${all ? 'bg-azul border-azul' : 'border-azul/40 hover:border-azul'}`}>{all && <CheckCircle2 size={11} className="text-white" />}</span>
+                      </button>
+                    );
+                  })()}
                   {(() => {
                     const pendingTaskIds: string[] = [];
                     tagEntries.forEach(({ task, subtasksForGroup: stfg }: any) => {

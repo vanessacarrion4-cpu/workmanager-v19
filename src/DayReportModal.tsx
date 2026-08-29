@@ -20,6 +20,15 @@ function diaLargo(iso: string): string {
 const tagLabel = (tag: string): string => (TAG_LABELS as any)[tag]?.label || tag;
 const tagIcon = (tag: string): string => (TAG_LABELS as any)[tag]?.icon || '•';
 
+// Colores de ENTIDAD para el desglose — MISMOS que la cinta (§16.43): etiqueta = color real (getTagColor→hex),
+// bloque = block.color, tipo = familia verde (core saturado, ad-hoc claro). Etiqueta en el ORDEN de Mi Día, no por tiempo.
+const NAME_HEX: Record<string, string> = { turquesa: '#14B8A6', azul: '#3B82F6', morado: '#8B5CF6', naranja: '#F97316', rosa: '#EC4899', verde: '#10B981' };
+const tagHexKey = (tag: string): string => NAME_HEX[getTagColor(tag as any)] || '#94A3B8';
+const CORE_HEX = '#10B981';
+const ADHOC_HEX = '#6EE7B7';
+const TAG_ORDER = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
+const tagRank = (t: string): number => { const i = TAG_ORDER.indexOf(t); return i === -1 ? 99 : i; };
+
 const MOTIVOS: { key: MotivoKey; label: string }[] = [
   { key: 'desviacion', label: 'Desviación entre tiempo estimado y real' },
   { key: 'prioridad', label: 'Cambio de prioridad' },
@@ -165,8 +174,8 @@ export function DayReportModal({
             <div className="space-y-2">
               <div className="flex items-center gap-4 text-[11px] font-bold flex-wrap dark:text-white text-text-main-light">
                 <span className="text-[9px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Por tipo</span>
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-turquesa" /> Core {formatMinutes(breakdown.byType.core)}</span>
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rosa" /> Ad-hoc {formatMinutes(breakdown.byType.adhoc)}</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CORE_HEX }} /> Core {formatMinutes(breakdown.byType.core)}</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: ADHOC_HEX }} /> Ad-hoc {formatMinutes(breakdown.byType.adhoc)}</span>
               </div>
               {breakdown.byBlock.length > 0 && (
                 <div className="space-y-1">
@@ -180,8 +189,8 @@ export function DayReportModal({
             {breakdown.byTag.length > 0 && (
               <div className="space-y-1">
                 <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por etiqueta</span>
-                {breakdown.byTag.slice(0, 10).map(g => (
-                  <BarRow key={g.tag} label={`${tagIcon(g.tag)} ${tagLabel(g.tag)}`} minutes={g.minutes} pct={Math.min(100, Math.round((g.minutes / (maxTag || 1)) * 100))} neutral />
+                {[...breakdown.byTag].sort((a, b) => tagRank(a.tag) - tagRank(b.tag)).slice(0, 10).map(g => (
+                  <BarRow key={g.tag} label={tagLabel(g.tag)} minutes={g.minutes} pct={Math.min(100, Math.round((g.minutes / (maxTag || 1)) * 100))} color={tagHexKey(g.tag)} />
                 ))}
               </div>
             )}
@@ -267,8 +276,7 @@ function BarRow({ label, minutes, pct, color, neutral }: { label: string; minute
 // ─────────────────────────────────────────────────────────────────────────────
 // REPASO DE LO NO HECHO (§16.47) — al final del reporte. Cada pendiente con sus salidas; nada automático.
 // ─────────────────────────────────────────────────────────────────────────────
-const NAME_HEX: Record<string, string> = { turquesa: '#14B8A6', azul: '#3B82F6', morado: '#8B5CF6', naranja: '#F97316', rosa: '#EC4899', verde: '#10B981' };
-const tagDot = (tags: any): string => NAME_HEX[getTagColor((tags?.[0] || 'resto') as any)] || '#94A3B8';
+const tagDot = (tags: any): string => tagHexKey((tags?.[0] || 'resto'));
 const REP_WD = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 function repDiaCorto(iso: string): string { const [y, m, d] = iso.split('-').map(Number); const dt = new Date(y, (m || 1) - 1, d || 1); return `${REP_WD[dt.getDay()]} ${d}`; }
 function repNextDay(iso: string): string { return formatLocalISO(new Date(parseLocalISO(iso).getTime() + 86400000)); }
