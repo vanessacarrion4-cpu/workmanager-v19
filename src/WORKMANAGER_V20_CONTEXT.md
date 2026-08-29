@@ -5068,7 +5068,11 @@ hijas por `parent_task_id` **978** · `time_entries` **837**.
   en este punto — no leerlas como abiertas. (Relacionado, también resuelto: §16.37 listaba "Terminar la rutina" como decisión
   abierta cuando §16.38/§16.35 ya la revirtieron al diálogo de Eliminar — SUPERADO por §16.38.)
 
-## 16.47 CIERRE DEL DÍA · REPASO DE LO NO HECHO — ✅ CONSTRUIDO Y VERIFICADO EN PANTALLA (sesión 26), pendiente validación propietaria
+## 16.47 CIERRE DEL DÍA · REPASO DE LO NO HECHO — ✅ CONSTRUIDO Y VALIDADO por la propietaria (sesión 26). CERRADO.
+> **Reporte (tramo 4) y Repaso VALIDADOS por su ruta (los 8 pasos). Funcionan.** FASE 6 completa: cabecera · foto · entrada
+> · reporte · repaso.
+> **DESCARTADO (no pendiente) por la propietaria:** (1) mostrar el IMPACTO del día destino al mover **desde la fila** (el de
+> "Otro día" ya le sirve); (2) mover "Completar" al PRINCIPIO de las salidas. Con lo que hay le vale.
 **Ficheros:** `types.ts`+`useSupabase.ts` (`rolledOverCount`), `filters.ts` (`getPendingLeavesForDay`, `getDayLoad`),
 `DayReportModal.tsx` (`RepasoSection`+`RepConfirm`), `App.tsx` (`handleRepasoMove`/`repasoWillCollide`/`repasoDayLoad`),
 `DashboardView.tsx` (cablea), `useTaskCRUD.ts` (`rolled_over_count` en los 3 row-builders de update/excepción).
