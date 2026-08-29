@@ -5209,6 +5209,14 @@ revisar si Semana/Calendario/Carga/Delegadas hacen lo mismo por su cuenta y unif
 **Otros de la lista (PENDIENTES):** montar `BulkActionBar` en Calendario y Delegadas (importada, sin montar); arreglar
 `onToggleStatus` del preview "Nueva reunión" en Delegadas (`:1092` pasa `onUpdateTask` que espera un `Task`, no un id);
 cosmético `hover:text-white` sin variante clara (Calendario 140/146/152, Delegadas 426/441/1153); limpiar código muerto
-(`getLoadColor`, param `isGenerated` de `calcRangeMinutes`, `setBulkTimeModal` doble-declarado). **Vista Semana:** total de
-semana + total por día en cabecera; quitar el modo carga; medir+reportar las "sin tipo"; investigar por qué bloque→tipo solo
-se despliega en lunes. **VALIDADO:** hechas/total de Semana funciona (cierra el flip de X/Y para el contenedor de nivel día).
+(`getLoadColor`, param `isGenerated` de `calcRangeMinutes`, `setBulkTimeModal` doble-declarado). **VALIDADO:** hechas/total de
+Semana funciona (cierra el flip de X/Y para el contenedor de nivel día).
+
+**Vista Semana — hechos (sesión 26):**
+- ✅ **Total de SEMANA junto al título** — `weekSummary` (`WeekView`): suma de lo que muestra cada día (registrado los
+  pasados, estimado los futuros) sobre `jornada × nº días` (L-V=5 / L-D=7). Formato "24 Ago – 28 Ago 2026 · 21h 4m de 40h";
+  se resalta en rosa si pasa la capacidad. El total por DÍA ya existía (mins con color por pct; el día que pasa jornada ya
+  sale rosa por `getPctTextClass`). **VERIFICADO en pantalla** (semana pasada 0m/40h; semana futura 21h 4m/40h).
+- ✅ **Quitado el modo carga** — botón toggle `Carga` del header + `showCarga` + `renderCargaBar` + los `coreMins/adhocMins`
+  que solo lo alimentaban + import `Layers`. **VERIFICADO** (solo queda el nav "Carga" = vista Workload).
+- ⏳ **PENDIENTE Semana:** medir+reportar las "sin tipo" (enlazado #6); investigar por qué bloque→tipo solo despliega en lunes.

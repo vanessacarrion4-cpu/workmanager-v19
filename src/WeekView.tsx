@@ -9,7 +9,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
-  Plus, Check, RefreshCw, Layers, Clock, LayoutGrid, Tag,
+  Plus, Check, RefreshCw, Clock, LayoutGrid, Tag,
   Calendar as CalendarIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -189,7 +189,6 @@ export function WeekView({
   const [showWeekend, setShowWeekend] = useState(false);
   const [jumpDate, setJumpDate] = useState('');
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
-  const [showCarga, setShowCarga] = useState(false); // Toggle modo carga
   const [groupMode, setGroupMode] = useState<GroupMode>('bloque');
 
   const days = useMemo(() => {
@@ -249,35 +248,24 @@ export function WeekView({
     return map;
   }, [days, tasksByDay, timeEntries, dayData, jornada]);
 
+  // #barrido: total de la SEMANA junto al título = suma de lo que muestra cada día (registrado los pasados, estimado los
+  // futuros) sobre la capacidad jornada × nº de días mostrados (L-V=5 / L-D=7). Si pasa de la capacidad, se resalta.
+  const weekSummary = useMemo(() => {
+    let mins = 0;
+    days.forEach(date => {
+      const s = statsByDay[date] || { estimatedMins: 0, registeredMins: 0 };
+      mins += date < today ? s.registeredMins : s.estimatedMins;
+    });
+    const capacity = (jornada || 480) * days.length;
+    return { mins, capacity, over: mins > capacity };
+  }, [days, statsByDay, today, jornada]);
+
   const toggleBlock = (date: string, blockId: string) => {
     const key = `${date}__${blockId}`;
     setExpandedBlocks(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   };
 
   // ─── Helpers de renderizado ───────────────────────────────────────────────────
-
-  const renderCargaBar = (coreMins: number, adhocMins: number, totalMins: number) => (
-    <div className="flex items-center gap-2 px-2 pb-1.5">
-      {coreMins > 0 && (
-        <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: TURQUESA }} />
-          <span className="text-[9px] font-bold" style={{ color: TURQUESA }}>{formatMinutes(coreMins)}</span>
-        </div>
-      )}
-      {adhocMins > 0 && (
-        <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: ROSA }} />
-          <span className="text-[9px] font-bold" style={{ color: ROSA }}>{formatMinutes(adhocMins)}</span>
-        </div>
-      )}
-      {totalMins > 0 && (
-        <div className="flex-1 h-1 dark:bg-white/10 bg-black/8 rounded-full overflow-hidden flex">
-          <div className="h-full" style={{ width: `${Math.round((coreMins / totalMins) * 100)}%`, backgroundColor: TURQUESA }} />
-          <div className="h-full" style={{ width: `${Math.round((adhocMins / totalMins) * 100)}%`, backgroundColor: ROSA }} />
-        </div>
-      )}
-    </div>
-  );
 
   const renderBlockGroup = (date: string, block: WorkBlock, dayTasks: Task[]) => {
     const blockTasks = dayTasks.filter(t => t.blockId === block.id && !t.isDeleted);
@@ -287,8 +275,6 @@ export function WeekView({
     const isExpanded = expandedBlocks.has(key);
     const { done: hechasCount, total: hojasTotal } = leafCounts(blockTasks, dayMap); // #7: hojas, no status del contenedor
     const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
-    const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
-    const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
     return (
       <div key={block.id} className="rounded-xl overflow-hidden">
         <button onClick={() => toggleBlock(date, block.id)}
@@ -299,7 +285,6 @@ export function WeekView({
           {blockMins > 0 && <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(blockMins)}</span>}
           {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
         </button>
-        {showCarga && (coreMins > 0 || adhocMins > 0) && renderCargaBar(coreMins, adhocMins, blockMins)}
         <AnimatePresence>
           {isExpanded && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
@@ -400,18 +385,18 @@ export function WeekView({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-3xl font-black dark:text-white text-text-main-light">Semana</h2>
-          <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-0.5">{weekLabel}</p>
+          <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-0.5">
+            {weekLabel}
+            <span className="mx-1.5 opacity-40">·</span>
+            <span className={`font-black ${weekSummary.over ? 'text-rosa' : 'dark:text-white text-text-main-light'}`}>
+              {formatMinutes(weekSummary.mins)}
+            </span>
+            <span className="opacity-60"> de {formatMinutes(weekSummary.capacity)}</span>
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Dropdown agrupación */}
           <GroupDropdown value={groupMode} onChange={setGroupMode} />
-          {/* Toggle Carga */}
-          <button onClick={() => setShowCarga(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
-              showCarga ? 'bg-morado text-white border-morado shadow-md shadow-morado/20' : 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-morado/50'
-            }`}>
-            <Layers size={12} /> Carga
-          </button>
           {/* Toggle L-V / L-D */}
           <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
             <button onClick={() => setShowWeekend(false)}
@@ -513,8 +498,6 @@ export function WeekView({
                       const isExpanded = expandedBlocks.has(key);
                       const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
                       const { done: hechasCount, total: hojasTotal } = leafCounts(blockTasks, dayMap); // #7: hojas
-                      const coreMins = blockTasks.filter(t => getEffectiveType(t) === 'core').reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
-                      const adhocMins = blockTasks.filter(t => getEffectiveType(t) === 'adhoc').reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
                       return (
                         <div key={block.id} className="rounded-xl overflow-hidden">
                           <button onClick={() => toggleBlock(date, block.id)}
@@ -525,7 +508,6 @@ export function WeekView({
                             {blockMins > 0 && <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(blockMins)}</span>}
                             {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
                           </button>
-                          {showCarga && (coreMins > 0 || adhocMins > 0) && renderCargaBar(coreMins, adhocMins, blockMins)}
                           <AnimatePresence>
                             {isExpanded && (
                               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
