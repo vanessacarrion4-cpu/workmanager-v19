@@ -17,6 +17,7 @@ import { Task, WorkBlock, TimeEntry } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { formatMinutes } from './utils';
 import { occursOn } from './instanceEngine';
+import { useJornada } from './useJornada';
 
 // ─── Capacidad ────────────────────────────────────────────────────────────────
 
@@ -159,7 +160,7 @@ const DAY_LABELS = ['D','L','M','X','J','V','S'];
 
 // ─── Construir estructura de columnas (7 meses) ───────────────────────────────
 
-function buildMonths(baseYear: number, baseMonth: number, numMonths: number, today: string, generatedEndStr: string): MonthInfo[] {
+function buildMonths(baseYear: number, baseMonth: number, numMonths: number, today: string, generatedEndStr: string, jornadaMins: number = MINS_PER_DAY): MonthInfo[] {
   const months: MonthInfo[] = [];
 
   for (let m = 0; m < numMonths; m++) {
@@ -198,7 +199,7 @@ function buildMonths(baseYear: number, baseMonth: number, numMonths: number, tod
           label: `W${getISOWeekNum(current)}`,
           startDate: monday,
           endDate: sunday,
-          capacityMins: wd * MINS_PER_DAY,
+          capacityMins: wd * jornadaMins,
           isPast: sunday < today,
           isGenerated: monday <= generatedEndStr,
         });
@@ -211,7 +212,7 @@ function buildMonths(baseYear: number, baseMonth: number, numMonths: number, tod
       key: `${year}-${String(month + 1).padStart(2, '0')}`,
       label: getMonthLabel(year, month),
       year, month, weeks,
-      capacityMins: wd * MINS_PER_DAY,
+      capacityMins: wd * jornadaMins,
     });
   }
   return months;
@@ -219,7 +220,7 @@ function buildMonths(baseYear: number, baseMonth: number, numMonths: number, tod
 
 // ─── Días de una semana ───────────────────────────────────────────────────────
 
-function buildDays(week: WeekInfo, today: string): DayInfo[] {
+function buildDays(week: WeekInfo, today: string, jornadaMins: number = MINS_PER_DAY): DayInfo[] {
   return Array.from({ length: 7 }, (_, i) => {
     const date = addDays(week.startDate, i);
     const dow = parseLocalISO(date).getDay();
@@ -229,7 +230,7 @@ function buildDays(week: WeekInfo, today: string): DayInfo[] {
       label: `${DAY_LABELS[dow]} ${parseLocalISO(date).getDate()}`,
       isWorkday,
       isToday: date === today,
-      capacityMins: isWorkday ? MINS_PER_DAY : 0,
+      capacityMins: isWorkday ? jornadaMins : 0,
     };
   });
 }
@@ -695,6 +696,7 @@ export function WorkloadView({
   timeEntries: TimeEntry[];
   onNavigateToDashboard: (date: string) => void;
 }) {
+  const jornada = useJornada(); // #5 barrido: capacidad = jornada configurable (como Semana/Calendario), no 480 fijo
   const todayDate = new Date();
   const today = formatLocalISO(todayDate);
   const generatedEnd = new Date(todayDate);
@@ -712,8 +714,8 @@ export function WorkloadView({
 
   const months = useMemo(() => {
     const base = new Date(todayDate.getFullYear(), todayDate.getMonth() + baseOffset, 1);
-    return buildMonths(base.getFullYear(), base.getMonth(), 7, today, generatedEndStr);
-  }, [today, generatedEndStr, baseOffset]);
+    return buildMonths(base.getFullYear(), base.getMonth(), 7, today, generatedEndStr, jornada);
+  }, [today, generatedEndStr, baseOffset, jornada]);
 
   const registeredByDay = useMemo(() => {
     const map: Record<string, number> = {};
@@ -763,7 +765,7 @@ export function WorkloadView({
     const expandedWeekList = months.flatMap(m => m.weeks).filter(w => expandedWeeks.has(w.key));
     taskLoads.forEach(load => {
       expandedWeekList.forEach(week => {
-        buildDays(week, today).forEach(day => {
+        buildDays(week, today, jornada).forEach(day => {
           if (!day.isWorkday) return;
           const task = allTasksMap[load.taskId] as any;
           if (!task) return;
@@ -928,7 +930,7 @@ export function WorkloadView({
                     const isWeekExp = expandedWeeks.has(week.key);
                     const wTotal = totalWeekMins[week.key] || 0;
                     const wPct = week.capacityMins > 0 ? Math.round((wTotal / week.capacityMins) * 100) : 0;
-                    const colSpan = isWeekExp ? 1 + buildDays(week, today).length : 1;
+                    const colSpan = isWeekExp ? 1 + buildDays(week, today, jornada).length : 1;
                     return (
                       <th key={week.key} colSpan={colSpan}
                         className={`border-l dark:border-border-main/30 border-border-main-light/30 px-3 py-2.5 min-w-[110px] text-left dark:bg-bg-card bg-white ${isWeekExp ? 'dark:bg-azul/10 bg-azul/5' : ''}`}
@@ -960,7 +962,7 @@ export function WorkloadView({
                   if (!expandedMonths.has(mo.key)) return <td key={mo.key} />;
                   return mo.weeks.map(week => {
                     if (!expandedWeeks.has(week.key)) return <td key={week.key} className="border-l dark:border-border-main/20" />;
-                    return buildDays(week, today).map(day => (
+                    return buildDays(week, today, jornada).map(day => (
                       <th key={day.date}
                         className={`border-l dark:border-border-main/10 border-border-main-light/10 px-2 py-2 min-w-[64px] text-center ${!day.isWorkday ? 'dark:bg-black/10 bg-gray-100/40' : 'dark:bg-bg-main/30 bg-gray-50/60'} ${day.isToday ? 'dark:bg-turquesa/15 bg-turquesa/10' : ''}`}
                       >
@@ -981,7 +983,7 @@ export function WorkloadView({
                   if (!expandedMonths.has(mo.key)) return <td key={mo.key} />;
                   return mo.weeks.map(week => {
                     if (!expandedWeeks.has(week.key)) return <td key={week.key} className="border-l dark:border-border-main/20" />;
-                    return buildDays(week, today).map(day => {
+                    return buildDays(week, today, jornada).map(day => {
                       const dTotal = totalDayMins[day.date] || 0;
                       const dPct = day.capacityMins > 0 ? Math.round((dTotal / day.capacityMins) * 100) : 0;
                       return (
@@ -1022,6 +1024,7 @@ export function WorkloadView({
                   onNavigate={onNavigateToDashboard}
                   dayLoadCache={dayLoadCache}
                   getNodeDayMins={getNodeDayMins}
+                  jornada={jornada}
                   isLastGroup={gi === grouped.length - 1}
                 />
               ))}
@@ -1044,7 +1047,7 @@ export function WorkloadView({
 
 function WorkloadRow({
   node, months, expandedMonths, expandedWeeks, expandedGroups,
-  onToggleGroup, depth, today, onNavigate, dayLoadCache, getNodeDayMins, isLastGroup,
+  onToggleGroup, depth, today, onNavigate, dayLoadCache, getNodeDayMins, isLastGroup, jornada,
 }: {
   node: GroupNode;
   months: MonthInfo[];
@@ -1058,6 +1061,7 @@ function WorkloadRow({
   dayLoadCache: Record<string, number>;
   getNodeDayMins: (node: GroupNode, date: string) => number;
   isLastGroup?: boolean;
+  jornada: number;
 }) {
   const isOpen = expandedGroups.has(node.key);
   const isGroup = depth === 0;
@@ -1134,7 +1138,7 @@ function WorkloadRow({
             }
 
             // Semana expandida → mostrar días
-            return buildDays(week, today).map(day => {
+            return buildDays(week, today, jornada).map(day => {
               const dMins = getNodeDayMins(node, day.date);
               return (
                 <td key={day.date}
@@ -1166,6 +1170,7 @@ function WorkloadRow({
           onNavigate={onNavigate}
           dayLoadCache={dayLoadCache}
           getNodeDayMins={getNodeDayMins}
+          jornada={jornada}
         />
       ))}
     </>

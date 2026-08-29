@@ -5167,3 +5167,42 @@ el camino de MOVER (los tres de arriba), no solo por el de crear.**
   QUÉ poner ahí NO está especificado → PENDIENTE de decisión de la propietaria.
 - ❓ **Icono de calendario en la fila:** hecho en Semana; las demás vistas usan el TaskCard normal que YA tiene columna de
   fecha en el raíl → ¿se quiere igualmente el icono, y para qué? PENDIENTE de decisión.
+  - **RESUELTO por la propietaria (sesión 26):** HUECO cabecera = opción (a) **meter el resumen que ya se calcula**
+    (reglas·carpetas·manuales). ICONO calendario = **descartado**, fuera de la lista.
+
+## 16.50 BARRIDO DE VISTAS (sesión 26) — worklist priorizada por la propietaria
+Tras el barrido de solo-lectura (Semana·Calendario·Carga·Delegadas·Búsqueda·Bloques), la propietaria ordenó el trabajo:
+
+**A · ARREGLA YA (lo que ROMPE)** — commit `8db321b`, en producción:
+1. ✅ **Crash de Calendario en día vacío** — `LayoutDashboard` se usaba (`CalendarView:497`) sin importar → `ReferenceError`
+   al abrir un día sin tareas. Añadido al import de lucide. Verificado en pantalla (estado vacío, sin error en consola).
+2. ✅ **Semana: subtareas no se podían completar** — el check de subtarea era un `<div>` sin handler. Convertido a `<button>`
+   con `onToggleId?.(sub.id, date)`; nueva prop `onToggleId` en `WeekTaskCard`, cableada en los 3 sitios de render.
+3. ✅ **Carga: filtro por bloque rompía el detalle** — `blockId: task.blockId` no resolvía el bloque de instancias; ahora
+   `resolveBlockId(task, allTasksMap) || task.blockId` (`WorkloadView:431`).
+4. ✅ **Delegadas: escritura directa a BD** — `persistOrder` hacía `supabase.from('tasks').update({order})` saltándose el
+   CRUD. Sustituido por `onUpdateTask` (pasa por la capa normal).
+
+**B · DESPUÉS (coherencia):**
+5. ✅ **Jornada en Calendario y Carga** — usaban capacidad FIJA (Calendario `8h*5`; Carga `MINS_PER_DAY=480`). Ahora ambas
+   usan `useJornada()` como Semana, para que **el mismo día no dé dos % distintos según dónde se mire**. Calendario:
+   `WORKDAY_HOURS = jornada || 480`. Carga: `jornada` pasado como parámetro a `buildMonths`/`buildDays` y como prop a
+   `WorkloadRow`. **VERIFICADO en pantalla con valor DISTINTO del default** (round-trip reversible: `jornada_minutes=300`,
+   restaurado a null): Carga AGO 2026 pasó de 83% (480) a **133%** (300); Calendario semana 24-30 de 45% a **72%**. *(Nota:
+   `useJornada` arranca en 480 y hace fetch async → hay un parpadeo inicial al 480 antes de asentar el valor real; es el mismo
+   comportamiento que ya tenía Semana, no se toca.)*
+6. ⏳ **taskType sin tipo se clasifica distinto en 4 vistas** — la propietaria pide **PROPONER el criterio antes de tocar**
+   + MEDIR las "sin tipo" (enlazado con Semana#3). PENDIENTE.
+7. ⏳ **Semana X/Y cuenta status del contenedor (campo muerto)** → que cuente HOJAS. PENDIENTE.
+
+**Patrón/riesgo (anotar) — "al tocar Mi Día, comprobar si aplica al resto":** las vistas Semana/Calendario/Carga tienen
+lógica PARALELA a Mi Día (capacidad, tipo, completado, contadores). Un arreglo en Mi Día que no se replique deja las otras
+vistas divergentes — es exactamente el origen de #5 (jornada), #7 (hojas) y #6 (tipo). **Antes de cerrar un cambio en Mi Día,
+revisar si Semana/Calendario/Carga/Delegadas hacen lo mismo por su cuenta y unificar o anotar.**
+
+**Otros de la lista (PENDIENTES):** montar `BulkActionBar` en Calendario y Delegadas (importada, sin montar); arreglar
+`onToggleStatus` del preview "Nueva reunión" en Delegadas (`:1092` pasa `onUpdateTask` que espera un `Task`, no un id);
+cosmético `hover:text-white` sin variante clara (Calendario 140/146/152, Delegadas 426/441/1153); limpiar código muerto
+(`getLoadColor`, param `isGenerated` de `calcRangeMinutes`, `setBulkTimeModal` doble-declarado). **Vista Semana:** total de
+semana + total por día en cabecera; quitar el modo carga; medir+reportar las "sin tipo"; investigar por qué bloque→tipo solo
+se despliega en lunes. **VALIDADO:** hechas/total de Semana funciona (cierra el flip de X/Y para el contenedor de nivel día).

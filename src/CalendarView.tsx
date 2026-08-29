@@ -12,6 +12,7 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS, COLORS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
+import { useJornada } from './useJornada';
 import { isTaskCompleted, formatMinutes } from './utils';
 import { filterTasksForDay, groupTasksByTag, getStatsForDay } from './filters';
 import { materializeDay } from './instanceEngine';
@@ -27,6 +28,7 @@ import { StickyActionBar } from './StickyActionBar';
 export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, activeDate, onDateSelect, onAddTask, onToggleTask, onDelete, onReorderTasks, onReorderSubtasks, onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null }: any) {
   const [viewDate, setViewDate] = useState(() => parseLocalISO(activeDate));
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const jornada = useJornada(); // #5 barrido: capacidad = jornada configurable (como Semana), no 480 fijo
  
   const daysInMonth = useMemo(() => {
     const year = viewDate.getFullYear();
@@ -173,7 +175,7 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
           while (rows[rows.length - 1]?.length < 7) rows[rows.length - 1].push(null);
 
           // Horas de jornada diaria (L-V)
-          const WORKDAY_HOURS = 8 * 60; // 8h en minutos
+          const WORKDAY_HOURS = jornada || 480; // #5 barrido: la jornada configurable, no 8h fijas
           const WEEK_CAPACITY = WORKDAY_HOURS * 5; // L-V
 
           return rows.map((week, weekIdx) => {
