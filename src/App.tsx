@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   LayoutDashboard, Grid2X2, Calendar as CalendarIcon, CalendarDays,
-  Search, Users, Zap, Moon, Sun, ChevronRight, BarChart2
+  Search, Users, Zap, Moon, Sun, ChevronRight, BarChart2, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WorkBlock, Task, ViewType, TagType, TimeEntry, Person, DelegationMeeting } from './types';
@@ -33,6 +33,8 @@ import { CalendarView } from './CalendarView';
 import { DelegadasView } from './DelegadasView';
 import { SearchView } from './SearchView';
 import { WorkloadView } from './WorkloadView';
+import { PapeleraView } from './PapeleraView';
+import { useDeletedTasks } from './useDeletedTasks';
 import { WeekView } from './WeekView';
 import { TaskModal } from './TaskModal';
 import { StickyActionBar } from './StickyActionBar';
@@ -172,6 +174,22 @@ export default function App() {
       return next;
     });
   }, []);
+
+  // PAPELERA (§16.47): tareas borradas de los últimos 30 días (desde el lanzamiento). Restaurar = elegir destino.
+  const { deleted: deletedTasks, loading: papeleraLoading, reload: reloadPapelera } = useDeletedTasks();
+  const isContainerAlive = (parentId: string) => !!tasks[parentId] && !tasks[parentId]?.isDeleted;
+  const handleRestore = async (task: any, destino: string) => {
+    const today = formatLocalISO(new Date());
+    const newDate = destino === 'hoy' ? today : destino === 'original' ? (task.dueDate || task.instanceDate || today) : destino;
+    const parentGone = !!task.parentTaskId && !isContainerAlive(task.parentTaskId); // subtarea sin contenedor → tarea suelta
+    const patch: any = { is_deleted: false, deleted_at: null, due_date: newDate, modified_at: new Date().toISOString() };
+    if (parentGone) patch.parent_task_id = null;
+    const { error } = await supabase.from('tasks').update(patch).eq('id', task.id);
+    if (error) { reportPersistError({ verbo: 'restaurar', titulo: task.title }); return; }
+    // reflejar en el estado para que aparezca ya en su día
+    setTasks(prev => ({ ...prev, [task.id]: { ...(prev[task.id] || {}), ...task, isDeleted: false, deletedAt: null, dueDate: newDate, parentTaskId: parentGone ? null : task.parentTaskId, existsInSupabase: true } as any }));
+    reloadPapelera();
+  };
 
   // --- Data Loading ---
   useSupabase({ setBlocks, setTasks, setPeople, setMeetings, setTimeEntries, setIsDataLoaded });
@@ -436,6 +454,7 @@ export default function App() {
           <NavItem active={currentView === 'delegadas'} onClick={() => setCurrentView('delegadas')} icon={<Users size={20} />} label="Delegadas" />
           <NavItem active={currentView === 'search'} onClick={() => setCurrentView('search')} icon={<Search size={20} />} label="Búsqueda" />
           <NavItem active={currentView === 'workload'} onClick={() => setCurrentView('workload')} icon={<BarChart2 size={20} />} label="Carga" />
+          <NavItem active={currentView === 'papelera'} onClick={() => setCurrentView('papelera')} icon={<Trash2 size={20} />} label="Papelera" />
         </div>
 
       </nav>
@@ -761,6 +780,16 @@ export default function App() {
                 blocks={blocks}
                 timeEntries={timeEntries}
                 onNavigateToDashboard={(date: string) => { setActiveDate(date); setCurrentView('dashboard'); }}
+              />
+            )}
+
+            {currentView === 'papelera' && (
+              <PapeleraView
+                deleted={deletedTasks}
+                loading={papeleraLoading}
+                blocks={blocks}
+                isContainerAlive={isContainerAlive}
+                onRestore={handleRestore}
               />
             )}
 

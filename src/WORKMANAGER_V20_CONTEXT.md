@@ -5098,6 +5098,16 @@ el row-builder (3 sitios). "Mañana" es directo salvo colisión (entonces avisa)
 - **VERIFICADO:** render en pantalla (0,0 · Día sin arrancar hoy) + 30 tests (7,2 · 8,3 · 9,7 · outOfPlan 120 · tope 10 ·
   sin_nota). Fotos de prueba borradas.
 
+### PAPELERA (§16.47, sesión 26) — ✅ CONSTRUIDA Y VERIFICADA
+- **Pantalla propia** (`PapeleraView.tsx` + nav "Papelera"). Muestra lo borrado de los **últimos 30 días** y **solo desde el
+  lanzamiento** (`settings.papelera_since`, fijado a la 1ª apertura). **Verificado:** con `papelera_since=ahora` la papelera
+  sale VACÍA (las 524 históricas —todas ≤21/08— quedan fuera); una tarea borrada DESPUÉS aparece.
+- **Restaurar → la propietaria ELIGE destino:** su día original / hoy / calendario. **Verificado end-to-end:** throwaway
+  borrada (deleted_at=ahora) → aparece → Restaurar "día original" → `is_deleted=false, deleted_at=null, due_date` restaurado.
+- **Subtarea cuyo contenedor ya no existe → tarea suelta** (`parent_task_id=null`) con aviso "su contenedor ya no existe".
+- **NO hay "vaciar"** (todo es soft-delete; escondido basta; borrado duro solo añadiría riesgo). `useDeletedTasks` +
+  `handleRestore` en App. Corte = `deleted_at ≥ max(papelera_since, hoy−30d)`.
+
 ### (histórico) paquete PRE-CONSTRUCCIÓN aprobado
 
 Diseño para construir el spec §16.45. Enviado a la propietaria para aprobar; registrado aquí para que no se pierda.
