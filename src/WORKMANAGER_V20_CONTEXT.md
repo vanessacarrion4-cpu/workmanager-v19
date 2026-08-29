@@ -4226,6 +4226,9 @@ decir siempre **sobre qué datos y por qué entrada**. (Memoria: `criterio-verif
 persist futuras (cuando venga bien) · F5-4 al final. Un commit por item; nada se cierra sin tu validación en pantalla.
 
 ### 16.36 MEDICIÓN — 858 ocurrencias pendientes pasadas no actuadas (sesión 21). Sin arreglar; pendiente decidir item/fase.
+> ⚠️ **SUPERADA por §16.45 (sesión 26) en el punto del CORTE:** decidido que **NO hay corte por antigüedad** (las rutinas
+> pasadas siguen contando; no disimular lo no hecho). El "858" sigue siendo válido como MEDICIÓN, pero la parte de "decidir
+> corte" está CERRADA (no cortar). No leer esta sección como decisión abierta.
 
 Backlog de ocurrencias VIRTUALES (recurrentes nunca tocadas) con fecha pasada, que la app considera "pendientes" y que
 nadie va a hacer (nadie recupera los "Márgenes" del 12-may). **858** desde 2026-01-01 (234 en los últimos ~30 días).
@@ -4284,6 +4287,9 @@ diario (la cabecera confusa). **Cuando llegue FASE 6, va PRIMERA.**
 ---
 
 ## 16.37 ⭐ DOCUMENTO PARA SESIÓN DE PRODUCTO (preparado fin sesión 24, 19/08/2026)
+> ⚠️ **PARCIALMENTE SUPERADO (sesión 26):** el **CORTE de pendientes pasadas** (C.1) ya está DECIDIDO en §16.45: **NO hay
+> corte por antigüedad**. Y "Terminar la rutina" (C.2) está resuelto en §16.38 (vuelve al diálogo de Eliminar). No leer C.1/C.2
+> como decisiones abiertas.
 
 > Para decidir MAÑANA con calma qué entra en FASE 6 y en MEJORAS, y qué funcionalidad exacta de cada cosa. **No se toca
 > código en esa sesión.** El estado de lo hecho esta semana está en el bloque «SESIÓN 24» de §16.35. Esta sección es la
@@ -4890,6 +4896,8 @@ grant all on day_reports to anon, authenticated;
 (Mismo patrón permisivo que `settings`/`day_snapshots` — hereda el riesgo §16.40, se resolverá con el arreglo transversal.)
 
 ## 16.43 CINTA DE MI DÍA — rediseño de jerarquía en 4 filas (sesión 26, spec de la propietaria)
+> ✅ **VALIDADA por la propietaria (sesión 26)** tras 4 vueltas: fecha (20px/700), alineación de números por abajo
+> (items-end) y orden de la columna Etiqueta (= grupos de Mi Día). Cerrada.
 
 Mismo sistema (slate + turquesa); cambia la JERARQUÍA y el reparto, no el estilo. Se lee en 3 tiempos: ESTADO → MEDIDAS →
 ACCIONES. Sin cajas/sombras/bordes, sin iconos decorativos, un solo acento.
@@ -5048,14 +5056,17 @@ hijas por `parent_task_id` **978** · `time_entries` **837**.
   ("+3 tareas · +45m") se mide siempre contra el plan VIGENTE, no contra uno viejo. El histórico completo se guarda igual.
 - **F5-7 "no recordar el último bloque"**: **razón** = recordar el último sería el mismo default silencioso con otro nombre;
   se quiere elección consciente cada vez (mismo criterio que el compositor de tanda, §16.35).
-- ⚠️ **"Las 12 reaperturas de la línea base NO se revierten"** (§16.34): falta la razón — **la sabe la propietaria**.
-- ⚠️ **"Rutinas pasadas siguen contando, sin corte por antigüedad"** (§16.45): falta la razón explícita — **la propietaria**.
+- **"Las 12 reaperturas de la línea base NO se revierten"** (§16.34): **razón (propietaria)** = doce filas no valen su
+  tiempo, y las quiere como **LÍNEA BASE / testigo**: si tras el fix aparece una 13ª reabierta que NO esté en esa lista, el
+  arreglo no cerró. Borrarlas quitaría ese testigo.
+- **"Rutinas pasadas siguen contando, sin corte por antigüedad"** (§16.45): **razón (propietaria)** = si no la hizo, no la
+  hizo, y el sistema no debe disimularlo. Consecuencia asumida: hoy 858 y solo crecen, pero NO tocan los contadores de Mi Día
+  ni de contenedores (verificado). Si entran o no en el ANÁLISIS HISTÓRICO se decidirá al construirlo, con el dato delante.
 
-### D · CONTRADICCIÓN DE CRITERIO — para que decida la propietaria (NO la resuelvo)
-- **¿Hay corte por antigüedad para las rutinas pasadas no hechas, o no?** §16.45 (lo más reciente) dice **"sin corte,
-  DECISIÓN TOMADA"**; pero §16.36(2) y §16.37 C.1 lo dan como **CORTE = decisión ABIERTA**. Lo más nuevo (§16.45) parece
-  ganar, pero como es criterio, lo dejo para que ella confirme y unifique. (Relacionado: §16.37 sigue listando "Terminar la
-  rutina" como decisión abierta cuando §16.38/§16.35 ya la resolvieron — revertida al diálogo de Eliminar.)
+### D · CONTRADICCIÓN DE CRITERIO — ✅ RESUELTA por la propietaria (sesión 26)
+- **NO hay corte por antigüedad.** §16.45 es lo correcto y lo más reciente. **§16.36 y §16.37 quedan SUPERADAS por §16.45**
+  en este punto — no leerlas como abiertas. (Relacionado, también resuelto: §16.37 listaba "Terminar la rutina" como decisión
+  abierta cuando §16.38/§16.35 ya la revirtieron al diálogo de Eliminar — SUPERADO por §16.38.)
 
 ## 16.47 CIERRE DEL DÍA — paquete PRE-CONSTRUCCIÓN (sesión 26) ⏳ PENDIENTE DE APROBAR (no construir aún)
 
@@ -5074,5 +5085,9 @@ Diseño para construir el spec §16.45. Enviado a la propietaria para aprobar; r
    repaso; badge "↻ N días". SQL: `alter table tasks add column if not exists rolled_over_count int default 0;`
 - **Ficheros:** `filters.ts` (`getDayLoad` + exponer hojas pendientes del día), `DayReportModal.tsx` (sección repaso),
   App/DashboardView (cablear salidas a handlers existentes + `pendingDateChange`/`RecurrenceChoiceModal` ya existen).
-- **DECISIONES pendientes de la propietaria:** ubicación (debajo del todo vs antes de motivos), aprobar `rolled_over_count`,
-  "Mañana" directo vs con confirmación, texto del badge "movida".
+- **DECISIONES ✅ CONFIRMADAS (sesión 26):** (1) ubicación = al final del reporte, debajo de todo. (2) `rolled_over_count`
+  APROBADA + debe **VERSE** en la fila como ordinal ("3ª vez") para distinguir lo de ayer de lo que lleva una semana
+  esquivando. (3) **"Mañana" mueve DIRECTO sin confirmación** (es la acción más frecuente); "Otro día"/"Completar" pueden
+  pedir lo suyo; **"Eliminar" SÍ pide confirmación** (borra). (4) badge de la recurrente colisionada = "movida de ayer"/
+  similar (que se lea "esta fila la traje yo, no la generó la rutina"); texto exacto a elegir por mí y validar en pantalla.
+- **CONSTRUIR cuando:** la propietaria ejecute el ALTER de `rolled_over_count` y confirme que el paquete está completo.
