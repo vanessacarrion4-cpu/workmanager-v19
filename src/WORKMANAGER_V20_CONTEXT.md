@@ -5193,7 +5193,13 @@ Tras el barrido de solo-lectura (Semana·Calendario·Carga·Delegadas·Búsqueda
    comportamiento que ya tenía Semana, no se toca.)*
 6. ⏳ **taskType sin tipo se clasifica distinto en 4 vistas** — la propietaria pide **PROPONER el criterio antes de tocar**
    + MEDIR las "sin tipo" (enlazado con Semana#3). PENDIENTE.
-7. ⏳ **Semana X/Y cuenta status del contenedor (campo muerto)** → que cuente HOJAS. PENDIENTE.
+7. ✅ **Semana X/Y contaba el status del contenedor (campo muerto)** → ahora cuenta HOJAS. Nuevo helper `leafCounts(tasks,
+   dayMap)` (misma noción de hoja que `getTaskMins`: subtarea materializada del día, o la propia tarea si no tiene
+   subtareas); migrados los **5 sitios de cabecera** (bloque, tipo, tipo→bloque, bloque→tipo y su nivel tipo). El
+   denominador pasa de "nº de tareas top-level" a "nº de hojas" (en pantalla: contenedores que antes eran 0/1 ahora 0/7,
+   0/13…). **VERIFICADO en pantalla por el flujo real** (toggle con el ratón de una hoja de 🏦 Bancos lunes: cabecera 0/1 →
+   1/1, y deshecho → 0/1; datos restaurados). *(Nota de materialización: una hoja solo cuenta si su contenedor se materializa
+   ese día; contenedores sin fecha propia ni pauta no afloran en Semana — se descubrió al elegir mal una hoja de test.)*
 
 **Patrón/riesgo (anotar) — "al tocar Mi Día, comprobar si aplica al resto":** las vistas Semana/Calendario/Carga tienen
 lógica PARALELA a Mi Día (capacidad, tipo, completado, contadores). Un arreglo en Mi Día que no se replique deja las otras
