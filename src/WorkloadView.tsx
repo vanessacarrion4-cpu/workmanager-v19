@@ -428,7 +428,10 @@ function buildTaskLoads(
     }
 
     loads.push({
-      taskId: task.id, title: task.title, blockId: task.blockId,
+      // Fix (#3 barrido): la hoja/subtarea hereda bloque del padre y suele tener blockId undefined → resolver como en el pasado
+      // (resolveBlockId). Antes con el filtro por Bloque activo las hijas (blockId undefined) se descartaban y el contenedor
+      // perdía su detalle diario.
+      taskId: task.id, title: task.title, blockId: resolveBlockId(task, allTasksMap) || task.blockId,
       taskType: task.taskType || 'core', isContainer, parentId,
       monthMinutes, weekMinutes,
       dayMinutes: {},

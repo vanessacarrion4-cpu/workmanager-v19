@@ -552,13 +552,12 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                   const allEntries = personEntries || personTasks.map((t: any) => ({ task: t, subtasksForGroup: null }));
                   const orderIds = allEntries.map((e: any) => e.task.id);
                   const persistOrder = (newIds: string[]) => {
+                    // Fix (#4 barrido): solo por la capa CRUD (onUpdateTask). Antes hacía ADEMÁS un supabase.update directo por
+                    // fila (saltándose el CRUD) que fallaba en silencio con ids de instancia inst-… inexistentes como fila.
                     setLocalTaskOrders(prev => ({ ...prev, [person.id]: newIds }));
                     newIds.forEach((id: string, i: number) => {
                       const t = allTasksMap[id];
                       if (t) onUpdateTask({ ...t, order: i, modifiedAt: new Date().toISOString() });
-                      supabase.from('tasks').update({ order: i }).eq('id', id).then(({ error }: any) => {
-                        if (error) console.error('[ORDER] Error:', error);
-                      });
                     });
                   };
                   return (

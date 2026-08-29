@@ -284,7 +284,7 @@ export function WeekView({
               <div className="space-y-0.5 pb-1 px-1">
                 {blockTasks.map(task => (
                   <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
-                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} date={date} onEditTask={onEditTask}
+                    onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} onToggleId={onToggle} date={date} onEditTask={onEditTask}
                     onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
                 ))}
               </div>
@@ -346,7 +346,7 @@ export function WeekView({
                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                   {bTasks.map(task => (
                                     <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
-                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} date={date} onEditTask={onEditTask}
+                                      onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} onToggleId={onToggle} date={date} onEditTask={onEditTask}
                     onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
                                   ))}
                                 </motion.div>
@@ -357,7 +357,7 @@ export function WeekView({
                       })
                     : tipoTasks.map(task => (
                         <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
-                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} date={date} onEditTask={onEditTask}
+                          onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} onToggleId={onToggle} date={date} onEditTask={onEditTask}
                     onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
                       ))
                   }
@@ -532,7 +532,7 @@ export function WeekView({
                                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                               {tipoTasks.map(task => (
                                                 <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
-                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} date={date} onEditTask={onEditTask}
+                                                  onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} onToggleId={onToggle} date={date} onEditTask={onEditTask}
                     onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
                                               ))}
                                             </motion.div>
@@ -575,9 +575,9 @@ export function WeekView({
 }
 
 // ─── WeekTaskCard ─────────────────────────────────────────────────────────────
-function WeekTaskCard({ task, dayMap, onEdit, onToggle, date, onEditTask, onUpdateTask, onRecurrenceDateChange }: {
+function WeekTaskCard({ task, dayMap, onEdit, onToggle, onToggleId, date, onEditTask, onUpdateTask, onRecurrenceDateChange }: {
   task: Task; dayMap: Record<string, Task>;
-  onEdit: () => void; onToggle: () => void; date: string;
+  onEdit: () => void; onToggle: () => void; onToggleId?: (id: string, day: string) => void; date: string;
   onEditTask?: (id: string) => void;
   onUpdateTask: (task: Task) => void;
   onRecurrenceDateChange: (task: Task, newDate: string) => void;
@@ -719,11 +719,15 @@ function WeekTaskCard({ task, dayMap, onEdit, onToggle, date, onEditTask, onUpda
               onClick={(e) => { e.stopPropagation(); onEditTask ? onEditTask(sub.id) : onEdit(); }}
               className={`flex items-center gap-1.5 px-2 py-1 rounded-lg cursor-pointer hover:dark:bg-white/5 hover:bg-black/5 transition-all ${sub.status === 'completed' ? 'opacity-40' : ''}`}
             >
-              <div className={`w-3 h-3 rounded flex items-center justify-center shrink-0 border-2 transition-all ${
-                sub.status === 'completed' ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light'
-              }`}>
+              {/* Completar la subtarea DESDE Semana (antes era un div decorativo → no se podía, sí en Mi Día). */}
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleId?.(sub.id, date); }}
+                title={sub.status === 'completed' ? 'Marcar pendiente' : 'Completar'}
+                className={`w-3 h-3 rounded flex items-center justify-center shrink-0 border-2 transition-all ${
+                  sub.status === 'completed' ? 'bg-turquesa border-turquesa text-white' : 'dark:border-border-main border-border-main-light hover:border-turquesa'
+                }`}>
                 {sub.status === 'completed' && <Check size={7} strokeWidth={3} />}
-              </div>
+              </button>
               <span className={`text-[10px] font-bold dark:text-white/80 text-text-main-light truncate flex-1 ${sub.status === 'completed' ? 'line-through' : ''}`}>
                 {sub.title}
               </span>
