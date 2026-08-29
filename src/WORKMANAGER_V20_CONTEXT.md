@@ -5068,7 +5068,19 @@ hijas por `parent_task_id` **978** · `time_entries` **837**.
   en este punto — no leerlas como abiertas. (Relacionado, también resuelto: §16.37 listaba "Terminar la rutina" como decisión
   abierta cuando §16.38/§16.35 ya la revirtieron al diálogo de Eliminar — SUPERADO por §16.38.)
 
-## 16.47 CIERRE DEL DÍA — paquete PRE-CONSTRUCCIÓN (sesión 26) ⏳ PENDIENTE DE APROBAR (no construir aún)
+## 16.47 CIERRE DEL DÍA · REPASO DE LO NO HECHO — ✅ CONSTRUIDO Y VERIFICADO EN PANTALLA (sesión 26), pendiente validación propietaria
+**Ficheros:** `types.ts`+`useSupabase.ts` (`rolledOverCount`), `filters.ts` (`getPendingLeavesForDay`, `getDayLoad`),
+`DayReportModal.tsx` (`RepasoSection`+`RepConfirm`), `App.tsx` (`handleRepasoMove`/`repasoWillCollide`/`repasoDayLoad`),
+`DashboardView.tsx` (cablea), `useTaskCRUD.ts` (`rolled_over_count` en los 3 row-builders de update/excepción).
+**VERIFICADO en pantalla + BD:** lista "Te quedan N sin hacer" con salidas (Completar/Mañana/Otro día/Eliminar); impacto de
+"Otro día" ("Viernes 21 · ya tienes 12h 49m (29 tareas)"); aviso de colisión ("la rutina ya cae ese día, verás las dos");
+mover crea excepción en el día destino con `rolled_over_count` incrementado y PERSISTIDO (0→1→…); badge "↻ movida 5 veces"
+en naranja de alerta (≥5). Excepciones de prueba borradas (datos reales limpios). 194 tests.
+**Nota técnica:** el move de una hija recurrente usa el camino `_isSubtaskDateChange` (useTaskCRUD:905) que genera el id por
+`templateId+fecha` → el update dirigido por id fallaba (el id cambia con la fecha); resuelto metiendo `rolled_over_count` en
+el row-builder (3 sitios). "Mañana" es directo salvo colisión (entonces avisa). "Eliminar" pide confirmación propia.
+
+### (histórico) paquete PRE-CONSTRUCCIÓN aprobado
 
 Diseño para construir el spec §16.45. Enviado a la propietaria para aprobar; registrado aquí para que no se pierda.
 1. **Ubicación:** última sección de `DayReportModal`, debajo de todo. Cabecera "Te quedan N sin hacer" + lista de hojas
@@ -5085,9 +5097,11 @@ Diseño para construir el spec §16.45. Enviado a la propietaria para aprobar; r
    repaso; badge "↻ N días". SQL: `alter table tasks add column if not exists rolled_over_count int default 0;`
 - **Ficheros:** `filters.ts` (`getDayLoad` + exponer hojas pendientes del día), `DayReportModal.tsx` (sección repaso),
   App/DashboardView (cablear salidas a handlers existentes + `pendingDateChange`/`RecurrenceChoiceModal` ya existen).
-- **DECISIONES ✅ CONFIRMADAS (sesión 26):** (1) ubicación = al final del reporte, debajo de todo. (2) `rolled_over_count`
-  APROBADA + debe **VERSE** en la fila como ordinal ("3ª vez") para distinguir lo de ayer de lo que lleva una semana
-  esquivando. (3) **"Mañana" mueve DIRECTO sin confirmación** (es la acción más frecuente); "Otro día"/"Completar" pueden
-  pedir lo suyo; **"Eliminar" SÍ pide confirmación** (borra). (4) badge de la recurrente colisionada = "movida de ayer"/
-  similar (que se lea "esta fila la traje yo, no la generó la rutina"); texto exacto a elegir por mí y validar en pantalla.
-- **CONSTRUIR cuando:** la propietaria ejecute el ALTER de `rolled_over_count` y confirme que el paquete está completo.
+- **DECISIONES ✅ CONFIRMADAS (sesión 26):** (1) ubicación = al final del reporte, debajo de todo. (3) **"Mañana" mueve
+  DIRECTO sin confirmación**; "Otro día"/"Completar" pueden pedir lo suyo; **"Eliminar" SÍ pide confirmación**. (4) badge
+  colisión = "↩ movida de ayer" / "movida del [día]".
+- **BADGE ROLLING (corregido por la propietaria):** mide **cuántas veces la ha ESQUIVADO**, no cuántas veces aparece →
+  `rolled_over_count` TAL CUAL (sin +1). Texto: **"↻ movida N veces"**. **Solo aparece a partir de la 2ª** (`count >= 2`;
+  movida una vez es normal, no mete ruido). A partir de **`count >= 5`** cambia a **color de ALERTA** (naranja `#F97316`):
+  cinco veces movida no es una tarea pendiente, es una decisión que no se está tomando. Umbral/color a validar en pantalla.
+- **ALTER ejecutado** por la propietaria; paquete confirmado completo. **CONSTRUIR YA.**

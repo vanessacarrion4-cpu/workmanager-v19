@@ -15,7 +15,7 @@ import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { getTaskEstimatedCombo, formatMinutes } from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown } from './filters';
+import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getPendingLeavesForDay } from './filters';
 import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completado POR DÍA para el filtro "ocultar completadas"
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
@@ -28,6 +28,9 @@ interface DashboardViewProps {
   tasks: Task[];
   allTasksMap: Record<string, Task>;
   entrada?: EntradaForDay | null; // TRAMO 2: qué se creó el día visto (calculado en App con el mapa completo)
+  onRepasoMove?: (task: Task, newDate: string) => void; // FASE 6 cierre del día: mover al día siguiente/otro
+  repasoWillCollide?: (task: Task, destDay: string) => boolean; // ¿la recurrente movida choca con su regla ese día?
+  repasoDayLoad?: (dayISO: string) => { minutes: number; count: number }; // carga pendiente de un día (impacto)
   blocks: WorkBlock[];
   people?: Person[];
   onAddPerson?: (name: string) => void;
@@ -81,7 +84,7 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({
-  tasks, allTasksMap, entrada = null, blocks, people = [], onAddPerson, onRenamePerson, onDeletePerson,
+  tasks, allTasksMap, entrada = null, onRepasoMove, repasoWillCollide, repasoDayLoad, blocks, people = [], onAddPerson, onRenamePerson, onDeletePerson,
   timeEntries = [], activeTimer, onStartTimer, onStopTimer, onToggle, onDelete, onAddTask,
   onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId,
   onOpenTimePanel, activeDate, onSetDate, onDayChange, onReorderTasks, onReorderSubtasks, onBatchUpdateOrder,
@@ -209,6 +212,8 @@ export function DashboardView({
     [stats, daySnapshot, jornada]
   );
   const reportBreakdown = useMemo(() => getReportBreakdown(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
+  // FASE 6 (cierre del día): hojas pendientes del día para el "Repaso de lo no hecho".
+  const pendingLeaves = useMemo(() => getPendingLeavesForDay(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
 
   const groupedTasks = useMemo(() => {
     return groupTasksByTag(
@@ -654,6 +659,13 @@ export function DashboardView({
           previsto: verdict.previsto, registrado: verdict.registrado, anadido: verdict.anadido,
           hechas: verdict.hechas, total: verdict.total, hechasTrasFijar: verdict.hechasTrasFijar,
         }, motivos, nota); }}
+        pendingTasks={pendingLeaves}
+        timeEntries={timeEntries}
+        onComplete={onToggle}
+        onDelete={onDelete}
+        onRepasoMove={onRepasoMove}
+        repasoWillCollide={repasoWillCollide}
+        repasoDayLoad={repasoDayLoad}
       />
 
       {/* Modal historial de tiempo registrado */}

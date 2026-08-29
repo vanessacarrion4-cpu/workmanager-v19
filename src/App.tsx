@@ -13,8 +13,8 @@ import { WorkBlock, Task, ViewType, TagType, TimeEntry, Person, DelegationMeetin
 import { COLORS } from './constants';
 import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { filterTasksForDay, getEntradaForDay } from './filters';
-import { materializeInstanceById } from './instanceEngine';
+import { filterTasksForDay, getEntradaForDay, getDayLoad } from './filters';
+import { materializeInstanceById, occursOn } from './instanceEngine';
 import { reconcileDay, containerDayToggle } from './fase3Contracts'; // C3: mapa del día sin fuga; §16.28: nº hijas pendientes del día para el modal de papelera
 import { getTaskRegisteredSelf } from './utils'; // A2: detectar "hija con tiempo registrado" ESE DÍA (guarda de intacta). Self, no Combo: Combo exige la tarea en el mapa y una instancia hija es virtual → devolvía 0.
 import { toast } from './toast'; // A2: avisar cuando "quitar el día" no quita nada (todas con trabajo)
@@ -241,6 +241,25 @@ export default function App() {
     tasks, setTasks, activeTimer, setActiveTimer,
     setTimerStopModal, setTimeEntries, handleUpdateTask,
   });
+
+  // FASE 6 (cierre del día · repaso de lo no hecho) — §16.47
+  // Mover una tarea a otra fecha desde el repaso: recurrente → excepción "solo este día"; one-off → cambia dueDate.
+  // Incrementa rolled_over_count (veces ESQUIVADA). La columna no está en los row-builders → update dirigido para persistirla.
+  const handleRepasoMove = (task: any, newDate: string) => {
+    const isRecurrent = !!(task.templateId || task.recurrence?.frequency);
+    const newCount = (task.rolledOverCount || 0) + 1;
+    const moved = isRecurrent
+      ? { ...task, dueDate: newDate, instanceDate: task.instanceDate || task.dueDate, isException: true, existsInSupabase: true, rolledOverCount: newCount }
+      : { ...task, dueDate: newDate, rolledOverCount: newCount };
+    handleUpdateTask(moved); // rolled_over_count se persiste en el row-builder de handleUpdateTask (§16.47)
+  };
+  // ¿la recurrente movida COLISIONA con su propia regla en el día destino (la rutina también cae ahí)?
+  const repasoWillCollide = (task: any, destDay: string): boolean => {
+    const tpl = task.templateId ? tasks[task.templateId] : (task.recurrence?.frequency ? task : null);
+    return !!(tpl && occursOn(tpl, destDay));
+  };
+  // Carga pendiente estimada de un día cualquiera (impacto de "pasar a otro día").
+  const repasoDayLoad = (dayISO: string) => getDayLoad(dayISO, tasks);
 
   const { bulkUpdateTasks, bulkDeleteTasks, bulkDuplicateTasks } = useBulkActions({
     tasks, setTasks, selectedTaskIds, setSelectedTaskIds, setSelectionMode, activeDate, timeEntries,
@@ -487,6 +506,9 @@ export default function App() {
                 tasks={dashboardTasks}
                 allTasksMap={dashboardTasksMap}
                 entrada={entradaDelDia}
+                onRepasoMove={handleRepasoMove}
+                repasoWillCollide={repasoWillCollide}
+                repasoDayLoad={repasoDayLoad}
                 blocks={blocks}
                 people={people}
                 onAddPerson={handleAddPerson}

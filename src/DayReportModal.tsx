@@ -2,11 +2,14 @@
 // sabiendo lo que ha pasado. Consultable siempre (no solo al cerrar) y para días pasados. NO es un "cerrar el día"
 // obligatorio: el reporte + la nota ES el cierre; el día se congela solo a medianoche. Spec §16.39 tramo 4, umbrales §16.42.
 import React, { useState, useEffect } from 'react';
-import { X, Check } from 'lucide-react';
+import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2 } from 'lucide-react';
 import { formatMinutes } from './utils';
 import { TAG_LABELS } from './constants';
 import { DayVerdict, DayBreakdown, EntradaForDay } from './filters';
 import { DayReport, MotivoKey } from './useDayReport';
+import { formatLocalISO, parseLocalISO } from './dateUtils';
+import { MonthDatePicker } from './TimeComponents';
+import { getTagColor } from './helpers';
 
 const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 function diaLargo(iso: string): string {
@@ -29,6 +32,7 @@ const verdictColor = (key: string) =>
 
 export function DayReportModal({
   open, onClose, activeDate, verdict, breakdown, entrada, blocks, report, onGuardar,
+  pendingTasks = [], timeEntries = [], onComplete, onDelete, onRepasoMove, repasoWillCollide, repasoDayLoad,
 }: {
   open: boolean;
   onClose: () => void;
@@ -39,6 +43,14 @@ export function DayReportModal({
   blocks: any[];
   report: DayReport | null;
   onGuardar: (motivos: MotivoKey[], nota: string) => Promise<void>;
+  // FASE 6 · Repaso de lo no hecho (§16.47)
+  pendingTasks?: any[];
+  timeEntries?: any[];
+  onComplete?: (taskId: string) => void;
+  onDelete?: (taskId: string) => void;
+  onRepasoMove?: (task: any, newDate: string) => void;
+  repasoWillCollide?: (task: any, destDay: string) => boolean;
+  repasoDayLoad?: (dayISO: string) => { minutes: number; count: number };
 }) {
   const [motivos, setMotivos] = useState<MotivoKey[]>([]);
   const [nota, setNota] = useState('');
@@ -213,6 +225,19 @@ export function DayReportModal({
             {saving ? 'Guardando…' : 'Guardar reporte'}
           </button>
         </div>
+
+        {/* 6 · REPASO DE LO NO HECHO (§16.47) — al final del todo */}
+        <RepasoSection
+          pendingTasks={pendingTasks}
+          activeDate={activeDate}
+          blocks={blocks}
+          timeEntries={timeEntries}
+          onComplete={onComplete}
+          onDelete={onDelete}
+          onRepasoMove={onRepasoMove}
+          repasoWillCollide={repasoWillCollide}
+          repasoDayLoad={repasoDayLoad}
+        />
       </div>
     </div>
   );
@@ -235,6 +260,115 @@ function BarRow({ label, minutes, pct, color, neutral }: { label: string; minute
         <div className={`h-full rounded-full ${neutral ? 'dark:bg-white/40 bg-black/40' : ''}`} style={{ width: `${pct}%`, backgroundColor: neutral ? undefined : color }} />
       </div>
       <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(minutes)}</span>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REPASO DE LO NO HECHO (§16.47) — al final del reporte. Cada pendiente con sus salidas; nada automático.
+// ─────────────────────────────────────────────────────────────────────────────
+const NAME_HEX: Record<string, string> = { turquesa: '#14B8A6', azul: '#3B82F6', morado: '#8B5CF6', naranja: '#F97316', rosa: '#EC4899', verde: '#10B981' };
+const tagDot = (tags: any): string => NAME_HEX[getTagColor((tags?.[0] || 'resto') as any)] || '#94A3B8';
+const REP_WD = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+function repDiaCorto(iso: string): string { const [y, m, d] = iso.split('-').map(Number); const dt = new Date(y, (m || 1) - 1, d || 1); return `${REP_WD[dt.getDay()]} ${d}`; }
+function repNextDay(iso: string): string { return formatLocalISO(new Date(parseLocalISO(iso).getTime() + 86400000)); }
+function repCapFirst(s: string): string { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+function RepasoSection({ pendingTasks, activeDate, blocks, timeEntries, onComplete, onDelete, onRepasoMove, repasoWillCollide, repasoDayLoad }: any) {
+  const [otherFor, setOtherFor] = useState<any>(null);
+  const [otherDate, setOtherDate] = useState<string | null>(null);
+  const [collision, setCollision] = useState<any>(null);
+  const [deleteFor, setDeleteFor] = useState<any>(null);
+  const [dragAll, setDragAll] = useState(false);
+
+  if (!pendingTasks || pendingTasks.length === 0) return null;
+  const tomorrow = repNextDay(activeDate);
+  const blockName = (id: string) => blocks.find((b: any) => b.id === id)?.name || '';
+  const blockColor = (id: string) => blocks.find((b: any) => b.id === id)?.color || '#888';
+  const isHalfDone = (t: any) => (timeEntries || []).some((e: any) => e && (e.taskId === t.id || e.subtaskId === t.id) && e.date === activeDate);
+  const isRecurrent = (t: any) => !!(t.templateId || t.recurrence?.frequency);
+  const move = (task: any, date: string) => {
+    if (repasoWillCollide?.(task, date)) { setCollision({ task, date }); return; }
+    onRepasoMove?.(task, date); setOtherFor(null); setOtherDate(null);
+  };
+  const totalMins = pendingTasks.reduce((a: number, t: any) => a + (t.estimatedMinutes || 0), 0);
+  const collisionCount = pendingTasks.filter((t: any) => repasoWillCollide?.(t, tomorrow)).length;
+
+  return (
+    <div className="mt-6 pt-5 border-t dark:border-border-main border-border-main-light">
+      <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 mb-2.5">Te quedan {pendingTasks.length} sin hacer</p>
+      <div className="space-y-0.5">
+        {pendingTasks.map((t: any) => {
+          const roll = t.rolledOverCount || 0;
+          const alert = roll >= 5;
+          return (
+            <div key={t.id} className="flex items-center gap-2 py-1 group/rep">
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tagDot(t.tags) }} />
+              {isRecurrent(t) && <Repeat size={11} className="shrink-0 text-text-secondary/60" />}
+              <span className="text-[12px] dark:text-white text-text-main-light truncate max-w-[200px]">{t.title || '(sin título)'}</span>
+              {blockName(t.blockId) && <span className="text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: blockColor(t.blockId) + '22', color: blockColor(t.blockId) }}>{blockName(t.blockId)}</span>}
+              {(t.estimatedMinutes || 0) > 0 && <span className="text-[10px] tabular-nums text-text-secondary shrink-0">{formatMinutes(t.estimatedMinutes)}</span>}
+              {isHalfDone(t) && <span className="text-[8px] font-black uppercase tracking-wider text-azul shrink-0">a medias</span>}
+              {roll >= 2 && <span className={`text-[8px] font-black uppercase tracking-wider shrink-0 ${alert ? 'text-naranja' : 'text-text-secondary/60'}`}>↻ movida {roll} veces</span>}
+              <div className="flex items-center gap-0.5 ml-auto shrink-0 opacity-60 group-hover/rep:opacity-100 transition-opacity">
+                <button onClick={() => onComplete?.(t.id)} title="Completar" className="p-1 rounded hover:bg-verde/10 text-verde"><CheckCircle2 size={14} /></button>
+                <button onClick={() => move(t, tomorrow)} title="Pasar a mañana" className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider text-turquesa hover:bg-turquesa/10">Mañana</button>
+                <button onClick={() => { setOtherFor(t); setOtherDate(null); }} title="Pasar a otro día" className="p-1 rounded hover:bg-turquesa/10 text-text-secondary hover:text-turquesa"><CalendarDays size={13} /></button>
+                <button onClick={() => setDeleteFor(t)} title="Eliminar" className="p-1 rounded hover:bg-rosa/10 text-text-secondary hover:text-rosa"><Trash2 size={13} /></button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <button onClick={() => setDragAll(true)} className="mt-3 text-[10px] font-black uppercase tracking-widest text-turquesa hover:underline flex items-center gap-1">
+        <ArrowRight size={12} /> Arrastrar todo a mañana ({formatMinutes(totalMins)})
+      </button>
+
+      {otherFor && (
+        <div className="fixed inset-0 z-[320] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setOtherFor(null); setOtherDate(null); }} />
+          <div className="relative dark:bg-bg-card bg-white rounded-3xl p-6 shadow-2xl border dark:border-border-main border-border-main-light w-full max-w-sm z-10">
+            <p className="text-[11px] font-black uppercase tracking-widest dark:text-white text-text-main-light mb-3">Pasar "{(otherFor.title || '').slice(0, 28)}" a…</p>
+            <MonthDatePicker value={otherDate} onChange={setOtherDate} />
+            {otherDate && (() => { const l = repasoDayLoad?.(otherDate) || { minutes: 0, count: 0 }; return (
+              <div className="mt-3 text-[11px] font-bold text-turquesa">{repCapFirst(repDiaCorto(otherDate))} · ya tienes {formatMinutes(l.minutes)}{l.count > 0 ? ` (${l.count} tarea${l.count === 1 ? '' : 's'})` : ''}</div>
+            ); })()}
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => { setOtherFor(null); setOtherDate(null); }} className="px-3 py-1.5 text-[11px] font-bold text-text-secondary hover:text-rosa">Cancelar</button>
+              <button disabled={!otherDate} onClick={() => otherDate && move(otherFor, otherDate)} className="px-4 py-1.5 rounded-lg bg-turquesa text-white text-[11px] font-black uppercase disabled:opacity-40">Mover aquí</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {collision && <RepConfirm icon={<Repeat size={20} className="text-naranja" />} title="La rutina ya cae ese día"
+        body={`"${(collision.task.title || '').slice(0, 40)}" es una rutina que también se genera el ${repDiaCorto(collision.date)}. Si la mueves, verás LAS DOS ese día (la que traes tú y la de la rutina).`}
+        confirmText="Mover igual" onConfirm={() => { onRepasoMove?.(collision.task, collision.date); setCollision(null); setOtherFor(null); setOtherDate(null); }} onCancel={() => setCollision(null)} />}
+
+      {deleteFor && <RepConfirm icon={<Trash2 size={20} className="text-rosa" />} title="¿Eliminar?" danger
+        body={`Se elimina "${(deleteFor.title || '').slice(0, 40)}".`}
+        confirmText="Eliminar" onConfirm={() => { onDelete?.(deleteFor.id); setDeleteFor(null); }} onCancel={() => setDeleteFor(null)} />}
+
+      {dragAll && <RepConfirm icon={<ArrowRight size={20} className="text-turquesa" />} title="Arrastrar todo a mañana"
+        body={`Mueves ${pendingTasks.length} tarea${pendingTasks.length === 1 ? '' : 's'} · ${formatMinutes(totalMins)}${collisionCount > 0 ? `. ${collisionCount} son rutinas que también caen mañana (verás las dos de cada una).` : '.'}`}
+        confirmText="Mover todo" onConfirm={() => { pendingTasks.forEach((t: any) => onRepasoMove?.(t, tomorrow)); setDragAll(false); }} onCancel={() => setDragAll(false)} />}
+    </div>
+  );
+}
+
+function RepConfirm({ icon, title, body, confirmText, danger, onConfirm, onCancel }: any) {
+  return (
+    <div className="fixed inset-0 z-[330] flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative dark:bg-bg-card bg-white rounded-3xl p-6 shadow-2xl border dark:border-border-main border-border-main-light w-full max-w-sm z-10">
+        <div className="flex items-center gap-2 mb-2">{icon}<h3 className="text-base font-black dark:text-white text-text-main-light">{title}</h3></div>
+        <p className="text-[12px] dark:text-text-secondary text-text-secondary-light">{body}</p>
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={onCancel} className="px-3 py-1.5 text-[11px] font-bold text-text-secondary hover:text-text-main-light">Cancelar</button>
+          <button onClick={onConfirm} className={`px-4 py-1.5 rounded-lg text-white text-[11px] font-black uppercase ${danger ? 'bg-rosa hover:bg-rosa/90' : 'bg-turquesa hover:bg-turquesa/90'}`}>{confirmText}</button>
+        </div>
+      </div>
     </div>
   );
 }

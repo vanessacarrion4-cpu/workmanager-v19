@@ -102,6 +102,7 @@ export interface Task {
   attachments?: Attachment[];
   isExpanded?: boolean;
   taskType?: 'core' | 'adhoc';
+  rolledOverCount?: number; // FASE 6 (cierre del día): veces que la propietaria la ha ESQUIVADO (movido a otro día desde el repaso). Badge "movida N veces" a partir de 2; alerta a partir de 5.
   onHold?: boolean; // "en suspenso": marca visual (espero algo). NO reagrupa ni mueve la tarea; su tiempo sigue contando en el pendiente del día. Convive con la etiqueta "espera".
   delegation?: {
     personId: string;

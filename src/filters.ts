@@ -16,7 +16,7 @@
 
 import { Task } from './types';
 import { isTaskCompleted, isExpiredTemplate, formatMinutes } from './utils';
-import { belongsToDay } from './instanceEngine'; // FASE 3: única definición de "pertenece a un día"
+import { belongsToDay, materializeDay } from './instanceEngine'; // FASE 3: única definición de "pertenece a un día"
 
 // ─────────────────────────────────────────────
 // TIPOS
@@ -364,6 +364,38 @@ export function collectLeafTasks(
     }
   });
   return leafTasks;
+}
+
+// FASE 6 (cierre del día): hojas PENDIENTES del día (para el "Repaso de lo no hecho"). Mismo conjunto que la cabecera.
+export function getPendingLeavesForDay(
+  dayTasks: Task[],
+  allTasksMap: Record<string, Task>,
+  activeDate: string
+): Task[] {
+  return collectLeafTasks(dayTasks, allTasksMap, activeDate).filter(t => !isTaskCompleted(t.id, allTasksMap));
+}
+
+// FASE 6 (cierre del día): carga PENDIENTE estimada de un día CUALQUIERA (para el impacto de "pasar a otro día" — ver lo que
+// ya hay ese día antes de soltar). Materializa el día al vuelo (no hace falta que sea el activeDate).
+export function getDayLoad(dayISO: string, allTasks: Record<string, Task>): { minutes: number; count: number } {
+  const instances = materializeDay(dayISO, allTasks);
+  const manual = (Object.values(allTasks) as Task[]).filter(
+    t => t && !t.isTemplate && !t.templateId && !t.parentTaskId && t.dueDate === dayISO && !t.isDeleted
+  );
+  const dayList = [...instances, ...manual];
+  const map: Record<string, Task> = {};
+  dayList.forEach(t => { map[t.id] = t; });
+  let minutes = 0, count = 0;
+  const seen = new Set<string>();
+  const addLeaf = (t: Task) => {
+    if (!t || seen.has(t.id) || t.status === 'completed') return;
+    seen.add(t.id); minutes += t.estimatedMinutes || 0; count++;
+  };
+  dayList.filter(t => !t.parentTaskId).forEach(t => {
+    if (!t.subtasks || t.subtasks.length === 0) addLeaf(t);
+    else t.subtasks.forEach(sid => { const s = map[sid]; if (s && !s.isDeleted && (!s.subtasks || s.subtasks.length === 0)) addLeaf(s); });
+  });
+  return { minutes, count };
 }
 
 export function getStatsForDay(

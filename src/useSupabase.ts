@@ -50,6 +50,7 @@ export function mapDbTaskToTask(t: any): Task {
     isDeleted: t.is_deleted,
     isExpanded: t.is_expanded,
     taskType: t.task_type,
+    rolledOverCount: t.rolled_over_count ?? 0,
     onHold: t.on_hold ?? false,
     parentTaskId: t.parent_task_id,
     templateId: t.template_id,
