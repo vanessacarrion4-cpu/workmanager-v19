@@ -1,10 +1,12 @@
 # WorkManager v20 — Documento de Contexto Completo
 
 > Usar este documento al inicio de cada sesión de desarrollo para dar contexto completo al asistente.
-> Última actualización: 26/07/2026 (sesión 11 — #1 promote/demote cerrado; plan del PASO FINAL fijado)
+> Última actualización: 29/08/2026 (sesión 26 — FASE 6 cabecera/foto/entrada/reporte; auditoría de doc §16.46).
 >
-> **ESTADO**: V19 en producción. V20 en curso en la rama `refactor-v20`.
-> Las secciones marcadas 🔴 describen el estado actual (a corregir); las marcadas 🟢 el objetivo.
+> **ESTADO**: **V20 EN PRODUCCIÓN**. El flip se fusionó a `master` hace tiempo (§16.14); **`master` = producción** (Vercel
+> despliega de `origin/master`). La rama `refactor-v20` es historia. El motor viejo (`useGeneration`) está borrado.
+> Las secciones marcadas 🔴 describían el estado PRE-flip (histórico); el estado vigente está en §16 (sesiones 11→26).
+> ⚠️ Muchas líneas antiguas quedaron sin actualizar — ver **§16.46 (correcciones de auditoría, sesión 26)** para el estado real.
 >
 > 👉 **¿RETOMANDO? EMPIEZA POR LA §13** — ahí está el estado exacto, el plan del paso final
 > (retirar `useGeneration` + reactivar interacción + bug #20) y cómo arrancar.
@@ -187,7 +189,7 @@ De 387M a ~40K operaciones. Mejora ~10.000×.
 | # | Archivo | Problema |
 |---|---|---|
 | 1 | `useTaskOrdering.ts` | ✅ **RESUELTO** (commit `83a7301`, validado en vivo). `handlePromoteTask`/`handleDemoteTask` ahora persisten `parent_task_id` en Supabase tras el `setTasks`. Ver §5B "PLAN CERRADO #1". |
-| 2 | `useBlockHandlers.ts` | `handleDeleteBlock` **NO persiste**. El bloque reaparece al recargar. |
+| 2 | `useBlockHandlers.ts` | ✅ **RESUELTO** (sesión 19, §16.19/§16.20). `handleDeleteBlock` hace soft-delete (`is_deleted:true` + `deleted_with_block`) y existe `handleRestoreBlock` (`useBlockHandlers.ts:151-158`). Ya no reaparece. |
 | 3 | `useTaskOrdering.ts` | `handleExpandAllInBlock` **muta el estado** (`t.isExpanded = expand` sobre objetos compartidos) → React no re-renderiza. |
 | 4 | `useTaskOrdering.ts` | `handleToggleExpandTask` escribe con `.eq('id', taskId)` donde taskId puede ser `inst-...` (fila inexistente). **Causa del bug "despliega la de arriba"**. |
 | 5 | `useSupabase.ts` | `reconstructInstanceHierarchy` empareja por ID construido → cuando `dueDate ≠ instanceDate` engancha al contenedor equivocado. Segunda causa del bug de desplegar. |
@@ -5009,3 +5011,68 @@ Eliminar. Las que no se tocan se quedan donde están.
 lo borrado de los últimos días + botón RESTAURAR. Todo se borra en soft-delete → los datos YA están (no hay que construir el
 almacenamiento, solo la vista). [las 5 basuras de CM11l ya barridas en soft-delete son un primer caso real recuperable]
 **DESCARTADO:** atajos de teclado.
+
+## 16.46 CORRECCIONES DE AUDITORÍA (sesión 26) — estado real que supera líneas viejas dispersas
+
+Auditoría del doc a petición de la propietaria (llevaba 2 días de decisiones a trozos). Corrijo lo FACTUAL (estados y
+números); las contradicciones de CRITERIO quedan marcadas para que decida ella.
+
+### A · ESTADOS marcados como pendientes que YA ESTÁN HECHOS (verificado en código)
+- **Cabecera / "zona de diagnóstico" de Mi Día** (marcada pendiente en §16.8, §16.10, §16.37 A#1): **HECHA** = FASE 6 tramo 1
+  (§16.39). `DashboardView` monta `DayHeader`+`useDaySnapshot`+`useDayReport`; `SummaryCard` borrada.
+- **F5-3** (cursor al título al crear en contenedor): **HECHO** (`useTaskCRUD.ts:454` + `TitleField` autoFocus). §16.32 lo
+  seguía listando bajo "NO arrancada".
+- **F5-5** (poner pauta a tarea normal DESDE LA FILA): **CABLEADO** (`TaskCard.tsx:802` `RecurrencePickerChip` +
+  `useTaskCRUD.ts:759-815` conversión manual→plantilla). Los titulares "recurrencia desde la fila NO funciona" de §11.1(c),
+  §16.19(5), §16.21(4a) son VIEJOS — solo falta validación en pantalla, no construcción.
+- **F5-8** (ruido `[SUPABASE] Loading/Loaded` en consola): **HECHO** (`c2f1664`); ya no aparece. §16.32 decía "SIGUE VIVO".
+- **Bug crítico #2** (`handleDeleteBlock` no persistía): **RESUELTO** (sesión 19); la tabla de §6 quedó sin la marca ✅ (ya corregida).
+- **§16.5 PREGUNTA ABIERTA** ("¿tarea creada en Mi Día cae en el primer bloque o sin bloque?"): **DECIDIDA por F5-7** — la
+  tarea SIEMPRE tiene bloque, el formulario OBLIGA a elegir, se quitó el fallback a `blocks[0]`. §16.5 no lo recogía.
+
+### B · NÚMEROS — recuento SERVER-SIDE (29/08, `count:'exact'`, sin cap de 1000)
+`tasks` total **2768** (2244 vivas + 524 borradas) · **completadas 1720** (era 1701, creció; NO estaba capado) ·
+plantillas **118** · pendientes stored (no template, no borrada) **408** · `inst-` persistidas **1812** (1263 completadas) ·
+hijas por `parent_task_id` **978** · `time_entries` **837**.
+- **Cifras VIEJAS sospechosas de haber sido capadas a 1000 (client-side, previas a la regla §16.35-D5):** §13.17 "865 hijos
+  activos" + su reparto 421/295/93/55; §16.12 "2001 activas → 505/1496"; §16.15 "133 plantillas → 101/32". NO fiables como
+  exactas — si se vuelven a necesitar, recontar server-side (ahora hijas=978, plantillas=118).
+- **Las "858" ocurrencias pendientes pasadas (§16.36)** NO son un `count` de BD (las instancias pendientes pasadas se
+  MATERIALIZAN, no se almacenan) → no recontable con una query simple; sigue siendo una estimación por materialización.
+
+### C · DECISIONES a las que les FALTABA la razón (añadida aquí donde es evidente; ⚠️ = solo la propietaria la sabe)
+- **"Regla nueva (template) NO cuenta como entrada"** (§16.39 tramo 2): **razón** = una regla es una DEFINICIÓN, no una tarea
+  que "llegó" ese día; lo que aparece en los días son sus INSTANCIAS. Contar la regla además de sus instancias sería contar
+  dos veces la misma cosa. (Por eso `!isTemplate`.)
+- **Cabecera usa la ÚLTIMA fijación, no la primera** (§16.39 tramo 1): **razón** = re-fijar es re-planificar; el delta
+  ("+3 tareas · +45m") se mide siempre contra el plan VIGENTE, no contra uno viejo. El histórico completo se guarda igual.
+- **F5-7 "no recordar el último bloque"**: **razón** = recordar el último sería el mismo default silencioso con otro nombre;
+  se quiere elección consciente cada vez (mismo criterio que el compositor de tanda, §16.35).
+- ⚠️ **"Las 12 reaperturas de la línea base NO se revierten"** (§16.34): falta la razón — **la sabe la propietaria**.
+- ⚠️ **"Rutinas pasadas siguen contando, sin corte por antigüedad"** (§16.45): falta la razón explícita — **la propietaria**.
+
+### D · CONTRADICCIÓN DE CRITERIO — para que decida la propietaria (NO la resuelvo)
+- **¿Hay corte por antigüedad para las rutinas pasadas no hechas, o no?** §16.45 (lo más reciente) dice **"sin corte,
+  DECISIÓN TOMADA"**; pero §16.36(2) y §16.37 C.1 lo dan como **CORTE = decisión ABIERTA**. Lo más nuevo (§16.45) parece
+  ganar, pero como es criterio, lo dejo para que ella confirme y unifique. (Relacionado: §16.37 sigue listando "Terminar la
+  rutina" como decisión abierta cuando §16.38/§16.35 ya la resolvieron — revertida al diálogo de Eliminar.)
+
+## 16.47 CIERRE DEL DÍA — paquete PRE-CONSTRUCCIÓN (sesión 26) ⏳ PENDIENTE DE APROBAR (no construir aún)
+
+Diseño para construir el spec §16.45. Enviado a la propietaria para aprobar; registrado aquí para que no se pierda.
+1. **Ubicación:** última sección de `DayReportModal`, debajo de todo. Cabecera "Te quedan N sin hacer" + lista de hojas
+   pendientes del día. Cada fila: ● etiqueta · título · chip bloque · Xm · marca "a medias" (si tiene `time_entries` sin
+   completar) · badge "↻ N días" (rolling) · salidas: **Completar · Mañana · Otro día · Eliminar** (⋯ o iconos). Recurrentes
+   con su icono de repetición. Las que no toca se quedan. Nada automático.
+2. **Impacto al mover:** "Otro día" abre mini-calendario; al elegir fecha muestra la carga pendiente de ese día
+   ("Martes 2 · ya tienes 6h 15m (7 tareas)") vía `getDayLoad(fecha)`. Nunca mover a ciegas.
+3. **Recurrente movida a día que genera la suya:** aviso ANTES ("mañana la rutina ya cae; verás las dos") + Mover/Cancelar,
+   sin fusionar ni bloquear. La movida lleva badge "movida del [día]" (↩) para distinguirla de la natural. Colisión detectada
+   con `matchesRecurrence(plantilla, díaDestino)`.
+4. **Arrastrar todo:** mismas reglas por tarea + un aviso agregado ("mueves 4h 20m · 3 son rutinas que también caen ese día").
+5. **Rolling (arrastrado varios días):** campo nuevo `rolled_over_count int default 0`, incrementa en cada mover desde el
+   repaso; badge "↻ N días". SQL: `alter table tasks add column if not exists rolled_over_count int default 0;`
+- **Ficheros:** `filters.ts` (`getDayLoad` + exponer hojas pendientes del día), `DayReportModal.tsx` (sección repaso),
+  App/DashboardView (cablear salidas a handlers existentes + `pendingDateChange`/`RecurrenceChoiceModal` ya existen).
+- **DECISIONES pendientes de la propietaria:** ubicación (debajo del todo vs antes de motivos), aprobar `rolled_over_count`,
+  "Mañana" directo vs con confirmación, texto del badge "movida".
