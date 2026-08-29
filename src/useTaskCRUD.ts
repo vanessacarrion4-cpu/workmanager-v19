@@ -938,7 +938,7 @@ export function useTaskCRUD({
             is_exception: true,
             is_deleted: false,
             is_expanded: updatedTask.isExpanded || false,
-            task_type: updatedTask.taskType || null,
+            task_type: updatedTask.taskType || 'core', // #6 tapar fuga: ningún camino deja task_type null (default core)
             parent_task_id: null,  // B4-cambio-2: null (no plantilla); materializeDay re-anida por templateId
             template_id: _childTid,
             instance_date: _oldDate,
@@ -983,7 +983,7 @@ export function useTaskCRUD({
           is_deleted: updatedTask.isDeleted || false,
           is_expanded: updatedTask.isExpanded,
           on_hold: updatedTask.onHold ?? false,
-          task_type: updatedTask.taskType,
+          task_type: updatedTask.taskType || 'core', // #6 tapar fuga: ningún camino deja task_type null (default core)
           parent_task_id: supabaseParentId,
           template_id: updatedTask.templateId || null,
           instance_date: updatedTask.instanceDate || null,

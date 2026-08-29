@@ -98,10 +98,10 @@ function leafCounts(tasks: Task[], dayMap: Record<string, Task>): { done: number
 }
 
 // ─── Tipo efectivo — directo del taskType del contenedor ─────────────────────
-function getEffectiveType(task: Task): 'core' | 'adhoc' | 'sin' {
-  if (task.taskType === 'core') return 'core';
-  if (task.taskType === 'adhoc') return 'adhoc';
-  return 'sin';
+// #6 (sesión 26): la sin-tipo NO es categoría propia — se pliega a Core (como Mi Día/Reporte/Carga) hasta que se limpien las
+// 1.061 sin tipo. Decisión de la propietaria: no llenar las vistas de "Sin tipo" mientras el dato malo esté sin resolver.
+function getEffectiveType(task: Task): 'core' | 'adhoc' {
+  return task.taskType === 'adhoc' ? 'adhoc' : 'core';
 }
 
 const TURQUESA = '#14B8A6';
@@ -304,10 +304,9 @@ export function WeekView({
 
   const renderTipoGroups = (date: string, dayTasks: Task[], subMode: 'con-bloques' | null) => {
     const dayMap = dayData[date]?.map ?? {};
-    const tipos: { id: 'core' | 'adhoc' | 'sin', label: string, color: string }[] = [
+    const tipos: { id: 'core' | 'adhoc', label: string, color: string }[] = [
       { id: 'core',  label: '⬡ Core',     color: TURQUESA },
       { id: 'adhoc', label: '◇ Adhoc',    color: ROSA },
-      { id: 'sin',   label: '— Sin tipo', color: '#6B7280' },
     ];
     return tipos.map(tipo => {
       const tipoTasks = dayTasks.filter(t => !t.isDeleted && getEffectiveType(t) === tipo.id);
@@ -512,13 +511,13 @@ export function WeekView({
                             {isExpanded && (
                               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                                 <div className="space-y-0.5 pb-1 px-1">
-                                  {(['core', 'adhoc', 'sin'] as const).map(tipoId => {
+                                  {(['core', 'adhoc'] as const).map(tipoId => {
                                     const tipoTasks = blockTasks.filter(t => getEffectiveType(t) === tipoId);
                                     if (tipoTasks.length === 0) return null;
                                     const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
                                     const { done: tipoHechas, total: tipoTotal } = leafCounts(tipoTasks, dayMap); // #7: hojas
-                                    const tipoColor = tipoId === 'core' ? TURQUESA : tipoId === 'adhoc' ? ROSA : '#6B7280';
-                                    const tipoLabel = tipoId === 'core' ? '⬡ Core' : tipoId === 'adhoc' ? '◇ Adhoc' : '— Sin tipo';
+                                    const tipoColor = tipoId === 'core' ? TURQUESA : ROSA;
+                                    const tipoLabel = tipoId === 'core' ? '⬡ Core' : '◇ Adhoc';
                                     const tipoKey = `${date}__${block.id}__tipo__${tipoId}`;
                                     const isTipoExpanded = expandedBlocks.has(tipoKey);
                                     return (

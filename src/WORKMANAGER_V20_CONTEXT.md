@@ -5191,8 +5191,19 @@ Tras el barrido de solo-lectura (Semana·Calendario·Carga·Delegadas·Búsqueda
    restaurado a null): Carga AGO 2026 pasó de 83% (480) a **133%** (300); Calendario semana 24-30 de 45% a **72%**. *(Nota:
    `useJornada` arranca en 480 y hace fetch async → hay un parpadeo inicial al 480 antes de asentar el valor real; es el mismo
    comportamiento que ya tenía Semana, no se toca.)*
-6. ⏳ **taskType sin tipo se clasifica distinto en 4 vistas** — la propietaria pide **PROPONER el criterio antes de tocar**
-   + MEDIR las "sin tipo" (enlazado con Semana#3). PENDIENTE.
+6. **taskType — criterio unificado (decisión de la propietaria).** Medición: **1.061 sin tipo (47% de 2.243)**; core 842,
+   adhoc 340. Divergencia: Semana las mostraba como bucket **"Sin tipo"**; Mi Día (`getStatsForDay:427`), Reporte
+   (`getReportBreakdown:603`) y Carga (`WorkloadView:436`) ya las **plegaban a Core**. **DECISIÓN: plegar a Core en todas** (no
+   llenar las vistas de "Sin tipo" con el 47% mientras el dato malo no se limpie). Además auto-clasificar NO es fiable (la
+   regla recurrente↔core no se sostiene: 614/616 core-roots sin `recurrence`; la pauta vive en la plantilla).
+   - ✅ **(a) Tapada la fuga** — tres row-builders dejaban `task_type` null: `useTaskCRUD:941` (excepción mover-subtarea),
+     `useTaskCRUD:986` (`dbTask` general), `useTaskOrdering:42` (`buildExceptionRow` al reordenar). Los tres → `|| 'core'`.
+     Los demás (`useTaskCRUD` 286/503/592, `useBulkActions` 218/344/496) ya ponían `|| 'core'`. *(Mismo patrón §16.48: no hay
+     `taskToRow` central; hay que revisar los 13 `due_date:` al añadir/normalizar cualquier columna.)*
+   - ✅ **(b) Plegado a Core en Semana** — `getEffectiveType` null→`core` (ya no devuelve `'sin'`); quitado el bucket
+     "— Sin tipo" de `renderTipoGroups` y del path bloque→tipo. **VERIFICADO en pantalla** (modo Tipo→Bloque: solo ⬡ Core y
+     ◇ Adhoc; las sin-tipo suman en Core). Mi Día/Reporte/Carga ya plegaban → sin cambios ahí.
+   - ⏳ **(c) Limpieza de las 1.061** — la decide la propietaria DESPUÉS, con el análisis (ver abajo). NO tocarlas aún.
 7. ✅ **Semana X/Y contaba el status del contenedor (campo muerto)** → ahora cuenta HOJAS. Nuevo helper `leafCounts(tasks,
    dayMap)` (misma noción de hoja que `getTaskMins`: subtarea materializada del día, o la propia tarea si no tiene
    subtareas); migrados los **5 sitios de cabecera** (bloque, tipo, tipo→bloque, bloque→tipo y su nivel tipo). El
