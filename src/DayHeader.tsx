@@ -11,6 +11,10 @@ import { DaySnapshot } from './useDaySnapshot';
 const DESGLOSE_KEY = 'wm_desglose_open';
 const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const tagLabel = (tag: string): string => (TAG_LABELS as any)[tag]?.label || tag;
+// Orden de los grupos de Mi Día (mismo que groupTasksByTag / TAG_LABELS): la columna ETIQUETA es un ESPEJO de lo que hay
+// debajo → mismo orden, NO por tiempo (§16.43 4ª vuelta, item 3).
+const TAG_ORDER = ['con_hora', 'focus', 'dirección', 'espera', 'resto'];
+const tagRank = (tag: string): number => { const i = TAG_ORDER.indexOf(tag); return i === -1 ? 99 : i; };
 
 // Color de ENTIDAD para las barras del desglose (§16.43 2ª vuelta, item 4): el color no decora, IDENTIFICA — la barra de
 // cada etiqueta/bloque/tipo lleva su propio color (el mismo que en el resto de la app), para reconocer sin leer.
@@ -82,29 +86,31 @@ export function DayHeader({
 
   return (
     <div className="pt-1 pb-2">
-      {/* FILA 2 · ESTADO (héroe) + MEDIDAS — agrupados a la izquierda. Los NÚMEROS alineados por su LÍNEA BASE exacta:
-          el eyebrow va en `absolute` (fuera del flujo) → no descuadra la base. §16.43 3ª vuelta, item 2. */}
-      <div className="flex items-baseline gap-16 w-fit pt-5">
-        {/* HÉROE */}
-        <div className="relative">
-          <span className="absolute bottom-full left-0 mb-1 whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.2em] dark:text-text-secondary text-text-secondary-light">Faltan</span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-[40px] font-extrabold tracking-tight leading-none tabular-nums dark:text-white text-text-main-light">{stats.pending}</span>
-            <span className="text-[20px] font-semibold leading-none dark:text-text-secondary text-text-secondary-light">
-              <span className="dark:text-white/25 text-black/20 mr-1.5">·</span>{formatMinutes(stats.estimatedPending)}
-            </span>
+      {/* FILA 2 · ESTADO (héroe) + MEDIDAS — agrupados a la izquierda. Los dos bloques de números se ALINEAN POR ABAJO
+          (items-end): apoyan en la misma base sea cual sea el tamaño de fuente, sin depender del line-height. §16.43 4ª vuelta. */}
+      <div className="w-fit pt-5">
+        <div className="flex items-end gap-16">
+          {/* HÉROE (solo los números; el subtexto va debajo, fuera del bloque que se alinea) */}
+          <div className="relative">
+            <span className="absolute bottom-full left-0 mb-1 whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.2em] dark:text-text-secondary text-text-secondary-light">Faltan</span>
+            <div className="flex items-baseline gap-1.5 leading-none whitespace-nowrap">
+              <span className="text-[40px] font-extrabold tracking-tight leading-none tabular-nums dark:text-white text-text-main-light">{stats.pending}</span>
+              <span className="text-[20px] font-semibold leading-none dark:text-text-secondary text-text-secondary-light whitespace-nowrap">
+                <span className="dark:text-white/25 text-black/20 mr-1.5">·</span>{formatMinutes(stats.estimatedPending)}
+              </span>
+            </div>
           </div>
-          <span className="block mt-1.5 text-[12px] dark:text-text-secondary text-text-secondary-light tabular-nums">{stats.completed} de {stats.total} hechas</span>
-        </div>
-        {/* MEDIDAS */}
-        <div className="relative">
-          <span className="absolute bottom-full left-0 mb-1 whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.2em] dark:text-text-secondary text-text-secondary-light">Estimado vs registrado hoy</span>
-          <div className="flex items-baseline gap-3">
-            <span className="text-[18px] leading-none font-bold tabular-nums dark:text-white text-text-main-light">{formatMinutes(stats.estimatedCompleted)}</span>
-            <span className="w-px h-4 self-center dark:bg-border-main bg-border-main-light" />
-            <span className="text-[18px] leading-none font-bold tabular-nums dark:text-white text-text-main-light">{formatMinutes(stats.registered)}</span>
+          {/* MEDIDAS */}
+          <div className="relative">
+            <span className="absolute bottom-full left-0 mb-1 whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.2em] dark:text-text-secondary text-text-secondary-light">Estimado vs registrado hoy</span>
+            <div className="flex items-baseline gap-3 leading-none whitespace-nowrap">
+              <span className="text-[18px] leading-none font-bold tabular-nums dark:text-white text-text-main-light">{formatMinutes(stats.estimatedCompleted)}</span>
+              <span className="w-px h-4 self-center dark:bg-border-main bg-border-main-light" />
+              <span className="text-[18px] leading-none font-bold tabular-nums dark:text-white text-text-main-light">{formatMinutes(stats.registered)}</span>
+            </div>
           </div>
         </div>
+        <span className="block mt-1.5 text-[12px] dark:text-text-secondary text-text-secondary-light tabular-nums">{stats.completed} de {stats.total} hechas</span>
       </div>
 
       {/* FILA 3 · META (foto + entrada) — contexto silencioso, solo si aplica */}
@@ -222,7 +228,7 @@ export function DayHeader({
             {/* ETIQUETA — color real de cada etiqueta (el de sus cabeceras en Mi Día) */}
             <div className="space-y-1.5">
               <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/60">Etiqueta</span>
-              {stats.byTag.slice(0, 8).map(g => (
+              {[...stats.byTag].sort((a, b) => tagRank(a.tag) - tagRank(b.tag)).slice(0, 8).map(g => (
                 <DesRow key={g.tag} name={tagLabel(g.tag)} minutes={g.minutes} pct={Math.min(100, Math.round((g.minutes / (maxTag || 1)) * 100))} color={tagHex(g.tag)} />
               ))}
             </div>
