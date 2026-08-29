@@ -5153,3 +5153,17 @@ y se descubrirá igual — a base de probar y ver que un valor no persiste. **Su
 re-verificar cada camino (crear, editar, mover instancia, mover hija, completar, terminar serie, contenedor…). Se planifica;
 mientras tanto, **al añadir cualquier columna nueva a `tasks`, revisar los 13 `due_date:` y VERIFICAR en BD que persiste por
 el camino de MOVER (los tres de arriba), no solo por el de crear.**
+
+## 16.49 COSMÉTICOS FASE 6 (sesión 26) — estado
+- ✅ **Ancho máximo del contenido (~1.200px, centrado)** (`App.tsx`): wrapper `max-w-[1200px] mx-auto` alrededor del
+  contenido; no se estira en pantallas grandes. Verificado.
+- ✅ **Avisos propios en vez de los del navegador:** nuevo `ConfirmContext` (`useConfirm()` → modal propio) reemplaza los
+  `window.confirm` de `TaskCard` (completar contenedor), `Chips` (borrar persona), `DelegadasView` (borrar reunión); los
+  `alert()` → `toast` (Chips "reasigna primero", DayReportModal error de guardado). Verificado (modal propio al completar
+  contenedor). DiagPanel se deja (DIAG-TEMP).
+- ⏭️ **Calendario sin retroceso de mes: SE CAYÓ SOLO / YA HECHO.** El popover "Ir a fecha" de Mi Día (`DashboardHarmonicCalendar`)
+  ya tiene ‹ mes › (`setCurrentMonth(month−1)`, `DashboardComponents.tsx:45`). No había que tocar nada.
+- ❓ **Hueco en la cabecera del bloque (§16.9):** el `flex-1` del nombre (BlocksView) deja un hueco entre nombre y acciones.
+  QUÉ poner ahí NO está especificado → PENDIENTE de decisión de la propietaria.
+- ❓ **Icono de calendario en la fila:** hecho en Semana; las demás vistas usan el TaskCard normal que YA tiene columna de
+  fecha en el raíl → ¿se quiere igualmente el icono, y para qué? PENDIENTE de decisión.

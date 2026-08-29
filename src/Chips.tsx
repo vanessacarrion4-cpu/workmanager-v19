@@ -18,6 +18,8 @@ import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { formatMinutes } from './utils';
 import { supabase } from './supabaseClient';
 import { MonthDatePicker } from './TimeComponents';
+import { toast } from './toast';
+import { useConfirm } from './ConfirmContext';
 
 // Variante "raíl" (muted): contexto en gris apagado, editable. Afordancia al pasar el ratón
 // por el chip (oscurece + fondo sutil). No afecta a cómo se ven los chips en el modal.
@@ -1052,6 +1054,7 @@ export function BlockPickerChip({ value, blocks = [], onChange, muted = false }:
 
 
 export function DelegationChip({ delegation, people = [], onChange, onAddPerson, onRenamePerson, onDeletePerson, onOpen = null, onClose = null, allTasksMap = {}, muted = false }: any) {
+  const askConfirm = useConfirm();
   const [show, setShow] = useState(false);
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1109,15 +1112,15 @@ export function DelegationChip({ delegation, people = [], onChange, onAddPerson,
     setEditingName('');
   };
 
-  const handleDeletePerson = (personId: string) => {
+  const handleDeletePerson = async (personId: string) => {
     const tasksAssigned = Object.values(allTasksMap).filter((t: any) =>
       t && !t.isDeleted && t.delegation?.personId === personId
     );
     if (tasksAssigned.length > 0) {
-      alert(`Esta persona tiene ${tasksAssigned.length} tarea${tasksAssigned.length > 1 ? 's' : ''} asignada${tasksAssigned.length > 1 ? 's' : ''}. Reasígnalas primero antes de eliminarla.`);
+      toast.warn(`Esta persona tiene ${tasksAssigned.length} tarea${tasksAssigned.length > 1 ? 's' : ''} asignada${tasksAssigned.length > 1 ? 's' : ''}. Reasígnalas primero antes de eliminarla.`);
       return;
     }
-    if (confirm('¿Eliminar esta persona del equipo?')) {
+    if (await askConfirm({ message: '¿Eliminar esta persona del equipo?', confirmText: 'Eliminar', danger: true })) {
       if (delegation?.personId === personId) onChange(undefined);
       if (onDeletePerson) onDeletePerson(personId);
     }

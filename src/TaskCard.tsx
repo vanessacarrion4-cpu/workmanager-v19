@@ -22,6 +22,7 @@ import {
 import { containerEstimatedForDay, containerRegisteredForDay, isContainerCompleteOnDay, containerDayToggle } from './fase3Contracts'; // FASE 3: totales + completado derivado del contenedor + selección real del día (tapón)
 import { getVisibleSubtasksForBloques, hiddenCompletedCountForBloques, containerEstimatedForBloques } from './filters'; // A (sesión 19): render de Bloques por regla canónica; #1 (s26): estimado = lo que muestra
 import { getTagColor } from './helpers';
+import { useConfirm } from './ConfirmContext';
 import { TitleField } from './TitleField';
 import {
   TaskTypeChip, TimePickerChip, DatePickerChip, RecurrencePickerChip,
@@ -149,6 +150,7 @@ export function TaskCard({
 
   // A (sesión 19): "ver completadas" POR CONTENEDOR (solo Bloques). No global → abrir uno no llena los demás.
   const [showCompletedChildren, setShowCompletedChildren] = useState(false);
+  const askConfirm = useConfirm(); // aviso propio en vez de window.confirm (§16 FASE 6)
   const [finalizadasHijasOpen, setFinalizadasHijasOpen] = useState(false); // Finalizadas: sub-sección plegada dentro del contenedor (Bloques)
   // Lista de hijas a PINTAR (memoizada → `values` estable para Framer Motion Reorder, arregla el arrastre flaky):
   //  - Bloques: getVisibleSubtasksForBloques (regla canónica) con el "ver completadas" local.
@@ -513,7 +515,7 @@ export function TaskCard({
                 mismo tamaño cuando no se pinta, para no desalinear la fila. */}
             {(selectionMode || !task.isTemplate) ? (
             <button
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation();
                 if (selectionMode && onToggleTaskSelection) {
                   // C1: subtasks del objeto RENDERIZADO (materializado) — cubre contenedor virgen.
@@ -549,7 +551,7 @@ export function TaskCard({
                     const msg = rowCompleted
                       ? `¿Marcar «${task.title || 'sin título'}» y sus ${n} subtarea${n !== 1 ? 's' : ''} ${ambito} como pendientes?`
                       : `¿Completar «${task.title || 'sin título'}» y sus ${n} subtarea${n !== 1 ? 's' : ''} (${ambito})?`;
-                    if (n > 0 && !confirm(msg)) return;
+                    if (n > 0 && !(await askConfirm({ message: msg, confirmText: rowCompleted ? 'Marcar pendientes' : 'Completar' }))) return;
                   }
                   onToggleStatus(task.id, dayForTotals, subtasksForGroup);
                 }

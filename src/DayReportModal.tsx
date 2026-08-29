@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2 } from 'lucide-react';
 import { formatMinutes } from './utils';
+import { toast } from './toast';
 import { TAG_LABELS } from './constants';
 import { DayVerdict, DayBreakdown, EntradaForDay } from './filters';
 import { DayReport, MotivoKey } from './useDayReport';
@@ -90,7 +91,7 @@ export function DayReportModal({
       await onGuardar(motivos, nota);
       setSaved(true);
     } catch (e) {
-      alert('No se pudo guardar el reporte. Reintenta.');
+      toast.error('No se pudo guardar el reporte. Reintenta.');
     } finally {
       setSaving(false);
     }

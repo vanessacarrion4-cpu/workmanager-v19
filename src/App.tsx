@@ -532,6 +532,8 @@ export default function App() {
 
         {/* Content Container */}
         <div className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar dark:bg-bg-main bg-bg-main-light">
+          {/* §16.13: ancho MÁXIMO del contenido (~1.200px, centrado) — no estirar a todo el ancho en pantallas grandes. */}
+          <div className="max-w-[1200px] mx-auto w-full">
           <AnimatePresence mode="wait">
             {currentView === 'dashboard' && (
               <DashboardView
@@ -828,6 +830,7 @@ export default function App() {
               />
             )}
           </AnimatePresence>
+          </div>
         </div>
       </main>
 

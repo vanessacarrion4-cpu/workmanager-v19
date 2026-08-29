@@ -22,6 +22,7 @@ import {
   TimePickerChip, TaskTypeChip, TimerDisplay
 } from './components';
 import { getTaskRegisteredCombo, getTaskEstimatedCombo } from './utils';
+import { useConfirm } from './ConfirmContext';
 
 import { supabase } from './supabaseClient';
 
@@ -40,6 +41,7 @@ function getPersonColor(people: any[], personId: string) {
 }
 
 export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '', onGoToTemplate = null, hideCompletedExternal }: any) {
+  const askConfirm = useConfirm();
 
   // Highlight helper
   const HighlightText = ({ text }: { text: string }) => {
@@ -714,8 +716,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                       <Edit size={14} />
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(`¿Eliminar la reunión con ${getPersonName(meeting.personId)}?`)) {
+                      onClick={async () => {
+                        if (await askConfirm({ message: `¿Eliminar la reunión con ${getPersonName(meeting.personId)}?`, confirmText: 'Eliminar', danger: true })) {
                           const updated = meetings.filter((m: any) => m.id !== meeting.id);
                           onUpdateMeetings(updated);
                         }
