@@ -15,7 +15,7 @@
  */
 
 import { Task } from './types';
-import { isTaskCompleted, isExpiredTemplate, formatMinutes } from './utils';
+import { isTaskCompleted, isExpiredTemplate, formatMinutes, getTaskRegisteredSelf } from './utils';
 import { belongsToDay, materializeDay } from './instanceEngine'; // FASE 3: única definición de "pertenece a un día"
 
 // ─────────────────────────────────────────────
@@ -514,59 +514,70 @@ export function getEntradaForDay(dayISO: string, allTasks: Record<string, Task>)
 }
 
 // ─────────────────────────────────────────────
-// TRAMO 4 · REPORTE — sentencia automática sobre TIEMPO (§16.42, umbrales aprobados)
-// ─────────────────────────────────────────────
-// Mide ESTABILIDAD DEL PLAN (no productividad): ¿se mantuvo lo fijado, entró de más, o se planificó por encima de la
-// jornada? Sin foto NO hay "previsto" real → no se inventa (calcularlo sobre el plan actual mentiría: incluiría lo que
-// entró después, nunca saldría "desviado").
-export type VerdictKey = 'cumplido' | 'desviado' | 'sobreplanificado' | 'sin_fijar';
+// TRAMO 4 · REPORTE — NOTA del día + etiqueta (§16.47, aprobado). La NOTA (0–10, un decimal) = tiempo registrado en las
+// tareas QUE ESTABAN EN EL PLAN (foto.plan_task_ids) sobre el previsto de la foto. El tiempo en tareas que entraron
+// DESPUÉS no suma a la nota (sí se muestra al lado). Razón: siempre se trabaja; lo que distingue un buen día es si se
+// trabajó en LO QUE IBA a trabajarse. Sin foto → sin nota. Foto SIN lista (antiguas) → sin nota ('sin_nota').
+export type VerdictKey = 'sin_fijar' | 'sin_nota' | 'sobreplanificado' | 'sin_arrancar' | 'a_medias' | 'cumplido' | 'completo';
 export interface DayVerdict {
   key: VerdictKey;
-  sentence: string;
+  label: string;                  // etiqueta corta ("Día a medias")
+  nota: number | null;            // 0–10, un decimal (null sin foto o sin lista)
+  frase: string;                  // "4h 20m registradas de 6h previstas"
   hasFoto: boolean;
-  previsto: number | null;        // minutos fijados (null sin foto)
-  registrado: number;             // minutos registrados hoy
-  anadido: number | null;         // estimatedTotal actual − previsto (null sin foto)
-  hechas: number;                 // tareas completadas
-  total: number;                  // tareas del día
-  hechasTrasFijar: number | null; // completadas − foto.completed_count (null sin foto)
+  hasPlan: boolean;               // la foto guardó plan_task_ids
+  previsto: number | null;        // minutos fijados
+  registrado: number;             // registrado total del día
+  planRegistered: number;         // registrado en tareas DEL PLAN (numerador de la nota)
+  outOfPlan: number;              // registrado FUERA del plan ("dedicaste Nh a cosas no previstas")
+  anadido: number | null;         // estimatedTotal actual − previsto (desviación de estimado)
+  hechas: number;
+  total: number;
+  hechasTrasFijar: number | null;
 }
 
-// foto: forma mínima (no acoplamos filters.ts al hook). estimatedTotalNow = stats.estimatedTotal (plan actual del día).
 export function computeVerdict(
   stats: { completed: number; total: number; registered: number; estimatedTotal: number },
-  foto: { estimated_minutes: number; completed_count: number } | null,
-  jornada: number
+  foto: { estimated_minutes: number; completed_count: number; plan_task_ids?: string[] } | null,
+  jornada: number,
+  timeEntries: any[] = [],
+  activeDate: string = ''
 ): DayVerdict {
   const registrado = stats.registered;
   const hechas = stats.completed;
   const total = stats.total;
+  const base = {
+    hasFoto: !!foto, previsto: foto ? foto.estimated_minutes : null, registrado,
+    anadido: foto ? stats.estimatedTotal - foto.estimated_minutes : null,
+    hechas, total, hechasTrasFijar: foto ? hechas - foto.completed_count : null,
+  };
 
   if (!foto) {
-    return {
-      key: 'sin_fijar', sentence: 'Día sin fijar', hasFoto: false,
-      previsto: null, registrado, anadido: null, hechas, total, hechasTrasFijar: null,
-    };
+    return { key: 'sin_fijar', label: 'Día sin fijar', nota: null, frase: '', hasPlan: false, planRegistered: 0, outOfPlan: 0, ...base };
+  }
+  const plan = foto.plan_task_ids || [];
+  if (plan.length === 0) {
+    // Foto ANTERIOR a esta función (sin lista): no hay contra qué medir la nota → sin nota (no revienta; las medidas siguen).
+    return { key: 'sin_nota', label: 'Sin nota', nota: null, frase: 'Fijación anterior a la nota (sin lista del plan)', hasPlan: false, planRegistered: 0, outOfPlan: 0, ...base };
   }
 
   const previsto = foto.estimated_minutes;
-  const anadido = stats.estimatedTotal - previsto;
-  const hechasTrasFijar = hechas - foto.completed_count;
+  const planRegistered = plan.reduce((acc, id) => acc + getTaskRegisteredSelf(id, timeEntries, activeDate), 0);
+  const outOfPlan = Math.max(0, registrado - planRegistered); // total − plan (tiempo en cosas que entraron después)
+  const nota = previsto > 0
+    ? Math.max(0, Math.min(10, Math.round((planRegistered / previsto) * 100) / 10))
+    : (planRegistered > 0 ? 10 : 0);
 
   let key: VerdictKey;
-  let sentence: string;
-  if (previsto > jornada) {
-    key = 'sobreplanificado';
-    sentence = `Día sobreplanificado: ${formatMinutes(previsto)} previstas`;
-  } else if (anadido >= Math.max(60, Math.round(previsto * 0.25))) {
-    key = 'desviado';
-    sentence = `Día desviado: entraron ${formatMinutes(anadido)} no previstas`;
-  } else {
-    key = 'cumplido';
-    sentence = `Día cumplido: ${formatMinutes(registrado)} de ${formatMinutes(previsto)} previstas`;
-  }
+  let label: string;
+  if (previsto > jornada) { key = 'sobreplanificado'; label = 'Día sobreplanificado'; }
+  else if (planRegistered < 15) { key = 'sin_arrancar'; label = 'Día sin arrancar'; }
+  else if (nota < 8.0) { key = 'a_medias'; label = 'Día a medias'; }
+  else if (nota < 9.5) { key = 'cumplido'; label = 'Día cumplido'; }
+  else { key = 'completo'; label = 'Día completo'; }
 
-  return { key, sentence, hasFoto: true, previsto, registrado, anadido, hechas, total, hechasTrasFijar };
+  const frase = `${formatMinutes(planRegistered)} registradas de ${formatMinutes(previsto)} previstas`;
+  return { key, label, nota, frase, hasPlan: true, planRegistered, outOfPlan, ...base };
 }
 
 // Desglose del REPORTE = el DÍA COMPLETO (hechas + pendientes), por tipo/bloque/etiqueta. Misma forma que el desglose de

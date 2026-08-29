@@ -15,7 +15,7 @@ import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { getTaskEstimatedCombo, formatMinutes } from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getPendingLeavesForDay } from './filters';
+import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getPendingLeavesForDay, collectLeafTasks } from './filters';
 import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completado POR DÍA para el filtro "ocultar completadas"
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
@@ -211,8 +211,12 @@ export function DashboardView({
   const [showReport, setShowReport] = useState(false);
   const { report: dayReport, guardar: guardarReport } = useDayReport(activeDate);
   const verdict = useMemo(
-    () => computeVerdict(stats, daySnapshot ? { estimated_minutes: daySnapshot.estimated_minutes, completed_count: daySnapshot.completed_count } : null, jornada),
-    [stats, daySnapshot, jornada]
+    () => computeVerdict(
+      stats,
+      daySnapshot ? { estimated_minutes: daySnapshot.estimated_minutes, completed_count: daySnapshot.completed_count, plan_task_ids: daySnapshot.plan_task_ids } : null,
+      jornada, timeEntries, activeDate
+    ),
+    [stats, daySnapshot, jornada, timeEntries, activeDate]
   );
   const reportBreakdown = useMemo(() => getReportBreakdown(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
   // FASE 6 (cierre del día): hojas pendientes del día para el "Repaso de lo no hecho".
@@ -359,7 +363,11 @@ export function DashboardView({
         latest={daySnapshot}
         jornada={jornada}
         entrada={entrada}
-        onFijar={() => { fijar(stats.total, stats.estimatedTotal, stats.completed).catch(() => {}); }}
+        onFijar={() => {
+          // §16.47: el PLAN = ids de TODAS las hojas del día ahora (pendientes + completadas); la nota mide el registrado sobre ellas.
+          const planIds = collectLeafTasks(dayTasks, allTasksMap, activeDate).map(t => t.id);
+          fijar(stats.total, stats.estimatedTotal, stats.completed, planIds).catch(() => {});
+        }}
         onSetJornada={setJornada}
         onOpenTimeHistory={() => setShowTimeHistory(true)}
         onOpenReport={() => setShowReport(true)}
@@ -695,7 +703,8 @@ export function DashboardView({
         blocks={blocks}
         report={dayReport}
         onGuardar={async (motivos, nota) => { await guardarReport(verdict.key, {
-          previsto: verdict.previsto, registrado: verdict.registrado, anadido: verdict.anadido,
+          nota: verdict.nota, previsto: verdict.previsto, registrado: verdict.registrado,
+          planRegistered: verdict.planRegistered, outOfPlan: verdict.outOfPlan, anadido: verdict.anadido,
           hechas: verdict.hechas, total: verdict.total, hechasTrasFijar: verdict.hechasTrasFijar,
         }, motivos, nota); }}
         pendingTasks={pendingLeaves}

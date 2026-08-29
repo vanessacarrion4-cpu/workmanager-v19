@@ -11,6 +11,7 @@ export interface DaySnapshot {
   task_count: number;
   estimated_minutes: number;
   completed_count: number;
+  plan_task_ids?: string[]; // ids de las hojas del día EN EL MOMENTO de fijar (el plan). Base de la NOTA (§16.47). Fotos antiguas: sin lista → sin nota.
 }
 
 const DEFAULT_JORNADA = 480; // 8h
@@ -45,7 +46,7 @@ export function useDaySnapshot(activeDate: string) {
 
   // RE-FIJAR sustituye (nueva foto, delta a cero desde ese momento): guardamos una fila NUEVA con su hora; `latest`
   // pasa a ser esta. No se acumula (el delta se calcula siempre contra la última).
-  const fijar = useCallback(async (taskCount: number, estimatedMinutes: number, completedCount: number) => {
+  const fijar = useCallback(async (taskCount: number, estimatedMinutes: number, completedCount: number, planTaskIds: string[] = []) => {
     const snap: DaySnapshot = {
       id: `snap-${Date.now()}`,
       date: activeDate,
@@ -53,6 +54,7 @@ export function useDaySnapshot(activeDate: string) {
       task_count: taskCount,
       estimated_minutes: estimatedMinutes,
       completed_count: completedCount,
+      plan_task_ids: planTaskIds, // §16.47: el PLAN (ids de las hojas del día ahora). La nota mide el registrado sobre estos.
     };
     setSnapshots(prev => [...prev, snap]); // optimista
     const { error } = await supabase.from('day_snapshots').insert(snap);

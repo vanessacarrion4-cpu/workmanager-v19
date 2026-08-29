@@ -5084,6 +5084,20 @@ en naranja de alerta (≥5). Excepciones de prueba borradas (datos reales limpio
 `templateId+fecha` → el update dirigido por id fallaba (el id cambia con la fecha); resuelto metiendo `rolled_over_count` en
 el row-builder (3 sitios). "Mañana" es directo salvo colisión (entonces avisa). "Eliminar" pide confirmación propia.
 
+### NOTA del día (§16.47, sesión 26) — ✅ CONSTRUIDA
+- **La foto guarda la LISTA:** `day_snapshots.plan_task_ids text[]` (ALTER ejecutado). Al FIJAR se guardan los ids de TODAS
+  las hojas del día en ese momento (el plan). Razón: la foto es el histórico; con dos números no se reconstruye, con la
+  lista sí. Derivar por `createdAt` NO vale (una tarea vieja arrastrada a hoy tras fijar parecería del plan y no lo era).
+- **`computeVerdict(stats, foto, jornada, timeEntries, activeDate)`** (`filters.ts`): **nota** (0–10, un decimal) =
+  `registrado en tareas del plan / previsto × 10`. El tiempo FUERA del plan NO suma a la nota (sí en `outOfPlan`). Sin foto →
+  `sin_fijar` (sin nota). Foto SIN lista (antiguas) → `sin_nota` (no revienta; las medidas siguen). Re-fijar usa la ÚLTIMA foto.
+- **Etiquetas (sobre la nota):** `sin_arrancar` (<15m registrados en plan) · `a_medias` (nota<8) · `cumplido` (8–9,5) ·
+  `completo` (≥9,5) · `sobreplanificado` (previsto>jornada). "Desviado" = **sufijo** "dedicaste Nh a cosas no previstas"
+  (= registrado FUERA del plan, en morado): explica una nota baja sin inventar veredicto ("día secuestrado", no día perdido).
+- **Display:** nota grande (44px) + etiqueta + "Xh registradas de Yh previstas" + línea de fuera-de-plan.
+- **VERIFICADO:** render en pantalla (0,0 · Día sin arrancar hoy) + 30 tests (7,2 · 8,3 · 9,7 · outOfPlan 120 · tope 10 ·
+  sin_nota). Fotos de prueba borradas.
+
 ### (histórico) paquete PRE-CONSTRUCCIÓN aprobado
 
 Diseño para construir el spec §16.45. Enviado a la propietaria para aprobar; registrado aquí para que no se pierda.

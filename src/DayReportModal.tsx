@@ -35,9 +35,11 @@ const MOTIVOS: { key: MotivoKey; label: string }[] = [
   { key: 'dependencia', label: 'Dependo de otro' },
 ];
 
-// Color del veredicto: verde cumplido, naranja desviado/sobreplanificado (aviso, no fallo), neutro sin fijar.
+// Color de la etiqueta: verde cumplido/completo; neutro sin nota/sin fijar; naranja el resto (a medias/sin arrancar/sobreplanif.).
 const verdictColor = (key: string) =>
-  key === 'cumplido' ? 'text-verde' : key === 'sin_fijar' ? 'dark:text-text-secondary text-text-secondary-light' : 'text-naranja';
+  (key === 'cumplido' || key === 'completo') ? 'text-verde'
+    : (key === 'sin_fijar' || key === 'sin_nota') ? 'dark:text-text-secondary text-text-secondary-light'
+    : 'text-naranja';
 
 export function DayReportModal({
   open, onClose, activeDate, verdict, breakdown, entrada, blocks, report, onGuardar,
@@ -114,9 +116,25 @@ export function DayReportModal({
           </button>
         </div>
 
-        {/* 1 · SENTENCIA */}
+        {/* 1 · NOTA (grande) + ETIQUETA + FRASE + tiempo fuera de plan (§16.47) */}
         <div className="mb-5">
-          <p className={`text-xl font-black ${verdictColor(verdict.key)}`}>{verdict.sentence}</p>
+          {verdict.nota != null ? (
+            <div className="flex items-baseline gap-3">
+              <span className="text-[44px] font-black leading-none tabular-nums dark:text-white text-text-main-light shrink-0">{verdict.nota.toFixed(1).replace('.', ',')}</span>
+              <div className="min-w-0">
+                <p className={`text-base font-black ${verdictColor(verdict.key)}`}>{verdict.label}</p>
+                <p className="text-[12px] dark:text-text-secondary text-text-secondary-light">{verdict.frase}</p>
+                {verdict.outOfPlan > 0 && (
+                  <p className="text-[12px] font-bold text-morado">dedicaste {formatMinutes(verdict.outOfPlan)} a cosas no previstas</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p className={`text-lg font-black ${verdictColor(verdict.key)}`}>{verdict.label}</p>
+              {verdict.frase && <p className="text-[12px] dark:text-text-secondary text-text-secondary-light mt-0.5">{verdict.frase}</p>}
+            </div>
+          )}
         </div>
 
         {/* 2 · LAS TRES MEDIDAS */}

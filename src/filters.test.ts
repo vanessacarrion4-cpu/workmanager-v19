@@ -213,70 +213,83 @@ describe('getVisibleSubtasksForBloques (regla canónica de Bloques)', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TRAMO 4 · computeVerdict — sentencia automática del Reporte (§16.42, umbrales aprobados).
-// Mide estabilidad del plan. Sin foto no se inventa previsto.
+// TRAMO 4 · computeVerdict — NOTA del día + etiqueta (§16.47, aprobado).
+// nota = registrado en tareas DEL PLAN (foto.plan_task_ids) / previsto. Fuera de plan no suma a la nota.
 // ─────────────────────────────────────────────────────────────────────────────
 import { computeVerdict } from './filters';
 
+const DAY = '2026-07-15';
 const S = (o: Partial<{ completed: number; total: number; registered: number; estimatedTotal: number }> = {}) =>
   ({ completed: 0, total: 0, registered: 0, estimatedTotal: 0, ...o });
+// foto con plan; time entries que apuntan a ids del plan ese día
+const foto = (estimated: number, plan: string[] = [], completed_count = 0) => ({ estimated_minutes: estimated, completed_count, plan_task_ids: plan });
+const te = (id: string, duration: number, date = DAY) => ({ taskId: id, subtaskId: null, date, duration });
 
-describe('computeVerdict — sentencia del reporte', () => {
-  it('sin foto → "Día sin fijar", sin previsto ni desviación inventados', () => {
-    const v = computeVerdict(S({ completed: 3, total: 8, registered: 240, estimatedTotal: 600 }), null, 480);
+describe('computeVerdict — NOTA del día', () => {
+  it('sin foto → "Día sin fijar", nota null', () => {
+    const v = computeVerdict(S({ registered: 240 }), null, 480, [], DAY);
     expect(v.key).toBe('sin_fijar');
-    expect(v.sentence).toBe('Día sin fijar');
-    expect(v.previsto).toBeNull();
-    expect(v.anadido).toBeNull();
-    expect(v.hechasTrasFijar).toBeNull();
-    expect(v.registrado).toBe(240); // lo calculable sí se muestra
-    expect(v.hechas).toBe(3);
-    expect(v.total).toBe(8);
+    expect(v.nota).toBeNull();
+    expect(v.hasFoto).toBe(false);
   });
 
-  it('sobreplanificado: previsto > jornada (sensible, sin ×1.25) — 9h con jornada 8h ya salta', () => {
-    const v = computeVerdict(S({ estimatedTotal: 540 }), { estimated_minutes: 540, completed_count: 0 }, 480);
+  it('foto SIN plan_task_ids (antigua) → "sin_nota", nota null, no revienta', () => {
+    const v = computeVerdict(S({ registered: 240 }), foto(360, []), 480, [], DAY);
+    expect(v.key).toBe('sin_nota');
+    expect(v.nota).toBeNull();
+    expect(v.hasFoto).toBe(true);
+    expect(v.previsto).toBe(360); // las medidas siguen
+  });
+
+  it('con foto y 0 registrado en plan → nota 0, "Día sin arrancar"', () => {
+    const v = computeVerdict(S({ registered: 0 }), foto(360, ['P1']), 480, [], DAY);
+    expect(v.nota).toBe(0);
+    expect(v.key).toBe('sin_arrancar');
+    expect(v.planRegistered).toBe(0);
+  });
+
+  it('a medias: 260m de 360 en el plan → nota 7,2 · "Día a medias"', () => {
+    const v = computeVerdict(S({ registered: 260 }), foto(360, ['P1']), 480, [te('P1', 260)], DAY);
+    expect(v.nota).toBe(7.2);
+    expect(v.key).toBe('a_medias');
+    expect(v.planRegistered).toBe(260);
+    expect(v.frase).toBe('4h 20m registradas de 6h previstas');
+  });
+
+  it('cumplido: 300m de 360 (83%) → nota 8,3 · "Día cumplido" (≥80%)', () => {
+    const v = computeVerdict(S({ registered: 300 }), foto(360, ['P1']), 480, [te('P1', 300)], DAY);
+    expect(v.nota).toBe(8.3);
+    expect(v.key).toBe('cumplido');
+  });
+
+  it('completo: 348m de 360 (96,7%) → nota 9,7 · "Día completo" (≥95%)', () => {
+    const v = computeVerdict(S({ registered: 348 }), foto(360, ['P1']), 480, [te('P1', 348)], DAY);
+    expect(v.nota).toBe(9.7);
+    expect(v.key).toBe('completo');
+  });
+
+  it('el tiempo FUERA del plan no suma a la nota, pero cuenta en outOfPlan', () => {
+    // 260 en el plan (P1) + 120 en algo NO del plan (X9) → nota sobre 260, outOfPlan 120
+    const v = computeVerdict(S({ registered: 380 }), foto(360, ['P1']), 480, [te('P1', 260), te('X9', 120)], DAY);
+    expect(v.planRegistered).toBe(260);
+    expect(v.nota).toBe(7.2);          // solo el plan
+    expect(v.outOfPlan).toBe(120);     // total(380) − plan(260)
+  });
+
+  it('sobreplanificado: previsto > jornada → "Día sobreplanificado" (aunque haya nota)', () => {
+    const v = computeVerdict(S({ registered: 300 }), foto(540, ['P1']), 480, [te('P1', 300)], DAY);
     expect(v.key).toBe('sobreplanificado');
-    expect(v.sentence).toBe('Día sobreplanificado: 9h previstas');
+    expect(v.nota).not.toBeNull();
   });
 
-  it('previsto == jornada NO es sobreplanificado (estricto >)', () => {
-    const v = computeVerdict(S({ estimatedTotal: 480, registered: 300 }), { estimated_minutes: 480, completed_count: 0 }, 480);
-    expect(v.key).toBe('cumplido');
-  });
-
-  it('desviado: añadido ≥ max(1h, 25% del previsto)', () => {
-    // previsto 360 (6h), 25% = 90m; añadido 120 ≥ 90 → desviado
-    const v = computeVerdict(S({ estimatedTotal: 480 }), { estimated_minutes: 360, completed_count: 0 }, 600);
-    expect(v.key).toBe('desviado');
-    expect(v.sentence).toBe('Día desviado: entraron 2h no previstas');
-  });
-
-  it('desviado frontera: el suelo de 1h manda cuando 25% es menor', () => {
-    // previsto 120, 25% = 30 → max(60,30)=60. añadido 60 → desviado; 59 → cumplido
-    expect(computeVerdict(S({ estimatedTotal: 180 }), { estimated_minutes: 120, completed_count: 0 }, 600).key).toBe('desviado');
-    expect(computeVerdict(S({ estimatedTotal: 179 }), { estimated_minutes: 120, completed_count: 0 }, 600).key).toBe('cumplido');
-  });
-
-  it('cumplido: dentro de jornada y sin desviación → "X de Y previstas"', () => {
-    const v = computeVerdict(S({ registered: 300, estimatedTotal: 360 }), { estimated_minutes: 360, completed_count: 0 }, 480);
-    expect(v.key).toBe('cumplido');
-    expect(v.sentence).toBe('Día cumplido: 5h de 6h previstas');
-  });
-
-  it('sobreplanificado tiene prioridad sobre desviado', () => {
-    const v = computeVerdict(S({ estimatedTotal: 900 }), { estimated_minutes: 720, completed_count: 0 }, 480);
-    expect(v.key).toBe('sobreplanificado'); // 720>480 gana aunque añadido=180 también dispararía desviado
-  });
-
-  it('día aligerado (añadido negativo) → cumplido, nunca desviado', () => {
-    const v = computeVerdict(S({ registered: 200, estimatedTotal: 300 }), { estimated_minutes: 360, completed_count: 0 }, 480);
-    expect(v.key).toBe('cumplido');
-    expect(v.anadido).toBe(-60);
+  it('nota tope 10 si el registrado en plan supera el previsto', () => {
+    const v = computeVerdict(S({ registered: 500 }), foto(360, ['P1']), 480, [te('P1', 500)], DAY);
+    expect(v.nota).toBe(10);
+    expect(v.key).toBe('completo');
   });
 
   it('hechasTrasFijar = completadas − foto.completed_count', () => {
-    const v = computeVerdict(S({ completed: 5, total: 10, estimatedTotal: 360 }), { estimated_minutes: 360, completed_count: 2 }, 480);
+    const v = computeVerdict(S({ completed: 5, total: 10, registered: 300 }), foto(360, ['P1'], 2), 480, [te('P1', 300)], DAY);
     expect(v.hechasTrasFijar).toBe(3);
   });
 });
