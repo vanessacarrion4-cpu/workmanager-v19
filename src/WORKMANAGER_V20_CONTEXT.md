@@ -5102,6 +5102,26 @@ Diseño para construir el spec §16.45. Enviado a la propietaria para aprobar; r
   colisión = "↩ movida de ayer" / "movida del [día]".
 - **BADGE ROLLING (corregido por la propietaria):** mide **cuántas veces la ha ESQUIVADO**, no cuántas veces aparece →
   `rolled_over_count` TAL CUAL (sin +1). Texto: **"↻ movida N veces"**. **Solo aparece a partir de la 2ª** (`count >= 2`;
-  movida una vez es normal, no mete ruido). A partir de **`count >= 5`** cambia a **color de ALERTA** (naranja `#F97316`):
-  cinco veces movida no es una tarea pendiente, es una decisión que no se está tomando. Umbral/color a validar en pantalla.
+  movida una vez es normal, no mete ruido). A partir de **`count >= 3`** (bajado de 5 por la propietaria) cambia a **color de
+  ALERTA** (naranja `#F97316`): tres veces movida ya no es una tarea, es una decisión que no se está tomando disfrazada de
+  pendiente (a las cinco lleva una semana esquivada). Naranja aprobado.
 - **ALTER ejecutado** por la propietaria; paquete confirmado completo. **CONSTRUIR YA.**
+
+## 16.48 ⚠️ RIESGO — TRES caminos de escritura de tarea al MOVER, sin mapeo de columnas compartido (lección sesión 26)
+
+Al construir el Cierre del día (§16.47) hubo que añadir `rolled_over_count` a **TRES upserts distintos** de `useTaskCRUD.ts`
+porque `handleUpdateTask` toma un camino u otro según la tarea, y **ninguno comparte el mapeo Task→fila**. Los tres, según el
+tipo de movimiento:
+- **`:488`** — upsert de EXCEPCIÓN top-level (`is_exception:true`, id = `updatedTask.id`).
+- **`:926`** — rama **`_isSubtaskDateChange`** (mover una HIJA recurrente a otra fecha): borra la instancia vieja y crea una
+  nueva con id `inst-<childTid>-<nuevaFecha>`. **Este fue el que falló** en el primer intento (el update dirigido por id no
+  la encontraba porque el id CAMBIA con la fecha) — solo se vio probando en la BD.
+- **`:970`** — `dbTask`, el camino general de `handleUpdateTask` (one-off y demás).
+
+**El riesgo:** hay **13 sitios** en `useTaskCRUD.ts` que construyen una fila de `tasks` a mano (grep `due_date:`), sin función
+central `taskToRow`. **La próxima columna que se añada tendrá el mismo problema:** se guardará por unos caminos y por otros no,
+y se descubrirá igual — a base de probar y ver que un valor no persiste. **Sugerencia (NO hacer ahora):** extraer un
+`taskToRow(task)` único que todos los upserts usen, para que añadir una columna sea un solo sitio. Coste: tocar los 13 y
+re-verificar cada camino (crear, editar, mover instancia, mover hija, completar, terminar serie, contenedor…). Se planifica;
+mientras tanto, **al añadir cualquier columna nueva a `tasks`, revisar los 13 `due_date:` y VERIFICAR en BD que persiste por
+el camino de MOVER (los tres de arriba), no solo por el de crear.**

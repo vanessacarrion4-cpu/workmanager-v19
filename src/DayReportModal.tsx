@@ -300,7 +300,7 @@ function RepasoSection({ pendingTasks, activeDate, blocks, timeEntries, onComple
       <div className="space-y-0.5">
         {pendingTasks.map((t: any) => {
           const roll = t.rolledOverCount || 0;
-          const alert = roll >= 5;
+          const alert = roll >= 3; // §16.47: 3 veces movida = decisión que no se está tomando, no una tarea. Naranja.
           return (
             <div key={t.id} className="flex items-center gap-2 py-1 group/rep">
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tagDot(t.tags) }} />
