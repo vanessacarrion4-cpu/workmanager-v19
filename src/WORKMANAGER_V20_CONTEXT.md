@@ -5400,3 +5400,20 @@ plantillas** (adhoc con TODAS sus excepciones vivas core → rutina core) → co
 adhoc = tipo que cambió con el tiempo, NO cabo limpio) se DEJAN. El backfill solo tocó `task_type`, así que no hay cabos en otros
 campos (los desyncs de título/estimado son pre-existentes). **REGLA:** si vuelve a aparecer un tipo raro, mirar si es de aquí
 (backfill null→adhoc sin mirar la plantilla) antes de tratarlo como dato viejo.
+
+## 16.58 PENDIENTE Carga · agrupación por TIPO y dentro por contenedor/huérfana (petición sesión 26)
+En el DETALLE (no la tira): agrupar por TIPO (contenedor ≠ rutina; lo que dice si algo es operativa fija es el TIPO). Primero
+CORE con su total, dentro sus contenedores Y huérfanas mezclados; luego AD-HOC igual. DENTRO de cada tipo, ORDENAR POR CARGA
+desc — las huérfanas son UNA FILA MÁS, no una sección aparte (lo que más pesa arriba, sea contenedor o huérfana). Objetivo: ver
+operativa fija (core) vs puntual (adhoc) —decide si hay margen para una anual— y dentro qué pesa más. Debe respetar REAL vs
+PROYECTADO y el filtro de bloque. Si salen demasiadas filas dentro de un tipo → decir cuántas y decidir límite. (Ejemplo dado:
+CORE 45h → Rutinas mañana 20h · Huérfanas 13h · Cierre Propias 12h; AD-HOC 18h → Huérfanas 10h · Contenedor X 8h.)
+
+## 16.59 Barrido visual — estado (sesión 26)
+HECHO: Carga tira→Semana; Delegadas columna derecha (una línea legible), notas de reunión plegadas, RANGO plegado.
+Delegadas · 4 botones por persona (reportado, decisión de la propietaria cuáles quitar): (1) ⌄/▲ expandir/contraer sus
+CONTENEDORES; (2) + nueva tarea delegada; (3) REUNIÓN iniciar; (4) ⌄/▲ abrir/cerrar la PERSONA (acordeón). Los dos chevrons
+confunden. PENDIENTE resto: Semana (números ilegibles, cabecera 3 tamaños, aire tarjetas, punto+emoji, selector fecha, L-V/L-D,
+2 filas de controles); Bloques (tarjetas ~120px compactar, iconos emoji en caja bajar); Calendario (quitar "libre X%", poner a
+qué corresponde, comprobar desplazamiento del %, estado del MES, criterio colores, peso visual llenos); Búsqueda (por defecto
+pendientes, filtro visible, filas verdes, cabecera de grupo fija).
