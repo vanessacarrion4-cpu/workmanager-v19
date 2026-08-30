@@ -5543,3 +5543,22 @@ el `parentTaskId` cableado al contenedor del día. Sin regresión: las hijas nor
 aparece en otro día). 197 tests verdes.
 **VALIDACIÓN PENDIENTE (la hace ella):** ir al 18/08 → "On Boarding Lucia" → "Seguimiento Plan Ver situación…" debe salir DENTRO
 del contenedor, no suelta.
+
+## 16.72 Interruptor de alcance (Mi Día) — selección por grupo vs todos (sesión 26)
+**Problema:** un contenedor multi-etiqueta aparece en varios grupos (groupTasksByTag lo reparte por cada etiqueta de sus hijas).
+Marcarlo seleccionaba su id + todas las hijas → se veía marcado en todas las apariciones y el bulk arrastraba el contenedor entero
+("me llevo cosas de grupos que no miro").
+**Solución (aprobada):** interruptor GLOBAL persistido (`localStorage 'miDia-scope'`, default `'group'`), en la cabecera de Mi Día
+solo en modo selección. Cambia qué mete marcar un contenedor:
+- `'group'` (seguro): selecciona SOLO `subtasksForGroup` (hijas de ese grupo), NO el id del contenedor → el bulk no arrastra el
+  contenedor, otras apariciones no se marcan. La cabecera muestra check PARCIAL: `bg-azul/25` + icono `Minus` (guion), distinto del
+  completo (`bg-azul` sólido + `Check`). La fila del contenedor NO se tiñe (refuerza la distinción).
+- `'all'`: comportamiento previo (id del contenedor + TODAS las hijas) → marcado en todas sus apariciones.
+**Implementación:** `scopeMode` + `toggleGroupSelection(subIds)` en App (no mete el id del contenedor; toggle sobre hijas vivas).
+Bajan a DashboardView → TaskCard. `selectClick()` en TaskCard bifurca por `isGroupScopedContainer`. Sin cambio en el modelo de
+selección (sigue siendo `Set<id>`; en 'group' se meten los ids de las hijas, que son leaf → bulkEffectiveIds los procesa directo).
+Hojas y Bloques/Delegadas (sin `onToggleGroupSelection`) no cambian. Se RETIRÓ la casilla "Grupo" (F6-x2) — confundía con el
+interruptor. "Seleccionar todo el día" se queda.
+**VERIFICADO EN PANTALLA (dev server, datos reales):** interruptor visible; en 'group' marcar "Blas Situación Personal" seleccionó
+solo su hija (barra="1", id del contenedor fuera), check parcial `bg-azul/25`+Minus (1 en DOM) distinto de los checks completos;
+persiste tras recargar (ls='all' → botón "Todos los grupos" activo). Reseteado a 'group'.

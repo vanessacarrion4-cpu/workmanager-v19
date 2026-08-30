@@ -64,6 +64,9 @@ interface DashboardViewProps {
   selectedTaskIds?: Set<string>;
   onToggleTaskSelection?: ((taskId: string) => void) | null;
   onSelectScope?: ((ids: string[]) => void) | null; // F6-x2: seleccionar todo un grupo/día (dos alcances)
+  scopeMode?: 'group' | 'all';                       // §16.72 interruptor de alcance (global, persistido)
+  onSetScopeMode?: ((m: 'group' | 'all') => void) | null;
+  onToggleGroupSelection?: ((subIds: string[]) => void) | null; // marca solo las hijas de un grupo (sin el contenedor)
   onEnsureSelectionMode?: (() => void) | null;
   onToggleSelectionMode?: (() => void) | null;
   bulkUpdateTasks?: ((updates: Partial<Task>) => void) | null;
@@ -93,7 +96,7 @@ export function DashboardView({
   onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null, onGoToTemplate = null,
   onAddTimeEntry = null,
   selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null,
-  onSelectScope = null, onEnsureSelectionMode = null,
+  onSelectScope = null, scopeMode = 'group', onSetScopeMode = null, onToggleGroupSelection = null, onEnsureSelectionMode = null,
   onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null,
   bulkDuplicateTasks = null, bulkDelegateModal = false, setBulkDelegateModal = null,
   bulkDateModal = false, setBulkDateModal = null, bulkTimeModal = false, setBulkTimeModal = null,
@@ -375,19 +378,37 @@ export function DashboardView({
 
       {/* Task Groups */}
       <div className="space-y-3 pb-32">
-        {/* F6-x2 (§16.33): seleccionar TODO EL DÍA (alcance global; atraviesa etiquetas, dentro del día). Solo en selección. */}
+        {/* §16.72 INTERRUPTOR DE ALCANCE + "seleccionar todo el día". Solo en modo selección. */}
         {selectionMode && (() => {
           const dayIds = Object.values(groupedTasks).flat().flatMap((e: any) => groupSelectIds([e]));
-          if (dayIds.length === 0) return null;
-          const all = dayIds.every((id: string) => selectedTaskIds.has(id));
+          const all = dayIds.length > 0 && dayIds.every((id: string) => selectedTaskIds.has(id));
           return (
-            <button
-              onClick={() => { onEnsureSelectionMode?.(); onSelectScope?.(dayIds); }}
-              className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-azul hover:opacity-80"
-            >
-              <span className={`w-4 h-4 rounded border-2 flex items-center justify-center ${all ? 'bg-azul border-azul' : 'border-azul/40'}`}>{all && <CheckCircle2 size={11} className="text-white" />}</span>
-              Seleccionar todo el día
-            </button>
+            <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
+              {/* Interruptor: un MODO que se queda puesto (global, persistido). Cambia qué selecciona marcar un
+                  contenedor multi-etiqueta: 'group' = solo las hijas de ese grupo (check parcial, no arrastra el
+                  contenedor); 'all' = el contenedor entero + todas sus hijas (marcado en todas sus apariciones). */}
+              <div className="flex items-center gap-1 p-0.5 rounded-lg dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light">
+                {([['group', 'Solo este grupo'], ['all', 'Todos los grupos']] as const).map(([m, label]) => (
+                  <button
+                    key={m}
+                    onClick={() => onSetScopeMode?.(m)}
+                    title={m === 'group' ? 'Marcar selecciona solo dentro del grupo donde marcas' : 'Marcar selecciona en todos los grupos donde aparece'}
+                    className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${scopeMode === m ? 'bg-azul text-white shadow-sm' : 'dark:text-text-secondary text-text-secondary-light hover:text-azul'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {dayIds.length > 0 && (
+                <button
+                  onClick={() => { onEnsureSelectionMode?.(); onSelectScope?.(dayIds); }}
+                  className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-azul hover:opacity-80"
+                >
+                  <span className={`w-4 h-4 rounded border-2 flex items-center justify-center ${all ? 'bg-azul border-azul' : 'border-azul/40'}`}>{all && <CheckCircle2 size={11} className="text-white" />}</span>
+                  Seleccionar todo el día
+                </button>
+              )}
+            </div>
           );
         })()}
         {(Object.entries(groupedTasks) as [TagType, { task: Task, subtasksForGroup: string[] | null }[]][]).map(([tag, tagEntries]) => {
@@ -420,20 +441,8 @@ export function DashboardView({
                   </motion.div>
                 </button>
                 <div className="flex items-center gap-1.5 text-[10px] font-black">
-                  {/* F6-x2 (§16.33): seleccionar TODO EL GRUPO de esta etiqueta. Con etiqueta "Grupo" para que se vea (antes
-                      era un cuadrito suelto que pasaba desapercibido). Coge lo VISIBLE del día (respeta hideCompleted) +
-                      las hijas del día de contenedores contraídos; nunca lo oculto ni otros días. */}
-                  {selectionMode && (() => {
-                    const gIds = groupSelectIds(tagEntries);
-                    const all = gIds.length > 0 && gIds.every((id: string) => selectedTaskIds.has(id));
-                    return (
-                      <button onClick={() => { onEnsureSelectionMode?.(); onSelectScope?.(gIds); }} title="Seleccionar todo el grupo"
-                        className={`flex items-center gap-1 mr-1.5 px-1.5 py-0.5 rounded-lg border transition-all text-[9px] font-black uppercase tracking-widest ${all ? 'bg-azul border-azul text-white' : 'border-azul/40 text-azul hover:border-azul hover:bg-azul/5'}`}>
-                        <span className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center ${all ? 'bg-white border-white' : 'border-azul/50'}`}>{all && <CheckCircle2 size={10} className="text-azul" />}</span>
-                        Grupo
-                      </button>
-                    );
-                  })()}
+                  {/* §16.72: la casilla "Grupo" (F6-x2) se retiró — confundía con el interruptor de alcance. El
+                      "seleccionar todo el grupo" ya no es un botón por-grupo; el alcance lo decide el interruptor global. */}
                   {(() => {
                     const pendingTaskIds: string[] = [];
                     tagEntries.forEach(({ task, subtasksForGroup: stfg }: any) => {
@@ -601,6 +610,8 @@ export function DashboardView({
                                   selectionMode={selectionMode}
                                   selectedTaskIds={selectedTaskIds}
                                   onToggleTaskSelection={onToggleTaskSelection}
+                                  scopeMode={scopeMode}
+                                  onToggleGroupSelection={onToggleGroupSelection}
                                   searchQuery={searchQuery}
                                 />
                               </Reorder.Item>

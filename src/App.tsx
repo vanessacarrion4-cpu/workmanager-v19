@@ -162,6 +162,35 @@ export default function App() {
     });
   }, [tasks]);
 
+  // §16.72 INTERRUPTOR DE ALCANCE (Mi Día). Una MISMA tarea/contenedor puede aparecer en varios grupos de
+  // etiqueta (groupTasksByTag reparte un contenedor por cada etiqueta de sus hijas). Modo GLOBAL, persistido:
+  //  · 'group' (por defecto, el seguro): marcar un contenedor selecciona SOLO las hijas de ESE grupo
+  //    (subtasksForGroup), sin meter el id del contenedor → el bulk no arrastra el contenedor entero, y las
+  //    otras apariciones NO se marcan. La cabecera del contenedor muestra check PARCIAL (distinto del completo).
+  //  · 'all': marcar mete el id del contenedor + TODAS sus hijas → se ve marcado en todas sus apariciones.
+  const [scopeMode, setScopeMode] = useState<'group' | 'all'>(() => {
+    try { return localStorage.getItem('miDia-scope') === 'all' ? 'all' : 'group'; } catch { return 'group'; }
+  });
+  const setScopeModePersist = useCallback((m: 'group' | 'all') => {
+    setScopeMode(m);
+    try { localStorage.setItem('miDia-scope', m); } catch { /* modo privado */ }
+  }, []);
+
+  // Selección SOLO de las hijas de un grupo (no toca el id del contenedor). Toggle: si todas las hijas vivas
+  // del grupo ya están seleccionadas → las quita; si no → las añade. Las completadas nunca se marcan (el bulk
+  // no las toca; marcarlas sería mentira en pantalla).
+  const toggleGroupSelection = useCallback((subIds: string[]) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      const live = subIds.filter(id => tasks[id]?.status !== 'completed');
+      if (live.length === 0) return next;
+      const allSel = live.every(id => next.has(id));
+      if (allSel) live.forEach(id => next.delete(id));
+      else live.forEach(id => next.add(id));
+      return next;
+    });
+  }, [tasks]);
+
   // F6-x2 (§16.33): selección con DOS ALCANCES (por etiqueta / global del día). Toggle en LOTE: si TODOS los ids ya están
   // seleccionados → deseleccionar; si no → seleccionar todos. El alcance (qué ids) lo calcula DashboardView (grupo o día).
   // Criterio = el DÍA, no la visibilidad (los ids incluyen hijas de contenedores contraídos). Nunca sale del día.
@@ -587,6 +616,9 @@ export default function App() {
                 selectedTaskIds={selectedTaskIds}
                 onToggleTaskSelection={toggleTaskSelection}
                 onSelectScope={selectScope}
+                scopeMode={scopeMode}
+                onSetScopeMode={setScopeModePersist}
+                onToggleGroupSelection={toggleGroupSelection}
                 onEnsureSelectionMode={() => setSelectionMode(true)}
                 onToggleSelectionMode={toggleSelectionMode}
                 onClearSelection={() => setSelectedTaskIds(new Set())}

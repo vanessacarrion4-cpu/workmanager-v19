@@ -9,7 +9,7 @@ import {
   Paperclip, Maximize2, Minimize2, ArrowUpLeft, ArrowDownRight,
   ChevronsUp, ChevronsDown, Copy, Play, Pause, MoreVertical, MoreHorizontal,
   Plus, ChevronDown, ChevronUp, ChevronLeft, ArrowUpRight, Calendar as CalendarIcon,
-  Eye, EyeOff, CheckCircle2, Circle, Info, Tag, Hourglass
+  Eye, EyeOff, CheckCircle2, Circle, Info, Tag, Hourglass, Minus
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { WorkBlock, Task, TagType, TimeEntry, Person } from './types';
@@ -124,6 +124,8 @@ export function TaskCard({
   selectionMode = false,
   selectedTaskIds = new Set(),
   onToggleTaskSelection = null,
+  scopeMode = 'group',                 // §16.72 interruptor de alcance (Mi Día)
+  onToggleGroupSelection = null,       // marca solo las hijas del grupo (sin el id del contenedor)
   inMeeting = false,
   showDelegationDates = false,
   meetingItems = null,
@@ -147,6 +149,22 @@ export function TaskCard({
   const realSubtasks = (task.subtasks || []).filter((id: string) => !id.startsWith('inst-'));
   const hasSubtasks = (realSubtasks.length > 0) || (subtasksForGroup && subtasksForGroup.length > 0);
   const isExpanded = forceExpanded !== null ? forceExpanded : (task.isExpanded ?? true);
+
+  // §16.72 SELECCIÓN CON ALCANCE. Un contenedor con hijas del grupo (subtasksForGroup) en modo 'group' selecciona
+  // SOLO esas hijas (sin marcar su propio id) → el bulk no arrastra el contenedor entero y las otras apariciones no
+  // se marcan. En 'all' cae al toggle normal (contenedor + todas sus hijas). Las hojas y Bloques (sin subtasksForGroup)
+  // no cambian. El check del contenedor bajo 'group' es PARCIAL (relleno translúcido + guion), distinto del completo.
+  const groupSubsLive = useMemo(
+    () => (subtasksForGroup || []).filter((id: string) => allTasksMap[id]?.status !== 'completed'),
+    [subtasksForGroup, allTasksMap]
+  );
+  const isGroupScopedContainer = !!(hasSubtasks && scopeMode === 'group' && subtasksForGroup && onToggleGroupSelection);
+  const selectClick = () => {
+    if (isGroupScopedContainer) onToggleGroupSelection!(subtasksForGroup!);
+    else onToggleTaskSelection && onToggleTaskSelection(task.id, task.subtasks || []);
+  };
+  const containerSelected = selectedTaskIds.has(task.id);
+  const groupPartial = isGroupScopedContainer && !containerSelected && groupSubsLive.some((id: string) => selectedTaskIds.has(id));
 
   // A (sesión 19): "ver completadas" POR CONTENEDOR (solo Bloques). No global → abrir uno no llena los demás.
   const [showCompletedChildren, setShowCompletedChildren] = useState(false);
@@ -491,8 +509,8 @@ export function TaskCard({
             // No interceptar clicks en botones, inputs — solo zona libre de la card
             if (target.closest('button') || target.closest('input') || target.closest('select') || target.closest('textarea') || target.closest('a')) return;
             e.stopPropagation();
-            // C1: pasar las subtasks del objeto RENDERIZADO (materializado) — cubre contenedor virgen.
-            onToggleTaskSelection(task.id, task.subtasks || []);
+            // §16.72: alcance según el interruptor (grupo → solo hijas del grupo; all → contenedor + todas).
+            selectClick();
           } : undefined}
         >
           {/* Main Row — una sola línea, 29px. group/row: el hover se activa SOLO en esta fila
@@ -517,9 +535,9 @@ export function TaskCard({
             <button
               onClick={async (e) => {
                 e.stopPropagation();
-                if (selectionMode && onToggleTaskSelection) {
-                  // C1: subtasks del objeto RENDERIZADO (materializado) — cubre contenedor virgen.
-                  onToggleTaskSelection(task.id, task.subtasks || []);
+                if (selectionMode && (onToggleTaskSelection || onToggleGroupSelection)) {
+                  // §16.72: alcance según el interruptor (grupo → solo hijas del grupo; all → contenedor + todas).
+                  selectClick();
                 } else {
                   // §16.16 (tapón): clicar un contenedor marca varias subtareas de golpe → pide confirmar.
                   // C1: con día de la vista (dayForTotals, Mi Día) solo se tocan las hijas de ESE día
@@ -558,19 +576,23 @@ export function TaskCard({
               }}
               className={`w-5 h-5 rounded-md flex items-center justify-center transition-all duration-150 shrink-0 ${
                 selectionMode
-                  ? selectedTaskIds.has(task.id)
+                  ? containerSelected
                     ? 'bg-azul border-2 border-azul text-white shadow-md shadow-azul/30'
-                    : 'dark:bg-bg-main bg-white border-2 border-azul/40 text-transparent hover:border-azul hover:bg-azul/10'
+                    : groupPartial
+                      ? 'bg-azul/25 border-2 border-azul text-azul'   // §16.72 PARCIAL (solo este grupo): relleno translúcido + guion
+                      : 'dark:bg-bg-main bg-white border-2 border-azul/40 text-transparent hover:border-azul hover:bg-azul/10'
                   : rowCompleted
                     ? 'bg-turquesa border-2 border-turquesa text-white shadow-sm'
                     : 'dark:bg-bg-main bg-white border-2 dark:border-border-main border-border-main-light text-transparent hover:border-turquesa'
               }`}
-              title={selectionMode ? (selectedTaskIds.has(task.id) ? 'Deseleccionar' : 'Seleccionar') : (rowCompleted ? 'Marcar pendiente' : 'Completar')}
+              title={selectionMode ? (containerSelected ? 'Deseleccionar' : groupPartial ? 'Grupo seleccionado (parcial) — clic para cambiar' : 'Seleccionar') : (rowCompleted ? 'Marcar pendiente' : 'Completar')}
             >
               {selectionMode
-                ? selectedTaskIds.has(task.id)
+                ? containerSelected
                   ? <Check size={11} strokeWidth={3} />
-                  : null
+                  : groupPartial
+                    ? <Minus size={11} strokeWidth={3} />
+                    : null
                 : rowCompleted
                   ? <Check size={11} strokeWidth={3} />
                   : null
