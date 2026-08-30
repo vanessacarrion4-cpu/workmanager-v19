@@ -6,7 +6,7 @@
 
 import React, { useState, useMemo } from 'react';
 import {
-  Plus, ChevronRight, ChevronLeft, ChevronDown, RefreshCw, Eye, EyeOff, X, Clock, Calendar as CalendarIcon, LayoutDashboard
+  Plus, ChevronRight, ChevronLeft, ChevronDown, RefreshCw, Eye, EyeOff, X, Clock, Calendar as CalendarIcon, LayoutDashboard, CheckSquare
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
@@ -129,21 +129,6 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
       animate={{ opacity: 1 }} 
       className="space-y-8 pb-32"
     >
-      {/* Bulk Action Bar Calendario — #barrido §16.50: selección múltiple estaba importada pero sin montar; cableada
-          desde App + checkboxes en TaskCard + esta barra. Mismo patrón que Bloques/Delegadas. */}
-      {selectionMode && selectedTaskIds.size > 0 && bulkUpdateTasks && (
-        <BulkActionBar
-          count={selectedTaskIds.size}
-          onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
-          onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
-          onComplete={() => bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
-          onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
-          onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
-          onDelete={() => { bulkDeleteTasks && bulkDeleteTasks(); }}
-          onCancel={onToggleSelectionMode}
-          isMobile={window.innerWidth < 768}
-        />
-      )}
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-black dark:text-white text-text-main-light capitalize">{monthName}</h2>
         <div className="flex gap-2">
@@ -378,7 +363,14 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                      </div>
                   </div>
                   <div className="flex gap-3">
-                     <button 
+                     {/* Selección múltiple: se entra DESDE el detalle del día (aquí SÍ hay tareas), no desde la rejilla del mes */}
+                     <button
+                      onClick={() => onToggleSelectionMode && onToggleSelectionMode()}
+                      className={`px-5 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl transition-all flex items-center gap-2 ${selectionMode ? 'bg-azul text-white shadow-azul/20' : 'dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light'}`}
+                     >
+                       <CheckSquare size={16} /> {selectionMode ? 'Cancelar' : 'Seleccionar'}
+                     </button>
+                     <button
                       onClick={() => onDateSelect(selectedDay)}
                       className="px-6 py-3 bg-turquesa text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-turquesa/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
                      >
@@ -395,7 +387,24 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                      </button>
                   </div>
                </div>
- 
+
+                {/* Barra de selección DENTRO del overlay (la global StickyActionBar queda detrás del z-40) */}
+                {selectionMode && selectedTaskIds.size > 0 && bulkUpdateTasks && (
+                  <div className="mb-6 rounded-2xl overflow-hidden border dark:border-border-main border-border-main-light">
+                    <BulkActionBar
+                      count={selectedTaskIds.size}
+                      onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
+                      onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
+                      onComplete={() => bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
+                      onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
+                      onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
+                      onDelete={() => { bulkDeleteTasks && bulkDeleteTasks(); }}
+                      onCancel={onToggleSelectionMode}
+                      isMobile={window.innerWidth < 768}
+                    />
+                  </div>
+                )}
+
                 <div className="space-y-10">
                   {Object.entries(TAG_LABELS).map(([tag, label]: [any, any]) => {
                     const groupTasks = (groupedTasks as any)[tag] || [];

@@ -249,22 +249,28 @@ export function WeekView({
     return map;
   }, [days, tasksByDay, timeEntries, dayData, jornada]);
 
-  // #barrido: total de la SEMANA junto al título = suma de lo que muestra cada día (registrado los pasados, estimado los
-  // futuros) sobre la capacidad jornada × nº de días mostrados (L-V=5 / L-D=7). Si pasa de la capacidad, se resalta.
+  // #barrido §16.50: total de la SEMANA junto al título = suma del ESTIMADO PENDIENTE de cada día (lo que queda por hacer,
+  // como los grupos) sobre la capacidad jornada × nº de días mostrados (L-V=5 / L-D=7). Semana es vista de PLANIFICACIÓN, así
+  // que el total mide el plan, no el tiempo fichado (que la propietaria puede no usar → salía 0). Si pasa la jornada, se resalta.
   const weekSummary = useMemo(() => {
     let mins = 0;
     days.forEach(date => {
       const s = statsByDay[date] || { estimatedMins: 0, registeredMins: 0 };
-      mins += date < today ? s.registeredMins : s.estimatedMins;
+      mins += s.estimatedMins;
     });
     const capacity = (jornada || 480) * days.length;
     return { mins, capacity, over: mins > capacity };
-  }, [days, statsByDay, today, jornada]);
+  }, [days, statsByDay, jornada]);
 
   const toggleBlock = (date: string, blockId: string) => {
     const key = `${date}__${blockId}`;
     setExpandedBlocks(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   };
+
+  // #barrido §16.50: en los agrupadores COMBINADOS (bloque→tipo, tipo→bloque) los subniveles salen ABIERTOS por defecto
+  // (si eliges ese agrupador es para ver el desglose). `expandedBlocks` pasa a registrar lo que se ha PLEGADO a mano.
+  // En los modos simples (bloque, tipo) sigue igual: por defecto plegado, el set registra lo abierto.
+  const isOpen = (key: string, defaultOpen: boolean) => defaultOpen ? !expandedBlocks.has(key) : expandedBlocks.has(key);
 
   // ─── Helpers de renderizado ───────────────────────────────────────────────────
 
@@ -313,7 +319,7 @@ export function WeekView({
       const tipoTasks = dayTasks.filter(t => !t.isDeleted && getEffectiveType(t) === tipo.id);
       if (tipoTasks.length === 0) return null;
       const key = `${date}__tipo__${tipo.id}`;
-      const isExpanded = expandedBlocks.has(key);
+      const isExpanded = isOpen(key, subMode === 'con-bloques'); // combinado tipo→bloque: abierto por defecto
       const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
       const { done: hechasCount, total: hojasTotal } = leafCounts(tipoTasks, dayMap); // #7: hojas
       return (
@@ -337,7 +343,7 @@ export function WeekView({
                         const bMins = bTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
                         const { done: bHechas, total: bTotal } = leafCounts(bTasks, dayMap); // #7: hojas
                         const bKey = `${date}__tipo__${tipo.id}__bloque__${block.id}`;
-                        const isBExpanded = expandedBlocks.has(bKey);
+                        const isBExpanded = isOpen(bKey, true); // combinado tipo→bloque: bloque abierto por defecto
                         return (
                           <div key={block.id}>
                             <button onClick={() => toggleBlock(date, `tipo__${tipo.id}__bloque__${block.id}`)}
@@ -495,7 +501,7 @@ export function WeekView({
                       if (blockTasks.length === 0) return null;
                       const dayMap = dayData[date]?.map ?? {};
                       const key = `${date}__${block.id}`;
-                      const isExpanded = expandedBlocks.has(key);
+                      const isExpanded = isOpen(key, true); // combinado bloque→tipo: bloque abierto por defecto
                       const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
                       const { done: hechasCount, total: hojasTotal } = leafCounts(blockTasks, dayMap); // #7: hojas
                       return (
@@ -520,7 +526,7 @@ export function WeekView({
                                     const tipoColor = tipoId === 'core' ? TURQUESA : ROSA;
                                     const tipoLabel = tipoId === 'core' ? '⬡ Core' : '◇ Adhoc';
                                     const tipoKey = `${date}__${block.id}__tipo__${tipoId}`;
-                                    const isTipoExpanded = expandedBlocks.has(tipoKey);
+                                    const isTipoExpanded = isOpen(tipoKey, true); // combinado bloque→tipo: tipo abierto por defecto
                                     return (
                                       <div key={tipoId}>
                                         <button onClick={() => toggleBlock(date, `${block.id}__tipo__${tipoId}`)}

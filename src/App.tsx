@@ -528,6 +528,7 @@ export default function App() {
           onChangeTime={() => setBulkTimeModal(true)}
           onDuplicate={() => bulkDuplicateTasks()}
           onDelete={() => bulkDeleteTasks() /* (a) sesión 24: el confirm informativo vive en el hook (conteo real) */}
+          onClearSelection={() => setSelectedTaskIds(new Set())}
         />
 
         {/* Content Container */}

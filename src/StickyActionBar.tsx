@@ -38,6 +38,7 @@ interface StickyActionBarProps {
   onChangeTime?: () => void;
   onDuplicate?: () => void;
   onDelete?: () => void;
+  onClearSelection?: () => void; // barrido §16.50: "quitar todas sin salir del modo"
 }
 
 export function StickyActionBar({
@@ -60,6 +61,7 @@ export function StickyActionBar({
   onChangeTime,
   onDuplicate,
   onDelete,
+  onClearSelection,
 }: StickyActionBarProps) {
 
   const isSelectionActive = selectionMode && selectedCount > 0;
@@ -111,11 +113,22 @@ export function StickyActionBar({
               )}
             </div>
 
-            {/* Cancelar selección */}
+            {/* Limpiar: quitar todas SIN salir del modo (barrido §16.50) */}
+            {onClearSelection && (
+              <button
+                onClick={onClearSelection}
+                className="h-7 px-2 flex items-center rounded-lg text-[10px] font-bold dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light dark:hover:bg-bg-card hover:bg-gray-100 transition-all shrink-0"
+                title="Quitar todas (seguir en modo selección)"
+              >
+                Limpiar
+              </button>
+            )}
+
+            {/* Salir del modo selección (limpia y sale) */}
             <button
               onClick={onToggleSelectionMode}
               className="w-7 h-7 flex items-center justify-center rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-rosa hover:dark:bg-rosa/10 hover:bg-rosa/10 transition-all shrink-0"
-              title="Cancelar selección"
+              title="Salir de selección"
             >
               <X size={14} />
             </button>
@@ -145,7 +158,7 @@ export function StickyActionBar({
               title="Selección múltiple"
             >
               <CheckSquare size={13} />
-              <span className="hidden sm:inline">Seleccionar</span>
+              <span className="hidden sm:inline">{selectionMode ? 'Cancelar' : 'Seleccionar'}</span>
             </button>
 
             <Divider />
