@@ -291,7 +291,7 @@ export function WeekView({
       .sort((a, b) => getTaskMins(b, dayMap) - getTaskMins(a, dayMap));
     if (blockTasks.length === 0) return null;
     const key = `${date}__${block.id}`;
-    const isExpanded = expandedBlocks.has(key);
+    const isExpanded = isOpen(key, false); // §16.63: modo bloque respeta el control global Desplegar/Plegar
     const { done: hechasCount, total: hojasTotal } = leafCounts(blockTasks, dayMap); // #7: hojas, no status del contenedor
     const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
     return (
@@ -494,21 +494,25 @@ export function WeekView({
               <button onClick={() => onNavigateToDashboard(date)}
                 className="w-full text-left px-3 pt-3 pb-2 hover:dark:bg-white/5 hover:bg-black/5 transition-all">
                 <div className="flex items-center justify-between mb-2">
-                  {/* §barrido: el número es el ancla; el día en un solo tamaño secundario; "Ago" sobra (ya está en el título) */}
-                  <div className="flex items-baseline gap-1.5">
+                  {/* §16.66: nº ancla · día · TOTAL del día (estimado = el plan, para ver qué día está lleno). "Ago" sobra. */}
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
                     <span className={`text-lg font-black leading-none ${isToday ? 'text-turquesa' : 'dark:text-white text-text-main-light'}`}>
                       {label.num}
                     </span>
                     <span className={`text-[10px] font-bold uppercase tracking-widest ${isToday ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`}>
                       {label.day}
                     </span>
+                    {estimatedMins > 0 && (
+                      <>
+                        <span className="text-[10px] opacity-30">·</span>
+                        <span className={`text-[10px] font-black tabular-nums ${getPctTextClass(pct)}`}>{formatMinutes(estimatedMins)}</span>
+                      </>
+                    )}
                   </div>
-                  {displayMins > 0 && (
-                    <div className="flex items-center gap-1">
-                      {isPast && <Clock size={9} className="text-turquesa" />}
-                      <span className={`text-[10px] font-black ${getPctTextClass(displayPct)}`}>
-                        {formatMinutes(displayMins)}
-                      </span>
+                  {isPast && registeredMins > 0 && (
+                    <div className="flex items-center gap-1" title="Tiempo registrado ese día">
+                      <Clock size={9} className="text-turquesa" />
+                      <span className="text-[10px] font-black text-turquesa">{formatMinutes(registeredMins)}</span>
                     </div>
                   )}
                 </div>
