@@ -69,6 +69,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
   const [newMeeting, setNewMeeting] = useState<{ personId: string; date: string; notes: string; items: any[] } | null>(null);
   const [expandedMeetings, setExpandedMeetings] = useState<Set<string>>(new Set());
   const [editingMeeting, setEditingMeeting] = useState<any | null>(null);
+  const [notesOpen, setNotesOpen] = useState<Set<string>>(new Set()); // §barrido: notas de reunión plegadas si vacías
+  const [showRango, setShowRango] = useState(false); // §barrido: filtro de rango de fechas plegado (icono) hasta que se usa
 
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(true);
@@ -622,32 +624,38 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
       {activeTab === 'reuniones' && (
         <div className="space-y-4">
 
-          {/* Filtros reuniones: rango de fechas */}
-          <div className="flex items-center gap-2 w-fit">
-            <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest shrink-0">Rango</span>
-            <input
-              type="date"
-              value={meetingDateRange.start}
-              onChange={e => setMeetingDateRange(prev => ({ ...prev, start: e.target.value }))}
-              className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl px-2 py-1 text-[11px] dark:text-white text-text-main-light outline-none focus:border-morado/50 w-32"
-            />
-            <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">→</span>
-            <input
-              type="date"
-              value={meetingDateRange.end}
-              onChange={e => setMeetingDateRange(prev => ({ ...prev, end: e.target.value }))}
-              className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl px-2 py-1 text-[11px] dark:text-white text-text-main-light outline-none focus:border-morado/50 w-32"
-            />
-            {(meetingDateRange.start || meetingDateRange.end) && (
+          {/* Filtros reuniones: rango de fechas — §barrido: plegado tras un icono hasta que se usa (antes dos campos vacíos) */}
+          {(showRango || meetingDateRange.start || meetingDateRange.end) ? (
+            <div className="flex items-center gap-2 w-fit">
+              <span className="text-[9px] font-black dark:text-text-secondary text-text-secondary-light uppercase tracking-widest shrink-0">Rango</span>
+              <input
+                type="date"
+                value={meetingDateRange.start}
+                onChange={e => setMeetingDateRange(prev => ({ ...prev, start: e.target.value }))}
+                className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl px-2 py-1 text-[11px] dark:text-white text-text-main-light outline-none focus:border-morado/50 w-32"
+              />
+              <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">→</span>
+              <input
+                type="date"
+                value={meetingDateRange.end}
+                onChange={e => setMeetingDateRange(prev => ({ ...prev, end: e.target.value }))}
+                className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl px-2 py-1 text-[11px] dark:text-white text-text-main-light outline-none focus:border-morado/50 w-32"
+              />
               <button
-                onClick={() => setMeetingDateRange({ start: '', end: '' })}
+                onClick={() => { setMeetingDateRange({ start: '', end: '' }); setShowRango(false); }}
                 className="w-6 h-6 flex items-center justify-center text-rosa/60 hover:text-rosa hover:bg-rosa/10 rounded-lg transition-all"
-                title="Limpiar rango"
+                title="Quitar filtro de fecha"
               >
                 <X size={11} />
               </button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowRango(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-morado/50 hover:text-morado transition-all text-[10px] font-black uppercase tracking-widest w-fit"
+              title="Filtrar reuniones por rango de fechas">
+              <CalendarIcon size={12} /> Filtrar por fecha
+            </button>
+          )}
 
           {filteredMeetings.length === 0 && (
             <div className="py-24 text-center dark:text-text-secondary text-text-secondary-light border-2 border-dashed dark:border-border-main border-border-main-light rounded-[2.5rem] opacity-50">
@@ -816,23 +824,31 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                               }}
                               onDelete={onDeleteTask}
                             />
-                            {/* Nota inline editable */}
-                            <div className="px-4 pb-3 border-t dark:border-border-main/30 border-border-main-light/30 pt-2">
-                              <textarea
-                                value={item.note || ''}
-                                onChange={e => {
-                                  const updatedItems = meeting.items.map((i: any) =>
-                                    i.taskId === item.taskId ? { ...i, note: e.target.value } : i
-                                  );
-                                  const updatedMeeting = { ...meeting, items: updatedItems };
-                                  onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
-                                }}
-                                placeholder="Nota sobre esta tarea..."
-                                rows={1}
-                                onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                                className="w-full dark:bg-transparent bg-transparent border-none text-sm dark:text-text-secondary text-text-secondary-light dark:placeholder:text-text-secondary/30 placeholder:text-text-secondary-light/40 outline-none resize-none overflow-hidden"
-                              />
-                            </div>
+                            {/* Nota inline — §barrido: plegada si vacía (antes el editor abierto siempre doblaba la fila) */}
+                            {(hasNote || notesOpen.has(`${meeting.id}__${item.taskId}`)) ? (
+                              <div className="px-4 pb-3 border-t dark:border-border-main/30 border-border-main-light/30 pt-2">
+                                <textarea
+                                  autoFocus={!hasNote}
+                                  value={item.note || ''}
+                                  onChange={e => {
+                                    const updatedItems = meeting.items.map((i: any) =>
+                                      i.taskId === item.taskId ? { ...i, note: e.target.value } : i
+                                    );
+                                    const updatedMeeting = { ...meeting, items: updatedItems };
+                                    onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
+                                  }}
+                                  placeholder="Nota sobre esta tarea..."
+                                  rows={1}
+                                  onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                                  className="w-full dark:bg-transparent bg-transparent border-none text-sm dark:text-text-secondary text-text-secondary-light dark:placeholder:text-text-secondary/30 placeholder:text-text-secondary-light/40 outline-none resize-none overflow-hidden"
+                                />
+                              </div>
+                            ) : (
+                              <button onClick={() => setNotesOpen(s => { const n = new Set(s); n.add(`${meeting.id}__${item.taskId}`); return n; })}
+                                className="px-4 pb-2 pt-0.5 text-[10px] font-bold dark:text-text-secondary/50 text-text-secondary-light/50 hover:text-morado transition-all">
+                                + nota
+                              </button>
+                            )}
                             </div>
                           </div>
                         );
