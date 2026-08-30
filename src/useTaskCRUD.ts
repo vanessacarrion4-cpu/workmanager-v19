@@ -283,7 +283,7 @@ export function useTaskCRUD({
           is_exception: true,
           is_deleted: false,
           is_expanded: t.isExpanded || false,
-          task_type: t.taskType || 'core',
+          task_type: t.taskType || 'adhoc',
           recurrence: null,
           delegation: t.delegation || null,
           was_recurring: t.wasRecurring || false,
@@ -500,7 +500,7 @@ export function useTaskCRUD({
           is_exception: true,
           is_deleted: false,
           is_expanded: updatedTask.isExpanded || false,
-          task_type: updatedTask.taskType || 'core',
+          task_type: updatedTask.taskType || 'adhoc',
           on_hold: updatedTask.onHold ?? false,
           recurrence: null,
           delegation: updatedTask.delegation || null,
@@ -589,7 +589,7 @@ export function useTaskCRUD({
         status: 'pending', due_date: null, due_time: newTemplate.dueTime || null, completed_at: null,
         estimated_minutes: newTemplate.estimatedMinutes || 0, actual_minutes: 0, tags: newTemplate.tags || [],
         order: newTemplate.order || 0, is_template: true, is_active: true, is_exception: false, is_deleted: false,
-        is_expanded: false, task_type: newTemplate.taskType || 'core', recurrence: newRecurrence,
+        is_expanded: false, task_type: newTemplate.taskType || 'adhoc', recurrence: newRecurrence,
         delegation: newTemplate.delegation || null, created_at: ts, modified_at: ts,
       }), { verbo: 'guardar', titulo: newTemplate.title });
       oldInstancesToRemove.forEach(o => persist(
@@ -938,7 +938,7 @@ export function useTaskCRUD({
             is_exception: true,
             is_deleted: false,
             is_expanded: updatedTask.isExpanded || false,
-            task_type: updatedTask.taskType || 'core', // #6 tapar fuga: ningún camino deja task_type null (default core)
+            task_type: updatedTask.taskType || 'adhoc', // #6 tapar fuga: ningun camino deja task_type null (regla unica: sin tipo = adhoc)
             parent_task_id: null,  // B4-cambio-2: null (no plantilla); materializeDay re-anida por templateId
             template_id: _childTid,
             instance_date: _oldDate,
@@ -983,7 +983,7 @@ export function useTaskCRUD({
           is_deleted: updatedTask.isDeleted || false,
           is_expanded: updatedTask.isExpanded,
           on_hold: updatedTask.onHold ?? false,
-          task_type: updatedTask.taskType || 'core', // #6 tapar fuga: ningún camino deja task_type null (default core)
+          task_type: updatedTask.taskType || 'adhoc', // #6 tapar fuga: ningun camino deja task_type null (regla unica: sin tipo = adhoc)
           parent_task_id: supabaseParentId,
           template_id: updatedTask.templateId || null,
           instance_date: updatedTask.instanceDate || null,

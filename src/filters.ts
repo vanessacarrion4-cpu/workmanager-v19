@@ -424,7 +424,7 @@ export function getStatsForDay(
   pendingTasks.forEach(t => {
     const est = t.estimatedMinutes || 0;
     if (est <= 0) return;
-    if (t.taskType === 'adhoc') byType.adhoc += est; else byType.core += est;
+    if (t.taskType === 'core') byType.core += est; else byType.adhoc += est; // #6: sin tipo → adhoc (regla única)
     blockMap.set(t.blockId, (blockMap.get(t.blockId) || 0) + est);
     // etiqueta primaria = misma que usa groupTasksByTag para colocar la tarea en Mi Día
     const tag = (t.tags && t.tags[0]) || 'resto';
@@ -600,7 +600,7 @@ export function getReportBreakdown(
   leaves.forEach(t => {
     const est = t.estimatedMinutes || 0;
     if (est <= 0) return;
-    if (t.taskType === 'adhoc') byType.adhoc += est; else byType.core += est;
+    if (t.taskType === 'core') byType.core += est; else byType.adhoc += est; // #6: sin tipo → adhoc (regla única)
     blockMap.set(t.blockId, (blockMap.get(t.blockId) || 0) + est);
     const tag = (t.tags && t.tags[0]) || 'resto';
     tagMap.set(tag, (tagMap.get(tag) || 0) + est);

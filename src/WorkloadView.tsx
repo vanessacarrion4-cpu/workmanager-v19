@@ -363,7 +363,7 @@ function buildTaskLoads(
       taskId: `__past__${blockId}`,
       title: '__past__',
       blockId,
-      taskType: 'core',
+      taskType: 'adhoc', // #6: tiempo pasado registrado sin clasificar → adhoc (regla única sin tipo = adhoc)
       isContainer: false,
       monthMinutes: data.monthMinutes,
       weekMinutes: data.weekMinutes,
@@ -433,7 +433,7 @@ function buildTaskLoads(
       // (resolveBlockId). Antes con el filtro por Bloque activo las hijas (blockId undefined) se descartaban y el contenedor
       // perdía su detalle diario.
       taskId: task.id, title: task.title, blockId: resolveBlockId(task, allTasksMap) || task.blockId,
-      taskType: task.taskType || 'core', isContainer, parentId,
+      taskType: task.taskType || 'adhoc', isContainer, parentId,
       monthMinutes, weekMinutes,
       dayMinutes: {},
     });

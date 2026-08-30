@@ -98,10 +98,11 @@ function leafCounts(tasks: Task[], dayMap: Record<string, Task>): { done: number
 }
 
 // ─── Tipo efectivo — directo del taskType del contenedor ─────────────────────
-// #6 (sesión 26): la sin-tipo NO es categoría propia — se pliega a Core (como Mi Día/Reporte/Carga) hasta que se limpien las
-// 1.061 sin tipo. Decisión de la propietaria: no llenar las vistas de "Sin tipo" mientras el dato malo esté sin resolver.
+// #6 (sesión 26): la sin-tipo NO es categoría propia — se pliega a ADHOC (regla única de la propietaria: si no se marcó tipo,
+// probablemente no era rutina → ad-hoc). Mismo criterio en Mi Día/Reporte/Carga y en el backfill de las 1.478. No mezclar:
+// backfill + plegado + defaults de escritura, todo a adhoc, para que viejas y nuevas nunca se separen.
 function getEffectiveType(task: Task): 'core' | 'adhoc' {
-  return task.taskType === 'adhoc' ? 'adhoc' : 'core';
+  return task.taskType === 'core' ? 'core' : 'adhoc';
 }
 
 const TURQUESA = '#14B8A6';

@@ -39,7 +39,7 @@ function buildExceptionRow(obj: Task, day: string, parentId: string | null, time
     is_exception: true,
     is_deleted: false,
     is_expanded: obj.isExpanded || false,
-    task_type: obj.taskType || 'core', // #6 tapar fuga: ningún camino deja task_type null (default core)
+    task_type: obj.taskType || 'adhoc', // #6 tapar fuga: ningun camino deja task_type null (regla unica: sin tipo = adhoc)
     parent_task_id: parentId,
     template_id: obj.templateId || templateIdFromInstanceId(obj.id),
     instance_date: day,
