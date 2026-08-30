@@ -406,6 +406,22 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 pb-32">
 
+      {/* Bulk Action Bar Delegadas — #barrido §16.50: la selección múltiple ya estaba cableada (checkboxes en TaskCard),
+          faltaba montar la barra de acciones. Mismo patrón que Bloques. */}
+      {selectionMode && selectedTaskIds.size > 0 && bulkUpdateTasks && (
+        <BulkActionBar
+          count={selectedTaskIds.size}
+          onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
+          onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
+          onComplete={() => bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
+          onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
+          onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
+          onDelete={() => { bulkDeleteTasks && bulkDeleteTasks(); }}
+          onCancel={onToggleSelectionMode}
+          isMobile={window.innerWidth < 768}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

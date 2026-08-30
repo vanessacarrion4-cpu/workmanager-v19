@@ -714,6 +714,16 @@ export default function App() {
                 onGoToTemplate={handleGoToTemplate}
                 onPromote={handlePromoteTask}
                 onDemote={handleDemoteTask}
+                selectionMode={selectionMode}
+                selectedTaskIds={selectedTaskIds}
+                onToggleTaskSelection={toggleTaskSelection}
+                onToggleSelectionMode={toggleSelectionMode}
+                bulkUpdateTasks={bulkUpdateTasks}
+                bulkDeleteTasks={bulkDeleteTasks}
+                bulkDuplicateTasks={bulkDuplicateTasks}
+                setBulkDelegateModal={setBulkDelegateModal}
+                setBulkDateModal={setBulkDateModal}
+                setBulkTimeModal={setBulkTimeModal}
               />
             )}
 

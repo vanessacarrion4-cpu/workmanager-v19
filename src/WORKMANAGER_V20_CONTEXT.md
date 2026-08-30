@@ -5225,7 +5225,13 @@ revisar si Semana/Calendario/Carga/Delegadas hacen lo mismo por su cuenta y unif
 - ✅ **Código muerto** — `getLoadColor` (Calendar, solo se usa `getLoadColorHex`); param `isGenerated` de `calcRangeMinutes`+
   `calcLoad` (nunca leído; quitado de los 6 sitios); `setBulkTimeModal` doble-declarado en `BlocksViewProps`; `bg-turquesa/3`
   (opacidad inexistente) → `/5`.
-- ⏳ **`BulkActionBar` en Calendario y Delegadas** (importada, sin montar) — PENDIENTE (feature, no cosmético).
+- 🟡 **`BulkActionBar` en Calendario y Delegadas** — CABLEADO, pendiente de validación en pantalla de la propietaria.
+  Delegadas ya recibía todas las props de selección y ponía checkboxes en sus TaskCard → solo faltaba montar la barra (mismo
+  patrón que Bloques). Calendario NO recibía nada → añadidas las props en App (`selectionMode`, `selectedTaskIds`,
+  `toggleTaskSelection`, `toggleSelectionMode`, `bulkUpdate/Delete/Duplicate`, `setBulk*Modal`), destructuradas en
+  `CalendarView`, pasadas a los TaskCard top-level del detalle de día, y montada la barra. Build limpio. NO verificado con el
+  ratón (panel oculto viewport 0×0 no acciona clics de celda fiables) → **la valida ella**: activar "Seleccionar", abrir un día
+  (Calendario) o una pestaña con tareas (Delegadas), clicar una tarea → la barra aparece arriba con el conteo.
 - ⏳ **Semana bloque→tipo solo se despliega en lunes** — investigar (render vs datos). PENDIENTE.
 
 **VALIDADO:** hechas/total de Semana funciona (cierra el flip de X/Y para el contenedor de nivel día).

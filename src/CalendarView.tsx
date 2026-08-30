@@ -25,7 +25,10 @@ import {
 import { StickyActionBar } from './StickyActionBar';
 
 
-export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, activeDate, onDateSelect, onAddTask, onToggleTask, onDelete, onReorderTasks, onReorderSubtasks, onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null }: any) {
+export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, activeDate, onDateSelect, onAddTask, onToggleTask, onDelete, onReorderTasks, onReorderSubtasks, onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null,
+  selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null,
+  bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null,
+  setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null }: any) {
   const [viewDate, setViewDate] = useState(() => parseLocalISO(activeDate));
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const jornada = useJornada(); // #5 barrido: capacidad = jornada configurable (como Semana), no 480 fijo
@@ -126,6 +129,21 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
       animate={{ opacity: 1 }} 
       className="space-y-8 pb-32"
     >
+      {/* Bulk Action Bar Calendario — #barrido §16.50: selección múltiple estaba importada pero sin montar; cableada
+          desde App + checkboxes en TaskCard + esta barra. Mismo patrón que Bloques/Delegadas. */}
+      {selectionMode && selectedTaskIds.size > 0 && bulkUpdateTasks && (
+        <BulkActionBar
+          count={selectedTaskIds.size}
+          onDelegate={() => setBulkDelegateModal && setBulkDelegateModal(true)}
+          onChangeDate={() => setBulkDateModal && setBulkDateModal(true)}
+          onComplete={() => bulkUpdateTasks({ status: 'completed', completedAt: new Date().toISOString() })}
+          onChangeTime={() => setBulkTimeModal && setBulkTimeModal(true)}
+          onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
+          onDelete={() => { bulkDeleteTasks && bulkDeleteTasks(); }}
+          onCancel={onToggleSelectionMode}
+          isMobile={window.innerWidth < 768}
+        />
+      )}
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-black dark:text-white text-text-main-light capitalize">{monthName}</h2>
         <div className="flex gap-2">
@@ -476,6 +494,9 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                                     onDemote={onDemote}
                                     onReorderSubtasks={onReorderSubtasks}
                                     onToggleExpand={onToggleExpand}
+                                    selectionMode={selectionMode}
+                                    selectedTaskIds={selectedTaskIds}
+                                    onToggleTaskSelection={onToggleTaskSelection}
                                   />
                                 );
                               }
