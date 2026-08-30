@@ -5423,3 +5423,21 @@ La propietaria pide los MISMOS agrupadores en Semana y en Carga (por TIPO, dentr
 Las dos vistas se están pareciendo. **En la sesión de planificación hay que decidir cuántas vistas se necesitan de verdad y qué
 hace cada una** (¿Semana = un día×5 con detalle? ¿Carga = el paisaje de semanas? ¿se funden?) ANTES de seguir construyendo el
 mismo agrupador dos veces. No construir más solapamiento sin esa decisión.
+
+## 16.61 INCOHERENCIA EN ELIMINAR (decisión NUEVA de la propietaria — cambia la de hace días)
+Desde la FILA: modal completo (recurrente → "Quitar solo el {día}" / "Terminar la rutina"). Desde la BARRA de selección: solo
+quita el día, sin ofrecer terminar. **Decisión: MISMO diálogo en los dos sitios** (la incoherencia cuesta más que el riesgo).
+CONDICIÓN: si en la selección hay VARIAS recurrentes, "Terminar la rutina" cortaría varias series de un clic → el modal debe
+LISTAR CUÁLES por nombre antes de confirmar (con scroll si son muchas, como el aviso de borrado que ya existe).
+- Desde la fila: como está.
+- Barra con UNA recurrente: igual que la fila.
+- Barra con VARIAS: mismas dos opciones, listando los nombres de las series a terminar.
+La elección se aplica a TODAS las recurrentes de la selección; las no recurrentes se borran normal. El texto se adapta al número
+(no "la rutina" si son tres → "las 3 rutinas"). PENDIENTE de construir (toca `bulkDeleteTasks` en useBulkActions + el modal).
+
+## 16.62 Barrido visual — Semana CERRADA (sesión 26)
+✅ Números legibles (10px, tiempo color fuerte, separados); orden por PESO (bloques, tipos, items dentro); modo Tipo = CORE/ADHOC
+con total, items (contenedor o huérfana) por peso — SIN agregar huérfanas (decisión en vivo); emoji→punto; L-V/L-D→"5/7 días";
+cabecera de día (nº ancla, sin "Ago"): "24 LUN"; selector fecha→icono; aire equilibrado. Detalle "dos filas de controles" =
+barra global + cabecera de vista (cambio de layout global, no forzado por-vista). NO SE VUELVE A Semana.
+PENDIENTE (orden de la propietaria): Carga·agrupación por tipo (§16.58) → Calendario → Búsqueda (§16.59) → incoherencia eliminar (§16.61).
