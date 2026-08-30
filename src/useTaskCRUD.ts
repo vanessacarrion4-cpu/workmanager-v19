@@ -398,6 +398,10 @@ export function useTaskCRUD({
     setTasks(updatedTasks);
 
     (async () => {
+      // #3 rastreo (F5-1): NO persistir una fila con título vacío. El "+" inline crea la fila local para editar en sitio;
+      // se queda solo en estado. Al escribir el título, handleUpdateTask hace upsert (onConflict id) y la fila nace ya
+      // titulada. Si se abandona sin título, no queda basura en BD. Es el mismo criterio que ya seguía el compositor.
+      if (!(newTask.title || '').trim()) return;
       try {
         let supabaseParentId = newTask.parentTaskId || null;
         if (supabaseParentId && supabaseParentId.startsWith('inst-')) {

@@ -157,9 +157,10 @@ export function useTimerHandlers({
     if (!id.startsWith('inst-')) return id;
     const t = tasksMap[id];
     if (t?.templateId) return t.templateId;
-    const parts = id.replace('inst-', '').split('-');
-    parts.pop(); parts.pop(); parts.pop();
-    return parts.join('-');
+    // #2 rastreo (sesión 26): quitar el prefijo `inst-` y el sufijo de fecha `-YYYY-MM-DD` con regex — NO `pop()` a ciegas,
+    // que asumía exactamente 3 segmentos de fecha y devolvía basura/cadena vacía si el id no traía el sufijo completo.
+    // Mismo criterio que `resolveToTemplate` en App.tsx.
+    return id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
   }, []);
 
   const handleTimerStopConfirm = useCallback((note: string, markComplete: boolean, timerStopModal: { minutes: number; pendingEntry: any }) => {

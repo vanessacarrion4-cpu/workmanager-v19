@@ -20,6 +20,7 @@ import { Task, TagType } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { TAG_LABELS } from './constants';
 import { getTaskRegisteredCombo, formatMinutes, isExpiredTemplate } from './utils';
+import { toast } from './toast'; // #3 rastreo: aviso al intentar guardar sin título
 import {
   DelegationChip, DatePickerChip, TagPickerChip, RecurrencePickerChip,
   EstimatedTimeChip, TimePickerChip, MonthDatePicker, TimeManagementPanel
@@ -125,6 +126,9 @@ export function TaskModal({
   };
 
   const handleSave = () => {
+    // #3 rastreo (F5-1 / §11.1d): guard de título vacío. Sin esto, guardar el modal con título en blanco persiste una fila
+    // basura. No se guarda ni se cierra: el modal queda abierto para que se le ponga título.
+    if (!(localTask.title || '').trim()) { toast.warn('Ponle un título a la tarea antes de guardar.'); return; }
     const taskToSave = localTask.templateId
       ? { ...localTask, isException: true, existsInSupabase: true }
       : localTask;

@@ -5247,3 +5247,28 @@ revisar si Semana/Calendario/Carga/Delegadas hacen lo mismo por su cuenta y unif
 - ✅ **Quitado el modo carga** — botón toggle `Carga` del header + `showCarga` + `renderCargaBar` + los `coreMins/adhocMins`
   que solo lo alimentaban + import `Layers`. **VERIFICADO** (solo queda el nav "Carga" = vista Workload).
 - ⏳ **PENDIENTE Semana:** medir+reportar las "sin tipo" (enlazado #6); investigar por qué bloque→tipo solo despliega en lunes.
+
+## 16.51 RASTREO doc↔código (sesión 26) — peticiones enterradas + acciones
+Auditoría cruzando el documento con el código real (subagente + verificación). La propietaria priorizó:
+
+**ARREGLADAS:**
+- ✅ **#2 `resolveId` con `pop()` 3× a ciegas** (`useTimerHandlers.ts:161`) → regex `.replace(/^inst-/,'').replace(/-\d{4}-\d{2}-\d{2}$/,'')` (mismo criterio que `resolveToTemplate` en App). El `pop()` asumía 3 segmentos de fecha exactos y devolvía basura/cadena vacía si el id no traía el sufijo completo. Bug latente, cerrado.
+- ✅ **#3 título vacío sin guard** (F5-1 / §11.1d) → dos guards: `doAddTask` (`useTaskCRUD`) NO persiste en BD si el título está vacío (la fila local del "+" inline queda para editar; al titular, `handleUpdateTask` hace upsert; si se abandona, no hay basura); `TaskModal.handleSave` avisa (`toast.warn`) y no guarda/cierra con título en blanco. El compositor ya lo hacía.
+
+**BLOQUEADA (necesita decisión de la propietaria — cambio de esquema en prod):**
+- ⛔ **#7 quitar `priority: 'media'` de ~15 writers** — la columna `priority` es **NOT NULL sin default** (verificado con insert de prueba). Quitar el literal rompería TODAS las creaciones. Requiere primero un `ALTER` en la BD de producción: o **(A)** `ALTER TABLE tasks ALTER COLUMN priority SET DEFAULT 'media'` (luego se quitan los literales sin riesgo; comportamiento idéntico), o **(B)** quitar todas las LECTURAS y `DROP COLUMN priority` (el fin último de §11.1h). NO tocado hasta su OK.
+
+**LA VALIDA LA PROPIETARIA (cableado, pendiente de pantalla):** #4 adjunto que no persiste (subir→recargar), #8 poner pauta desde la fila (F5-5), #6 bloque→tipo solo lunes (ahora que el plegado cambió), selección múltiple en Calendario/Delegadas (`BulkActionBar`, §16.50).
+
+**EL GORDO (pre-construcción, NO construir):** #5 reordenar una recurrente cambia el orden de TODOS los días (`useTaskOrdering.ts:76` escribe `order` en la plantilla). Paquete de análisis pendiente de mandar; no se construye hasta que lo vea.
+
+**Falsas alarmas / ya hechas (cruzado):** bug #8 TDZ = no existe (la llamada se evalúa al pulsar play); F5-2 encadenar-con-Enter está construido en el compositor; el `onToggleStatus` del preview y el `setBulkTimeModal` doble se cerraron esta sesión.
+
+## 16.52 RIESGO DE MÉTODO: el limbo "cableado OK, pendiente de validación en pantalla"
+La propietaria lo señala como **fuga de proceso**: *"si algo se cablea y no se valida, ni está hecho ni está pendiente, está en el limbo."* El doc arrastra este patrón varias veces. **Regla: un item cableado-sin-validar NO cuenta como hecho.** Marcados con 🟡 para validarlos de una tanda:
+
+- 🟡 **F5-5 / §16.29 — poner pauta a una tarea normal desde la fila** — CABLEADO (`TaskCard.tsx:715-731/802` + `useTaskCRUD.ts:759-815`), el doc dice "solo falta validación en pantalla" y §16.29 avisa "NO CONFIRMADO en pantalla". Sin validar.
+- 🟡 **Bug #17 — adjunto no persiste** — `handleUploadAttachment` (`useTimerHandlers.ts:276-291`) sube al storage y llama a update; NO escribe en tabla `attachments`. Probablemente persiste vía la columna, pero **nunca re-verificado en pantalla** tras el reporte (subir→recargar).
+- 🟡 **BulkActionBar en Calendario y Delegadas** (§16.50) — cableado + build limpio esta sesión, **interacción multi-selección sin validar con el ratón** (panel oculto no acciona clics de celda).
+- 🟡 **Semana bloque→tipo solo despliega en lunes** — reportado, sin diagnosticar; ¿render o falta de datos? Mirar ahora que el plegado a adhoc cambió el reparto.
+- 🟡 **#6 desglose Core→Adhoc** — backfill + plegado verificados por probe/build; el FLIP visible del reparto en modo Tipo (Semana/Carga/cinta) lo confirma ella.
