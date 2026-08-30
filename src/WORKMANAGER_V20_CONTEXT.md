@@ -5314,3 +5314,50 @@ La propietaria lo señala como **fuga de proceso**: *"si algo se cablea y no se 
   por-día vía `buildExceptionRow`) + lectura que prefiere el `order` de la excepción sobre la plantilla (cierra también el gap
   §16.17 de subtareas) + pasar la fecha a `onReorderTasks/onReorderSubtasks` (Bloques NO se toca, ahí se reordena la plantilla).
   VERIFICAR: reordenar un día NO cambia otro, TRAS RECARGAR. Plantilla manda salvo en los días tocados.
+
+## 16.54 (build) Bloques · 5 secciones + COMPLETADAS — HECHO
+Detalle de bloque: 1 Ad-hoc pendiente · 2 Core pendiente · 3 CONTENEDORES con hija pendiente (entero) · 4 Finalizadas ·
+5 COMPLETADAS (sueltas completadas + contenedores con TODAS las hijas hechas; plegada; contador; últimos 30 días por
+`completed_at` desc + "ver más"). Memos nuevos en `BlocksView`: `coreTasks`/`adhocTasks` ahora SOLO sueltas pendientes;
+`containerTasks` (contenedor con `containerHasPending`); `completadasTasks` (loose completed ∪ `containerAllDone`, ordenado
+por completedAt del contenedor = máx de sus hijas). **Desmarcar:** suelta → su toggle la reabre; contenedor → NO hay
+Desmarcar (estado derivado), `hideCompleted=false` para ver las hijas y reabrir la que se quiera (opción 1). VERIFICADO en
+pantalla (CM11l: Completadas 31 = 27 sueltas + 4 contenedores; 6 recientes + "ver más 25"; desmarcar 31→30, restaurado).
+
+## 16.55 PENDIENTE tras sesión 26 (orden de la propietaria)
+### #5 reordenar recurrente (opción A) — SIGUIENTE BUILD, con foco
+Materializar al reordenar: escritura → si se reordena una instancia recurrente EN UN DÍA, `upsert` de fila-excepción
+(`buildExceptionRow`) con `instance_date` = ese día y el `order` nuevo, en vez de escribir la plantilla. Lectura →
+`reconstructInstanceHierarchy` (`useSupabase.ts:191`) debe preferir el `order` de la excepción del día sobre el de la
+plantilla (cierra también el gap §16.17 de subtareas). Cablear la FECHA en `onReorderTasks`/`onReorderSubtasks` desde Mi Día/
+Calendario/Semana; **Bloques NO se toca** (ahí se reordena la plantilla, correcto). VERIFICAR: reordenar un día NO cambia
+otro, TRAS RECARGAR. Plantilla manda salvo en los días tocados (volumen de filas-excepción aceptado por la propietaria).
+
+### Carga LIVIANA — TIRA DE SEMANAS (aprobada, construir tras #5)
+Unidad = SEMANA (fasear anuales por valles), NO matriz mes×bloque. **Tira horizontal de 26 semanas** (6 meses; ~36px×26≈940px
+caben en 1.200px; móvil = scroll horizontal con mes fijo; plan B = 3 meses + "ver más"). Meses como separadores. **Clic en la
+barra de una semana → ir a Semana en esa semana.** FUERA: desglose por tarea, por día, 2º eje, filtros duplicados
+(el "Bloque/Tipo" de arriba = agrupación; el de bajo el título = filtros — NO son lo mismo). DENTRO: separar REAL (≤hoy,
+time_entries) de PROYECTADO (>hoy, rutinas) — línea de "hoy" + proyectado más tenue/`~`. Arreglar la semana de FRONTERA que se
+expande en dos meses (indexar `expandedWeeks` por `mes__semana`, no solo `week.key`). ANOTADO (no construir): pantalla de
+PLANIFICACIÓN (grandes-sin-colocar + tira + repartir horas) — antes hay que estimar anuales/semestrales.
+
+### Barrido VISUAL (al final, tras lo anterior) — revisado por la propietaria
+- **Semana:** números "0/7 1h" ilegibles (gris pequeño pegado al borde) → separar del borde, subir contraste, separar contador
+  de tiempo. Cabecera de día usa 3 tamaños → nº ancla + resto en un tamaño secundario ("Ago" sobra, ya está en el título).
+  Tarjetas con mucho aire arriba/poco abajo, "+ AÑADIR" flota → igualar. Bloque lleva punto Y emoji → dejar solo el punto (como
+  Mi Día). Selector "dd/mm/aaaa" → icono de calendario o fecha dentro. "L-V/L-D" → "5 días / 7 días". Dos filas de controles →
+  ver si "Seleccionar" cabe en la misma fila.
+- **Bloques:** tarjetas de lista ~120px para nombre + 3 números → compactar. Iconos emoji grandes en caja con sombra → bajar y
+  quitar la caja (la barra de color ya identifica).
+- **Calendario:** quitar "libre X%" (redundante con la barra) y en su hueco poner a qué corresponde ("semana 3–9"). Comprobar
+  desplazamiento: el "4%" a la altura de la fila del 1-2 y la semana 3-9 (55m+30m) no da 4% de 40h. Añadir estado del MES junto
+  al título. Colores de barras de día (verde/naranja/rosa): día `<3h/3-5h/5-7h/>7h`; semana `<15h/15-25h/25-35h/>35h` — decidir
+  si se rediseñan. Días vacíos y llenos pesan igual → dar peso visual a los llenos.
+- **Delegadas:** 🔴 COLUMNA DERECHA ILEGIBLE (dos fechas apiladas "18 ago 26 DELEG./EJEC." minúsculas que pisan la fila
+  siguiente) → una línea por fila, etiquetas legibles, si no caben las dos dejar la importante. Notas de Reuniones siempre
+  abierto aunque vacío → plegado. "RANGO dd/mm/aaaa → dd/mm/aaaa" dos campos vacíos → mismo criterio que Semana. 4 botones por
+  persona sin jerarquía (confirmados 3: ⌄/▲ contraer contenedores, + nueva tarea delegada, REUNIÓN iniciar; si hay un 4º, mapear).
+- **Búsqueda:** por defecto solo PENDIENTES (el filtro ESTADO ya existe, arrancar ahí) y que se vea el filtro activo sin abrirlo.
+  Filas verdes = título contiene el texto buscado (con "da" casi todas) → quitar o hacer útil. Cabecera de grupo fija al hacer
+  scroll dentro del grupo.
