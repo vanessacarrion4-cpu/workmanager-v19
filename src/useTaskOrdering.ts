@@ -65,14 +65,25 @@ export function useTaskOrdering({
 }: UseTaskOrderingOptions) {
 
   const handleUpdateTasksOrder = useCallback((orderedTasks: Task[]) => {
+    const ts = new Date().toISOString();
     const updated = { ...tasks };
     orderedTasks.forEach((t, i) => {
-      updated[t.id] = { ...updated[t.id], order: i, modifiedAt: new Date().toISOString() };
+      updated[t.id] = { ...updated[t.id], order: i, modifiedAt: ts };
     });
     setTasks(updated);
     orderedTasks.forEach((t, i) => {
-      const dbId = t.id.startsWith('inst-') ? (t.templateId || t.id) : t.id;
-      persist(supabase.from('tasks').update({ order: i }).eq('id', dbId), { verbo: 'guardar', titulo: t.title });
+      // #5 (sesión 26): una INSTANCIA recurrente reordenada EN UN DÍA (id `inst-<tid>-<YYYY-MM-DD>`) NO escribe la
+      // plantilla (eso cambiaba el orden de TODOS los días). Se materializa una fila-excepción para ESE día con el
+      // nuevo `order`; su `due_date = día` → `materializeDay` la surfacea solo ese día. Los demás días siguen con el
+      // orden de la plantilla, intacto. Bloques reordena PLANTILLAS (id `tmpl-`/`t-`, sin fecha) → escribe su propio order.
+      const m = t.id.match(/^inst-.+-(\d{4}-\d{2}-\d{2})$/);
+      if (m) {
+        const row = buildExceptionRow(t, m[1], null, ts);
+        row.order = i;
+        persist(supabase.from('tasks').upsert([row], { onConflict: 'id' }), { verbo: 'guardar', titulo: t.title });
+      } else {
+        persist(supabase.from('tasks').update({ order: i }).eq('id', t.id), { verbo: 'guardar', titulo: t.title });
+      }
     });
   }, [tasks, setTasks]);
 
@@ -113,11 +124,23 @@ export function useTaskOrdering({
     // GAP ADYACENTE (distinto, aparcado en §16.17): los contenedores RECURRENTES usan
     // `reconstructInstanceHierarchy`, que NO ordena por `order` → reordenar sus hijas puede no sobrevivir a
     // una recarga. Es un cambio de la reconstrucción en carga, no de aquí.
+    const tsSub = new Date().toISOString();
     subtaskIds.forEach((subId, order) => {
       const sub = tasks[subId];
       if (!sub) return;
-      const dbId = subId.startsWith('inst-') ? (sub.templateId || subId) : subId;
-      persist(supabase.from('tasks').update({ order }).eq('id', dbId), { verbo: 'guardar', titulo: sub.title });
+      // #5 / §16.17 (sesión 26): una subtarea de contenedor RECURRENTE reordenada EN UN DÍA (id `inst-…-YYYY-MM-DD`) NO
+      // escribe la plantilla (cambiaba todos los días y no sobrevivía a la recarga). Se materializa una excepción por-día
+      // con el `order` (parent_task_id null, re-anidada por templateId como el resto de excepciones de subtarea); su
+      // due_date=día → `resolveChildForDay` la surfacea solo ese día y el nuevo sort de hijas la coloca. Días sin tocar:
+      // la hija generada usa el order de la plantilla, intacto.
+      const m = subId.match(/^inst-.+-(\d{4}-\d{2}-\d{2})$/);
+      if (m) {
+        const row = buildExceptionRow(sub, m[1], null, tsSub);
+        row.order = order;
+        persist(supabase.from('tasks').upsert([row], { onConflict: 'id' }), { verbo: 'guardar', titulo: sub.title });
+      } else {
+        persist(supabase.from('tasks').update({ order }).eq('id', subId), { verbo: 'guardar', titulo: sub.title });
+      }
     });
   }, [tasks, setTasks]);
 

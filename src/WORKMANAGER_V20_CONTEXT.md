@@ -5325,7 +5325,18 @@ Desmarcar (estado derivado), `hideCompleted=false` para ver las hijas y reabrir 
 pantalla (CM11l: Completadas 31 = 27 sueltas + 4 contenedores; 6 recientes + "ver más 25"; desmarcar 31→30, restaurado).
 
 ## 16.55 PENDIENTE tras sesión 26 (orden de la propietaria)
-### #5 reordenar recurrente (opción A) — SIGUIENTE BUILD, con foco
+### #5 reordenar recurrente (opción A) — ✅ HECHO (sesión 26)
+- **Part A (top-level):** `handleUpdateTasksOrder` — una instancia recurrente (id `inst-<tid>-<YYYY-MM-DD>`) reordenada en un
+  día materializa una **excepción por-día** (`buildExceptionRow`) con el `order`, en vez de escribir la plantilla. `due_date=día`
+  → `materializeDay.findLanded` la surfacea SOLO ese día. Bloques (id `tmpl-`/`t-`, sin fecha) escribe su propio order (intacto).
+  **VERIFICADO:** excepción día-30 order=0 → "Montse Vidal" salta a la posición 0 en Mi Día del 30 TRAS RECARGAR, template
+  `order` sigue 5 (probe), otros días leen la plantilla (findLanded es date-specific). Restaurado.
+- **Part B (gap §16.17 subtareas):** `handleUpdateSubtasksOrder` materializa excepción por-día de la subtarea (parent_task_id
+  null, re-anidada por templateId) con el order; y `materializeDay` ahora **ordena las hijas resueltas por `order`** (la
+  excepción del día si aterriza, la plantilla si no). Cierra el gap con el mismo cambio. 195 tests verdes.
+- La materialización congela ESE día (título, etc.) además del orden — inherente al modelo de excepción; volumen aceptado.
+
+### (histórico) #5 — plan pre-construcción
 Materializar al reordenar: escritura → si se reordena una instancia recurrente EN UN DÍA, `upsert` de fila-excepción
 (`buildExceptionRow`) con `instance_date` = ese día y el `order` nuevo, en vez de escribir la plantilla. Lectura →
 `reconstructInstanceHierarchy` (`useSupabase.ts:191`) debe preferir el `order` de la excepción del día sobre el de la

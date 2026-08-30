@@ -281,6 +281,17 @@ export function materializeDay(dateStr: string, allTasks: Record<string, Task>):
       }
     }
 
+    // #5 / §16.17 (sesión 26): ordenar las hijas por su `order`. El resuelto es la EXCEPCIÓN del día (con el order
+    // per-día que escribe handleUpdateSubtasksOrder) si aterriza hoy, o la generada (order de la plantilla) si no →
+    // reordenar las subtareas de un contenedor recurrente es POR DÍA y sobrevive a la recarga. En días sin excepción
+    // el order es el de la plantilla, así que el resultado no cambia. Sort ESTABLE (mismo order → orden de llegada).
+    if (resolvedChildren.length > 1) {
+      const indexed = resolvedChildren.map((c, i) => ({ c, i }));
+      indexed.sort((a, b) => ((a.c.order ?? 9999) - (b.c.order ?? 9999)) || (a.i - b.i));
+      resolvedChildren.length = 0; subtaskIds.length = 0;
+      for (const { c } of indexed) { resolvedChildren.push(c); subtaskIds.push(c.id); }
+    }
+
     // TAPÓN B: solo se HONRA la excepción-borrada del contenedor si ese día NO le queda ninguna hija
     // pendiente PERSISTIDA (trabajo real con el que se interactuó: `allTasks[c.id]` existe). Una ocurrencia
     // recurrente auto-generada (no persistida) NO resucita un contenedor borrado a propósito. Con ≥1 hija
