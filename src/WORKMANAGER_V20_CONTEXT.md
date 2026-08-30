@@ -5217,11 +5217,18 @@ lógica PARALELA a Mi Día (capacidad, tipo, completado, contadores). Un arreglo
 vistas divergentes — es exactamente el origen de #5 (jornada), #7 (hojas) y #6 (tipo). **Antes de cerrar un cambio en Mi Día,
 revisar si Semana/Calendario/Carga/Delegadas hacen lo mismo por su cuenta y unificar o anotar.**
 
-**Otros de la lista (PENDIENTES):** montar `BulkActionBar` en Calendario y Delegadas (importada, sin montar); arreglar
-`onToggleStatus` del preview "Nueva reunión" en Delegadas (`:1092` pasa `onUpdateTask` que espera un `Task`, no un id);
-cosmético `hover:text-white` sin variante clara (Calendario 140/146/152, Delegadas 426/441/1153); limpiar código muerto
-(`getLoadColor`, param `isGenerated` de `calcRangeMinutes`, `setBulkTimeModal` doble-declarado). **VALIDADO:** hechas/total de
-Semana funciona (cierra el flip de X/Y para el contenedor de nivel día).
+**Otros de la lista:**
+- ✅ **Preview "Nueva reunión" (Delegadas)** — `onToggleStatus={onUpdateTask}` (esperaba `Task`, recibía id) → ahora
+  `(id,_day,restrictIds)=>onToggleTask(id,null,restrictIds)`, mismo patrón que el resto de la vista (`:578`).
+- ✅ **`hover:text-white` sin variante clara** — Calendario 142/148/154 y Delegadas 428/443/1154 →
+  `dark:hover:text-white hover:text-text-main-light` (los que ya la tenían o cambian el fondo a oscuro en hover, se dejan).
+- ✅ **Código muerto** — `getLoadColor` (Calendar, solo se usa `getLoadColorHex`); param `isGenerated` de `calcRangeMinutes`+
+  `calcLoad` (nunca leído; quitado de los 6 sitios); `setBulkTimeModal` doble-declarado en `BlocksViewProps`; `bg-turquesa/3`
+  (opacidad inexistente) → `/5`.
+- ⏳ **`BulkActionBar` en Calendario y Delegadas** (importada, sin montar) — PENDIENTE (feature, no cosmético).
+- ⏳ **Semana bloque→tipo solo se despliega en lunes** — investigar (render vs datos). PENDIENTE.
+
+**VALIDADO:** hechas/total de Semana funciona (cierra el flip de X/Y para el contenedor de nivel día).
 
 **Vista Semana — hechos (sesión 26):**
 - ✅ **Total de SEMANA junto al título** — `weekSummary` (`WeekView`): suma de lo que muestra cada día (registrado los

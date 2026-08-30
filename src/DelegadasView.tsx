@@ -425,7 +425,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
           </button>
           <button
             onClick={() => setShowManageTeam(true)}
-            className="flex items-center gap-2 px-4 py-2.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl text-[11px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light hover:text-white hover:border-white/20 transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl text-[11px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light hover:border-white/20 transition-all"
           >
             <Users size={14} />
             Equipo
@@ -440,7 +440,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-6 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${
-              activeTab === tab ? 'bg-morado dark:text-white text-text-main-light shadow-lg shadow-morado/20' : 'text-text-secondary hover:text-white'
+              activeTab === tab ? 'bg-morado dark:text-white text-text-main-light shadow-lg shadow-morado/20' : 'text-text-secondary dark:hover:text-white hover:text-text-main-light'
             }`}
           >
             {tab === 'tareas' ? 'Tareas' : 'Reuniones'}
@@ -1090,7 +1090,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                             people={people}
                             blocks={blocks}
                             timeEntries={timeEntries}
-                            onToggleStatus={onUpdateTask}
+                            onToggleStatus={(id: string, _day?: string | null, restrictIds?: string[] | null) => onToggleTask(id, null, restrictIds)}
                             onUpdateTask={onUpdateTask}
                             onEditTask={onEditTask}
                             onAddTask={onAddTask}
@@ -1151,7 +1151,7 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => setShowNewMeeting(false)}
-                  className="flex-1 py-3 rounded-2xl border border-border-main text-text-secondary hover:text-white hover:border-white/20 transition-all font-black text-sm"
+                  className="flex-1 py-3 rounded-2xl border border-border-main text-text-secondary dark:hover:text-white hover:text-text-main-light hover:border-white/20 transition-all font-black text-sm"
                 >
                   Cancelar
                 </button>

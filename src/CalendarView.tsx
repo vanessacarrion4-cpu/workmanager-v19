@@ -84,14 +84,6 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
     return map;
   }, [daysInMonth, realTasksForCalendar, monthMap, activeBlockIds]);
  
-  const getLoadColor = (minutes: number) => {
-    if (minutes === 0) return 'bg-bg-secondary opacity-20';
-    if (minutes < 180) return 'bg-lima shadow-[0_0_10px_rgba(132,204,22,0.3)]';
-    if (minutes < 300) return 'bg-naranja shadow-[0_0_10px_rgba(245,158,11,0.3)]';
-    if (minutes < 420) return 'bg-morado shadow-[0_0_10px_rgba(139,92,246,0.3)]';
-    return 'bg-rosa shadow-[0_0_10px_rgba(236,72,153,0.3)]';
-  };
-
   const getLoadColorHex = (minutes: number) => {
     if (minutes === 0) return '#6B7280';
     if (minutes < 180) return '#10B981';
@@ -139,19 +131,19 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
         <div className="flex gap-2">
           <button 
             onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
-            className="p-3 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light hover:text-white transition-all shadow-xl"
+            className="p-3 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light transition-all shadow-xl"
           >
             <ChevronRight size={20} className="rotate-180" />
           </button>
           <button 
             onClick={() => setViewDate(new Date())}
-            className="px-6 py-2 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:text-white transition-all font-black uppercase text-[10px] tracking-widest rounded-2xl"
+            className="px-6 py-2 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light transition-all font-black uppercase text-[10px] tracking-widest rounded-2xl"
           >
             Hoy
           </button>
           <button 
             onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}
-            className="p-3 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light hover:text-white transition-all shadow-xl"
+            className="p-3 dark:bg-bg-card bg-bg-card-light border dark:border-border-main border-border-main-light rounded-2xl dark:text-text-secondary text-text-secondary-light dark:hover:text-white hover:text-text-main-light transition-all shadow-xl"
           >
             <ChevronRight size={20} />
           </button>

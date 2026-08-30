@@ -264,7 +264,7 @@ function countOccurrencesInRange(recurrence: any, startStr: string, endStr: stri
 
 function calcRangeMinutes(
   task: any, startStr: string, endStr: string,
-  isPast: boolean, isGenerated: boolean,
+  isPast: boolean,
   allTasksMap: Record<string, Task>,
   registeredByDay: Record<string, number>
 ): number {
@@ -372,8 +372,8 @@ function buildTaskLoads(
   });
 
   // ── FUTURO/PRESENTE: calcular desde tareas con recurrencia o dueDate ───────
-  const calcLoad = (task: any, startStr: string, endStr: string, isPast: boolean, isGen: boolean) =>
-    calcRangeMinutes(task, startStr, endStr, isPast, isGen, allTasksMap, registeredByDay);
+  const calcLoad = (task: any, startStr: string, endStr: string, isPast: boolean) =>
+    calcRangeMinutes(task, startStr, endStr, isPast, allTasksMap, registeredByDay);
 
   const processTask = (task: any, parentId?: string) => {
     const isContainer = (task.subtasks || []).length > 0 && task.isTemplate;
@@ -397,12 +397,12 @@ function buildTaskLoads(
         // Para meses pasados, los datos vienen de pastBlockLoads — no duplicar
         if (isPast) { monthMinutes[mo.key] = 0; return; }
         monthMinutes[mo.key] = subs.reduce((acc: number, sub: any) =>
-          acc + calcLoad(sub, firstDay, lastDay, isPast, firstDay <= generatedEndStr), 0);
+          acc + calcLoad(sub, firstDay, lastDay, isPast), 0);
       });
       allWeeks.forEach(week => {
         if (week.isPast) { weekMinutes[week.key] = 0; return; }
         weekMinutes[week.key] = subs.reduce((acc: number, sub: any) =>
-          acc + calcLoad(sub, week.startDate, week.endDate, week.isPast, week.isGenerated), 0);
+          acc + calcLoad(sub, week.startDate, week.endDate, week.isPast), 0);
       });
     } else {
       months.forEach(mo => {
@@ -410,11 +410,11 @@ function buildTaskLoads(
         const lastDay = formatLocalISO(new Date(mo.year, mo.month + 1, 0));
         const isPast = lastDay < today;
         if (isPast) { monthMinutes[mo.key] = 0; return; }
-        monthMinutes[mo.key] = calcLoad(task, firstDay, lastDay, isPast, firstDay <= generatedEndStr);
+        monthMinutes[mo.key] = calcLoad(task, firstDay, lastDay, isPast);
       });
       allWeeks.forEach(week => {
         if (week.isPast) { weekMinutes[week.key] = 0; return; }
-        weekMinutes[week.key] = calcLoad(task, week.startDate, week.endDate, week.isPast, week.isGenerated);
+        weekMinutes[week.key] = calcLoad(task, week.startDate, week.endDate, week.isPast);
       });
     }
 
@@ -773,9 +773,9 @@ export function WorkloadView({
           if (load.isContainer) {
             const subs = (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted);
             mins = subs.reduce((acc: number, sub: any) =>
-              acc + calcRangeMinutes(sub, day.date, day.date, week.isPast, week.isGenerated, allTasksMap, registeredByDay), 0);
+              acc + calcRangeMinutes(sub, day.date, day.date, week.isPast, allTasksMap, registeredByDay), 0);
           } else {
-            mins = calcRangeMinutes(task, day.date, day.date, week.isPast, week.isGenerated, allTasksMap, registeredByDay);
+            mins = calcRangeMinutes(task, day.date, day.date, week.isPast, allTasksMap, registeredByDay);
           }
           cache[`${load.taskId}__${day.date}`] = mins;
           if (!load.parentId) totals[day.date] = (totals[day.date] || 0) + mins;

@@ -446,7 +446,7 @@ export function WeekView({
 
           return (
             <div key={date} className={`flex flex-col rounded-2xl border overflow-hidden transition-all ${
-              isToday ? 'dark:border-turquesa/50 border-turquesa/40 dark:bg-turquesa/5 bg-turquesa/3'
+              isToday ? 'dark:border-turquesa/50 border-turquesa/40 dark:bg-turquesa/5 bg-turquesa/5'
               : isWeekend ? 'dark:border-border-main/30 border-border-main-light/30 dark:bg-white/[0.01] bg-gray-50/50'
               : 'dark:border-border-main border-border-main-light dark:bg-bg-card bg-white'
             }`}>

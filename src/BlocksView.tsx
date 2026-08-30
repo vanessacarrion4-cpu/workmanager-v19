@@ -84,7 +84,6 @@ interface BlocksViewProps {
   // Componentes compartidos pasados como props hasta que se extraigan
   TaskCard: React.ComponentType<any>;
   BulkActionBar: React.ComponentType<any>;
-  setBulkTimeModal?: ((open: boolean) => void) | null;
   onExpandedChange?: (expanded: boolean) => void;
   onRegisterExpandToggle?: (fn: () => void) => void;
 }
