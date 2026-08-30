@@ -162,6 +162,31 @@ describe('materializeDay', () => {
     expect(child!.instanceDate).toBe(WED);
   });
 
+  // §16.71: hija que PERDIÓ la pauta (isTemplate:true, recurrence:null, parentTaskId puesto). Antes caía a
+  // occursOn=false → null → se salía del contenedor y parecía huérfana. La vista la resuelve por su dueDate.
+  it('hija sin pauta (recurrence null) → se resuelve como hija del contenedor por su fecha, no huérfana', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-exchild'] }),
+      task({ id: 't-exchild', isTemplate: true, recurrence: null as any, dueDate: WED, parentTaskId: 't-cont' }),
+    ]);
+    const day = materializeDay(WED, allTasks);
+    const container = day.find(t => t.templateId === 't-cont');
+    const child = day.find(t => t.id === 't-exchild');
+    expect(container).toBeDefined();
+    expect(child).toBeDefined();                          // aparece (no desaparece)
+    expect(child!.parentTaskId).toBe(container!.id);      // colgada del contenedor, NO huérfana
+    expect(container!.subtasks).toContain('t-exchild');
+  });
+
+  it('hija sin pauta → NO aparece en un día que no es su fecha', () => {
+    const allTasks = byId([
+      task({ id: 't-cont', isTemplate: true, subtasks: ['t-exchild'] }),
+      task({ id: 't-exchild', isTemplate: true, recurrence: null as any, dueDate: WED, parentTaskId: 't-cont' }),
+    ]);
+    const other = materializeDay('2026-07-16', allTasks); // jueves, no es su dueDate
+    expect(other.find(t => t.id === 't-exchild')).toBeUndefined();
+  });
+
   it('hijo recurrente que NO toca hoy → contenedor no aparece', () => {
     const allTasks = byId([
       task({ id: 't-cont', isTemplate: true, subtasks: ['t-child'] }),

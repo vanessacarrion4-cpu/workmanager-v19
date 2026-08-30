@@ -5526,3 +5526,20 @@ Verduras vivas ×4, los Pago…) recibieron `deleted_at = modified_at` → ya re
 PRUEBA REC, Test Hija…) y "Mirar situación CV de envasado" (venía de "terminar la rutina": plantilla con `recurrence.endDate=19/08`,
 no era un borrado). Whitelist por igualdad exacta filtrada en cliente (evita encoding de `+`/`á`/`ó`).
 **VALIDACIÓN PENDIENTE (la hace ella):** borrar algo por la barra → ir a papelera → debe estar.
+
+## 16.71 Subtarea que pierde la pauta → parecía huérfana (sesión 26)
+**Síntoma:** una subtarea recurrente dentro de un contenedor, al quitarle la pauta, aparecía SUELTA (huérfana) aunque seguía
+vinculada al contenedor.
+**Diagnóstico (confirmado):** el `parentTaskId` NO se pierde. Al quitar la recurrencia, el CRUD (split F5-6 solo dispara si
+`updatedTask.recurrence` es truthy) cae al camino genérico → conserva `parentTaskId` pero deja la hija como plantilla SIN pauta
+(`isTemplate:true, recurrence:null`). Es la VISTA la que dejaba de resolverla: `resolveChildForDay` la mandaba al caso 5
+(`occursOn`), que con `recurrence:null` da false → null → se salía del contenedor. Cuántas así: **1** (`t-1787064787565`
+"Seguimiento Plan Ver situación Actual y avance", hija de "On Boarding Lucia", `dueDate=18/08`).
+**Arreglo (vía elegida por la propietaria: que la vista resuelva los dos casos, NO parchear el dato):** nuevo caso **4b** en
+`resolveChildForDay` (instanceEngine): una hija `isTemplate:true` SIN `recurrence` se resuelve como one-off por su `dueDate`
+(mismo patrón que la hija manual del caso 4, pero sin degradar el dato a `isTemplate:false`). Fila real → se devuelve tal cual con
+el `parentTaskId` cableado al contenedor del día. Sin regresión: las hijas normales son manuales (caso 4) o recurrentes con pauta
+(caso 5); solo la hija de-recurrida (isTemplate + sin pauta) entra por 4b. +2 tests (aparece en su fecha bajo el contenedor / no
+aparece en otro día). 197 tests verdes.
+**VALIDACIÓN PENDIENTE (la hace ella):** ir al 18/08 → "On Boarding Lucia" → "Seguimiento Plan Ver situación…" debe salir DENTRO
+del contenedor, no suelta.

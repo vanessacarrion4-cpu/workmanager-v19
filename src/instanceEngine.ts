@@ -165,6 +165,19 @@ function resolveChildForDay(
     return null;
   }
 
+  // 4b (§16.71). Hija que PERDIÓ la pauta: al quitar la recurrencia de una hija de contenedor, el CRUD la deja
+  // como plantilla SIN pauta (isTemplate:true, recurrence:null) conservando su parentTaskId — NO la degrada a
+  // manual (isTemplate:false). Sin este caso caía al 5 (occursOn=false) → null → se salía del contenedor y
+  // parecía HUÉRFANA aunque el parentTaskId siguiera apuntando al contenedor. La VISTA la resuelve por su fecha,
+  // como una hija one-off, sin tocar el dato (decisión de la propietaria: que la vista sepa resolver los dos casos,
+  // no parchear el dato). Es fila real (id propio) → se devuelve tal cual, no se genera instancia.
+  if (!childTemplate.recurrence) {
+    if (!childTemplate.isDeleted && childTemplate.dueDate === dateStr) {
+      return { ...childTemplate, parentTaskId: parentInstanceId };
+    }
+    return null;
+  }
+
   // 5. La recurrencia toca hoy → instancia nueva en 'pending'.
   if (occursOn(childTemplate, dateStr)) {
     return {
