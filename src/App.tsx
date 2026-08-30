@@ -1152,7 +1152,7 @@ export default function App() {
                       // hija recurrente (virgen o materializada) → excepción-borrada del día
                       persist(supabase.from('tasks').upsert({
                         id: c.id, block_id: c.blockId, parent_task_id: null, template_id: c.templateId,
-                        instance_date: c.instanceDate || _day, title: c.title, notes: c.notes || '', priority: 'media',
+                        instance_date: c.instanceDate || _day, title: c.title, notes: c.notes || '',
                         status: c.status, due_date: c.dueDate || null, due_time: c.dueTime || null,
                         completed_at: c.completedAt || null, estimated_minutes: c.estimatedMinutes || 0,
                         actual_minutes: c.actualMinutes || 0, tags: c.tags || [], delegation: c.delegation || null,
@@ -1177,7 +1177,7 @@ export default function App() {
                   id: taskToDelete.id, block_id: taskToDelete.blockId, parent_task_id: null,
                   template_id: taskToDelete.templateId, instance_date: taskToDelete.instanceDate || null,
                   title: taskToDelete.title, notes: taskToDelete.notes || '',
-                  priority: 'media', status: taskToDelete.status,
+                  status: taskToDelete.status,
                   due_date: taskToDelete.dueDate || null, due_time: taskToDelete.dueTime || null,
                   completed_at: taskToDelete.completedAt || null, estimated_minutes: taskToDelete.estimatedMinutes || 0,
                   actual_minutes: taskToDelete.actualMinutes || 0, tags: taskToDelete.tags || [],

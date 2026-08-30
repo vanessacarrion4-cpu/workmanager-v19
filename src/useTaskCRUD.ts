@@ -267,7 +267,6 @@ export function useTaskCRUD({
           instance_date: t.instanceDate || null,
           title: t.title,
           notes: t.notes || '',
-          priority: 'media',
           status: t.status,
           due_date: t.dueDate || null,
           due_time: t.dueTime || null,
@@ -422,7 +421,6 @@ export function useTaskCRUD({
           block_id: newTask.blockId,
           title: newTask.title || '',
           notes: newTask.notes || '',
-          priority: 'media',
           on_hold: newTask.onHold ?? false,
           status: newTask.status,
           due_date: newTask.dueDate || null,
@@ -487,7 +485,6 @@ export function useTaskCRUD({
           instance_date: updatedTask.instanceDate || null,
           title: updatedTask.title,
           notes: updatedTask.notes || '',
-          priority: 'media',
           status: updatedTask.status,
           due_date: updatedTask.dueDate || null,
           due_time: updatedTask.dueTime || null,
@@ -589,7 +586,7 @@ export function useTaskCRUD({
         { verbo: 'guardar', titulo: _prevTpl!.title });
       persist(supabase.from('tasks').insert({
         id: newId, block_id: newTemplate.blockId, parent_task_id: _parentId, template_id: null, instance_date: null,
-        title: newTemplate.title, notes: newTemplate.notes || '', priority: 'media', on_hold: newTemplate.onHold ?? false,
+        title: newTemplate.title, notes: newTemplate.notes || '', on_hold: newTemplate.onHold ?? false,
         status: 'pending', due_date: null, due_time: newTemplate.dueTime || null, completed_at: null,
         estimated_minutes: newTemplate.estimatedMinutes || 0, actual_minutes: 0, tags: newTemplate.tags || [],
         order: newTemplate.order || 0, is_template: true, is_active: true, is_exception: false, is_deleted: false,
@@ -794,7 +791,7 @@ export function useTaskCRUD({
             persist(supabase.from('tasks').upsert({
               id: _cInstId, block_id: updatedTask.blockId, parent_task_id: null, template_id: updatedTask.id,
               instance_date: _cDate, title: updatedTask.title, notes: updatedTask.notes || '',
-              attachments: updatedTask.attachments || [], priority: 'media', status: updatedTask.status,
+              attachments: updatedTask.attachments || [], status: updatedTask.status,
               due_date: _cDate, due_time: updatedTask.dueTime || null, estimated_minutes: updatedTask.estimatedMinutes || 0,
               actual_minutes: updatedTask.actualMinutes || 0, tags: updatedTask.tags || [], delegation: updatedTask.delegation || null,
               is_template: false, is_active: true, is_exception: true, is_deleted: false, recurrence: null,
@@ -857,7 +854,6 @@ export function useTaskCRUD({
             title: updatedTask.title,
             notes: updatedTask.notes || '',
             attachments: updatedTask.attachments || [],
-            priority: 'media',
             status: updatedTask.status,
             due_date: instanceDate,
             due_time: updatedTask.dueTime || null,
@@ -925,7 +921,6 @@ export function useTaskCRUD({
             block_id: updatedTask.blockId,
             title: updatedTask.title || '',
             notes: updatedTask.notes || '',
-            priority: 'media',
             status: updatedTask.status,
             due_date: _newDate,
             due_time: updatedTask.dueTime || null,
@@ -967,7 +962,6 @@ export function useTaskCRUD({
           block_id: updatedTask.blockId,
           title: updatedTask.title || '',
           notes: updatedTask.notes || '',
-          priority: 'media',
           status: updatedTask.status,
           // _thisBecameTemplate: la tarea se acaba de convertir en plantilla (hoja/hija que gana pauta) → escribir el
           // estado CONVERTIDO (is_template:true, sin dueDate/dueTime), no el del param viejo. Evita la carrera con el setTimeout.
@@ -1065,7 +1059,6 @@ export function useTaskCRUD({
               instance_date: t.instanceDate || null,
               title: t.title,
               notes: t.notes || '',
-              priority: 'media',
               status: t.status,
               due_date: t.dueDate || null,
               due_time: t.dueTime || null,

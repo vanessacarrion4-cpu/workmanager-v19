@@ -23,7 +23,6 @@ function buildExceptionRow(obj: Task, day: string, parentId: string | null, time
     block_id: obj.blockId,
     title: obj.title || '',
     notes: obj.notes || '',
-    priority: 'media',
     status: obj.status || 'pending',
     due_date: day,
     due_time: obj.dueTime || null,
