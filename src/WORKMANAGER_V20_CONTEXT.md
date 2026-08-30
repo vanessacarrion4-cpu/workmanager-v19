@@ -5388,3 +5388,15 @@ edición intencionada de copia congelada). La intersección (reordenar un día Y
 demás días de esa rutina tienen el nuevo, es ESTO —una excepción congelada por haber reordenado/movido/editado ese día—, NO un
 fantasma ni un bug del motor."* El arreglo entonces: editar ese día concreto (se re-sincroniza) o, si molesta a menudo, montar
 el flag `orden_solo`.
+
+## 16.57 CABO del backfill #6 (task_type) — detectado y corregido (sesión 26)
+El backfill de #6 (`UPDATE tasks SET task_type='adhoc' WHERE task_type IS NULL`, 1.479 filas) puso ADHOC a filas que estaban
+en null SIN mirar su plantilla → dejó tipos incoherentes dentro de una misma rutina. **Cómo se detectó:** al ir a "alinear
+excepciones al tipo de su plantilla" se contó la dirección: solo **3** eran plantilla-core/excepción-adhoc (el cabo esperado),
+pero **419** eran plantilla-ADHOC/excepción-CORE (56 plantillas) — la plantilla era la mal puesta (probablemente null→adhoc por
+el backfill) mientras sus excepciones conservaban el `core` real. **Corregido (19 filas, dirección CORRECTA, no la literal
+"excepción→plantilla" que habría convertido 419 días-core en adhoc):** 3 excepciones (plantilla core/exc adhoc) → core; **16
+plantillas** (adhoc con TODAS sus excepciones vivas core → rutina core) → core. Las **42 mixtas** (excepciones unas core, otras
+adhoc = tipo que cambió con el tiempo, NO cabo limpio) se DEJAN. El backfill solo tocó `task_type`, así que no hay cabos en otros
+campos (los desyncs de título/estimado son pre-existentes). **REGLA:** si vuelve a aparecer un tipo raro, mirar si es de aquí
+(backfill null→adhoc sin mirar la plantilla) antes de tratarlo como dato viejo.
