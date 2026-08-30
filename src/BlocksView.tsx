@@ -148,6 +148,8 @@ export function BlocksManagerView({
   }, [hideCompleted]);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [finalizadasOpen, setFinalizadasOpen] = useState(false); // Finalizadas: sección plegada al final del bloque
+  const [completadasOpen, setCompletadasOpen] = useState(false); // §16.54: Completadas, plegada al final
+  const [completadasVerMas, setCompletadasVerMas] = useState(false); // por defecto últimos 30 días
 
   // Notify parent of expand state changes
   React.useEffect(() => {
@@ -176,41 +178,88 @@ export function BlocksManagerView({
     });
   };
 
+  // §16.54 (sesión 26): la vista de bloque se estructura en 5 secciones. Ad-hoc y Core son ahora SOLO tareas sueltas
+  // PENDIENTES (no contenedores, no completadas). Los contenedores con hija pendiente van a su sección; las completadas
+  // (sueltas + contenedores con TODAS las hijas hechas) a "Completadas" al final.
+  const isContainerTask = (t: any) => !!(t?.subtasks && t.subtasks.length > 0);
+  const containerAllDone = (t: any) => {
+    if (!isContainerTask(t)) return false;
+    const kids = t.subtasks.map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted);
+    return kids.length > 0 && kids.every((s: any) => s.status === 'completed');
+  };
+  const containerHasPending = (t: any) => {
+    if (!isContainerTask(t)) return false;
+    return t.subtasks.some((sid: string) => { const s = allTasksMap[sid]; return s && !s.isDeleted && s.status !== 'completed'; });
+  };
+
   const coreTasks = useMemo(() => {
     if (!selectedBlock) return [];
     const todayISO = formatLocalISO(new Date());
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id) return false;
-      if (t.parentTaskId) return false;
-      if (t.templateId) return false;
-      if (t.isDeleted) return false;
-      if (isExpiredTemplate(t, todayISO)) return false; // F5-6: serie terminada (endDate pasado) → oculta de la definición
-      // A (sesión 19): un CONTENEDOR (con hijas) NUNCA se oculta por "completado" — debe seguir viéndose para
-      // poder abrir su "ver completadas". Solo se ocultan las HOJAS completadas.
-      const isContainer = !!(t.subtasks && t.subtasks.length > 0);
-      if (hideCompleted && t.status === 'completed' && !isContainer) return false;
+      if (t.parentTaskId || t.templateId || t.isDeleted) return false;
+      if (isExpiredTemplate(t, todayISO)) return false;
+      if (isContainerTask(t)) return false;         // contenedores → sección propia
+      if (t.status === 'completed') return false;   // completadas → sección Completadas
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
       if (type !== 'core') return false;
       return taskMatchesSearch(t, searchQuery);
     }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap, hideCompleted, searchQuery]);
+  }, [selectedBlock, allTasksMap, searchQuery]);
 
   const adhocTasks = useMemo(() => {
     if (!selectedBlock) return [];
     const todayISO = formatLocalISO(new Date());
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id) return false;
-      if (t.parentTaskId) return false;
-      if (t.templateId) return false;
-      if (t.isDeleted) return false;
-      if (isExpiredTemplate(t, todayISO)) return false; // F5-6: serie terminada (endDate pasado) → oculta de la definición
-      const isContainer = !!(t.subtasks && t.subtasks.length > 0);
-      if (hideCompleted && t.status === 'completed' && !isContainer) return false;
+      if (t.parentTaskId || t.templateId || t.isDeleted) return false;
+      if (isExpiredTemplate(t, todayISO)) return false;
+      if (isContainerTask(t)) return false;
+      if (t.status === 'completed') return false;
       const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
       if (type !== 'adhoc') return false;
       return taskMatchesSearch(t, searchQuery);
     }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap, hideCompleted, searchQuery]);
+  }, [selectedBlock, allTasksMap, searchQuery]);
+
+  // 3) CONTENEDORES con alguna hija pendiente — el contenedor entero es la unidad.
+  const containerTasks = useMemo(() => {
+    if (!selectedBlock) return [];
+    const todayISO = formatLocalISO(new Date());
+    return Object.values(allTasksMap).filter((t: any) => {
+      if (!t || t.blockId !== selectedBlock.id) return false;
+      if (t.parentTaskId || t.templateId || t.isDeleted) return false;
+      if (isExpiredTemplate(t, todayISO)) return false;
+      if (!isContainerTask(t)) return false;
+      if (!containerHasPending(t)) return false;    // todos hechos → Completadas
+      return taskMatchesSearch(t, searchQuery);
+    }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+  }, [selectedBlock, allTasksMap, searchQuery]);
+
+  // 5) COMPLETADAS — sueltas core/adhoc completadas + contenedores con TODAS las hijas hechas. Últimos 30 días por fecha
+  // de completado (lo más reciente arriba); "ver más" muestra el resto. Un contenedor NO tiene "Desmarcar": se despliega
+  // y se reabre la hija que se quiera (opción 1 de la propietaria; estado derivado, protege lo hecho §16.16).
+  const completadasTasks = useMemo(() => {
+    if (!selectedBlock) return [];
+    const todayISO = formatLocalISO(new Date());
+    const completedAtOf = (t: any) => {
+      if (isContainerTask(t)) {
+        const kids = t.subtasks.map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted && s.completedAt);
+        return kids.reduce((mx: string, s: any) => s.completedAt > mx ? s.completedAt : mx, '');
+      }
+      return t.completedAt || '';
+    };
+    const all = Object.values(allTasksMap).filter((t: any) => {
+      if (!t || t.blockId !== selectedBlock.id) return false;
+      if (t.parentTaskId || t.templateId || t.isDeleted) return false;
+      if (isExpiredTemplate(t, todayISO)) return false;
+      const done = isContainerTask(t) ? containerAllDone(t) : t.status === 'completed';
+      if (!done) return false;
+      return taskMatchesSearch(t, searchQuery);
+    }).map((t: any) => ({ t, completedAt: completedAtOf(t) }))
+      .sort((a: any, b: any) => (b.completedAt || '').localeCompare(a.completedAt || ''));
+    return all;
+  }, [selectedBlock, allTasksMap, searchQuery]);
 
   // FINALIZADAS (sesión 23): series TOP-LEVEL terminadas (endDate pasado) de este bloque. NO son basura — son historia,
   // reactivables. Van en su propia sección plegada al final del bloque, orden por fecha de fin (reciente arriba).
@@ -450,6 +499,36 @@ export function BlocksManagerView({
             </div>
           </div>
 
+          {/* ── §16.54 Sección 3: CONTENEDORES con alguna hija pendiente (el contenedor entero es la unidad) ── */}
+          {containerTasks.length > 0 && (
+            <>
+              <div className="h-px bg-border-main/50" />
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 px-4">
+                  <div className="p-2 bg-morado/10 rounded-xl text-morado">
+                    <div className="w-3 h-3 bg-current rounded-full" />
+                  </div>
+                  <h3 className="font-black uppercase tracking-[0.25em] text-[11px] text-text-secondary">CONTENEDORES ({containerTasks.length})</h3>
+                </div>
+                <div className="grid grid-cols-1 gap-4">
+                  {containerTasks.map((t: Task) => (
+                    <TaskCard
+                      key={t.id} task={t} variant="FULL" allTasksMap={allTasksMap} people={people} onAddPerson={onAddPerson}
+                      blocks={blocks} timeEntries={timeEntries} activeTimer={activeTimer} onStartTimer={onStartTimer} onStopTimer={onStopTimer}
+                      onToggleStatus={onToggleTask} onUpdateTask={onUpdateTask} onEditTask={t.isTemplate ? onEditRule : onEditTask}
+                      editingTaskId={editingTaskId} inlineEditingTaskId={inlineEditingTaskId} setInlineEditingTaskId={setInlineEditingTaskId}
+                      onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel && onOpenTimePanel(taskId, subtaskId)}
+                      onAddTask={onAddTask} onDelete={onDelete} onPromote={onPromote} onDemote={onDemote} onReorderSubtasks={onReorderSubtasks}
+                      onViewInstances={onViewInstances} highlightTaskId={highlightTaskId} forceExpanded={expandedIds.has(t.id) ? true : false}
+                      onToggleExpand={handleLocalToggleExpand} hideCompleted={hideCompleted} blocksMode={true}
+                      selectionMode={selectionMode} selectedTaskIds={selectedTaskIds} onToggleTaskSelection={onToggleTaskSelection} searchQuery={searchQuery}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
           {/* ── FINALIZADAS (sesión 23): sección plegada al final del bloque, historia reactivable ── */}
           {finalizadasTasks.length > 0 && (
             <div className="pt-4">
@@ -479,6 +558,52 @@ export function BlocksManagerView({
               )}
             </div>
           )}
+
+          {/* ── §16.54 Sección 5: COMPLETADAS — plegada, contador, últimos 30 días + "ver más". Sueltas se desmarcan con su
+              toggle; en un contenedor NO hay Desmarcar: se despliega (hideCompleted=false) y se reabre la hija (opción 1). ── */}
+          {completadasTasks.length > 0 && (() => {
+            const cutoff = new Date(Date.now() - 30 * 86400000).toISOString();
+            const visibles = completadasVerMas ? completadasTasks : completadasTasks.filter(({ completedAt }: any) => completedAt && completedAt >= cutoff);
+            const ocultas = completadasTasks.length - visibles.length;
+            return (
+              <div className="pt-4">
+                <button
+                  onClick={() => setCompletadasOpen(v => !v)}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 rounded-2xl dark:bg-bg-main/40 bg-gray-100/60 border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:opacity-80 transition-all"
+                >
+                  <ChevronRight size={14} className={`transition-transform ${completadasOpen ? 'rotate-90' : ''}`} />
+                  <span className="text-[11px] font-black uppercase tracking-[0.2em]">Completadas ({completadasTasks.length})</span>
+                </button>
+                {completadasOpen && (
+                  <div className="mt-2 space-y-4">
+                    {visibles.map(({ t }: any) => (
+                      <TaskCard
+                        key={t.id} task={t} variant="FULL" allTasksMap={allTasksMap} people={people} onAddPerson={onAddPerson}
+                        blocks={blocks} timeEntries={timeEntries} activeTimer={activeTimer} onStartTimer={onStartTimer} onStopTimer={onStopTimer}
+                        onToggleStatus={onToggleTask} onUpdateTask={onUpdateTask} onEditTask={t.isTemplate ? onEditRule : onEditTask}
+                        editingTaskId={editingTaskId} inlineEditingTaskId={inlineEditingTaskId} setInlineEditingTaskId={setInlineEditingTaskId}
+                        onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel && onOpenTimePanel(taskId, subtaskId)}
+                        onAddTask={onAddTask} onDelete={onDelete} onPromote={onPromote} onDemote={onDemote} onReorderSubtasks={onReorderSubtasks}
+                        onViewInstances={onViewInstances} highlightTaskId={highlightTaskId} forceExpanded={expandedIds.has(t.id) ? true : false}
+                        onToggleExpand={handleLocalToggleExpand} hideCompleted={false} blocksMode={true}
+                        selectionMode={selectionMode} selectedTaskIds={selectedTaskIds} onToggleTaskSelection={onToggleTaskSelection} searchQuery={searchQuery}
+                      />
+                    ))}
+                    {!completadasVerMas && ocultas > 0 && (
+                      <button onClick={() => setCompletadasVerMas(true)} className="w-full py-2.5 rounded-xl border border-dashed dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:text-turquesa transition-all text-[10px] font-black uppercase tracking-widest">
+                        Ver más ({ocultas} anteriores a 30 días)
+                      </button>
+                    )}
+                    {completadasVerMas && (
+                      <button onClick={() => setCompletadasVerMas(false)} className="w-full py-2.5 rounded-xl border border-dashed dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:text-turquesa transition-all text-[10px] font-black uppercase tracking-widest">
+                        Ver solo últimos 30 días
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </motion.div>
     </>
