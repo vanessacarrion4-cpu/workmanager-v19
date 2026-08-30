@@ -5380,7 +5380,11 @@ excepción tal cual → **el día con excepción NO hereda cambios posteriores d
 queda con el nombre viejo). Pre-existente (1.375 excepciones ya, de mover/editar); #5-reorden solo añade otra vía de crearlas.
 Desync HOY: título 5 (varias intencionadas), estimado 69, **task_type 404 = cabo del backfill #6** (excepciones null→adhoc bajo
 plantilla core → ~404 días de rutinas core se ven adhoc; se alinea con un UPDATE excepción→tipo-de-plantilla cuando se quiera).
-**Fix posible (NO ahora, decisión de la propietaria):** flag `orden_solo` en las excepciones de reorden → el lector toma solo el
-`order` y el resto de la plantilla; al editar el día el flag se cae. Coste moderado (columna + rama en materializeDay + escritura
-+ tests). Un "merge" simple NO sirve (el motor no distingue edición intencionada de copia congelada). Por ahora: LIMITACIÓN
-DOCUMENTADA; la intersección (reordenar un día Y renombrar esa rutina) es estrecha.
+**Fix posible (NO ahora, decisión de la propietaria — DECIDIDO: se deja como limitación, no se monta el flag):** flag
+`orden_solo` en las excepciones de reorden → el lector toma solo el `order` y el resto de la plantilla; al editar el día el flag
+se cae. Coste moderado (columna + rama en materializeDay + escritura + tests). Un "merge" simple NO sirve (el motor no distingue
+edición intencionada de copia congelada). La intersección (reordenar un día Y renombrar esa rutina) es estrecha.
+**CÓMO SE DARÍA CUENTA LA PROPIETARIA (su frase):** *"Si un día veo un nombre (o estimado) VIEJO en un día suelto mientras los
+demás días de esa rutina tienen el nuevo, es ESTO —una excepción congelada por haber reordenado/movido/editado ese día—, NO un
+fantasma ni un bug del motor."* El arreglo entonces: editar ese día concreto (se re-sincroniza) o, si molesta a menudo, montar
+el flag `orden_solo`.

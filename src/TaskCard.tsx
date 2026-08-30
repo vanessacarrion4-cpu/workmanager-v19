@@ -950,18 +950,21 @@ export function TaskCard({
               const delegStr = fmtDate(task.delegation?.delegatedAt);
               if (!execStr && !delegStr) return null;
               return (
-                <div className="flex flex-col items-end gap-0.5 shrink-0 mr-1">
+                // #barrido §16.55: UNA LÍNEA por fila (antes 4 líneas apiladas de 8px /40 que se pisaban e ilegibles).
+                // Ejec. (dueDate = cuándo debe estar) es la importante; Deleg. (cuándo se delegó) es secundaria y se
+                // oculta si no hay sitio (sm:), dejando la importante.
+                <div className="flex items-center gap-2.5 shrink-0 mr-1 whitespace-nowrap">
                   {execStr && (
-                    <div className="text-right">
-                      <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Ejec.</p>
-                      <p className="text-[10px] font-bold text-turquesa">{execStr}</p>
-                    </div>
+                    <span className="flex items-center gap-1">
+                      <span className="text-[9px] font-black uppercase tracking-wide dark:text-text-secondary text-text-secondary-light">Ejec</span>
+                      <span className="text-[11px] font-bold text-turquesa">{execStr}</span>
+                    </span>
                   )}
                   {delegStr && (
-                    <div className="text-right">
-                      <p className="text-[8px] font-black dark:text-text-secondary text-text-secondary-light/40 uppercase">Deleg.</p>
-                      <p className="text-[10px] font-bold text-morado">{delegStr}</p>
-                    </div>
+                    <span className="hidden sm:flex items-center gap-1 opacity-70">
+                      <span className="text-[9px] font-black uppercase tracking-wide dark:text-text-secondary text-text-secondary-light">Deleg</span>
+                      <span className="text-[11px] font-bold text-morado">{delegStr}</span>
+                    </span>
                   )}
                 </div>
               );

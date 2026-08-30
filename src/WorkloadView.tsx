@@ -688,13 +688,14 @@ function FilterChip({ label, count, options, selected, onToggle, onClear }: {
 // ─── WorkloadView ─────────────────────────────────────────────────────────────
 
 export function WorkloadView({
-  tasks, allTasksMap, blocks, timeEntries = [], onNavigateToDashboard,
+  tasks, allTasksMap, blocks, timeEntries = [], onNavigateToDashboard, onNavigateToWeek,
 }: {
   tasks: Record<string, Task>;
   allTasksMap: Record<string, Task>;
   blocks: WorkBlock[];
   timeEntries: TimeEntry[];
   onNavigateToDashboard: (date: string) => void;
+  onNavigateToWeek?: (date: string) => void;
 }) {
   const jornada = useJornada(); // #5 barrido: capacidad = jornada configurable (como Semana/Calendario), no 480 fijo
   const todayDate = new Date();
@@ -901,7 +902,7 @@ export function WorkloadView({
                 <div className="text-[9px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light text-center">{weeks[0].monthLabel.split(' ')[0]}</div>
                 <div className="flex items-end gap-1.5">
                   {weeks.map(w => (
-                    <button key={w.key} onClick={() => onNavigateToDashboard(w.startDate)}
+                    <button key={w.key} onClick={() => (onNavigateToWeek || onNavigateToDashboard)(w.startDate)}
                       title={`${w.startDate} – ${w.endDate} · ${formatMinutes(w.load)} de ${formatMinutes(w.cap)} (${w.pct}%)${w.isProjected ? ' · proyectado' : ''}`}
                       className="flex flex-col items-center gap-1 group">
                       <span className={`text-[8px] font-bold ${getPctTextClass(w.pct)}`}>{w.pct}%</span>

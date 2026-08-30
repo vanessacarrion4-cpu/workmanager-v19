@@ -793,6 +793,7 @@ export default function App() {
                 blocks={blocks}
                 timeEntries={timeEntries}
                 onNavigateToDashboard={(date: string) => { setActiveDate(date); setCurrentView('dashboard'); }}
+                onNavigateToWeek={(date: string) => { setActiveDate(date); setCurrentView('week'); }}
               />
             )}
 
