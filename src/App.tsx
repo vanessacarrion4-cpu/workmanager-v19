@@ -25,7 +25,7 @@ import { useBlockHandlers } from './useBlockHandlers';
 import { useTimerHandlers } from './useTimerHandlers';
 import { DiagPanel } from './DiagPanel'; // DIAG-TEMP (sesión 15): quitar con el revert del commit de diagnóstico
 import { ToastContainer } from './ToastContainer'; // Avisos (B1): pila de toasts, se suscribe al bus toast.ts
-import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
+import { persist, reportPersistError, deletionStamp } from './persist'; // Avisos (B1) + §16.70 sello de borrado
 import { useBulkActions } from './useBulkActions';
 import { BlocksManagerView } from './BlocksView';
 import { DashboardView } from './DashboardView';
@@ -1161,12 +1161,12 @@ export default function App() {
                         status: c.status, due_date: c.dueDate || null, due_time: c.dueTime || null,
                         completed_at: c.completedAt || null, estimated_minutes: c.estimatedMinutes || 0,
                         actual_minutes: c.actualMinutes || 0, tags: c.tags || [], delegation: c.delegation || null,
-                        is_template: false, is_exception: true, is_deleted: true, deleted_at: timestamp, is_active: false,
-                        created_at: c.createdAt || timestamp, modified_at: timestamp
+                        is_template: false, is_exception: true, ...deletionStamp(timestamp), is_active: false, // §16.70 SELLA (quitar este día, hija recurrente)
+                        created_at: c.createdAt || timestamp
                       }, { onConflict: 'id' }), { verbo: 'borrar', titulo: c.title });
                     } else {
                       // hija manual (fila real) → soft-delete directo
-                      persist(supabase.from('tasks').update({ is_deleted: true, deleted_at: timestamp, modified_at: timestamp }).eq('id', c.id), { verbo: 'borrar', titulo: c.title });
+                      persist(supabase.from('tasks').update(deletionStamp(timestamp)).eq('id', c.id), { verbo: 'borrar', titulo: c.title }); // §16.70 SELLA (quitar este día, hija manual)
                     }
                   });
                   if (conTrabajo.length > 0) toast.success(`Quitado. ${conTrabajo.length} con trabajo se conserva${conTrabajo.length !== 1 ? 'n' : ''} bajo el contenedor.`);
@@ -1187,8 +1187,8 @@ export default function App() {
                   completed_at: taskToDelete.completedAt || null, estimated_minutes: taskToDelete.estimatedMinutes || 0,
                   actual_minutes: taskToDelete.actualMinutes || 0, tags: taskToDelete.tags || [],
                   delegation: taskToDelete.delegation || null, is_template: false, is_exception: true,
-                  is_deleted: true, deleted_at: new Date().toISOString(), is_active: false,
-                  created_at: taskToDelete.createdAt || new Date().toISOString(), modified_at: timestamp
+                  ...deletionStamp(timestamp), is_active: false, // §16.70 SELLA (quitar este día, hoja recurrente)
+                  created_at: taskToDelete.createdAt || new Date().toISOString()
                 }, { onConflict: 'id' }), { verbo: 'borrar', titulo: taskToDelete.title });
               }
             } else if (choice === 'series') {
@@ -1223,6 +1223,10 @@ export default function App() {
                   return updated;
                 });
                 targets.forEach(g => persist(supabase.from('tasks').update({ recurrence: endRec(g), modified_at: timestamp }).eq('id', g.id), { verbo: 'borrar', titulo: g.title }));
+                // §16.70 NO-SELLA (decisión, no olvido): is_deleted PELADO, sin deleted_at → NO entra en la papelera.
+                // Son ocurrencias FUTURAS de una rutina que TERMINASTE (salieron de la serie a propósito), no algo que
+                // tiraste; sellarlas metería decenas por rutina y la haría inservible. Cómo lo notarías: si echas en falta
+                // una ocurrencia futura de una rutina finalizada, es esto, no un fantasma. Ver deletionStamp en persist.ts.
                 intactFutures.forEach(o => persist(supabase.from('tasks').update({ is_deleted: true, modified_at: timestamp }).eq('id', o.id), { verbo: 'borrar', titulo: o.title }));
               }
             }

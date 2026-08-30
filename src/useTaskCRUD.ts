@@ -12,7 +12,7 @@ import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { resolveTaskId, templateIdFromInstanceId, materializeDay, materializeInstanceById, resolveActionTarget } from './instanceEngine';
-import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
+import { persist, reportPersistError, deletionStamp } from './persist'; // Avisos (B1) + §16.70 sello de borrado
 import { toast } from './toast'; // Avisos (B1): no-op silencioso deja de ser mudo en vez de morir en consola
 import { validateTemplate, writesOwnStatusOnToggle, containerDayToggle, childrenToMoveWithContainer } from './fase3Contracts'; // §16.16: invariante + selección día-scoped del toggle (C1) + arrastre de hijas al mover contenedor (b2)
 import { isTaskCompleted, recurrenceChanged, getTaskRegisteredSelf } from './utils'; // §16.16: completado DERIVADO; F5-6: cambio de pauta; Parte 4: guarda "sin trabajo" al terminar
@@ -593,6 +593,9 @@ export function useTaskCRUD({
         is_expanded: false, task_type: newTemplate.taskType || 'adhoc', recurrence: newRecurrence,
         delegation: newTemplate.delegation || null, created_at: ts, modified_at: ts,
       }), { verbo: 'guardar', titulo: newTemplate.title });
+      // §16.70 NO-SELLA (decisión, no olvido): is_deleted PELADO, sin deleted_at → NO entra en la papelera.
+      // Es el split de pauta F5-6: al cambiar la recurrencia se re-particiona la serie y las instancias del
+      // patrón VIEJO se retiran. Es churn interno del motor, no un borrado tuyo. Ver deletionStamp en persist.ts.
       oldInstancesToRemove.forEach(o => persist(
         supabase.from('tasks').update({ is_deleted: true, modified_at: ts }).eq('id', o.id),
         { verbo: 'guardar', titulo: o.title }));
@@ -884,6 +887,9 @@ export function useTaskCRUD({
         _termIntact.forEach(o => { if (n[o.id]) n[o.id] = { ...n[o.id], isDeleted: true, modifiedAt: _ts }; });
         return n;
       });
+      // §16.70 NO-SELLA (decisión, no olvido): is_deleted PELADO, sin deleted_at → NO entra en la papelera.
+      // Igual que "terminar la rutina" en App.tsx: son ocurrencias futuras intactas de una serie cuya plantilla
+      // acaba de recibir endDate pasado. Ocurrencias que dejan de existir, no un borrado tuyo. Ver persist.ts.
       _termIntact.forEach(o => persist(
         supabase.from('tasks').update({ is_deleted: true, modified_at: _ts }).eq('id', o.id),
         { verbo: 'guardar', titulo: o.title }));
@@ -913,8 +919,12 @@ export function useTaskCRUD({
           // contaminación parent→plantilla, además del de cambio-1). parent_task_id queda `null`; materializeDay
           // re-anida en el día destino por templateId+dueDate (findLanded). Revierte el "FIX Bug4" (que ponía la
           // plantilla): en V20 el huérfano lo evita materializeDay, no el parent_task_id.
+          // §16.70 NO-SELLA (decisión, no olvido): esto es el id VIEJO de una subtarea MOVIDA de
+          // fecha (se suprime con is_deleted para no duplicarla en su día original), NO un borrado.
+          // Sellarlo con deleted_at la sacaría en la PAPELERA como borrada → "recuperarla" duplicaría
+          // la tarea. Mover ≠ borrar: is_deleted PELADO a propósito. Ver deletionStamp en persist.ts.
           await supabase.from('tasks')
-            .update({ is_deleted: true, deleted_at: new Date().toISOString() })
+            .update({ is_deleted: true })
             .eq('id', updatedTask.id);
           const { error: errNew } = await supabase.from('tasks').upsert([{
             id: _newSubtaskId,
@@ -1069,15 +1079,13 @@ export function useTaskCRUD({
               delegation: t.delegation || null,
               is_template: false,
               is_exception: true,
-              is_deleted: true,
-              deleted_at: timestamp,
+              ...deletionStamp(timestamp), // §16.70 SELLA (borrado directo de fila ⋯)
               is_active: false,
               created_at: t.createdAt || timestamp,
-              modified_at: timestamp
             }, { onConflict: 'id' });
           } else {
             await supabase.from('tasks')
-              .update({ is_deleted: true, deleted_at: timestamp })
+              .update(deletionStamp(timestamp)) // §16.70 SELLA (borrado directo de fila ⋯, hoja no recurrente)
               .eq('id', t.id);
           }
         } catch (e) {

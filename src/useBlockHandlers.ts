@@ -9,7 +9,7 @@ import { useCallback } from 'react';
 import { WorkBlock, Task } from './types';
 import { supabase } from './supabaseClient';
 import { COLORS } from './constants';
-import { reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan
+import { reportPersistError, deletionStamp } from './persist'; // Avisos (B1) + §16.70 sello de borrado
 import { mapDbTaskToTask } from './useSupabase'; // sesión 19: restaurar bloque re-fetchea sus tareas
 
 interface UseBlockHandlersOptions {
@@ -154,7 +154,7 @@ export function useBlockHandlers({
         reportPersistError({ verbo: 'borrar', titulo: block?.name || undefined, singular: 'el bloque', plural: 'bloques' });
       }
     });
-    supabase.from('tasks').update({ is_deleted: true, deleted_at: ts, deleted_with_block: id })
+    supabase.from('tasks').update({ ...deletionStamp(ts), deleted_with_block: id }) // §16.70 SELLA (cascada al borrar bloque)
       .eq('block_id', id).eq('is_deleted', false).then(({ error }) => {
         if (error) console.error('[SUPABASE] Error borrando (soft) tareas del bloque:', error);
       });

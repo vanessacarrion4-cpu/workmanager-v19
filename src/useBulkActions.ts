@@ -9,7 +9,7 @@ import { useCallback } from 'react';
 import { Task } from './types';
 import { supabase } from './supabaseClient';
 import { resolveTaskId, materializeDay } from './instanceEngine';
-import { persist, reportPersistError } from './persist'; // Avisos (B1): escrituras que fallan avisan (agrupadas por lote)
+import { persist, reportPersistError, deletionStamp } from './persist'; // Avisos (B1) + §16.70 sello de borrado (papelera)
 import { toast } from './toast'; // (a) sesión 24: confirm informativo del bulk / aviso "nada que quitar"
 
 interface UseBulkActionsOptions {
@@ -312,7 +312,9 @@ export function useBulkActions({
     });
 
     realIds.forEach(id => {
-      persist(supabase.from('tasks').update({ is_deleted: true, modified_at: timestamp }).eq('id', id), { verbo: 'borrar', titulo: tasks[id]?.title });
+      // §16.70: SELLA (deletionStamp) → la papelera lo recoge. Este camino (barra de selección) es el que
+      // más usa la propietaria y era el que NO sellaba (deleted_at nulo) → 151 tareas invisibles en un día.
+      persist(supabase.from('tasks').update(deletionStamp(timestamp)).eq('id', id), { verbo: 'borrar', titulo: tasks[id]?.title });
     });
     Object.values(virginObjs).forEach(o => {
       // A3-bulk: el día de la excepción-borrada = día VISIBLE (activeDate), NO la fecha de la instancia. Una hija
@@ -337,13 +339,12 @@ export function useBulkActions({
         is_template: false,
         is_active: true,
         is_exception: true,
-        is_deleted: true,
+        ...deletionStamp(timestamp), // §16.70 SELLA (is_deleted + deleted_at + modified_at) → entra en papelera
         is_expanded: o.isExpanded || false,
         task_type: o.taskType || 'adhoc',
         recurrence: null,
         delegation: o.delegation || null,
         created_at: o.createdAt || timestamp,
-        modified_at: timestamp,
       }, { onConflict: 'id' }), { verbo: 'borrar', titulo: o.title });
     });
 

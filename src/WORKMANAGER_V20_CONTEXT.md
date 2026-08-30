@@ -5501,3 +5501,28 @@ VERIFICADO en pantalla (sin "libre", "sem 3–9", "40h de 168h").
 - **Quitado el verde de fila:** SearchView ya no pasa `searchQuery` a TaskCard → el resaltado "el título contiene el texto" (que
   marcaba TODAS las filas, porque todos los resultados coinciden) desaparece. Los resultados YA son la coincidencia.
 - **Cabecera de grupo FIJA** (`sticky top-0`) al hacer scroll dentro del grupo. Verificado.
+
+## 16.70 Papelera — el borrado en lote no sellaba `deleted_at` (sesión 26)
+**Síntoma (propietaria):** "borro instancias de recurrentes por la barra de selección y NO aparecen en la papelera".
+**Causa:** la papelera filtra por `deleted_at` (`useDeletedTasks`: `.not('deleted_at','is',null).gte('deleted_at',cutoff)`). Una fila
+`is_deleted:true` SIN `deleted_at` es invisible. Había ~7 caminos de borrado escribiendo por su cuenta y varios NO sellaban.
+**Alcance medido (server-side):** 151→155 filas `is_deleted:true` sin `deleted_at` posteriores al lanzamiento (`papelera_since
+= 29/08`), TODAS del 30/08 (un día). 125 instancias recurrentes + sueltas.
+**Caminos (mapa):**
+- SELLAN (helper `deletionStamp`): fila ⋯ borrar directo (`useTaskCRUD.handleDeleteTask`), modal recurrente "quitar este día"
+  (App.tsx ×3), cascada al borrar bloque (`useBlockHandlers`), **borrado en lote** (`useBulkActions`, los DOS sub-caminos: filas
+  reales + instancia recurrente virgen) ← ESTE era el roto, el que más usa.
+- NO SELLAN (decisión documentada, `is_deleted` PELADO + comentario, NO olvido): split de pauta F5-6 (`useTaskCRUD`, churn
+  interno); "terminar la rutina" / `_termIntact` (App.tsx + useTaskCRUD, ocurrencias futuras que salen de la serie a propósito —
+  **cómo lo notarías:** si echas en falta una ocurrencia FUTURA de una rutina que TERMINASTE, es esto, no un fantasma).
+- FALSO POSITIVO tapado: subtarea MOVIDA de fecha (`useTaskCRUD` `_isSubtaskDateChange`) sellaba el id VIEJO → salía en papelera
+  como borrada; mover ≠ borrar → ahora `is_deleted` pelado (no entra). Era lo más peligroso (recuperarla = duplicar).
+**Helper (`persist.ts` `deletionStamp(ts) = {is_deleted, deleted_at, modified_at}`):** fuente única de los CAMPOS de borrado, no de
+la operación (unas son UPDATE .eq(id), otras UPSERT de fila-excepción, otras cascada — distintas de verdad). Método aprobado por
+la propietaria: centralizar campos sin fusionar operaciones; los que no sellan quedan como decisión legible. Mismo patrón que el
+cabo de `rolled_over_count` en los row-builders.
+**Rescate:** 107 filas reales (whitelist exacta de 29 títulos: Pasar albaranes a Bego, Silvia Hidalgo, Bancos, Ingresos tiendas,
+Verduras vivas ×4, los Pago…) recibieron `deleted_at = modified_at` → ya recuperables. Se DESCARTÓ la basura de prueba (fd z,
+PRUEBA REC, Test Hija…) y "Mirar situación CV de envasado" (venía de "terminar la rutina": plantilla con `recurrence.endDate=19/08`,
+no era un borrado). Whitelist por igualdad exacta filtrada en cliente (evita encoding de `+`/`á`/`ó`).
+**VALIDACIÓN PENDIENTE (la hace ella):** borrar algo por la barra → ir a papelera → debe estar.
