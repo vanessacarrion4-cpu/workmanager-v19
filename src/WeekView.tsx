@@ -376,9 +376,11 @@ export function WeekView({
                         );
                       })
                     : tipoTasks.map(task => (
+                        // §barrido: dentro del tipo, cada item (contenedor o huérfana) es UNA fila, mezclados y ordenados por
+                        // PESO desc. NO se agregan las huérfanas — lo que más pesa arriba, sea lo que sea.
                         <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
                           onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} onToggleId={onToggle} date={date} onEditTask={onEditTask}
-                    onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
+                          onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
                       ))
                   }
                 </div>
@@ -434,11 +436,17 @@ export function WeekView({
               <ChevronRight size={14} />
             </button>
           </div>
-          {/* Jump to date */}
-          <input type="date" value={jumpDate}
-            onChange={e => { setJumpDate(e.target.value); if (e.target.value) setWeekStart(formatLocalISO(getMondayOfWeek(parseLocalISO(e.target.value)))); }}
-            className="h-8 px-3 dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl text-[11px] font-bold dark:text-white text-text-main-light outline-none focus:border-turquesa/50 transition-all"
-          />
+          {/* Jump to date — §barrido: icono de calendario (input date superpuesto), no el "dd/mm/aaaa" vacío que ocupaba como botón */}
+          <div className="relative">
+            <input type="date" value={jumpDate}
+              onChange={e => { setJumpDate(e.target.value); if (e.target.value) setWeekStart(formatLocalISO(getMondayOfWeek(parseLocalISO(e.target.value)))); }}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              title="Ir a una fecha"
+            />
+            <div className="w-8 h-8 flex items-center justify-center dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-xl dark:text-text-secondary text-text-secondary-light pointer-events-none">
+              <CalendarIcon size={14} />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -467,16 +475,16 @@ export function WeekView({
 
               {/* Header día */}
               <button onClick={() => onNavigateToDashboard(date)}
-                className="w-full text-left p-3 hover:dark:bg-white/5 hover:bg-black/5 transition-all">
+                className="w-full text-left px-3 pt-3 pb-2 hover:dark:bg-white/5 hover:bg-black/5 transition-all">
                 <div className="flex items-center justify-between mb-2">
+                  {/* §barrido: el número es el ancla; el día en un solo tamaño secundario; "Ago" sobra (ya está en el título) */}
                   <div className="flex items-baseline gap-1.5">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${isToday ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`}>
-                      {label.day}
-                    </span>
                     <span className={`text-lg font-black leading-none ${isToday ? 'text-turquesa' : 'dark:text-white text-text-main-light'}`}>
                       {label.num}
                     </span>
-                    <span className="text-[10px] dark:text-text-secondary/50 text-text-secondary-light/50">{label.month}</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${isToday ? 'text-turquesa' : 'dark:text-text-secondary text-text-secondary-light'}`}>
+                      {label.day}
+                    </span>
                   </div>
                   {displayMins > 0 && (
                     <div className="flex items-center gap-1">
@@ -494,7 +502,7 @@ export function WeekView({
               </button>
 
               {/* Bloques / agrupación */}
-              <div className="flex-1 p-2 pt-0 space-y-1 min-h-[80px]">
+              <div className="flex-1 px-2 pb-2 pt-1 space-y-1 min-h-[56px]">
                 {(() => {
                   if (groupMode === 'bloque') {
                     // §barrido: bloques ordenados por PESO ese día (el que más pesa arriba), no orden fijo.
