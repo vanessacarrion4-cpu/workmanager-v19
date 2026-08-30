@@ -5372,3 +5372,15 @@ PLANIFICACIÓN (grandes-sin-colocar + tira + repartir horas) — antes hay que e
 - **Búsqueda:** por defecto solo PENDIENTES (el filtro ESTADO ya existe, arrancar ahí) y que se vea el filtro activo sin abrirlo.
   Filas verdes = título contiene el texto buscado (con "da" casi todas) → quitar o hacer útil. Cabecera de grupo fija al hacer
   scroll dentro del grupo.
+
+## 16.56 LIMITACIÓN CONOCIDA: la excepción CONGELA el día (no solo el orden)
+Confirmado (código + datos + prueba empírica): una fila-excepción lleva COPIA de todos los campos del día (título, estimado,
+tipo…). Editar "toda la serie" guarda SOLO la plantilla (`setEditingRuleId`); `materializeDay.findLanded` usa los campos de la
+excepción tal cual → **el día con excepción NO hereda cambios posteriores de la plantilla** (renombras la rutina → ese día se
+queda con el nombre viejo). Pre-existente (1.375 excepciones ya, de mover/editar); #5-reorden solo añade otra vía de crearlas.
+Desync HOY: título 5 (varias intencionadas), estimado 69, **task_type 404 = cabo del backfill #6** (excepciones null→adhoc bajo
+plantilla core → ~404 días de rutinas core se ven adhoc; se alinea con un UPDATE excepción→tipo-de-plantilla cuando se quiera).
+**Fix posible (NO ahora, decisión de la propietaria):** flag `orden_solo` en las excepciones de reorden → el lector toma solo el
+`order` y el resto de la plantilla; al editar el día el flag se cae. Coste moderado (columna + rama en materializeDay + escritura
++ tests). Un "merge" simple NO sirve (el motor no distingue edición intencionada de copia congelada). Por ahora: LIMITACIÓN
+DOCUMENTADA; la intersección (reordenar un día Y renombrar esa rutina) es estrecha.
