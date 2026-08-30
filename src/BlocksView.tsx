@@ -75,6 +75,7 @@ interface BlocksViewProps {
   selectedTaskIds?: Set<string>;
   onToggleTaskSelection?: ((taskId: string) => void) | null;
   onToggleSelectionMode?: (() => void) | null;
+  onClearSelection?: (() => void) | null;
   bulkUpdateTasks?: ((updates: Partial<Task>) => void) | null;
   bulkDeleteTasks?: (() => void) | null;
   bulkDuplicateTasks?: (() => void) | null;
@@ -178,9 +179,9 @@ export function BlocksManagerView({
     });
   };
 
-  // §16.54 (sesión 26): la vista de bloque se estructura en 5 secciones. Ad-hoc y Core son ahora SOLO tareas sueltas
-  // PENDIENTES (no contenedores, no completadas). Los contenedores con hija pendiente van a su sección; las completadas
-  // (sueltas + contenedores con TODAS las hijas hechas) a "Completadas" al final.
+  // §16.65 (sesión 26): CUATRO secciones — AD-HOC, CORE, FINALIZADAS, COMPLETADAS. El TIPO manda; el CONTENEDOR es solo una
+  // unidad DENTRO de su tipo (mezclado con las huérfanas, ordenado por PESO). NO hay sección "Contenedores". Un contenedor de
+  // tipo MIXTO va por SU PROPIO taskType, no por el de sus hijas (16 así hoy; su tipo decide dónde sale).
   const isContainerTask = (t: any) => !!(t?.subtasks && t.subtasks.length > 0);
   const containerAllDone = (t: any) => {
     if (!isContainerTask(t)) return false;
@@ -191,50 +192,32 @@ export function BlocksManagerView({
     if (!isContainerTask(t)) return false;
     return t.subtasks.some((sid: string) => { const s = allTasksMap[sid]; return s && !s.isDeleted && s.status !== 'completed'; });
   };
-
-  const coreTasks = useMemo(() => {
+  const effType = (t: any) => t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
+  // Peso para ordenar: contenedor = suma del estimado de sus hijas PENDIENTES; huérfana = su estimado. Lo que más pesa arriba.
+  const taskWeight = (t: any) => {
+    if (isContainerTask(t)) return t.subtasks
+      .map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted && s.status !== 'completed')
+      .reduce((acc: number, s: any) => acc + (s.estimatedMinutes || 0), 0);
+    return t.estimatedMinutes || 0;
+  };
+  // Una tarea PENDIENTE de la sección de su tipo: contenedor con hija pendiente, o huérfana no completada. (Los contenedores
+  // con TODAS las hijas hechas y las huérfanas completadas van a COMPLETADAS.)
+  const sectionTasks = (type: 'core' | 'adhoc') => {
     if (!selectedBlock) return [];
     const todayISO = formatLocalISO(new Date());
     return Object.values(allTasksMap).filter((t: any) => {
       if (!t || t.blockId !== selectedBlock.id) return false;
       if (t.parentTaskId || t.templateId || t.isDeleted) return false;
       if (isExpiredTemplate(t, todayISO)) return false;
-      if (isContainerTask(t)) return false;         // contenedores → sección propia
-      if (t.status === 'completed') return false;   // completadas → sección Completadas
-      const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
-      if (type !== 'core') return false;
+      if (effType(t) !== type) return false;
+      const pending = isContainerTask(t) ? containerHasPending(t) : t.status !== 'completed';
+      if (!pending) return false;
       return taskMatchesSearch(t, searchQuery);
-    }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap, searchQuery]);
+    }).sort((a: any, b: any) => taskWeight(b) - taskWeight(a));
+  };
 
-  const adhocTasks = useMemo(() => {
-    if (!selectedBlock) return [];
-    const todayISO = formatLocalISO(new Date());
-    return Object.values(allTasksMap).filter((t: any) => {
-      if (!t || t.blockId !== selectedBlock.id) return false;
-      if (t.parentTaskId || t.templateId || t.isDeleted) return false;
-      if (isExpiredTemplate(t, todayISO)) return false;
-      if (isContainerTask(t)) return false;
-      if (t.status === 'completed') return false;
-      const type = t.taskType || (isTaskRepetitive(t.id, allTasksMap) ? 'core' : 'adhoc');
-      if (type !== 'adhoc') return false;
-      return taskMatchesSearch(t, searchQuery);
-    }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap, searchQuery]);
-
-  // 3) CONTENEDORES con alguna hija pendiente — el contenedor entero es la unidad.
-  const containerTasks = useMemo(() => {
-    if (!selectedBlock) return [];
-    const todayISO = formatLocalISO(new Date());
-    return Object.values(allTasksMap).filter((t: any) => {
-      if (!t || t.blockId !== selectedBlock.id) return false;
-      if (t.parentTaskId || t.templateId || t.isDeleted) return false;
-      if (isExpiredTemplate(t, todayISO)) return false;
-      if (!isContainerTask(t)) return false;
-      if (!containerHasPending(t)) return false;    // todos hechos → Completadas
-      return taskMatchesSearch(t, searchQuery);
-    }).sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [selectedBlock, allTasksMap, searchQuery]);
+  const coreTasks = useMemo(() => sectionTasks('core'), [selectedBlock, allTasksMap, searchQuery]);
+  const adhocTasks = useMemo(() => sectionTasks('adhoc'), [selectedBlock, allTasksMap, searchQuery]);
 
   // 5) COMPLETADAS — sueltas core/adhoc completadas + contenedores con TODAS las hijas hechas. Últimos 30 días por fecha
   // de completado (lo más reciente arriba); "ver más" muestra el resto. Un contenedor NO tiene "Desmarcar": se despliega
@@ -499,35 +482,8 @@ export function BlocksManagerView({
             </div>
           </div>
 
-          {/* ── §16.54 Sección 3: CONTENEDORES con alguna hija pendiente (el contenedor entero es la unidad) ── */}
-          {containerTasks.length > 0 && (
-            <>
-              <div className="h-px bg-border-main/50" />
-              <div className="space-y-6">
-                <div className="flex items-center gap-3 px-4">
-                  <div className="p-2 bg-morado/10 rounded-xl text-morado">
-                    <div className="w-3 h-3 bg-current rounded-full" />
-                  </div>
-                  <h3 className="font-black uppercase tracking-[0.25em] text-[11px] text-text-secondary">CONTENEDORES ({containerTasks.length})</h3>
-                </div>
-                <div className="grid grid-cols-1 gap-4">
-                  {containerTasks.map((t: Task) => (
-                    <TaskCard
-                      key={t.id} task={t} variant="FULL" allTasksMap={allTasksMap} people={people} onAddPerson={onAddPerson}
-                      blocks={blocks} timeEntries={timeEntries} activeTimer={activeTimer} onStartTimer={onStartTimer} onStopTimer={onStopTimer}
-                      onToggleStatus={onToggleTask} onUpdateTask={onUpdateTask} onEditTask={t.isTemplate ? onEditRule : onEditTask}
-                      editingTaskId={editingTaskId} inlineEditingTaskId={inlineEditingTaskId} setInlineEditingTaskId={setInlineEditingTaskId}
-                      onOpenTimePanel={(taskId: string, subtaskId: string | null) => onOpenTimePanel && onOpenTimePanel(taskId, subtaskId)}
-                      onAddTask={onAddTask} onDelete={onDelete} onPromote={onPromote} onDemote={onDemote} onReorderSubtasks={onReorderSubtasks}
-                      onViewInstances={onViewInstances} highlightTaskId={highlightTaskId} forceExpanded={expandedIds.has(t.id) ? true : false}
-                      onToggleExpand={handleLocalToggleExpand} hideCompleted={hideCompleted} blocksMode={true}
-                      selectionMode={selectionMode} selectedTaskIds={selectedTaskIds} onToggleTaskSelection={onToggleTaskSelection} searchQuery={searchQuery}
-                    />
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
+          {/* §16.65: sección "Contenedores" ELIMINADA — los contenedores van dentro de Ad-hoc/Core por su tipo, mezclados
+              con las huérfanas y ordenados por peso (arriba, en coreTasks/adhocTasks). */}
 
           {/* ── FINALIZADAS (sesión 23): sección plegada al final del bloque, historia reactivable ── */}
           {finalizadasTasks.length > 0 && (

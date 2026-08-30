@@ -5453,3 +5453,12 @@ La propietaria: los 4 agrupadores fijos (bloque, tipo, bloque→tipo, tipo→blo
 —elegir por qué agrupa primero y por qué después— con sus TRES criterios (tipo, bloque, contenedor). No filtrar: VER de formas
 distintas. Lo mismo en Semana y en Carga. Es rediseñar cómo se organizan las dos vistas → se decide en la SESIÓN DE
 PLANIFICACIÓN junto con cuántas vistas se necesitan de verdad (enlaza con §16.60: Semana y Carga convergen). NO construir hasta esa decisión.
+
+## 16.65 Bloques → CUATRO secciones (corrige §16.54, decisión de la propietaria 30-ago)
+Ad-hoc · Core · Finalizadas · Completadas. QUITADA la sección "Contenedores" (era un error de concepto: el contenedor NO es una
+categoría, es una unidad DENTRO de su tipo). `coreTasks`/`adhocTasks` incluyen ahora contenedores (con hija pendiente) Y huérfanas
+(pendientes) de ese tipo, MEZCLADOS y ordenados por PESO desc (contenedor = suma del estimado de sus hijas pendientes; huérfana =
+su estimado). El TIPO manda (mismo criterio que Semana/§16.64). Un contenedor de tipo MIXTO (hijas core Y adhoc — **16 así hoy** de
+110 contenedores) va por SU PROPIO `taskType`, no por el de sus hijas. Completadas y Finalizadas igual, al final. VERIFICADO
+(CM11l: AD-HOC 13→24 al entrar los contenedores adhoc, CORE 0→1, sin sección Contenedores). *(Nota: las secciones siguen con
+Reorder.Group (drag) pero ahora el orden es por PESO → el arrastre queda anulado por el re-sort; si molesta, quitar el drag.)*
