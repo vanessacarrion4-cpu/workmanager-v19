@@ -5462,3 +5462,11 @@ su estimado). El TIPO manda (mismo criterio que Semana/§16.64). Un contenedor d
 110 contenedores) va por SU PROPIO `taskType`, no por el de sus hijas. Completadas y Finalizadas igual, al final. VERIFICADO
 (CM11l: AD-HOC 13→24 al entrar los contenedores adhoc, CORE 0→1, sin sección Contenedores). *(Nota: las secciones siguen con
 Reorder.Group (drag) pero ahora el orden es por PESO → el arrastre queda anulado por el re-sort; si molesta, quitar el drag.)*
+
+## 16.66 Semana total-por-día + Desplegar en todos los modos; Carga igual (sesión 26)
+- Semana: control Desplegar/Plegar ahora en LOS 4 modos (renderBlockGroup pasó de expandedBlocks.has a isOpen). Total por DÍA
+  inline en la cabecera "24 LUN · 4h" (estimado = plan; pasado añade el registrado con reloj). Verificado.
+- Carga = misma lógica que Semana: (a) control ÚNICO Desplegar/Plegar del detalle (allGroupKeys + toggleAllGroups); (b) modo
+  Tipo ordena los TIPOS por peso y, dentro, contenedores+huérfanas mezclados por peso (§16.58). Verificado (Core antes que
+  Ad-hoc por peso; Desplegar→Plegar despliega todo). Las dos vistas ya se comportan igual (refuerza §16.60/§16.64: decidir en
+  planificación si se funden).

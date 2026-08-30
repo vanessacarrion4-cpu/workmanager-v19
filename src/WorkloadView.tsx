@@ -578,14 +578,22 @@ function groupLoads(loads: TaskLoad[], mode: GroupMode, blocks: WorkBlock[], mon
   // type
   const tMap = new Map<string, TaskLoad[]>();
   rootLoads.forEach(l => { if (!tMap.has(l.taskType)) tMap.set(l.taskType, []); tMap.get(l.taskType)!.push(l); });
-  return Array.from(tMap.entries()).map(([type, items]) => ({
-    key: type, label: tLabel(type), color: tColor(type),
-    monthMinutes: sumField(items, 'monthMinutes', monthKeys),
-    weekMinutes: sumField(items, 'weekMinutes', weekKeys),
-    dayMinutes: sumField(items, 'dayMinutes', dayKeys),
-    isLeaf: false,
-    children: items.filter(i => !i.taskId.startsWith('__past__')).map(makeLeafNode),
-  }));
+  // §16.58: dentro de cada TIPO, contenedores y huérfanas MEZCLADOS y ordenados por PESO desc (total de minutos); y los
+  // tipos también por peso. El tipo manda, el contenedor es una unidad dentro. Igual criterio que Semana/Bloques.
+  const totalMins = (l: TaskLoad) => Object.values(l.monthMinutes).reduce((a, v) => a + v, 0);
+  const typeTotal = (items: TaskLoad[]) => items.reduce((a, l) => a + totalMins(l), 0);
+  return Array.from(tMap.entries())
+    .sort((a, b) => typeTotal(b[1]) - typeTotal(a[1]))
+    .map(([type, items]) => ({
+      key: type, label: tLabel(type), color: tColor(type),
+      monthMinutes: sumField(items, 'monthMinutes', monthKeys),
+      weekMinutes: sumField(items, 'weekMinutes', weekKeys),
+      dayMinutes: sumField(items, 'dayMinutes', dayKeys),
+      isLeaf: false,
+      children: items.filter(i => !i.taskId.startsWith('__past__'))
+        .sort((a, b) => totalMins(b) - totalMins(a))
+        .map(makeLeafNode),
+    }));
 }
 
 
@@ -743,6 +751,16 @@ export function WorkloadView({
     groupLoads(taskLoads, groupMode, blocks, months),
     [taskLoads, groupMode, blocks, months]
   );
+
+  // §16.63/§16.58: control ÚNICO plegar/desplegar TODO el detalle (igual que Semana). Recoge todas las claves de grupo/subgrupo.
+  const allGroupKeys = useMemo(() => {
+    const keys: string[] = [];
+    const walk = (nodes: GroupNode[]) => nodes.forEach(n => { if (!n.isLeaf) { keys.push(n.key); walk(n.children); } });
+    walk(grouped);
+    return keys;
+  }, [grouped]);
+  const allGroupsOpen = allGroupKeys.length > 0 && allGroupKeys.every(k => expandedGroups.has(k));
+  const toggleAllGroups = () => setExpandedGroups(allGroupsOpen ? new Set() : new Set(allGroupKeys));
 
   const totalMonthMins = useMemo(() => {
     const map: Record<string, number> = {};
@@ -931,8 +949,13 @@ export function WorkloadView({
       </button>
 
       {showDetalle && (<>
-      {/* Filtros */}
+      {/* Filtros + control único Desplegar/Plegar (§16.63, igual que Semana) */}
       <div className="flex items-center gap-2 flex-wrap">
+        <button onClick={toggleAllGroups}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:text-turquesa transition-all text-[10px] font-black uppercase tracking-widest"
+          title={allGroupsOpen ? 'Plegar todo' : 'Desplegar todo'}>
+          {allGroupsOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />} {allGroupsOpen ? 'Plegar' : 'Desplegar'}
+        </button>
         <FilterChip label="Bloque" count={filterBlocks.length} options={blockOptions} selected={filterBlocks}
           onToggle={v => toggleFilter(filterBlocks, setFilterBlocks, v)} onClear={() => setFilterBlocks([])} />
         <FilterChip label="Tipo" count={filterTypes.length} options={typeOptions} selected={filterTypes}
