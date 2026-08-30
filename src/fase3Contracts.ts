@@ -108,7 +108,21 @@ export function reconcileDay(day: string, allTasks: Record<string, Task>): Recor
   for (const t of Object.values(allTasks)) {
     if (!t || t.isDeleted) continue;
     const hasLiveChild = (t.subtasks || []).some((sid) => allTasks[sid] && !allTasks[sid]!.isDeleted);
-    if (belongsToDay(t, day) || hasLiveChild || t.isTemplate) map[t.id] = t; // 2, 3, 4
+    if (belongsToDay(t, day) || hasLiveChild || t.isTemplate) {
+      // §16.73: el estado gana, PERO nunca debe TAPAR las hijas que materializeDay ya resolvió para el día.
+      // Una excepción-contenedor persistida (p.ej. la que crea el REORDEN top-level, useTaskOrdering: fila-orden
+      // sin hijas) llega con `subtasks:[]` (reconstructExceptionContainerSubtasks no enlaza hijas VÍRGENES no
+      // persistidas). Si la pisáramos tal cual, el contenedor saldría sin hijas ese día (bug "Rutinas mañana no
+      // sale hoy"). Cuando lo materializado trae MÁS hijas que el estado, conservamos la composición del
+      // materializado y tomamos los demás campos del estado (order, status, título…). Así el reorden persiste su
+      // `order` y las hijas siguen saliendo.
+      const materialized = map[t.id];
+      const matKids = materialized?.subtasks?.length || 0;
+      const stateKids = t.subtasks?.length || 0;
+      map[t.id] = (materialized && matKids > stateKids)
+        ? { ...t, subtasks: materialized.subtasks }
+        : t; // 2, 3, 4
+    }
   }
   return map;
 }

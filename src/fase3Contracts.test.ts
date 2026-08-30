@@ -183,6 +183,25 @@ describe('FASE 3 · reconcileDay sin fuga (C3, §16.12)', () => {
     const map = reconcileDay(WED, tasks);
     expect(map['C']).toBeUndefined(); // sin hija viva, sin fecha, no plantilla → fuera
   });
+
+  // §16.73: una excepción-contenedor persistida SIN hijas (la que crea el REORDEN top-level: fila-orden sin
+  // hijas enlazadas) NO debe TAPAR las hijas que materializeDay ya resolvió para el día. Antes el estado la
+  // pisaba y el contenedor salía vacío ese día ("Rutinas mañana no sale hoy, mañana sí").
+  it('excepción-contenedor con subtasks:[] NO tapa las hijas materializadas del día (conserva su composición)', () => {
+    const tasks = byId([
+      task({ id: 'C', isTemplate: true, subtasks: ['K'] }),                                   // contenedor-plantilla
+      task({ id: 'K', isTemplate: true, parentTaskId: 'C', recurrence: { frequency: 'weekdays', startDate: '2026-01-01' } }),
+      // excepción-orden del contenedor para WED, SIN hijas enlazadas (la firma del reorden)
+      task({ id: 'inst-C-2026-07-15', templateId: 'C', isException: true, isDeleted: false, dueDate: WED, instanceDate: WED, order: 3, subtasks: [] }),
+    ]);
+    const map = reconcileDay(WED, tasks);
+    const cont = map['inst-C-2026-07-15'];
+    expect(cont).toBeDefined();
+    expect(cont.subtasks.length).toBeGreaterThan(0);        // NO vacío → las hijas no quedan tapadas
+    expect(cont.subtasks).toContain('inst-K-2026-07-15');   // la hija recurrente resuelta del día
+    expect(cont.order).toBe(3);                             // conserva el order del estado (el reorden sigue valiendo)
+    expect(map['inst-K-2026-07-15']).toBeDefined();          // y la hija está en el mapa del día
+  });
 });
 
 // =========================================================================

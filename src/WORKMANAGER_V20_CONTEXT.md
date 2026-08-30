@@ -5562,3 +5562,27 @@ interruptor. "Seleccionar todo el día" se queda.
 **VERIFICADO EN PANTALLA (dev server, datos reales):** interruptor visible; en 'group' marcar "Blas Situación Personal" seleccionó
 solo su hija (barra="1", id del contenedor fuera), check parcial `bg-azul/25`+Minus (1 en DOM) distinto de los checks completos;
 persiste tras recargar (ls='all' → botón "Todos los grupos" activo). Reseteado a 'group'.
+
+## 16.73 Hijas de contenedor invisibles en Mi Día un día concreto (sesión 26)
+**Síntoma:** "Rutinas mañana" salía en Bloques con sus 4 hijas (Márgenes/Ingresos/Picking/Bancos, L-V) pero en Mi Día de HOY salía
+vacía (sin hijas ni contador); MAÑANA sí salían.
+**Causa raíz (motor):** `reconcileDay` (fase3Contracts) construye el día así: 1) escribe lo de `materializeDay` (contenedor CON
+hijas resueltas al vuelo), 2) el ESTADO sobrescribe (`map[t.id]=t`). Una excepción-contenedor persistida para hoy con `subtasks:[]`
+PISABA la versión materializada con hijas → contenedor vacío ese día. Mañana no había excepción → materializeDay gana → hijas salen.
+La excepción llega vacía porque `reconstructExceptionContainerSubtasks` solo enlaza hijas PERSISTIDAS; las de hoy son vírgenes.
+**CAUSA de las excepciones vacías (rastreada):** el REORDEN top-level de Mi Día — `handleUpdateTasksOrder` (useTaskOrdering:79-83).
+Al arrastrar el listado, cada contenedor recurrente con id `inst-…-fecha` se materializa como fila-excepción de ese día con el nuevo
+`order` vía `buildExceptionRow`, SIN enlazar hijas. Es la función de reorden #5/§16.17 (misma sesión). Firma en los datos: filas
+is_exception con `order` 0,1,2,3 secuencial creadas en lote (anoche 30/08 22:30-22:39, 4 contenedores a la vez).
+**Alcance histórico (server-side):** 96 excepciones-contenedor vivas; solo **6 "sombra vacía"** en ~4 meses (Selecció RRHH 13/05,
+Cierre Propias 13/07, Pago nóminas 28/07, Previsional 01/08, Pagos del mes FINCA 31/08 completada, Rutinas mañana 31/08). NO decenas
+→ números históricos OK. Hoy solo "Rutinas mañana" tapaba una rutina pendiente (las otras de hoy tenían hijas persistidas y sí salían).
+**Arreglo (Opción A, motor):** en `reconcileDay`, cuando lo materializado trae MÁS hijas que el estado, conservar la composición del
+materializado tomando los demás campos del estado (`{...t, subtasks: materialized.subtasks}`). El reorden sigue persistiendo su
+`order` y las hijas dejan de quedar tapadas — hoy y en el futuro (neutraliza las excepciones-orden sin borrar datos; siguen creándose
+al reordenar pero ya son inocuas). NO se eligió la Opción B (borrar las 6) por ser parche que deja la causa viva. +1 test (§16.73).
+**VERIFICADO EN PANTALLA:** Mi Día hoy → "Rutinas Mañana (4)" con Márgenes/Ingresos/Picking/Bancos; total del día 102→117 (las hijas
+vuelven a contar). 198 tests verdes.
+**PENDIENTE menor:** confirmar con la propietaria si arrastró el listado anoche ~22:30 (encaja con la firma). Si NO lo hizo, habría
+que buscar un disparador espurio de reorden. Y opción de reducir la acumulación (que el reorden no cree excepción para un contenedor
+cuyo único cambio es el order) — no urgente, A ya las hace inocuas.
