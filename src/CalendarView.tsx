@@ -86,7 +86,16 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
     });
     return map;
   }, [daysInMonth, realTasksForCalendar, monthMap, activeBlockIds]);
- 
+
+  // §16.68: estado del MES junto al título (mismo formato que el total de Semana): carga estimada / capacidad (jornada × días laborables).
+  const monthSummary = useMemo(() => {
+    const mins = Object.values(monthLoadMap).reduce((a, v) => a + v, 0);
+    let wd = 0;
+    Object.keys(monthLoadMap).forEach(d => { const dow = parseLocalISO(d).getDay(); if (dow !== 0 && dow !== 6) wd++; });
+    const cap = (jornada || 480) * wd;
+    return { mins, cap, over: mins > cap };
+  }, [monthLoadMap, jornada]);
+
   const getLoadColorHex = (minutes: number) => {
     if (minutes === 0) return '#6B7280';
     if (minutes < 180) return '#10B981';
@@ -130,7 +139,13 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
       className="space-y-8 pb-32"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-black dark:text-white text-text-main-light capitalize">{monthName}</h2>
+        <div>
+          <h2 className="text-3xl font-black dark:text-white text-text-main-light capitalize">{monthName}</h2>
+          <p className="text-sm dark:text-text-secondary text-text-secondary-light mt-0.5">
+            <span className={`font-black ${monthSummary.over ? 'text-rosa' : 'dark:text-white text-text-main-light'}`}>{formatMinutes(monthSummary.mins)}</span>
+            <span className="opacity-60"> de {formatMinutes(monthSummary.cap)}</span>
+          </p>
+        </div>
         <div className="flex gap-2">
           <button 
             onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
@@ -209,16 +224,19 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                   const isSelected = day === selectedDay;
                   const load = monthLoadMap[day] || 0;
                   return (
-                    <button 
+                    <button
                       key={day}
                       onClick={() => setSelectedDay(day)}
+                      // §16.68: peso visual — los días LLENOS llevan un tinte de fondo según su carga (destacan); los vacíos se
+                      // atenúan. Así se localiza de un vistazo dónde hay trabajo y dónde hay hueco.
+                      style={(!isSelected && !isToday && load > 0) ? { backgroundColor: getLoadColorHex(load) + '20' } : undefined}
                       className={`
                         aspect-square rounded-2xl flex flex-col items-center justify-center relative transition-all group border-2
-                        ${isSelected ? 'border-turquesa scale-110 shadow-xl z-20 dark:bg-bg-card bg-white' : 'border-transparent dark:hover:border-white/10 hover:border-gray-300'}
+                        ${isSelected ? 'border-turquesa scale-110 shadow-xl z-20 dark:bg-bg-card bg-white' : load > 0 ? 'border-transparent' : 'border-transparent opacity-45 dark:hover:border-white/10 hover:border-gray-300'}
                         ${isToday ? 'dark:bg-bg-main bg-gray-100 ring-2 ring-turquesa ring-offset-4 dark:ring-offset-bg-card ring-offset-white' : ''}
                       `}
                     >
-                      <span className={`text-xl font-black ${isSelected ? 'dark:text-white text-text-main-light' : 'dark:text-text-secondary text-text-secondary-light dark:group-hover:text-white group-hover:text-text-main-light'}`}>
+                      <span className={`text-xl font-black ${isSelected ? 'dark:text-white text-text-main-light' : load > 0 ? 'dark:text-white text-text-main-light' : 'dark:text-text-secondary text-text-secondary-light dark:group-hover:text-white group-hover:text-text-main-light'}`}>
                         {parseLocalISO(day).getDate()}
                       </span>
                       {load > 0 && (
@@ -258,13 +276,14 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                           }}
                         />
                       </div>
-                      {/* Porcentajes - más grandes */}
+                      {/* §16.68: % + A QUÉ SEMANA corresponde (antes "libre X%", redundante con la barra). El rango deja claro
+                          qué días cubre el % (resuelve la confusión del "desplazamiento"). */}
                       <div className="flex flex-col items-center gap-1">
                         <span className={`text-[14px] font-black leading-none ${getWeekColorClass()}`}>
                           {pct}%
                         </span>
-                        <span className="text-[12px] font-bold dark:text-text-secondary/70 text-text-secondary-light/70 leading-none">
-                          libre {freePct}%
+                        <span className="text-[10px] font-bold dark:text-text-secondary/70 text-text-secondary-light/70 leading-none whitespace-nowrap">
+                          sem {parseLocalISO(weekDays[0]).getDate()}–{parseLocalISO(weekDays[weekDays.length - 1]).getDate()}
                         </span>
                       </div>
                     </>

@@ -5482,3 +5482,13 @@ Reorder.Group (drag) pero ahora el orden es por PESO → el arrastre queda anula
 - **MEJORA pendiente de decisión de la propietaria (NO bug):** "Limpiar" quizá sobra — al usarlo no se nota la diferencia con
   "Cancelar" (Limpiar deja en modo, Cancelar saca+limpia). Si se equivoca marcando, pulsa Cancelar y reentra: un clic de más y
   un botón menos. Lo prueba unos días de uso real y decide. Registrado como mejora a valorar, no se toca.
+
+## 16.68 Calendario — barrido visual (sesión 26)
+- Quitado "libre X%" (redundante con la barra); en su hueco, **"sem 3–9"** (a qué semana corresponde el %) → resuelve la duda
+  del "desplazamiento": el % va etiquetado con sus días exactos (no era bug; 85m/2400 = 4%, correcto, solo faltaba el rango).
+- **Estado del MES junto al título** (mismo formato que Semana): carga estimada / capacidad (jornada × días laborables). Ej.
+  "40h de 168h". Rosa si pasa.
+- **Peso visual:** los días LLENOS llevan tinte de fondo según carga (getLoadColorHex + '20') y nº en color fuerte; los VACÍOS
+  se atenúan (opacity-45). Se localiza de un vistazo dónde hay hueco.
+- Colores de barras (día `<3h/3-5h/5-7h/>7h`, semana `<15h/…`) NO se tocan (confirmados por la propietaria).
+VERIFICADO en pantalla (sin "libre", "sem 3–9", "40h de 168h").
