@@ -314,6 +314,22 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
     setShowNewMeeting(true);
   };
 
+  // #barrido §16.53: reordenar el GUION de una reunión guardada. El orden vive en el array `meetings.items` (persistido);
+  // no hay campo aparte ni FK. Se intercambia con la tarea VISIBLE adyacente (respetando ocultas: completadas/subtareas
+  // cuyo contenedor está en la reunión) y se persiste vía onUpdateMeetings.
+  const moveMeetingTask = (meeting: any, visibleIds: string[], taskId: string, dir: 'up' | 'down') => {
+    const vpos = visibleIds.indexOf(taskId);
+    const npos = dir === 'up' ? vpos - 1 : vpos + 1;
+    if (npos < 0 || npos >= visibleIds.length) return;
+    const otherId = visibleIds[npos];
+    const items = [...meeting.items];
+    const a = items.findIndex((i: any) => i.taskId === taskId);
+    const b = items.findIndex((i: any) => i.taskId === otherId);
+    if (a < 0 || b < 0) return;
+    [items[a], items[b]] = [items[b], items[a]];
+    onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? { ...m, items } : m));
+  };
+
   const handleSaveMeeting = () => {
     if (!newMeeting) return;
     const person = people.find((p: any) => p.id === newMeeting.personId);
@@ -743,20 +759,19 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                           <p className="text-sm dark:text-white text-text-main-light">{meeting.notes}</p>
                         </div>
                       )}
-                      {meeting.items
-                        .filter((item: any) => {
+                      {(() => {
+                        const visibleItems = meeting.items.filter((item: any) => {
                           const task = allTasksMap[item.taskId];
                           if (!task) return false;
-                          // Ocultar completadas
-                          if (task.status === 'completed') return false;
-                          // No mostrar si es subtarea Y su contenedor padre también está en los items
-                          if (task.parentTaskId) {
+                          if (task.status === 'completed') return false; // ocultar completadas
+                          if (task.parentTaskId) { // subtarea cuyo contenedor ya está en la reunión
                             const parentInItems = meeting.items.some((i: any) => i.taskId === task.parentTaskId);
                             if (parentInItems) return false;
                           }
                           return true;
-                        })
-                        .map((item: any) => {
+                        });
+                        const visibleIds = visibleItems.map((i: any) => i.taskId); // #barrido §16.53: orden del guion (reordenable)
+                        return visibleItems.map((item: any, vIdx: number) => {
                         const task = allTasksMap[item.taskId];
                         if (!task) return null;
                         const hasNote = item.note && item.note.trim().length > 0;
@@ -765,7 +780,13 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                         // Para contenedores: inyectar isExpanded desde meetingExpandedContainers
                         const taskForCard = isContainer ? { ...task, isExpanded: isContainerOpen } : task;
                         return (
-                          <div key={item.taskId} className={`rounded-xl border transition-all ${hasNote ? 'dark:border-border-main border-border-main-light' : 'dark:border-border-main/30 border-border-main-light/30'}`}>
+                          <div key={item.taskId} className={`rounded-xl border transition-all flex items-stretch ${hasNote ? 'dark:border-border-main border-border-main-light' : 'dark:border-border-main/30 border-border-main-light/30'}`}>
+                            {/* Raíl reordenar el guion (↑↓) — barrido §16.53 */}
+                            <div className="flex flex-col justify-center gap-1 pl-1.5 pr-0.5 shrink-0">
+                              <button disabled={vIdx === 0} onClick={() => moveMeetingTask(meeting, visibleIds, item.taskId, 'up')} title="Subir en el guion" className="w-5 h-5 flex items-center justify-center rounded dark:text-text-secondary text-text-secondary-light disabled:opacity-20 hover:text-morado dark:hover:bg-white/5 hover:bg-black/5 transition-all"><ChevronUp size={13} /></button>
+                              <button disabled={vIdx === visibleItems.length - 1} onClick={() => moveMeetingTask(meeting, visibleIds, item.taskId, 'down')} title="Bajar en el guion" className="w-5 h-5 flex items-center justify-center rounded dark:text-text-secondary text-text-secondary-light disabled:opacity-20 hover:text-morado dark:hover:bg-white/5 hover:bg-black/5 transition-all"><ChevronDown size={13} /></button>
+                            </div>
+                            <div className="flex-1 min-w-0">
                             <TaskCard
                               task={taskForCard}
                               variant="FULL"
@@ -812,9 +833,11 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                                 className="w-full dark:bg-transparent bg-transparent border-none text-sm dark:text-text-secondary text-text-secondary-light dark:placeholder:text-text-secondary/30 placeholder:text-text-secondary-light/40 outline-none resize-none overflow-hidden"
                               />
                             </div>
+                            </div>
                           </div>
                         );
-                      })}
+                        });
+                      })()}
                     </motion.div>
                   )}
                 </AnimatePresence>
