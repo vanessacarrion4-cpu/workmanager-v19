@@ -5417,3 +5417,9 @@ confunden. PENDIENTE resto: Semana (números ilegibles, cabecera 3 tamaños, air
 2 filas de controles); Bloques (tarjetas ~120px compactar, iconos emoji en caja bajar); Calendario (quitar "libre X%", poner a
 qué corresponde, comprobar desplazamiento del %, estado del MES, criterio colores, peso visual llenos); Búsqueda (por defecto
 pendientes, filtro visible, filas verdes, cabecera de grupo fija).
+
+## 16.60 ⚠️ DECISIÓN DE DISEÑO PENDIENTE: Semana y Carga convergen
+La propietaria pide los MISMOS agrupadores en Semana y en Carga (por TIPO, dentro por contenedor/huérfana ordenado por peso).
+Las dos vistas se están pareciendo. **En la sesión de planificación hay que decidir cuántas vistas se necesitan de verdad y qué
+hace cada una** (¿Semana = un día×5 con detalle? ¿Carga = el paisaje de semanas? ¿se funden?) ANTES de seguir construyendo el
+mismo agrupador dos veces. No construir más solapamiento sin esa decisión.

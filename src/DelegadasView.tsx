@@ -536,16 +536,8 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Botón expandir/contraer todos los contenedores de esta persona */}
-                    {containerIds.length > 0 && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleAllContainersForPerson(person.id, containerIds); }}
-                        className="flex items-center gap-1.5 px-3 py-2 dark:bg-bg-main bg-gray-100 hover:bg-turquesa/10 border dark:border-border-main border-border-main-light hover:border-turquesa/30 text-turquesa rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                        title={allContainersExp ? 'Contraer contenedores' : 'Expandir contenedores'}
-                      >
-                        {allContainersExp ? <ChevronsUp size={12} /> : <ChevronsDown size={12} />}
-                      </button>
-                    )}
+                    {/* §barrido: quitado el botón "expandir todos los contenedores" — cada contenedor se despliega en su
+                        propia fila como en el resto de la app; sobra un botón que los abría todos a la vez. */}
                     <button
                       onClick={(e) => { e.stopPropagation(); onAddTask && onAddTask(null, undefined, undefined, person.id); }}
                       className="w-8 h-8 flex items-center justify-center rounded-xl transition-all text-white"

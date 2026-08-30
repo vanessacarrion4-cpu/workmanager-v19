@@ -275,9 +275,11 @@ export function WeekView({
   // ─── Helpers de renderizado ───────────────────────────────────────────────────
 
   const renderBlockGroup = (date: string, block: WorkBlock, dayTasks: Task[]) => {
-    const blockTasks = dayTasks.filter(t => t.blockId === block.id && !t.isDeleted);
-    if (blockTasks.length === 0) return null;
     const dayMap = dayData[date]?.map ?? {};
+    // §barrido: dentro del grupo, items por PESO desc (lo que más pesa arriba; da igual contenedor o huérfana).
+    const blockTasks = dayTasks.filter(t => t.blockId === block.id && !t.isDeleted)
+      .sort((a, b) => getTaskMins(b, dayMap) - getTaskMins(a, dayMap));
+    if (blockTasks.length === 0) return null;
     const key = `${date}__${block.id}`;
     const isExpanded = expandedBlocks.has(key);
     const { done: hechasCount, total: hojasTotal } = leafCounts(blockTasks, dayMap); // #7: hojas, no status del contenedor
@@ -287,9 +289,9 @@ export function WeekView({
         <button onClick={() => toggleBlock(date, block.id)}
           className="w-full flex items-center gap-1.5 px-2 py-1.5 hover:dark:bg-white/5 hover:bg-black/5 transition-all rounded-xl">
           <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
-          <span className="text-[10px] font-black dark:text-white text-text-main-light truncate flex-1 text-left uppercase tracking-wide">{block.icon} {block.name}</span>
-          <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">{hechasCount}/{hojasTotal}</span>
-          {blockMins > 0 && <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(blockMins)}</span>}
+          <span className="text-[10px] font-black dark:text-white text-text-main-light truncate flex-1 text-left uppercase tracking-wide">{block.name}</span>
+          <span className="text-[10px] font-bold tabular-nums dark:text-text-secondary text-text-secondary-light shrink-0">{hechasCount}/{hojasTotal}</span>
+          {blockMins > 0 && <span className="text-[10px] font-black tabular-nums shrink-0 ml-1.5 pr-0.5 dark:text-white text-text-main-light">{formatMinutes(blockMins)}</span>}
           {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
         </button>
         <AnimatePresence>
@@ -311,12 +313,17 @@ export function WeekView({
 
   const renderTipoGroups = (date: string, dayTasks: Task[], subMode: 'con-bloques' | null) => {
     const dayMap = dayData[date]?.map ?? {};
-    const tipos: { id: 'core' | 'adhoc', label: string, color: string }[] = [
-      { id: 'core',  label: '⬡ Core',     color: TURQUESA },
-      { id: 'adhoc', label: '◇ Adhoc',    color: ROSA },
-    ];
+    // §barrido: primero el tipo que MÁS PESA ese día, y dentro los items por peso desc (huérfana = una fila más).
+    const tipos = ([
+      { id: 'core' as const,  label: '⬡ Core',  color: TURQUESA },
+      { id: 'adhoc' as const, label: '◇ Adhoc', color: ROSA },
+    ]).map(tp => {
+      const tasks = dayTasks.filter(t => !t.isDeleted && getEffectiveType(t) === tp.id)
+        .sort((a, b) => getTaskMins(b, dayMap) - getTaskMins(a, dayMap));
+      return { ...tp, tasks, total: tasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0) };
+    }).sort((a, b) => b.total - a.total);
     return tipos.map(tipo => {
-      const tipoTasks = dayTasks.filter(t => !t.isDeleted && getEffectiveType(t) === tipo.id);
+      const tipoTasks = tipo.tasks;
       if (tipoTasks.length === 0) return null;
       const key = `${date}__tipo__${tipo.id}`;
       const isExpanded = isOpen(key, subMode === 'con-bloques'); // combinado tipo→bloque: abierto por defecto
@@ -328,8 +335,8 @@ export function WeekView({
             className="w-full flex items-center gap-1.5 px-2 py-1.5 hover:dark:bg-white/5 hover:bg-black/5 transition-all rounded-xl">
             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tipo.color }} />
             <span className="text-[10px] font-black truncate flex-1 text-left uppercase tracking-wide" style={{ color: tipo.color }}>{tipo.label}</span>
-            <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">{hechasCount}/{hojasTotal}</span>
-            {tipoMins > 0 && <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(tipoMins)}</span>}
+            <span className="text-[10px] font-bold tabular-nums dark:text-text-secondary text-text-secondary-light shrink-0">{hechasCount}/{hojasTotal}</span>
+            {tipoMins > 0 && <span className="text-[10px] font-black tabular-nums shrink-0 ml-1.5 pr-0.5 dark:text-white text-text-main-light">{formatMinutes(tipoMins)}</span>}
             {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
           </button>
           <AnimatePresence>
@@ -349,7 +356,7 @@ export function WeekView({
                             <button onClick={() => toggleBlock(date, `tipo__${tipo.id}__bloque__${block.id}`)}
                               className="w-full flex items-center gap-1 px-1 py-1 rounded-lg hover:dark:bg-white/5 hover:bg-black/5 transition-all">
                               <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block" style={{ backgroundColor: block.color }} />
-                              <span className="text-[8px] font-black uppercase tracking-widest dark:text-white/60 text-text-main-light/60 flex-1 text-left">{block.icon} {block.name}</span>
+                              <span className="text-[8px] font-black uppercase tracking-widest dark:text-white/60 text-text-main-light/60 flex-1 text-left">{block.name}</span>
                               <span className="text-[8px] dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0">{bHechas}/{bTotal}</span>
                               {bMins > 0 && <span className="text-[8px] font-black dark:text-text-secondary/50 text-text-secondary-light/50 shrink-0 ml-1">{formatMinutes(bMins)}</span>}
                               {isBExpanded ? <ChevronUp size={8} className="shrink-0 opacity-30 ml-0.5" /> : <ChevronDown size={8} className="shrink-0 opacity-30 ml-0.5" />}
@@ -407,10 +414,10 @@ export function WeekView({
           <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
             <button onClick={() => setShowWeekend(false)}
               className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${!showWeekend ? 'bg-turquesa text-white' : 'dark:text-text-secondary text-text-secondary-light hover:dark:text-white'}`}
-            >L-V</button>
+            >5 días</button>
             <button onClick={() => setShowWeekend(true)}
               className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${showWeekend ? 'bg-turquesa text-white' : 'dark:text-text-secondary text-text-secondary-light hover:dark:text-white'}`}
-            >L-D</button>
+            >7 días</button>
           </div>
           {/* Nav semana */}
           <div className="flex items-center gap-1">
@@ -490,7 +497,10 @@ export function WeekView({
               <div className="flex-1 p-2 pt-0 space-y-1 min-h-[80px]">
                 {(() => {
                   if (groupMode === 'bloque') {
-                    return activeBlocks.map(block => renderBlockGroup(date, block, dayTasks));
+                    // §barrido: bloques ordenados por PESO ese día (el que más pesa arriba), no orden fijo.
+                    const dm = dayData[date]?.map ?? {};
+                    const blkMins = (b: WorkBlock) => dayTasks.filter(t => t.blockId === b.id && !t.isDeleted).reduce((acc, t) => acc + getTaskMins(t, dm), 0);
+                    return [...activeBlocks].sort((a, b) => blkMins(b) - blkMins(a)).map(block => renderBlockGroup(date, block, dayTasks));
                   }
                   if (groupMode === 'tipo') {
                     return renderTipoGroups(date, dayTasks, null);
@@ -509,9 +519,9 @@ export function WeekView({
                           <button onClick={() => toggleBlock(date, block.id)}
                             className="w-full flex items-center gap-1.5 px-2 py-1.5 hover:dark:bg-white/5 hover:bg-black/5 transition-all rounded-xl">
                             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
-                            <span className="text-[10px] font-black dark:text-white text-text-main-light truncate flex-1 text-left uppercase tracking-wide">{block.icon} {block.name}</span>
-                            <span className="text-[9px] dark:text-text-secondary text-text-secondary-light shrink-0">{hechasCount}/{hojasTotal}</span>
-                            {blockMins > 0 && <span className="text-[9px] font-black shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(blockMins)}</span>}
+                            <span className="text-[10px] font-black dark:text-white text-text-main-light truncate flex-1 text-left uppercase tracking-wide">{block.name}</span>
+                            <span className="text-[10px] font-bold tabular-nums dark:text-text-secondary text-text-secondary-light shrink-0">{hechasCount}/{hojasTotal}</span>
+                            {blockMins > 0 && <span className="text-[10px] font-black tabular-nums shrink-0 ml-1.5 pr-0.5 dark:text-white text-text-main-light">{formatMinutes(blockMins)}</span>}
                             {isExpanded ? <ChevronUp size={10} className="shrink-0 opacity-40" /> : <ChevronDown size={10} className="shrink-0 opacity-40" />}
                           </button>
                           <AnimatePresence>
