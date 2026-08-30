@@ -38,14 +38,17 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
     const month = viewDate.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
     const days = new Date(year, month + 1, 0).getDate();
-    
-    // Adjust for Monday start (0=Sun, 1=Mon -> 1=Mon, 0=Sun)
-    const padding = firstDay === 0 ? 6 : firstDay - 1;
-    const array = [];
-    for (let i = 0; i < padding; i++) array.push(null);
-    for (let i = 1; i <= days; i++) {
-       const d = new Date(year, month, i);
-       array.push(formatLocalISO(d));
+
+    // §16.74: SEMANAS ENTERAS. Los huecos de la primera/última semana se rellenan con los días REALES del mes
+    // vecino (no `null`), para que el % semanal cuente su carga (antes esas semanas parecían vacías con carga
+    // oculta → % falso). Se pintan atenuados (fuera de mes) y NO cuentan en el total del MES.
+    const padding = firstDay === 0 ? 6 : firstDay - 1; // arranque en lunes
+    const array: string[] = [];
+    for (let i = padding; i > 0; i--) array.push(formatLocalISO(new Date(year, month, 1 - i)));   // cola del mes anterior
+    for (let i = 1; i <= days; i++) array.push(formatLocalISO(new Date(year, month, i)));
+    while (array.length % 7 !== 0) {                                                                // cabeza del mes siguiente
+      const last = parseLocalISO(array[array.length - 1]);
+      array.push(formatLocalISO(new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1)));
     }
     return array;
   }, [viewDate]);
@@ -89,12 +92,16 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
 
   // §16.68: estado del MES junto al título (mismo formato que el total de Semana): carga estimada / capacidad (jornada × días laborables).
   const monthSummary = useMemo(() => {
-    const mins = Object.values(monthLoadMap).reduce((a, v) => a + v, 0);
-    let wd = 0;
-    Object.keys(monthLoadMap).forEach(d => { const dow = parseLocalISO(d).getDay(); if (dow !== 0 && dow !== 6) wd++; });
+    const vm = viewDate.getMonth();
+    let mins = 0, wd = 0;
+    Object.entries(monthLoadMap).forEach(([d, v]) => {
+      if (parseLocalISO(d).getMonth() !== vm) return; // §16.74: solo los días del MES (los vecinos del grid no cuentan)
+      mins += v;
+      const dow = parseLocalISO(d).getDay(); if (dow !== 0 && dow !== 6) wd++;
+    });
     const cap = (jornada || 480) * wd;
     return { mins, cap, over: mins > cap };
-  }, [monthLoadMap, jornada]);
+  }, [monthLoadMap, jornada, viewDate]);
 
   const getLoadColorHex = (minutes: number) => {
     if (minutes === 0) return '#6B7280';
@@ -223,17 +230,19 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                   const isToday = day === formatLocalISO(new Date());
                   const isSelected = day === selectedDay;
                   const load = monthLoadMap[day] || 0;
+                  const inMonth = parseLocalISO(day).getMonth() === viewDate.getMonth(); // §16.74: día del mes vecino → atenuado
                   return (
                     <button
                       key={day}
                       onClick={() => setSelectedDay(day)}
                       // §16.68: peso visual — los días LLENOS llevan un tinte de fondo según su carga (destacan); los vacíos se
-                      // atenúan. Así se localiza de un vistazo dónde hay trabajo y dónde hay hueco.
-                      style={(!isSelected && !isToday && load > 0) ? { backgroundColor: getLoadColorHex(load) + '20' } : undefined}
+                      // atenúan. §16.74: los del mes vecino NO llevan tinte fuerte (van atenuados) para no competir con el mes.
+                      style={(!isSelected && !isToday && load > 0 && inMonth) ? { backgroundColor: getLoadColorHex(load) + '20' } : undefined}
                       className={`
                         aspect-square rounded-2xl flex flex-col items-center justify-center relative transition-all group border-2
                         ${isSelected ? 'border-turquesa scale-110 shadow-xl z-20 dark:bg-bg-card bg-white' : load > 0 ? 'border-transparent' : 'border-transparent opacity-45 dark:hover:border-white/10 hover:border-gray-300'}
                         ${isToday ? 'dark:bg-bg-main bg-gray-100 ring-2 ring-turquesa ring-offset-4 dark:ring-offset-bg-card ring-offset-white' : ''}
+                        ${!inMonth ? 'opacity-40 saturate-50' : ''}
                       `}
                     >
                       <span className={`text-xl font-black ${isSelected ? 'dark:text-white text-text-main-light' : load > 0 ? 'dark:text-white text-text-main-light' : 'dark:text-text-secondary text-text-secondary-light dark:group-hover:text-white group-hover:text-text-main-light'}`}>
@@ -276,14 +285,14 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                           }}
                         />
                       </div>
-                      {/* §16.68: % + A QUÉ SEMANA corresponde (antes "libre X%", redundante con la barra). El rango deja claro
-                          qué días cubre el % (resuelve la confusión del "desplazamiento"). */}
+                      {/* §16.74: % + TIEMPO de la semana ("46% · 18h 20m"). Se quita el rango "sem X–Y": con la fila de
+                          días al lado ya se sabe a qué semana corresponde. */}
                       <div className="flex flex-col items-center gap-1">
                         <span className={`text-[14px] font-black leading-none ${getWeekColorClass()}`}>
                           {pct}%
                         </span>
-                        <span className="text-[10px] font-bold dark:text-text-secondary/70 text-text-secondary-light/70 leading-none whitespace-nowrap">
-                          sem {parseLocalISO(weekDays[0]).getDate()}–{parseLocalISO(weekDays[weekDays.length - 1]).getDate()}
+                        <span className="text-[10px] font-black dark:text-text-secondary/80 text-text-secondary-light/80 leading-none whitespace-nowrap tabular-nums">
+                          {formatMinutes(weekLoad)}
                         </span>
                       </div>
                     </>

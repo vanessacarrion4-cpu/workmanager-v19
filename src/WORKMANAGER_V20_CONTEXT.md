@@ -5586,3 +5586,14 @@ vuelven a contar). 198 tests verdes.
 **PENDIENTE menor:** confirmar con la propietaria si arrastró el listado anoche ~22:30 (encaja con la firma). Si NO lo hizo, habría
 que buscar un disparador espurio de reorden. Y opción de reducir la acumulación (que el reorden no cree excepción para un contenedor
 cuyo único cambio es el order) — no urgente, A ya las hace inocuas.
+**CONFIRMADO por la propietaria:** anoche ~22:30 estaba probando selección y orden en Mi Día → encaja, no hay disparador espurio.
+
+## 16.74 Calendario — barrido visual: tiempo, rango y semanas enteras (sesión 26)
+- **Resumen semanal = % + TIEMPO** ("46% · 18h 20m"): se añade `formatMinutes(weekLoad)` bajo el %.
+- **Quitado el rango "sem X–Y"**: con la fila de días al lado ya se sabe la semana (era redundante).
+- **SEMANAS ENTERAS (lo principal):** `daysInMonth` rellena los huecos de la primera/última semana con los días REALES del
+  mes vecino (antes `null`) → el % semanal cuenta su carga (antes esas semanas parecían vacías con carga oculta = % falso).
+  Los días del mes vecino se pintan atenuados (`opacity-40 saturate-50`, sin tinte de carga fuerte) y **NO cuentan en el total
+  del MES** (`monthSummary` filtra por `viewDate.getMonth()`). `monthLoadMap`/week-load los incluyen (por eso el % es correcto).
+- **VERIFICADO EN PANTALLA:** septiembre (empieza martes) → 1ª fila trae 31/08 atenuado con sus 20h 10m; resumen "96% · 33h 23m";
+  última fila con 26-27/10 atenuados; total del mes 94h 1m (solo septiembre).
