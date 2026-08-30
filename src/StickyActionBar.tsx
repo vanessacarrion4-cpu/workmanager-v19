@@ -124,13 +124,13 @@ export function StickyActionBar({
               </button>
             )}
 
-            {/* Salir del modo selección (limpia y sale) */}
+            {/* Salir del modo selección (limpia y sale) — con etiqueta para que sea inconfundible */}
             <button
               onClick={onToggleSelectionMode}
-              className="w-7 h-7 flex items-center justify-center rounded-lg dark:text-text-secondary text-text-secondary-light hover:text-rosa hover:dark:bg-rosa/10 hover:bg-rosa/10 transition-all shrink-0"
+              className="h-7 px-2 flex items-center gap-1 rounded-lg text-[10px] font-bold dark:text-text-secondary text-text-secondary-light hover:text-rosa hover:dark:bg-rosa/10 hover:bg-rosa/10 transition-all shrink-0"
               title="Salir de selección"
             >
-              <X size={14} />
+              <X size={13} /> Cancelar
             </button>
           </motion.div>
 

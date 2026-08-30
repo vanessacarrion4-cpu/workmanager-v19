@@ -188,6 +188,14 @@ export function WeekView({
 
   const [weekStart, setWeekStart] = useState(() => formatLocalISO(getMondayOfWeek(new Date())));
   const [showWeekend, setShowWeekend] = useState(false);
+  // §16.63: control único plegar/desplegar TODO (5 días, todos los agrupadores). null = default por-grupo. Se recuerda.
+  const [globalExpand, setGlobalExpand] = useState<boolean | null>(() => {
+    try { const v = localStorage.getItem('week-expand-all'); return v === '1' ? true : v === '0' ? false : null; } catch { return null; }
+  });
+  const setGlobalExpandPersist = (v: boolean | null) => {
+    setGlobalExpand(v);
+    try { if (v === null) localStorage.removeItem('week-expand-all'); else localStorage.setItem('week-expand-all', v ? '1' : '0'); } catch {}
+  };
   const [jumpDate, setJumpDate] = useState('');
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [groupMode, setGroupMode] = useState<GroupMode>('bloque');
@@ -264,13 +272,15 @@ export function WeekView({
 
   const toggleBlock = (date: string, blockId: string) => {
     const key = `${date}__${blockId}`;
+    setGlobalExpandPersist(null); // al tocar un grupo a mano, se suelta el control global
     setExpandedBlocks(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   };
 
-  // #barrido §16.50: en los agrupadores COMBINADOS (bloque→tipo, tipo→bloque) los subniveles salen ABIERTOS por defecto
-  // (si eliges ese agrupador es para ver el desglose). `expandedBlocks` pasa a registrar lo que se ha PLEGADO a mano.
-  // En los modos simples (bloque, tipo) sigue igual: por defecto plegado, el set registra lo abierto.
-  const isOpen = (key: string, defaultOpen: boolean) => defaultOpen ? !expandedBlocks.has(key) : expandedBlocks.has(key);
+  // #barrido §16.50/§16.63: en los agrupadores COMBINADOS los subniveles salen ABIERTOS por defecto. El CONTROL ÚNICO de
+  // cabecera (globalExpand) manda sobre todo (los 5 días, todos los agrupadores) y se recuerda entre visitas; si es null,
+  // vale el default por-grupo (`expandedBlocks` registra lo tocado a mano).
+  const isOpen = (key: string, defaultOpen: boolean) =>
+    globalExpand !== null ? globalExpand : (defaultOpen ? !expandedBlocks.has(key) : expandedBlocks.has(key));
 
   // ─── Helpers de renderizado ───────────────────────────────────────────────────
 
@@ -326,7 +336,7 @@ export function WeekView({
       const tipoTasks = tipo.tasks;
       if (tipoTasks.length === 0) return null;
       const key = `${date}__tipo__${tipo.id}`;
-      const isExpanded = isOpen(key, subMode === 'con-bloques'); // combinado tipo→bloque: abierto por defecto
+      const isExpanded = isOpen(key, true); // §16.63: modo Tipo abierto por defecto (ver contenedores/huérfanas por peso sin picar)
       const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
       const { done: hechasCount, total: hojasTotal } = leafCounts(tipoTasks, dayMap); // #7: hojas
       return (
@@ -412,6 +422,13 @@ export function WeekView({
         <div className="flex items-center gap-2 flex-wrap">
           {/* Dropdown agrupación */}
           <GroupDropdown value={groupMode} onChange={setGroupMode} />
+          {/* §16.63: control ÚNICO plegar/desplegar TODO — los 5 días, todos los agrupadores, recordado entre visitas */}
+          <button onClick={() => setGlobalExpandPersist(globalExpand === true ? false : true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:text-turquesa transition-all text-[10px] font-black uppercase tracking-widest"
+            title={globalExpand === true ? 'Plegar todo (los 5 días)' : 'Desplegar todo (los 5 días)'}>
+            {globalExpand === true ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            {globalExpand === true ? 'Plegar' : 'Desplegar'}
+          </button>
           {/* Toggle L-V / L-D */}
           <div className="flex rounded-xl overflow-hidden border dark:border-border-main border-border-main-light">
             <button onClick={() => setShowWeekend(false)}

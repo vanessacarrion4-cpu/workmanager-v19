@@ -5441,3 +5441,15 @@ con total, items (contenedor o huérfana) por peso — SIN agregar huérfanas (d
 cabecera de día (nº ancla, sin "Ago"): "24 LUN"; selector fecha→icono; aire equilibrado. Detalle "dos filas de controles" =
 barra global + cabecera de vista (cambio de layout global, no forzado por-vista). NO SE VUELVE A Semana.
 PENDIENTE (orden de la propietaria): Carga·agrupación por tipo (§16.58) → Calendario → Búsqueda (§16.59) → incoherencia eliminar (§16.61).
+
+## 16.63 Semana — modo Tipo abierto por defecto + control único plegar/desplegar (sesión 26)
+Modo Tipo sale DESPLEGADO por defecto (`isOpen(key, true)`) → se ven contenedores/huérfanas por peso sin picar. Nuevo CONTROL
+ÚNICO en la cabecera (`globalExpand`, botón "Desplegar/Plegar"): afecta a los 5 días y a TODOS los agrupadores a la vez; se
+RECUERDA entre visitas (localStorage `week-expand-all`). Manda sobre el default por-grupo; al tocar un grupo a mano se suelta
+(vuelve al default por-grupo).
+
+## 16.64 PLANIFICACIÓN (NO construir): agrupadores COMPONIBLES en Semana y Carga
+La propietaria: los 4 agrupadores fijos (bloque, tipo, bloque→tipo, tipo→bloque) se quedan cortos. Quiere COMPONER los niveles
+—elegir por qué agrupa primero y por qué después— con sus TRES criterios (tipo, bloque, contenedor). No filtrar: VER de formas
+distintas. Lo mismo en Semana y en Carga. Es rediseñar cómo se organizan las dos vistas → se decide en la SESIÓN DE
+PLANIFICACIÓN junto con cuántas vistas se necesitan de verdad (enlaza con §16.60: Semana y Carga convergen). NO construir hasta esa decisión.
