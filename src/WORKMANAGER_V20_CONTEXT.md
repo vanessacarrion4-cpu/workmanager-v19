@@ -5470,3 +5470,15 @@ Reorder.Group (drag) pero ahora el orden es por PESO → el arrastre queda anula
   Tipo ordena los TIPOS por peso y, dentro, contenedores+huérfanas mezclados por peso (§16.58). Verificado (Core antes que
   Ad-hoc por peso; Desplegar→Plegar despliega todo). Las dos vistas ya se comportan igual (refuerza §16.60/§16.64: decidir en
   planificación si se funden).
+
+## 16.67 Selección — casilla POR ETIQUETA visible + validaciones (sesión 26)
+- **F6-x2 casilla por etiqueta:** YA estaba construida (DashboardView, `onSelectScope(gIds)`) pero era un cuadrito SIN etiqueta
+  que pasaba desapercibido → ahora "☐ Grupo" en cada cabecera de etiqueta. Verificado (3 casillas Grupo + la del día).
+  ALCANCE (verificado en código, tranquiliza la preocupación del filtro): `gIds = groupSelectIds(tagEntries)` donde
+  `tagEntries` vienen de `groupedTasks` (respeta `hideCompleted` → completadas ocultas NO entran) e incluye las hijas del DÍA
+  de contenedores contraídos (`subtasksForGroup`, excluyendo completadas). Alcance = el DÍA, no la visibilidad. Nunca otros
+  días. No aplica en Bloques (no hay etiquetas). Cumple §16.33.
+- **Barra de selección: VALIDADA por la propietaria** tras refresco fuerte (Limpiar + Cancelar salen; era CACHÉ). CERRADO.
+- **MEJORA pendiente de decisión de la propietaria (NO bug):** "Limpiar" quizá sobra — al usarlo no se nota la diferencia con
+  "Cancelar" (Limpiar deja en modo, Cancelar saca+limpia). Si se equivoca marcando, pulsa Cancelar y reentra: un clic de más y
+  un botón menos. Lo prueba unos días de uso real y decide. Registrado como mejora a valorar, no se toca.

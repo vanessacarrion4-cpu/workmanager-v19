@@ -420,13 +420,17 @@ export function DashboardView({
                   </motion.div>
                 </button>
                 <div className="flex items-center gap-1.5 text-[10px] font-black">
-                  {/* F6-x2: seleccionar TODO EL GRUPO de esta etiqueta (alcance por etiqueta). Solo en selección. */}
+                  {/* F6-x2 (§16.33): seleccionar TODO EL GRUPO de esta etiqueta. Con etiqueta "Grupo" para que se vea (antes
+                      era un cuadrito suelto que pasaba desapercibido). Coge lo VISIBLE del día (respeta hideCompleted) +
+                      las hijas del día de contenedores contraídos; nunca lo oculto ni otros días. */}
                   {selectionMode && (() => {
                     const gIds = groupSelectIds(tagEntries);
                     const all = gIds.length > 0 && gIds.every((id: string) => selectedTaskIds.has(id));
                     return (
-                      <button onClick={() => { onEnsureSelectionMode?.(); onSelectScope?.(gIds); }} title="Seleccionar todo el grupo" className="mr-1">
-                        <span className={`w-4 h-4 rounded border-2 flex items-center justify-center ${all ? 'bg-azul border-azul' : 'border-azul/40 hover:border-azul'}`}>{all && <CheckCircle2 size={11} className="text-white" />}</span>
+                      <button onClick={() => { onEnsureSelectionMode?.(); onSelectScope?.(gIds); }} title="Seleccionar todo el grupo"
+                        className={`flex items-center gap-1 mr-1.5 px-1.5 py-0.5 rounded-lg border transition-all text-[9px] font-black uppercase tracking-widest ${all ? 'bg-azul border-azul text-white' : 'border-azul/40 text-azul hover:border-azul hover:bg-azul/5'}`}>
+                        <span className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center ${all ? 'bg-white border-white' : 'border-azul/50'}`}>{all && <CheckCircle2 size={10} className="text-azul" />}</span>
+                        Grupo
                       </button>
                     );
                   })()}
