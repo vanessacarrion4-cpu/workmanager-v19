@@ -5272,3 +5272,45 @@ La propietaria lo señala como **fuga de proceso**: *"si algo se cablea y no se 
 - 🟡 **BulkActionBar en Calendario y Delegadas** (§16.50) — cableado + build limpio esta sesión, **interacción multi-selección sin validar con el ratón** (panel oculto no acciona clics de celda).
 - 🟡 **Semana bloque→tipo solo despliega en lunes** — reportado, sin diagnosticar; ¿render o falta de datos? Mirar ahora que el plegado a adhoc cambió el reparto.
 - 🟡 **#6 desglose Core→Adhoc** — backfill + plegado verificados por probe/build; el FLIP visible del reparto en modo Tipo (Semana/Carga/cinta) lo confirma ella.
+
+### 16.52-b VALIDADO por la propietaria (sesión 26) — salen del limbo
+- ✅ **Bug #17 adjunto** — PERSISTE (validado subir→recargar). CERRADO.
+- ✅ **F5-5 pauta desde la fila** — FUNCIONA. CERRADO.
+- ✅ **Semana bloque→tipo** — ya se despliega todos los días (tras el plegado a adhoc). CERRADO.
+- ✅ **Selección múltiple Delegadas** — funciona. (Calendario: reubicada al detalle del día esta sesión, pendiente su OK.)
+
+## 16.53 BARRIDO parte 2 (sesión 26) — selección uniforme, Semana, Delegadas + pendientes
+**HECHO y en producción:**
+- ✅ **Selección múltiple uniforme** — la barra global es `StickyActionBar` (todas las vistas). Gana **"Cancelar"** (la etiqueta del
+  botón cambia con el modo) y **"Limpiar"** (quita todas SIN salir; `onClearSelection` → `setSelectedTaskIds(new Set())`).
+  Quitadas mis `BulkActionBar` redundantes de Delegadas y de la rejilla de Calendario (duplicaban la global). BlocksView mantiene
+  la suya (pre-existente; si aparece doble barra ahí, quitarla también). **Calendario:** la selección se entra DESDE el detalle
+  del día (botón Seleccionar/Cancelar en la cabecera del overlay + barra dentro del overlay, porque el overlay `z-40` tapa la
+  global `z-20`); ya no en la rejilla del mes (donde no hay tareas).
+- ✅ **Semana agrupadores combinados abiertos por defecto** — helper `isOpen(key, defaultOpen)` invierte el default en
+  bloque→tipo (498/523) y tipo→bloque (316/340): abiertos salvo que se plieguen a mano. Los modos simples siguen plegados.
+- ✅ **Semana total de semana** — usaba registrado(pasado)/estimado(futuro) → salía "0m" en semanas pasadas sin fichar. Ahora
+  suma el **estimado pendiente** (el plan), coherente con los grupos. **VERIFICADO en pantalla: "24 Ago – 28 Ago · 19h 20m de 40h".**
+- ✅ **Delegadas: selector de reunión excluye completadas** — contenedor candidato solo si tiene subtarea delegada pendiente;
+  tarea suelta solo si no está completada. (Antes el filtro dejaba pasar completadas.)
+
+**PENDIENTE / pre-construcción (decisiones de la propietaria):**
+- 🟡 **Delegadas modo claro — texto ilegible de tareas seleccionadas** — no reproducido: el código no muestra `text-white` sin
+  variante clara (el título del selector `:979` sí tiene `text-text-main-light`). Falta que señale la pantalla exacta (selector /
+  preview / detalle de reunión existente) o verlo en claro reproduciendo el flujo.
+- 📋 **#7 priority — ALTER pendiente** (opción A elegida): `ALTER TABLE tasks ALTER COLUMN priority SET DEFAULT 'media';` → al
+  confirmar, se quitan los 15 literales `priority: 'media'`.
+- 📋 **Bloques · sección COMPLETADAS** (definida por la propietaria; se construyó a medias — existe "Finalizadas" pero no
+  "Completadas"). MEDICIÓN (server-side): total completadas **1.720**; bloque más cargado **CM11l = 377** (solo 27 sueltas
+  top-level; el resto hijas/instancias). → **necesita límite o filtro por fecha** (propuesta: últimos 30 días como Papelera, con
+  "ver más"). DISTINGUIR Finalizadas (plantillas con endDate pasado → "Reactivar") de Completadas (status completed →
+  "Desmarcar"): son estructuralmente distintas (plantilla vs status), dos secciones con acción distinta. Estructura pedida por
+  bloque: 1 Ad-hoc pendiente · 2 Core pendiente · 3 Contenedores con hija pendiente (contenedor entero) · 4 Finalizadas · 5
+  Completadas (plegada, contador, por fecha de completado desc; sueltas core/adhoc + contenedores con TODAS las hijas hechas;
+  DESMARCAR reversible). Pendiente de su OK al límite y a la distinción → construir.
+- 📋 **Delegadas · reordenar tareas dentro de una reunión** — el orden vive en `meetings.items` (array JSON persistido
+  `[{note,taskId,isSubtask}]`); reordenar = reordenar el array + guardar. Sin plantillas ni FK → BAJO RIESGO. Listo para construir.
+- 📋 **#5 reordenar recurrente (opción A, completa)** — APROBADO, es el siguiente build. Materializar al reordenar (excepción
+  por-día vía `buildExceptionRow`) + lectura que prefiere el `order` de la excepción sobre la plantilla (cierra también el gap
+  §16.17 de subtareas) + pasar la fecha a `onReorderTasks/onReorderSubtasks` (Bloques NO se toca, ahí se reordena la plantilla).
+  VERIFICAR: reordenar un día NO cambia otro, TRAS RECARGAR. Plantilla manda salvo en los días tocados.
