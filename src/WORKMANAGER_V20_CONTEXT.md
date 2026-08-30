@@ -5492,3 +5492,12 @@ Reorder.Group (drag) pero ahora el orden es por PESO → el arrastre queda anula
   se atenúan (opacity-45). Se localiza de un vistazo dónde hay hueco.
 - Colores de barras (día `<3h/3-5h/5-7h/>7h`, semana `<15h/…`) NO se tocan (confirmados por la propietaria).
 VERIFICADO en pantalla (sin "libre", "sem 3–9", "40h de 168h").
+
+## 16.69 Búsqueda — barrido visual (sesión 26)
+- **Arranca en PENDIENTES** (`DEFAULT_FILTERS = statuses:['pending']`) → buscar "da" ya no trae 256 completadas de meses atrás.
+  Se puede quitar el filtro para ver todo.
+- **El filtro muestra su VALOR sin abrir:** `FilterChip` enseña las etiquetas seleccionadas ("Estado Pendientes"), no solo un
+  número. Verificado.
+- **Quitado el verde de fila:** SearchView ya no pasa `searchQuery` a TaskCard → el resaltado "el título contiene el texto" (que
+  marcaba TODAS las filas, porque todos los resultados coinciden) desaparece. Los resultados YA son la coincidencia.
+- **Cabecera de grupo FIJA** (`sticky top-0`) al hacer scroll dentro del grupo. Verificado.

@@ -36,6 +36,9 @@ const EMPTY: Filters = {
   dueDateEnd: '',
 };
 
+// §16.69: la Búsqueda ARRANCA en Pendientes (buscar "da" ya no trae 256 completadas de meses atrás). Se puede quitar el filtro.
+const DEFAULT_FILTERS: Filters = { ...EMPTY, statuses: ['pending'] };
+
 function countActive(f: Filters) {
   return (
     f.statuses.length +
@@ -85,11 +88,12 @@ function FilterChip({
         }`}
       >
         {label}
-        {count > 0 && (
-          <span className="w-4 h-4 rounded-full bg-white/30 text-[9px] font-black flex items-center justify-center">
-            {count}
-          </span>
-        )}
+        {/* §16.69: mostrar el VALOR activo sin abrir (antes solo un número: "Estado (1)" no decía en qué) */}
+        {isActive && (() => {
+          const sel = (options || []).filter((o: any) => selected.includes(o.value)).map((o: any) => o.label);
+          const txt = sel.length === 0 ? String(count) : sel.length <= 2 ? sel.join(', ') : `${sel.length} sel.`;
+          return <span className="normal-case tracking-normal font-bold text-[10px] px-1.5 rounded bg-white/25">{txt}</span>;
+        })()}
         <ChevronDown size={11} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
@@ -238,7 +242,7 @@ export function SearchView({
   onEditTask, onToggle, onDelete, onUpdateTask, onAddTask, onNavigateToBlocks, onGoToTemplate,
 }: any) {
   const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState<Filters>(EMPTY);
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -436,7 +440,8 @@ export function SearchView({
         <div className="space-y-8">
           {grouped.map(({ block, tasks: blockTasks }) => (
             <div key={block.id} className="space-y-3">
-              <div className="flex items-center gap-3">
+              {/* §16.69: cabecera de grupo FIJA al hacer scroll dentro del grupo */}
+              <div className="flex items-center gap-3 sticky top-0 z-10 py-2 -mx-2 px-2 dark:bg-bg-secondary/95 bg-bg-secondary-light/95 backdrop-blur">
                 <div className="w-1.5 h-7 rounded-full shrink-0" style={{ backgroundColor: block.color }} />
                 <span className="text-sm font-black uppercase tracking-wider dark:text-white text-text-main-light">
                   {block.icon} {block.name}
@@ -478,7 +483,6 @@ export function SearchView({
                     taskCount={blockTasks.length}
                     onMoveUp={() => {}}
                     onMoveDown={() => {}}
-                    searchQuery={query}
                   />
                 ))}
               </div>
