@@ -954,14 +954,11 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
 
                   return items
                     .filter(({ task, subtitleIds }: any) => {
-                      // Excluir tareas huérfanas completadas
-                      if (!subtitleIds.length && task.status === 'completed') return false;
-                      // Excluir contenedores donde TODAS las subtareas delegadas están completadas
-                      if (subtitleIds.length > 0) {
-                        const pendingSubs = subtitleIds.filter((sid: string) => allTasksMap[sid]?.status !== 'completed');
-                        if (pendingSubs.length === 0 && task.status === 'completed') return false;
-                      }
-                      return true;
+                      // #barrido §16.50: una tarea HECHA no es candidata a reunión.
+                      // Contenedor → candidato solo si tiene alguna subtarea delegada PENDIENTE.
+                      if (subtitleIds.length > 0) return subtitleIds.some((sid: string) => allTasksMap[sid]?.status !== 'completed');
+                      // Tarea suelta → candidata solo si NO está completada.
+                      return task.status !== 'completed';
                     })
                     .map(({ task, subtitleIds }: any) => {
                     const isSelected = meetingSelectedIds.has(task.id);
