@@ -711,6 +711,7 @@ export function WorkloadView({
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [filterBlocks, setFilterBlocks] = useState<string[]>([]);
   const [filterTypes, setFilterTypes] = useState<string[]>([]);
+  const [showDetalle, setShowDetalle] = useState(false); // §16.55 Carga liviana: la tabla mes/semana/día/tarea queda plegada
 
   const months = useMemo(() => {
     const base = new Date(todayDate.getFullYear(), todayDate.getMonth() + baseOffset, 1);
@@ -757,6 +758,27 @@ export function WorkloadView({
     });
     return map;
   }, [taskLoads]);
+
+  // §16.55 Carga liviana — TIRA DE SEMANAS: cada semana una barra (carga/capacidad), meses como separadores. La semana de
+  // FRONTERA (aparece en dos meses) se deduplica por `key` → ya no se expande/pinta dos veces. Real (≤hoy, time_entries) vs
+  // proyectado (>hoy, rutinas) se distingue en el render. `totalWeekMins` ya integra pasado-registrado + futuro-proyectado.
+  const weekStrip = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { key: string; label: string; startDate: string; endDate: string; monthKey: string; monthLabel: string; load: number; cap: number; pct: number; isCurrent: boolean; isProjected: boolean }[] = [];
+    months.forEach(mo => mo.weeks.forEach(w => {
+      if (seen.has(w.key)) return;
+      seen.add(w.key);
+      const load = totalWeekMins[w.key] || 0;
+      const cap = w.capacityMins || 1;
+      out.push({
+        key: w.key, label: w.label, startDate: w.startDate, endDate: w.endDate,
+        monthKey: mo.key, monthLabel: mo.label, load, cap, pct: Math.round((load / cap) * 100),
+        isCurrent: w.startDate <= today && today <= w.endDate,
+        isProjected: w.startDate > today,
+      });
+    }));
+    return out;
+  }, [months, totalWeekMins, today]);
 
   const { dayLoadCache, totalDayMins } = useMemo(() => {
     const cache: Record<string, number> = {};
@@ -868,6 +890,46 @@ export function WorkloadView({
         </div>
       </div>
 
+      {/* §16.55 TIRA DE SEMANAS — el paisaje de 26 semanas para fasear tareas grandes por los valles */}
+      <div className="dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-[2rem] p-5 shadow-xl">
+        <div className="flex items-end gap-4 overflow-x-auto pb-1">
+          {(() => {
+            const byMonth: Record<string, typeof weekStrip> = {};
+            weekStrip.forEach(w => { (byMonth[w.monthKey] = byMonth[w.monthKey] || []).push(w); });
+            return Object.entries(byMonth).map(([mk, weeks]) => (
+              <div key={mk} className="flex flex-col gap-2 shrink-0">
+                <div className="text-[9px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light text-center">{weeks[0].monthLabel.split(' ')[0]}</div>
+                <div className="flex items-end gap-1.5">
+                  {weeks.map(w => (
+                    <button key={w.key} onClick={() => onNavigateToDashboard(w.startDate)}
+                      title={`${w.startDate} – ${w.endDate} · ${formatMinutes(w.load)} de ${formatMinutes(w.cap)} (${w.pct}%)${w.isProjected ? ' · proyectado' : ''}`}
+                      className="flex flex-col items-center gap-1 group">
+                      <span className={`text-[8px] font-bold ${getPctTextClass(w.pct)}`}>{w.pct}%</span>
+                      <div className={`w-6 h-24 rounded-md dark:bg-bg-main/40 bg-gray-100 flex items-end overflow-hidden relative ${w.isCurrent ? 'ring-2 ring-turquesa ring-offset-1 dark:ring-offset-bg-card' : ''} group-hover:brightness-110`}>
+                        <div className="w-full rounded-md transition-all" style={{ height: `${Math.min(100, w.pct)}%`, backgroundColor: getPctColor(w.pct), opacity: w.isProjected ? 0.4 : 1 }} />
+                      </div>
+                      <span className={`text-[8px] font-bold ${w.isCurrent ? 'text-turquesa' : 'dark:text-text-secondary/50 text-text-secondary-light/50'}`}>{w.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ));
+          })()}
+        </div>
+        <div className="flex items-center gap-4 mt-3 text-[9px] font-bold dark:text-text-secondary text-text-secondary-light">
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-turquesa" /> Real (hasta hoy)</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-turquesa opacity-40" /> Proyectado (rutinas)</span>
+          <span className="ml-auto opacity-70">Clic en una semana → ir a ella</span>
+        </div>
+      </div>
+
+      {/* Detalle avanzado (tabla mes/semana/día/tarea) — plegado por defecto */}
+      <button onClick={() => setShowDetalle(v => !v)}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:text-turquesa transition-all text-[10px] font-black uppercase tracking-widest">
+        <ChevronRight size={12} className={`transition-transform ${showDetalle ? 'rotate-90' : ''}`} /> {showDetalle ? 'Ocultar detalle' : 'Ver detalle (mes · semana · día · tarea)'}
+      </button>
+
+      {showDetalle && (<>
       {/* Filtros */}
       <div className="flex items-center gap-2 flex-wrap">
         <FilterChip label="Bloque" count={filterBlocks.length} options={blockOptions} selected={filterBlocks}
@@ -1039,6 +1101,7 @@ export function WorkloadView({
           </table>
         </div>
       </div>
+      </>)}
     </div>
   );
 }
