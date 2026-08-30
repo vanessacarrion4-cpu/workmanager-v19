@@ -94,16 +94,17 @@ export function DashboardHarmonicCalendar({ activeDate, onSetDate, onClose }: an
   );
 }
 
-export function BulkActionBar({ 
-  count, 
-  onDelegate, 
-  onChangeDate, 
-  onComplete, 
-  onChangeTime, 
-  onDuplicate, 
-  onDelete, 
+export function BulkActionBar({
+  count,
+  onDelegate,
+  onChangeDate,
+  onComplete,
+  onChangeTime,
+  onDuplicate,
+  onDelete,
   onCancel,
-  isMobile = false 
+  onClearSelection, // §16.50: "Limpiar" (quita todas sin salir) — igual que la barra global
+  isMobile = false
 }: any) {
   return (
     <div className={`${isMobile ? 'fixed bottom-0 left-0 right-0' : 'sticky top-0'} z-50 dark:bg-bg-card bg-white border-t dark:border-border-main border-border-main-light shadow-2xl`}>
@@ -135,8 +136,14 @@ export function BulkActionBar({
           <button onClick={onDelete} className="px-3 py-2 rounded-xl bg-rosa/10 border border-rosa/30 text-rosa hover:bg-rosa/20 transition-all flex items-center gap-1.5 text-xs font-bold" title="Eliminar">
             <Trash2 size={14} />{!isMobile && <span>Eliminar</span>}
           </button>
-          <button onClick={onCancel} className="px-3 py-2 rounded-xl dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:dark:bg-white/5 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold" title="Cancelar">
-            <X size={14} />
+          {/* §16.50: Limpiar (quita todas SIN salir) + Cancelar (sale y limpia) — igual que la barra global */}
+          {onClearSelection && (
+            <button onClick={onClearSelection} className="px-3 py-2 rounded-xl dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:dark:bg-white/5 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold" title="Quitar todas (seguir en modo selección)">
+              <span>Limpiar</span>
+            </button>
+          )}
+          <button onClick={onCancel} className="px-3 py-2 rounded-xl dark:bg-bg-main bg-gray-100 border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:text-rosa hover:dark:bg-rosa/10 hover:bg-rosa/10 transition-all flex items-center gap-1.5 text-xs font-bold" title="Salir de selección">
+            <X size={14} />{!isMobile && <span>Cancelar</span>}
           </button>
         </div>
       </div>

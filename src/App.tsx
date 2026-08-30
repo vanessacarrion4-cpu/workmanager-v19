@@ -589,6 +589,7 @@ export default function App() {
                 onSelectScope={selectScope}
                 onEnsureSelectionMode={() => setSelectionMode(true)}
                 onToggleSelectionMode={toggleSelectionMode}
+                onClearSelection={() => setSelectedTaskIds(new Set())}
                 bulkUpdateTasks={bulkUpdateTasks}
                 bulkDeleteTasks={bulkDeleteTasks}
                 bulkDuplicateTasks={bulkDuplicateTasks}
@@ -663,6 +664,7 @@ export default function App() {
                 selectedTaskIds={selectedTaskIds}
                 onToggleTaskSelection={toggleTaskSelection}
                 onToggleSelectionMode={toggleSelectionMode}
+                onClearSelection={() => setSelectedTaskIds(new Set())}
                 bulkUpdateTasks={bulkUpdateTasks}
                 bulkDeleteTasks={bulkDeleteTasks}
                 bulkDuplicateTasks={bulkDuplicateTasks}
@@ -719,6 +721,7 @@ export default function App() {
                 selectedTaskIds={selectedTaskIds}
                 onToggleTaskSelection={toggleTaskSelection}
                 onToggleSelectionMode={toggleSelectionMode}
+                onClearSelection={() => setSelectedTaskIds(new Set())}
                 bulkUpdateTasks={bulkUpdateTasks}
                 bulkDeleteTasks={bulkDeleteTasks}
                 bulkDuplicateTasks={bulkDuplicateTasks}
@@ -775,6 +778,7 @@ export default function App() {
                 selectedTaskIds={selectedTaskIds}
                 onToggleTaskSelection={toggleTaskSelection}
                 onToggleSelectionMode={toggleSelectionMode}
+                onClearSelection={() => setSelectedTaskIds(new Set())}
                 bulkUpdateTasks={bulkUpdateTasks}
                 bulkDeleteTasks={bulkDeleteTasks}
                 bulkDuplicateTasks={bulkDuplicateTasks}

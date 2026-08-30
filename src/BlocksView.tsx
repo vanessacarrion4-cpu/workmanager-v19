@@ -96,7 +96,7 @@ export function BlocksManagerView({
   onReorderSubtasks, onReorderTasks, onToggleExpand, onExpandAll, onViewInstances, onPromote, onDemote,
   highlightTaskId, onClearHighlight,
   onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(),
-  onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null,
+  onToggleTaskSelection = null, onToggleSelectionMode = null, onClearSelection = null, bulkUpdateTasks = null,
   bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null,
   setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '',
   onExpandedChange, onRegisterExpandToggle
@@ -624,6 +624,7 @@ export function BlocksManagerView({
           onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
           onDelete={() => { bulkDeleteTasks && bulkDeleteTasks(); /* (a) sesión 24: confirm informativo en el hook (conteo real) */ }}
           onCancel={onToggleSelectionMode}
+          onClearSelection={onClearSelection}
           isMobile={window.innerWidth < 768}
         />
       )}

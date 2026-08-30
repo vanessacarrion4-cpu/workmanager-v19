@@ -26,7 +26,7 @@ import { StickyActionBar } from './StickyActionBar';
 
 
 export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPerson, onRenamePerson = null, onDeletePerson = null, timeEntries, activeTimer, onStartTimer, onStopTimer, onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId, onOpenTimePanel, activeDate, onDateSelect, onAddTask, onToggleTask, onDelete, onReorderTasks, onReorderSubtasks, onToggleExpand, onPromote, onDemote, onRecurrenceDateChange = null,
-  selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null,
+  selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, onClearSelection = null,
   bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null,
   setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null }: any) {
   const [viewDate, setViewDate] = useState(() => parseLocalISO(activeDate));
@@ -400,6 +400,7 @@ export function CalendarView({ tasks, allTasksMap, blocks, people = [], onAddPer
                       onDuplicate={() => bulkDuplicateTasks && bulkDuplicateTasks()}
                       onDelete={() => { bulkDeleteTasks && bulkDeleteTasks(); }}
                       onCancel={onToggleSelectionMode}
+                      onClearSelection={onClearSelection}
                       isMobile={window.innerWidth < 768}
                     />
                   </div>
