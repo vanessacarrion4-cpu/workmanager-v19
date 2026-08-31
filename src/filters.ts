@@ -564,19 +564,23 @@ export function computeVerdict(
   const previsto = foto.estimated_minutes;
   const planRegistered = plan.reduce((acc, id) => acc + getTaskRegisteredSelf(id, timeEntries, activeDate), 0);
   const outOfPlan = Math.max(0, registrado - planRegistered); // total − plan (tiempo en cosas que entraron después)
+  // §16.88 (decisión propietaria): la NOTA usa el registrado TOTAL del día (`registrado`), NO `planRegistered`. Antes
+  // (§16.47) medía solo el tiempo en tareas del plan → excluía el trabajo real en tareas que entraron después (era la
+  // "cifra equivocada de las dos", e infra-contaba si el tiempo se fichaba en el contenedor y no en la hoja del plan).
+  // planRegistered/outOfPlan se conservan solo como DATO informativo ("Nh fuera de lo previsto").
   const nota = previsto > 0
-    ? Math.max(0, Math.min(10, Math.round((planRegistered / previsto) * 100) / 10))
-    : (planRegistered > 0 ? 10 : 0);
+    ? Math.max(0, Math.min(10, Math.round((registrado / previsto) * 100) / 10))
+    : (registrado > 0 ? 10 : 0);
 
   let key: VerdictKey;
   let label: string;
   if (previsto > jornada) { key = 'sobreplanificado'; label = 'Día sobreplanificado'; }
-  else if (planRegistered < 15) { key = 'sin_arrancar'; label = 'Día sin arrancar'; }
+  else if (registrado < 15) { key = 'sin_arrancar'; label = 'Día sin arrancar'; }
   else if (nota < 8.0) { key = 'a_medias'; label = 'Día a medias'; }
   else if (nota < 9.5) { key = 'cumplido'; label = 'Día cumplido'; }
   else { key = 'completo'; label = 'Día completo'; }
 
-  const frase = `${formatMinutes(planRegistered)} registradas de ${formatMinutes(previsto)} previstas`;
+  const frase = `${formatMinutes(registrado)} registradas de ${formatMinutes(previsto)} previstas`;
   return { key, label, nota, frase, hasPlan: true, planRegistered, outOfPlan, ...base };
 }
 

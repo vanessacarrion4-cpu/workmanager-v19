@@ -268,12 +268,13 @@ describe('computeVerdict — NOTA del día', () => {
     expect(v.key).toBe('completo');
   });
 
-  it('el tiempo FUERA del plan no suma a la nota, pero cuenta en outOfPlan', () => {
-    // 260 en el plan (P1) + 120 en algo NO del plan (X9) → nota sobre 260, outOfPlan 120
+  it('§16.88: el tiempo TOTAL suma a la nota (incluido lo de fuera del plan); outOfPlan solo informa', () => {
+    // 260 en el plan (P1) + 120 fuera (X9) → total 380. La nota es sobre el TOTAL (380/360 → tope 10),
+    // NO solo sobre el plan (que daría 7,2). planRegistered/outOfPlan se conservan como dato informativo.
     const v = computeVerdict(S({ registered: 380 }), foto(360, ['P1']), 480, [te('P1', 260), te('X9', 120)], DAY);
     expect(v.planRegistered).toBe(260);
-    expect(v.nota).toBe(7.2);          // solo el plan
-    expect(v.outOfPlan).toBe(120);     // total(380) − plan(260)
+    expect(v.nota).toBe(10);           // total(380)/previsto(360) → tope 10 (con el diseño viejo habría sido 7,2)
+    expect(v.outOfPlan).toBe(120);     // total(380) − plan(260), solo informativo
   });
 
   it('sobreplanificado: previsto > jornada → "Día sobreplanificado" (aunque haya nota)', () => {
