@@ -5823,3 +5823,8 @@ era de VISIBILIDAD (una regla recurrente deja de contarse como tarea del dia) + 
 NO perdida de tareas normales. El incidente "22 subtareas escondidas" fue eso: reglas que pasaron a plantilla, no borrado.
 **ORDEN DE PUBLICACION (de uno en uno, con confirmacion entre medias):** 1. Fase 1 repair (PUBLICADA) . 2. Etiqueta Semana . 3.
 Guard isActive (la propietaria valida el 2, 5 y 15-sep en pantalla ANTES de cerrar; no publicar hasta que confirme Fase 1 en prod).
+
+### 16.83 correccion/cierre: de las 92 con pauta → 82 son HIJAS (con parent) + 10 top-level (ambas cifras correctas,
+en el chat se mezclaron). RESUELTO por la propietaria: `pruebaaaaaaaaaaaaaa` borrada; `Seguimiento Plan Ver situacion`
+reconvertida a SUBTAREA NORMAL de "On Boarding Lucia" (is_template:false, conserva parent t-1781858398975 + dueDate 18/08).
+Fase 1 CONFIRMADA en produccion por la propietaria (recargas: la cabecera ya no se mueve).
