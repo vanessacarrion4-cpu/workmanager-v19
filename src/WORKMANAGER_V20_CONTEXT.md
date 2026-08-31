@@ -5984,3 +5984,24 @@ en un día (isTemplate escondió 22 subtareas, isActive dejó 5 mensuales sin ge
 si refijas a mediodía, el fijado cambia. DECISIÓN de la propietaria: refijar el mismo día NO debe añadir en silencio; debe AVISAR
 ("ya fijaste hoy a las HH:MM") y ofrecer [Sustituir la foto / Cancelar] (default seguro = cancelar, se conserva la de la mañana). Así
 hay UNA foto/día. Contestar esto ANTES de construir FIJADO vs HECHO (si compara contra la foto equivocada, todo el reporte sale mal).
+
+## 16.95 Las 465 subtareas de contenedores manuales — números + (d) barrido de flags (sesión 26)
+**(a) Desde cuándo:** desde el inicio — contenedores manuales creados 28/04–31/08; Semana/Carga NUNCA han visto sus subtareas.
+**(b) Se arregla en el CANÓNICO, no en materializeDay:** materializeDay es el GENERADOR (solo recurrentes); los contenedores/
+subtareas MANUALES son estáticos y los aporta el OVERLAY (reconcileDay). Bug = Semana/Carga calculan desde materializeDay SOLO. El
+canónico (reconcileDay) los incluye. + quitar el gate isTemplate de WorkloadView:382.
+**(c) Cuánto sube (medido):** 465 subtareas; **125 pendientes = 25h**; con fecha >= hoy (lo que sube en Semana/Carga) **90 = 1155m ≈
+19h**; hoy 31/08 = **26 = 95m** (cuadra con el gap legítimo del canónico). Es un bloque grande, no un detalle.
+**(d) Barrido de flags del contenedor que gatean hijas:** el ÚNICO que queda mal es **WorkloadView:382** `isContainer = subtasks
+.length>0 && task.isTemplate`. En TODOS los demás sitios (filters:296, WeekView:86/686, fase3Contracts:193) "ser contenedor" se
+DERIVA de TENER hijas (§16.16), sin flag → correcto. materializeDay usa isTemplate pero es correcto para el generador. Así que tras
+WorkloadView:382 el modelo es consistente — 3er y último caso del patrón (isTemplate 22 subtareas · isActive 5 mensuales · isTemplate
+en Carga 465 subtareas). PRINCIPIO firme: un flag estructural del contenedor no decide si sus hijas cuentan; se deriva de tenerlas.
+
+## 16.96 Día CON reporte pero SIN foto — exclusión de medias (sesión 26)
+El 31/08 se guardó reporte SIN fijación (los snapshots se borraron). El reporte YA queda marcado solo: `verdict='sin_fijar'`,
+`measures.previsto=null`, `measures.nota=null` (naturales, consultables). NO se añade marcador redundante. REGLA (para cuando se
+construyan medias/rachas y FIJADO vs HECHO): excluir por **`previsto===null` / `verdict='sin_fijar'`**, NO por "no hay reporte" — este
+día TIENE reporte pero sin foto. Sin previsto no hay FIJADO vs HECHO (no hay contra qué comparar). REVERSIBLE: si la propietaria
+restaura la foto del backup, el reporte se recalcula con previsto y pasa a contar normal. (Feature de medias/rachas aún NO existe →
+hoy nada lo compara mal; es una regla para el futuro.)
