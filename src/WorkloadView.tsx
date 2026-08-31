@@ -379,7 +379,7 @@ function buildTaskLoads(
     calcRangeMinutes(task, startStr, endStr, isPast, allTasksMap, registeredByDay, dayEstByTemplate);
 
   const processTask = (task: any, parentId?: string) => {
-    const isContainer = (task.subtasks || []).length > 0 && task.isTemplate;
+    const isContainer = (task.subtasks || []).length > 0; // §16.98: "ser contenedor" se DERIVA de tener hijas (§16.16), NO de isTemplate — incluye contenedores MANUALES
 
     const monthMinutes: Record<string, number> = {};
     const weekMinutes: Record<string, number> = {};
@@ -466,16 +466,22 @@ function buildTaskLoads(
     t && t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId // §16.79: retirado guard isActive (no gatea hijas)
   ).forEach((t: any) => processTask(t));
 
+  // §16.98: tareas manuales top-level DATADAS + contenedores MANUALES (con hijas, aunque no tengan dueDate propio) → así
+  // sus subtareas datadas entran en la proyección (las 465 que Carga no veía). Un contenedor se procesa siempre (su rango
+  // lo dan las hijas); una hoja datada solo si su fecha cae en el rango visible.
   Object.values(allTasksMap).filter((t: any) =>
-    t && !t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId && t.dueDate &&
-    !(!t.recurrence && t.dueDate < today)
+    t && !t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId &&
+    (((t.subtasks || []).length > 0) || (t.dueDate && !(!t.recurrence && t.dueDate < today)))
   ).forEach((t: any) => {
-    const inRange = months.some(mo => {
-      const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
-      const lastDay = formatLocalISO(new Date(mo.year, mo.month + 1, 0));
-      return t.dueDate >= firstDay && t.dueDate <= lastDay;
-    });
-    if (!inRange) return;
+    const isCont = (t.subtasks || []).length > 0;
+    if (!isCont) {
+      const inRange = months.some(mo => {
+        const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
+        const lastDay = formatLocalISO(new Date(mo.year, mo.month + 1, 0));
+        return t.dueDate >= firstDay && t.dueDate <= lastDay;
+      });
+      if (!inRange) return;
+    }
     processTask(t);
   });
 
