@@ -6005,3 +6005,20 @@ construyan medias/rachas y FIJADO vs HECHO): excluir por **`previsto===null` / `
 día TIENE reporte pero sin foto. Sin previsto no hay FIJADO vs HECHO (no hay contra qué comparar). REVERSIBLE: si la propietaria
 restaura la foto del backup, el reporte se recalcula con previsto y pasa a contar normal. (Feature de medias/rachas aún NO existe →
 hoy nada lo compara mal; es una regla para el futuro.)
+
+## 16.97 Pendientes de cierre/modelo (sesión 26/27) — anotados, sin construir
+- **FIJAR dos veces el mismo día:** avisar "ya fijaste hoy a las HH:MM" y preguntar [Sustituir la foto / Cancelar]. NO un deshacer
+  genérico. Default seguro = cancelar (se conserva la de la mañana).
+- **El reporte usa el PRIMER snapshot del día** (la foto de la mañana), no `latest`. Con lo de arriba (refijar = sustituir), hay una
+  sola foto/día y es la de la mañana salvo que se sustituya a propósito.
+- **BORRAR (regla firme, TODO):** nada se borra físicamente; todo borrado pide confirmación diciendo EXACTAMENTE qué se va (elemento,
+  día, hora) y es REVERSIBLE (soft-delete). Vale para tareas, snapshots, reportes.
+- **Transición tarea↔contenedor:** tarea con tiempo ESTIMADO que pasa a contenedor → AVISAR y que la propietaria decida (repartir
+  entre hijas o descartar), nunca borrar en silencio. Tiempo REGISTRADO (play) NO se pierde nunca (vive en time_entries por id).
+  Inverso: borrar la última hija → vuelve a tarea suelta y necesita tiempo propio (mantener el estimado dormido, restaurar al revertir).
+- **HUECO DEL ROLLOVER (nuevo, importante):** NO hay mecanismo de atrasadas. Mi Día muestra solo `dueDate === el día` (belongsToDay);
+  una pendiente con fecha pasada solo aparece en el Mi Día de ESE día. `rolled_over_count` solo cuenta las que la propietaria mueve
+  a mano desde el repaso. → Una tarea no hecha en su día se pierde de vista salvo que se mueva. FALTA: las pendientes atrasadas deben
+  aflorar en HOY (rollover / sección "atrasadas"). Es lo que obligó a mover las PPV pendientes a hoy en vez de des-moverlas a su día.
+- **Duplicadas — contexto:** 137 movimientos vivos (due≠instance); solo 5 colisionan (se cuentan como dup). Los otros 132 son
+  decisiones de la propietaria y NO se cuentan como duplicado. "Ver Montse Vidal" (30/08→31/08) es movimiento deliberado suyo, NO dup.
