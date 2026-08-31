@@ -123,6 +123,15 @@ export function DayReportModal({
     }
   };
 
+  // §16.104 (pieza 3): contar las decisiones del repaso. 'mañana' vs 'otro día' según la fecha destino.
+  const tomorrow = repNextDay(activeDate);
+  const bump = (k: keyof Decisiones) => setSnap(s => (s ? { ...s, decisiones: { ...s.decisiones, [k]: s.decisiones[k] + 1 } } : s));
+  const onCompleteW = (id: string) => { bump('completadas'); onComplete?.(id); };
+  const onDeleteW = (id: string) => { bump('eliminadas'); onDelete?.(id); };
+  const onRepasoMoveW = (task: any, date: string) => { bump(date === tomorrow ? 'manana' : 'otro'); onRepasoMove?.(task, date); };
+  const dec = snap?.decisiones ?? { manana: 0, otro: 0, completadas: 0, eliminadas: 0 };
+  const sinTocar = Math.max(0, pendingAtOpen - dec.manana - dec.otro - dec.completadas - dec.eliminadas);
+
   const fechaLarga = (() => {
     const [y, m, d] = activeDate.split('-').map(Number);
     return new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(y, m - 1, d));
@@ -193,6 +202,18 @@ export function DayReportModal({
             )}
           </Medida>
         </div>
+
+        {/* 2b · RESUMEN DE DECISIONES DEL REPASO (§16.104 pieza 3) — junto a las medidas, se guarda también. */}
+        {pendingAtOpen > 0 && (
+          <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mb-6 text-[11px] font-bold">
+            <span className="dark:text-white text-text-main-light">{pendingAtOpen} sin hacer</span>
+            {dec.manana > 0 && <span className="text-turquesa">· {dec.manana} a mañana</span>}
+            {dec.otro > 0 && <span className="text-turquesa">· {dec.otro} a otro día</span>}
+            {dec.completadas > 0 && <span className="text-verde">· {dec.completadas} completada{dec.completadas === 1 ? '' : 's'}</span>}
+            {dec.eliminadas > 0 && <span className="text-rosa">· {dec.eliminadas} eliminada{dec.eliminadas === 1 ? '' : 's'}</span>}
+            <span className="dark:text-text-secondary text-text-secondary-light">· {sinTocar} sin tocar</span>
+          </div>
+        )}
 
         {/* 3 · ENTRADA DEL DÍA (versión de cierre: lista completa desplegada) */}
         {entrada && entrada.total > 0 && (
@@ -324,9 +345,9 @@ export function DayReportModal({
           activeDate={activeDate}
           blocks={blocks}
           timeEntries={timeEntries}
-          onComplete={onComplete}
-          onDelete={onDelete}
-          onRepasoMove={onRepasoMove}
+          onComplete={onCompleteW}
+          onDelete={onDeleteW}
+          onRepasoMove={onRepasoMoveW}
           repasoWillCollide={repasoWillCollide}
           repasoDayLoad={repasoDayLoad}
         />
