@@ -10,7 +10,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   Plus, Check, RefreshCw, Clock, LayoutGrid, Tag,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task, WorkBlock, TimeEntry } from './types';
@@ -62,17 +62,29 @@ function formatDayLabel(dateStr: string) {
 // presentes son exactamente las que ocurren ese día, así que basta con sumarlas.
 // #2 (sesión 26): Semana es vista de PLANIFICACIÓN → mide lo PENDIENTE (lo que queda por delante), no el total con
 // completadas. Una hoja/subtarea completada aporta 0.
-function getTaskMins(task: Task, dayMap: Record<string, Task>): number {
-  // Tarea hoja (sin subtareas): su estimado si está pendiente; 0 si ya está hecha
+// §16.75: `includeCompleted` = el TIEMPO sigue el estado del toggle "ocultar completadas". Ocultas (false, por defecto,
+// vista de planificación) → una completada aporta 0. Mostradas (true) → aporta su estimado, para que el total case con lo
+// que se ve. Mismo criterio que Mi Día: el tiempo mide lo mismo que se muestra.
+function getTaskMins(task: Task, dayMap: Record<string, Task>, includeCompleted: boolean = false): number {
+  // Tarea hoja (sin subtareas): su estimado si está pendiente; si está hecha, solo cuenta en modo "mostrar completadas"
   if (!task.subtasks || task.subtasks.length === 0) {
-    return task.status === 'completed' ? 0 : (task.estimatedMinutes || 0);
+    return (task.status === 'completed' && !includeCompleted) ? 0 : (task.estimatedMinutes || 0);
   }
-  // Contenedor: sumar las subtareas materializadas de este día que sigan PENDIENTES
+  // Contenedor: sumar las subtareas materializadas de este día (las completadas, solo si se muestran)
   return task.subtasks.reduce((acc, subId) => {
     const sub = dayMap[subId];
-    if (!sub || sub.isDeleted || sub.status === 'completed') return acc;
+    if (!sub || sub.isDeleted) return acc;
+    if (sub.status === 'completed' && !includeCompleted) return acc;
     return acc + (sub.estimatedMinutes || 0);
   }, 0);
+}
+
+// §16.75: ¿esta fila-raíz es visible con "ocultar completadas"? Una HOJA completada se oculta; un CONTENEDOR se mantiene
+// mientras le quede alguna subtarea pendiente ese día (mismo criterio derivado que Mi Día — no se entierra trabajo vivo).
+function isRowVisibleWeek(task: Task, dayMap: Record<string, Task>, hideCompleted: boolean): boolean {
+  if (!hideCompleted) return true;
+  if (!task.subtasks || task.subtasks.length === 0) return task.status !== 'completed';
+  return task.subtasks.some(sid => { const s = dayMap[sid]; return s && !s.isDeleted && s.status !== 'completed'; });
 }
 
 // ─── Conteo de HOJAS hechas/total ────────────────────────────────────────────
@@ -199,6 +211,14 @@ export function WeekView({
   const [jumpDate, setJumpDate] = useState('');
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [groupMode, setGroupMode] = useState<GroupMode>('bloque');
+  // §16.75: ocultar/mostrar completadas (como Mi Día). El TIEMPO sigue este estado (getTaskMins recibe !hideCompleted).
+  const [hideCompleted, setHideCompleted] = useState<boolean>(() => {
+    try { return localStorage.getItem('week-hide-completed') !== '0'; } catch { return true; } // por defecto ocultas (planificación)
+  });
+  const setHideCompletedPersist = (v: boolean) => {
+    setHideCompleted(v);
+    try { localStorage.setItem('week-hide-completed', v ? '1' : '0'); } catch {}
+  };
 
   const days = useMemo(() => {
     const count = showWeekend ? 7 : 5;
@@ -247,7 +267,7 @@ export function WeekView({
     days.forEach(date => {
       const tasks = tasksByDay[date] || [];
       const dayMap = dayData[date]?.map ?? {};
-      const estimatedMins = tasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
+      const estimatedMins = tasks.reduce((acc, t) => acc + getTaskMins(t, dayMap, !hideCompleted), 0);
       const registeredMins = timeEntries
         .filter(e => e.date === date)
         .reduce((acc, e) => acc + (e.duration || 0), 0);
@@ -255,7 +275,7 @@ export function WeekView({
       map[date] = { estimatedMins, registeredMins, pct };
     });
     return map;
-  }, [days, tasksByDay, timeEntries, dayData, jornada]);
+  }, [days, tasksByDay, timeEntries, dayData, jornada, hideCompleted]);
 
   // #barrido §16.50: total de la SEMANA junto al título = suma del ESTIMADO PENDIENTE de cada día (lo que queda por hacer,
   // como los grupos) sobre la capacidad jornada × nº de días mostrados (L-V=5 / L-D=7). Semana es vista de PLANIFICACIÓN, así
@@ -287,13 +307,13 @@ export function WeekView({
   const renderBlockGroup = (date: string, block: WorkBlock, dayTasks: Task[]) => {
     const dayMap = dayData[date]?.map ?? {};
     // §barrido: dentro del grupo, items por PESO desc (lo que más pesa arriba; da igual contenedor o huérfana).
-    const blockTasks = dayTasks.filter(t => t.blockId === block.id && !t.isDeleted)
-      .sort((a, b) => getTaskMins(b, dayMap) - getTaskMins(a, dayMap));
+    const blockTasks = dayTasks.filter(t => t.blockId === block.id && !t.isDeleted && isRowVisibleWeek(t, dayMap, hideCompleted))
+      .sort((a, b) => getTaskMins(b, dayMap, !hideCompleted) - getTaskMins(a, dayMap, !hideCompleted));
     if (blockTasks.length === 0) return null;
     const key = `${date}__${block.id}`;
     const isExpanded = isOpen(key, false); // §16.63: modo bloque respeta el control global Desplegar/Plegar
     const { done: hechasCount, total: hojasTotal } = leafCounts(blockTasks, dayMap); // #7: hojas, no status del contenedor
-    const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
+    const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap, !hideCompleted), 0);
     return (
       <div key={block.id} className="rounded-xl overflow-hidden">
         <button onClick={() => toggleBlock(date, block.id)}
@@ -311,7 +331,7 @@ export function WeekView({
                 {blockTasks.map(task => (
                   <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
                     onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} onToggleId={onToggle} date={date} onEditTask={onEditTask}
-                    onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
+                    onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} hideCompleted={hideCompleted} />
                 ))}
               </div>
             </motion.div>
@@ -328,16 +348,16 @@ export function WeekView({
       { id: 'core' as const,  label: '⬡ Core',  color: TURQUESA },
       { id: 'adhoc' as const, label: '◇ Adhoc', color: ROSA },
     ]).map(tp => {
-      const tasks = dayTasks.filter(t => !t.isDeleted && getEffectiveType(t) === tp.id)
-        .sort((a, b) => getTaskMins(b, dayMap) - getTaskMins(a, dayMap));
-      return { ...tp, tasks, total: tasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0) };
+      const tasks = dayTasks.filter(t => !t.isDeleted && getEffectiveType(t) === tp.id && isRowVisibleWeek(t, dayMap, hideCompleted))
+        .sort((a, b) => getTaskMins(b, dayMap, !hideCompleted) - getTaskMins(a, dayMap, !hideCompleted));
+      return { ...tp, tasks, total: tasks.reduce((acc, t) => acc + getTaskMins(t, dayMap, !hideCompleted), 0) };
     }).sort((a, b) => b.total - a.total);
     return tipos.map(tipo => {
       const tipoTasks = tipo.tasks;
       if (tipoTasks.length === 0) return null;
       const key = `${date}__tipo__${tipo.id}`;
       const isExpanded = isOpen(key, true); // §16.63: modo Tipo abierto por defecto (ver contenedores/huérfanas por peso sin picar)
-      const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
+      const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap, !hideCompleted), 0);
       const { done: hechasCount, total: hojasTotal } = leafCounts(tipoTasks, dayMap); // #7: hojas
       return (
         <div key={tipo.id} className="rounded-xl overflow-hidden">
@@ -357,7 +377,7 @@ export function WeekView({
                     ? activeBlocks.map(block => {
                         const bTasks = tipoTasks.filter(t => t.blockId === block.id);
                         if (bTasks.length === 0) return null;
-                        const bMins = bTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
+                        const bMins = bTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap, !hideCompleted), 0);
                         const { done: bHechas, total: bTotal } = leafCounts(bTasks, dayMap); // #7: hojas
                         const bKey = `${date}__tipo__${tipo.id}__bloque__${block.id}`;
                         const isBExpanded = isOpen(bKey, true); // combinado tipo→bloque: bloque abierto por defecto
@@ -377,7 +397,7 @@ export function WeekView({
                                   {bTasks.map(task => (
                                     <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
                                       onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} onToggleId={onToggle} date={date} onEditTask={onEditTask}
-                    onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
+                    onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} hideCompleted={hideCompleted} />
                                   ))}
                                 </motion.div>
                               )}
@@ -390,7 +410,7 @@ export function WeekView({
                         // PESO desc. NO se agregan las huérfanas — lo que más pesa arriba, sea lo que sea.
                         <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
                           onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} onToggleId={onToggle} date={date} onEditTask={onEditTask}
-                          onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
+                          onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} hideCompleted={hideCompleted} />
                       ))
                   }
                 </div>
@@ -422,6 +442,13 @@ export function WeekView({
         <div className="flex items-center gap-2 flex-wrap">
           {/* Dropdown agrupación */}
           <GroupDropdown value={groupMode} onChange={setGroupMode} />
+          {/* §16.75: ocultar/mostrar completadas (como Mi Día). El tiempo de los totales sigue este estado. */}
+          <button onClick={() => setHideCompletedPersist(!hideCompleted)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all text-[10px] font-black uppercase tracking-widest ${hideCompleted ? 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:text-turquesa' : 'border-turquesa/60 text-turquesa'}`}
+            title={hideCompleted ? 'Mostrar completadas (el tiempo las incluirá)' : 'Ocultar completadas (el tiempo será solo lo pendiente)'}>
+            {hideCompleted ? <EyeOff size={12} /> : <Eye size={12} />}
+            {hideCompleted ? 'Completadas' : 'Completadas'}
+          </button>
           {/* §16.63: control ÚNICO plegar/desplegar TODO — los 5 días, todos los agrupadores, recordado entre visitas */}
           <button onClick={() => setGlobalExpandPersist(globalExpand === true ? false : true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:text-turquesa transition-all text-[10px] font-black uppercase tracking-widest"
@@ -528,7 +555,7 @@ export function WeekView({
                   if (groupMode === 'bloque') {
                     // §barrido: bloques ordenados por PESO ese día (el que más pesa arriba), no orden fijo.
                     const dm = dayData[date]?.map ?? {};
-                    const blkMins = (b: WorkBlock) => dayTasks.filter(t => t.blockId === b.id && !t.isDeleted).reduce((acc, t) => acc + getTaskMins(t, dm), 0);
+                    const blkMins = (b: WorkBlock) => dayTasks.filter(t => t.blockId === b.id && !t.isDeleted).reduce((acc, t) => acc + getTaskMins(t, dm, !hideCompleted), 0);
                     return [...activeBlocks].sort((a, b) => blkMins(b) - blkMins(a)).map(block => renderBlockGroup(date, block, dayTasks));
                   }
                   if (groupMode === 'tipo') {
@@ -536,12 +563,12 @@ export function WeekView({
                   }
                   if (groupMode === 'bloque-tipo') {
                     return activeBlocks.map(block => {
-                      const blockTasks = dayTasks.filter(t => t.blockId === block.id && !t.isDeleted);
-                      if (blockTasks.length === 0) return null;
                       const dayMap = dayData[date]?.map ?? {};
+                      const blockTasks = dayTasks.filter(t => t.blockId === block.id && !t.isDeleted && isRowVisibleWeek(t, dayMap, hideCompleted));
+                      if (blockTasks.length === 0) return null;
                       const key = `${date}__${block.id}`;
                       const isExpanded = isOpen(key, true); // combinado bloque→tipo: bloque abierto por defecto
-                      const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
+                      const blockMins = blockTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap, !hideCompleted), 0);
                       const { done: hechasCount, total: hojasTotal } = leafCounts(blockTasks, dayMap); // #7: hojas
                       return (
                         <div key={block.id} className="rounded-xl overflow-hidden">
@@ -560,7 +587,7 @@ export function WeekView({
                                   {(['core', 'adhoc'] as const).map(tipoId => {
                                     const tipoTasks = blockTasks.filter(t => getEffectiveType(t) === tipoId);
                                     if (tipoTasks.length === 0) return null;
-                                    const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap), 0);
+                                    const tipoMins = tipoTasks.reduce((acc, t) => acc + getTaskMins(t, dayMap, !hideCompleted), 0);
                                     const { done: tipoHechas, total: tipoTotal } = leafCounts(tipoTasks, dayMap); // #7: hojas
                                     const tipoColor = tipoId === 'core' ? TURQUESA : ROSA;
                                     const tipoLabel = tipoId === 'core' ? '⬡ Core' : '◇ Adhoc';
@@ -582,7 +609,7 @@ export function WeekView({
                                               {tipoTasks.map(task => (
                                                 <WeekTaskCard key={task.id} task={task} dayMap={dayMap}
                                                   onEdit={() => onEditTask(task.id)} onToggle={() => onToggle(task.id, date)} onToggleId={onToggle} date={date} onEditTask={onEditTask}
-                    onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} />
+                    onUpdateTask={onUpdateTask} onRecurrenceDateChange={onRecurrenceDateChange} hideCompleted={hideCompleted} />
                                               ))}
                                             </motion.div>
                                           )}
@@ -624,16 +651,17 @@ export function WeekView({
 }
 
 // ─── WeekTaskCard ─────────────────────────────────────────────────────────────
-function WeekTaskCard({ task, dayMap, onEdit, onToggle, onToggleId, date, onEditTask, onUpdateTask, onRecurrenceDateChange }: {
+function WeekTaskCard({ task, dayMap, onEdit, onToggle, onToggleId, date, onEditTask, onUpdateTask, onRecurrenceDateChange, hideCompleted = true }: {
   task: Task; dayMap: Record<string, Task>;
   onEdit: () => void; onToggle: () => void; onToggleId?: (id: string, day: string) => void; date: string;
   onEditTask?: (id: string) => void;
   onUpdateTask: (task: Task) => void;
   onRecurrenceDateChange: (task: Task, newDate: string) => void;
+  hideCompleted?: boolean; // §16.75: el tiempo de la tarjeta y las subtareas visibles siguen el toggle
 }) {
   const tagEmoji = task.tags?.[0] ? TAG_LABELS[task.tags[0]]?.icon : null;
   const isCompleted = task.status === 'completed';
-  const taskMins = getTaskMins(task, dayMap);
+  const taskMins = getTaskMins(task, dayMap, !hideCompleted);
 
   // Mover a otro día. Recurrente → pregunta (modal "este día / serie") reusando el
   // mismo camino de App (onRecurrenceDateChange). Normal → mueve directo.
@@ -657,7 +685,7 @@ function WeekTaskCard({ task, dayMap, onEdit, onToggle, onToggleId, date, onEdit
   const subTasksForDay = isContainer
     ? (task.subtasks || [])
         .map(id => dayMap[id])
-        .filter((s): s is Task => !!s && !s.isDeleted)
+        .filter((s): s is Task => !!s && !s.isDeleted && (!hideCompleted || s.status !== 'completed')) // §16.75: ocultar subs completadas
     : [];
 
   return (

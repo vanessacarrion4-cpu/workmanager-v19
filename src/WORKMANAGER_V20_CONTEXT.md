@@ -5597,3 +5597,14 @@ cuyo único cambio es el order) — no urgente, A ya las hace inocuas.
   del MES** (`monthSummary` filtra por `viewDate.getMonth()`). `monthLoadMap`/week-load los incluyen (por eso el % es correcto).
 - **VERIFICADO EN PANTALLA:** septiembre (empieza martes) → 1ª fila trae 31/08 atenuado con sus 20h 10m; resumen "96% · 33h 23m";
   última fila con 26-27/10 atenuados; total del mes 94h 1m (solo septiembre).
+
+## 16.75 Semana — mostrar/ocultar completadas + el tiempo sigue el estado (sesión 26)
+- **Toggle "Completadas"** (Eye/EyeOff) en la barra, como Mi Día. Estado local persistido (`week-hide-completed`, default OCULTAR
+  = planificación). Antes Semana MOSTRABA las completadas siempre pero las contaba como 0 → mix incoherente.
+- **El TIEMPO sigue el toggle:** `getTaskMins(task, dayMap, includeCompleted)` — ocultas → completada aporta 0 (pendiente);
+  mostradas → aporta su estimado. Hilado en TODOS los cálculos: statsByDay (total del día), weekSummary (total semana), cabeceras
+  de grupo (bloque/tipo/combinados) y la tarjeta (WeekTaskCard). Filtrado de filas con `isRowVisibleWeek` (hoja completada se
+  oculta; contenedor se mantiene si le queda hija pendiente) en los 4 modos de agrupación. WeekTaskCard oculta subs completadas.
+- **VERIFICADO EN PANTALLA:** semana 31/08 → total 24h 44m (ocultar) ↔ 28h 39m (mostrar); lunes 31 8h ↔ 11h 55m. Lunes 24
+  (comprobación de la propietaria): cabecera 30m en AMBOS modos → cuadra (los 30m son 1 pendiente RRHH; CMTIL 2/2 y BANCOS 1/1
+  completadas aportan 0m estimado; en ocultar desaparecen, en mostrar salen con 0m). El total case con lo que se ve.
