@@ -15,7 +15,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task, WorkBlock, TimeEntry } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { materializeDay } from './instanceEngine';
+import { getCanonicalDayView } from './filters'; // §16.98 CÁLCULO CANÓNICO: Semana usa el mismo motor del día que Mi Día
 import { formatMinutes, getTaskEstimatedCombo } from './utils';
 import { MonthDatePicker } from './TimeComponents';
 import { TAG_LABELS } from './constants';
@@ -75,6 +75,8 @@ function getTaskMins(task: Task, dayMap: Record<string, Task>, includeCompleted:
     const sub = dayMap[subId];
     if (!sub || sub.isDeleted) return acc;
     if (sub.status === 'completed' && !includeCompleted) return acc;
+    // §16.98: misma visibilidad que Mi Día — una hija DELEGADA sin etiqueta real (solo 'resto') NO cuenta (hideDelegatedNoTag).
+    if (sub.delegation && !((sub.tags || []).some(tag => tag && tag !== 'resto'))) return acc;
     return acc + (sub.estimatedMinutes || 0);
   }, 0);
 }
@@ -235,22 +237,17 @@ export function WeekView({
   const activeBlockIds = useMemo(() => new Set(blocks.filter(b => b.isActive).map(b => b.id)), [blocks]);
   const activeBlocks = useMemo(() => blocks.filter(b => b.isActive), [blocks]);
 
-  // Motor V20: cada día se materializa al vuelo (sin depender de instancias
-  // pre-generadas). dayData guarda, por fecha, las raíces a mostrar y el mapa
-  // {id: task} de ese día para que getTaskMins y WeekTaskCard lean de ahí.
+  // §16.98 CÁLCULO CANÓNICO: cada día se calcula con getCanonicalDayView (reconcileDay = materializeDay + OVERLAY de
+  // estado) — MISMO motor que Mi Día. Así Semana ve también las subtareas de contenedores MANUALES (§16.94, ~19h que
+  // antes no veía) y da la MISMA cifra que Mi Día para el mismo día. `dayTasks` ya viene filtrado por día + bloque activo
+  // (filterTasksForDay), así que las raíces son sus top-level. Se pide hideCompleted:false (Semana filtra a su manera con
+  // su propio toggle). `map` = mapa completo del día (incluye hijas) para getTaskMins/WeekTaskCard.
   const dayData = useMemo(() => {
-    const result: Record<string, { roots: Task[]; map: Record<string, Task> }> = {};
+    const result: Record<string, { roots: Task[]; map: Record<string, Task>; stats: any }> = {};
     days.forEach(date => {
-      const instances = materializeDay(date, allTasksMap);
-      // Tareas manuales de nivel superior (puntuales de ese día, no plantillas)
-      const manual = Object.values(allTasksMap).filter(t =>
-        t && !t.isTemplate && !t.templateId && !t.parentTaskId && t.dueDate === date && !t.isDeleted
-      );
-      const all = [...instances, ...manual];
-      const map: Record<string, Task> = {};
-      all.forEach(t => { map[t.id] = t; });
-      const roots = all.filter(t => !t.parentTaskId && activeBlockIds.has(t.blockId));
-      result[date] = { roots, map };
+      const { dayMap, dayTasks, stats } = getCanonicalDayView(date, allTasksMap, activeBlockIds, [], { hideCompleted: false });
+      const roots = dayTasks.filter(t => !t.parentTaskId);
+      result[date] = { roots, map: dayMap, stats }; // §16.98: stats canónico → el TOTAL del día = Mi Día exacto
     });
     return result;
   }, [days, allTasksMap, activeBlockIds]);
@@ -265,9 +262,11 @@ export function WeekView({
   const statsByDay = useMemo(() => {
     const map: Record<string, { estimatedMins: number; registeredMins: number; pct: number }> = {};
     days.forEach(date => {
-      const tasks = tasksByDay[date] || [];
-      const dayMap = dayData[date]?.map ?? {};
-      const estimatedMins = tasks.reduce((acc, t) => acc + getTaskMins(t, dayMap, !hideCompleted), 0);
+      // §16.98 CÁLCULO CANÓNICO: el total del día = stat canónico (mismo que Mi Día, exacto), NO la suma de getTaskMins
+      // (que no aplicaba hideDelegatedNoTag ni la visibilidad de subtareas de Mi Día → descuadraba ~25m). Ocultar =
+      // estimatedPending; mostrar = estimatedTotal (incluye completadas).
+      const st = dayData[date]?.stats;
+      const estimatedMins = st ? (hideCompleted ? st.estimatedPending : st.estimatedTotal) : 0;
       const registeredMins = timeEntries
         .filter(e => e.date === date)
         .reduce((acc, e) => acc + (e.duration || 0), 0);

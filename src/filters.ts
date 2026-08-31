@@ -17,6 +17,7 @@
 import { Task } from './types';
 import { isTaskCompleted, isExpiredTemplate, formatMinutes, getTaskRegisteredSelf } from './utils';
 import { belongsToDay, materializeDay } from './instanceEngine'; // FASE 3: única definición de "pertenece a un día"
+import { reconcileDay } from './fase3Contracts'; // §16.98 CÁLCULO CANÓNICO: única fuente del día (reconcileDay = materializeDay + overlay)
 
 // ─────────────────────────────────────────────
 // TIPOS
@@ -449,6 +450,32 @@ export function getStatsForDay(
     byBlock,
     byTag,
   };
+}
+
+// ─────────────────────────────────────────────
+// FUNCIÓN: getCanonicalDayView — §16.98 CÁLCULO CANÓNICO
+// ─────────────────────────────────────────────
+// ÚNICA función que calcula "el día" (tareas + tiempo). Ninguna vista calcula por su cuenta — mismo principio que
+// bulkEffectiveIds para el alcance. Fuente = reconcileDay (materializeDay + OVERLAY de estado) → ve TODO: recurrentes,
+// excepciones, manuales, y las subtareas de contenedores MANUALES (§16.94, que materializeDay solo no veía). Acepta la
+// FECHA como parámetro (no asume hoy) — lo necesita el cierre en diferido. Mi Día ya usaba exactamente este pipeline;
+// aquí se extrae para que Semana, Carga, reporte y repaso midan LO MISMO. Devuelve el mapa del día + las hojas filtradas
+// + los stats (getStatsForDay), para que cada consumidor tome lo que necesite sin recalcular.
+export function getCanonicalDayView(
+  date: string,
+  allTasks: Record<string, Task>,
+  activeBlockIds: Set<string>,
+  timeEntries: any[] = [],
+  opts: { hideCompleted?: boolean } = {}
+): { dayMap: Record<string, Task>; dayTasks: Task[]; stats: DayStats } {
+  const dayMap = reconcileDay(date, allTasks);
+  const candidates = Object.values(dayMap).filter(t => t && !t.isDeleted && !t.isTemplate) as Task[];
+  const dayTasks = filterTasksForDay(candidates, dayMap, activeBlockIds, date, {
+    hideCompleted: opts.hideCompleted ?? false,
+    hideDelegatedNoTag: true,
+  });
+  const stats = getStatsForDay(dayTasks, dayMap, timeEntries, date);
+  return { dayMap, dayTasks, stats };
 }
 
 // ─────────────────────────────────────────────
