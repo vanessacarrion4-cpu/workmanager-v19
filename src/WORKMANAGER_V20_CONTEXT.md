@@ -5878,3 +5878,33 @@ segundo plano. Detectar sí, escribir no.
 **APRENDIZAJE:** se encontraron TRES escrituras automáticas (2 repairs + 1 hard-delete) persiguiendo unos números que no cuadraban en
 la cabecera. Cuando una cifra no cuadra, la causa puede estar mucho más abajo de donde se ve (aquí: en la CARGA de datos, no en el
 cálculo). No parchear la cifra; rastrear hasta la fuente.
+
+## 16.88 La NOTA del reporte — usa el registrado TOTAL (sesión 26, PUBLICADO)
+Datos reales de las 2 fijaciones del 31/08: registrado TOTAL 465m vs planRegistered 335m (130m en tareas fuera del plan). La nota
+pasaba de 3.4/4.7 (plan) a 4.7/6.5 (total). DECISIÓN: la nota usa el TOTAL (`registrado`), no planRegistered (era la "cifra
+equivocada": excluía trabajo real e infra-contaba si el tiempo se fichaba en el contenedor y no en la hoja del plan). Cambio puntual
+en computeVerdict (commit 19b9af5), no arrastra motor, independiente de motor único/canónico. planRegistered/outOfPlan quedan como
+dato informativo.
+**Fiabilidad del reporte si se guarda esta semana:** FIABLE → previsto (congelado al fijar), registrado total (suma de time_entries),
+nota (ya corregida), completadas. NO FIABLE → el desglose FIJADO vs HECHO por bloque (necesita el cálculo canónico, bloqueado).
+**Reportes ya guardados:** hay **1** en `day_reports` (report-2026-08-31) con `measures.registrado:0` + verdict "cumplido"
+(incoherente — se guardó el 29/08 antes de fichar tiempo). Opciones (decide la propietaria): (i) BORRARLO y re-cerrar el día bien
+[recomendado, es 1], (ii) recalcular measures desde los datos actuales, (iii) marcarlo como legado.
+
+## 16.89 Consecuencia del hard-delete + ORDEN NUEVO + Fase 2 split (sesión 26)
+**CONSECUENCIA del hard-delete (§16.85), a tener presente:** al llevar ~4 meses quitando marcadores de "día borrado" de recurrentes,
+hay ocurrencias que la propietaria borró y que han REAPARECIDO solas en días PASADOS (resurrección). No es pérdida, pero explica
+"cosas raras" que haya podido ver en fechas atrás.
+**ORDEN NUEVO (decidido):** 1. Hard delete (HECHO) · 2. Motor único · 3. Cálculo canónico del día · 4. Cierre del día COMPLETO
+(FIJADO vs HECHO dentro, no en dos tandas) · 5. Fase 2 panel Salud de datos · 6. Duplicadas · 7. Compositor, búsqueda y TIPO · 8. En
+Espera por delegado · 9. ALCANCE · 10. Barrido visual + selección de Semana. MOTIVO: el cierre completo con FIJADO vs HECHO obliga a
+tener antes motor único + cálculo canónico; si el cálculo se construye sobre 3 motores que no coinciden, habría que rehacerlo.
+**FASE 2 SPLIT (aprobado):** separar la parte pequeña (quitar la corrección-EN-MEMORIA que queda en los repairs → que pase a
+detectar-y-reportar, de momento en el DIAG sin panel propio) del panel completo "Salud de datos" (que se construye cuando haya algo
+que enseñar; hoy saldría vacío). Tiene sentido separarlo: la parte pequeña es 1 cambio en useSupabase (los repairs dejan de mutar el
+mappedTasks y en su lugar acumulan una lista que se expone en DIAG); el panel es UI aparte. No es más trabajo hacerlo separado.
+**MOTOR ÚNICO (paso 2) — cifras que cambiarán en pantalla (previsión, antes de construir):** Mi Día y Semana NO cambian (ya usan
+materializeDay). CAMBIAN: (1) **Carga** (pasa de occursOn a materializeDay) → HONRARÁ excepciones: las semanas donde borraste/moviste
+ocurrencias recurrentes bajarán su % (dejan de contar ocurrencias que en realidad no existen) → más exacto pero los números BAJAN
+ahí. (2) **Panel de instancias** (deja de usar generateInstances) → su lista de futuras cuadrará exactamente con Mi Día (hoy puede
+listar ocurrencias que están borradas). Ninguna cifra SUBE artificialmente; el cambio es que Carga deja de contar de más.
