@@ -429,22 +429,12 @@ export function useSupabase({
         setIsDataLoaded(true);
         diag('carga:FIN (isDataLoaded=true)', { tareas: tasksData?.length ?? 0, ms: Date.now() - _diagT0 }); // DIAG-TEMP
 
-        // Limpieza automática: borrar instancias eliminadas de más de 30 días
-        // Esto evita que la tabla crezca indefinidamente con basura
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const cutoffDate = thirtyDaysAgo.toISOString().split('T')[0];
-        
-        supabase.from('tasks')
-          .delete()
-          .eq('is_deleted', true)
-          .not('template_id', 'is', null)
-          .lt('instance_date', cutoffDate)
-          .then(({ error, count }) => {
-            if (!error && count) {
-              console.log(`[SUPABASE] Limpieza automática: ${count} instancias borradas antiguas eliminadas`);
-            }
-          });
+        // §16.85 RETIRADO (regla firme): NINGUNA función automática borra FÍSICAMENTE datos. Aquí había una "limpieza
+        // automática" que en CADA carga hacía HARD DELETE de instancias recurrentes is_deleted con instance_date > 30
+        // días. Borrado físico irrecuperable, silencioso, sin que la propietaria lo pidiera. Efecto: quitaba MARCADORES
+        // de borrado de días recurrentes → esas ocurrencias reaparecían (resurrección), y la papelera ya no podía
+        // mostrarlas. Si algún día hay que purgar la tabla, será MANUAL, avisado y con lista previa que la propietaria
+        // aprueba. Existía desde Sesión 3 (17d4d6c, 09/05/2026).
       } catch (e) {
         console.error('[SUPABASE] Error loading data:', e);
         setBlocks(INITIAL_BLOCKS);
