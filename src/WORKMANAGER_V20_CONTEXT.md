@@ -5953,3 +5953,18 @@ Dos requisitos que comparten pieza (agrupar por contenedor + plegar) → constru
   sus hijas + nota de las de la otra ("2 más para otra fecha" / "1 para hoy"). Coherente con el modelo (el contenedor es
   agrupación, sin fecha propia, puede salir en las dos). Evita creer que el contenedor es solo lo de la sección que se mira.
 - DUDA PENDIENTE: las que entraron SIN fecha asignada (si existe el caso) → ¿dónde van? Necesitan sitio. Resolver al construir.
+
+## 16.93 Fijar necesita DESHACER + gap del canónico caracterizado (sesión 26)
+**DESHACER FIJACIÓN (feature pendiente, decidido):** `fijar` hace INSERT (append) en day_snapshots y la app usa `latest` → una
+fijación por error NO tiene vuelta atrás desde la app. Como es append-only, "deshacer última fijación" = borrar el snapshot más
+reciente (trivial). Añadir botón. (Incidente: la propietaria fijó hoy por error a las 21:37; se borró ese snapshot a mano; quedaron
+las 2 de la mañana de sus pruebas.)
+**GAP DEL CÁLCULO CANÓNICO (medido con las funciones REALES vía debug temporal, ya revertido):** para el 31/08, Mi Día
+(reconcileDay) = 281m (4h41m, validado exacto), materializeDay puro = 196m (3h16m, validado exacto). GAP = 15 hojas / 145m que Mi Día
+cuenta y materializeDay no. Caracterización (a-d): (a) OTROS DÍAS: ninguna (todas dueDate=31/08). (b) SERIES RESUCITADAS: ninguna.
+(c) DUPLICADAS: **3** (Fer rent PPV 30m, Verificar PPV 15m, Demanar Jordi 5m = 50m, de las 8 conocidas, movidas a hoy) → SPURIAS.
+(d) CONTENEDORES CONTÁNDOSE: ninguna (todas hojas). Las **~95m restantes** son subtareas MANUALES reales de contenedores MANUALES
+(Temas para gestión, Accidente Moussa, Salmerón); materializeDay las omite porque SOLO procesa contenedores-plantilla (isTemplate:
+true), reconcileDay las incluye porque pertenecen a hoy → LEGÍTIMAS. **DIRECCIÓN CONFIRMADA: reconcileDay canónico (Semana/Carga
+suben).** CAVEAT: los 50m de duplicadas viajan en el canónico hasta que se limpien las 8 (paso 6) — Mi Día hoy incluye esos 50m
+espurios.
