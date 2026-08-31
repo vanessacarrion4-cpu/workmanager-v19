@@ -13,7 +13,7 @@ import { WorkBlock, Task, ViewType, TagType, TimeEntry, Person, DelegationMeetin
 import { COLORS } from './constants';
 import { supabase } from './supabaseClient';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { filterTasksForDay, getEntradaForDay, getDayLoad } from './filters';
+import { filterTasksForDay, getEntradaForDay, getDayLoad, enrichMapWithManualSubtasks } from './filters';
 import { materializeInstanceById, occursOn } from './instanceEngine';
 import { reconcileDay, containerDayToggle } from './fase3Contracts'; // C3: mapa del día sin fuga; §16.28: nº hijas pendientes del día para el modal de papelera
 import { getTaskRegisteredSelf } from './utils'; // A2: detectar "hija con tiempo registrado" ESE DÍA (guarda de intacta). Self, no Combo: Combo exige la tarea en el mapa y una instancia hija es virtual → devolvía 0.
@@ -242,36 +242,11 @@ export default function App() {
     return filterTasksForDay(candidates, activeDayMap, activeBlockIds, activeDate, { hideCompleted: false, hideDelegatedNoTag: true });
   }, [activeDayMap, blocks, activeDate]);
 
-  const dashboardTasksMap = useMemo(() => {
-    const map: any = { ...activeDayMap };
-    dashboardTasks.forEach(t => {
-      map[t.id] = t;
-      if (t.subtasks?.length > 0) {
-        t.subtasks.forEach(subId => {
-          const sub = tasks[subId];
-          if (sub && sub.dueDate === activeDate) {
-            if (sub.delegation) {
-              const hasRealTag = (sub.tags || []).some((tag: string) => tag !== 'resto');
-              if (!hasRealTag) return;
-            }
-            map[subId] = sub;
-          }
-        });
-      }
-      // También incluir subtareas manuales del template con dueDate===activeDate
-      // (nuevas subtareas creadas desde el Dashboard que no son instancias recurrentes)
-      const templateId = t.templateId || (t.id.startsWith('inst-') ? t.id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '') : t.id);
-      if (templateId && tasks[templateId]?.subtasks) {
-        tasks[templateId].subtasks?.forEach((subId: string) => {
-          const sub = tasks[subId];
-          if (sub && !sub.isDeleted && sub.dueDate === activeDate && !sub.templateId && !subId.startsWith('inst-')) {
-            map[subId] = sub;
-          }
-        });
-      }
-    });
-    return map;
-  }, [activeDayMap, tasks, dashboardTasks, activeDate]);
+  // §16.99: mismo helper que getCanonicalDayView (una sola implementación → Mi Día y Semana/Carga no pueden divergir).
+  const dashboardTasksMap = useMemo(
+    () => enrichMapWithManualSubtasks(activeDayMap, dashboardTasks, tasks, activeDate),
+    [activeDayMap, tasks, dashboardTasks, activeDate]
+  );
 
   // TRAMO 2 (entrada del día): qué se CREÓ el día visto. Necesita el mapa COMPLETO `tasks` (no el day-scoped),
   // porque algo creado hoy puede vencer en otra fecha. §16.39 tramo 2.

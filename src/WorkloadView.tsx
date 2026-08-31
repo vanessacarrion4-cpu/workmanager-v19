@@ -813,6 +813,22 @@ export function WorkloadView({
     const totals: Record<string, number> = {};
     if (expandedWeeks.size === 0) return { dayLoadCache: cache, totalDayMins: totals };
     const expandedWeekList = months.flatMap(m => m.weeks).filter(w => expandedWeeks.has(w.key));
+    // §16.99 FIX: motor único también en el detalle-por-día. calcRangeMinutes exige dayEstByTemplate (§16.79);
+    // sin él, la rama recurrente hacía `undefined[dia]` y Carga PETABA al expandir un día. Se precalcula una vez
+    // para los días expandidos con materializeDay (mismo motor que Mi Día/Semana).
+    const estByDay: Record<string, Record<string, number>> = {};
+    expandedWeekList.forEach(week => {
+      buildDays(week, today, jornada).forEach(day => {
+        if (!day.isWorkday || estByDay[day.date]) return;
+        const m: Record<string, number> = {};
+        for (const inst of materializeDay(day.date, allTasksMap)) {
+          if (inst.templateId && (inst.estimatedMinutes || 0) > 0) {
+            m[inst.templateId] = (m[inst.templateId] || 0) + (inst.estimatedMinutes || 0);
+          }
+        }
+        estByDay[day.date] = m;
+      });
+    });
     taskLoads.forEach(load => {
       expandedWeekList.forEach(week => {
         buildDays(week, today, jornada).forEach(day => {
@@ -823,9 +839,9 @@ export function WorkloadView({
           if (load.isContainer) {
             const subs = (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted);
             mins = subs.reduce((acc: number, sub: any) =>
-              acc + calcRangeMinutes(sub, day.date, day.date, week.isPast, allTasksMap, registeredByDay), 0);
+              acc + calcRangeMinutes(sub, day.date, day.date, week.isPast, allTasksMap, registeredByDay, estByDay), 0);
           } else {
-            mins = calcRangeMinutes(task, day.date, day.date, week.isPast, allTasksMap, registeredByDay);
+            mins = calcRangeMinutes(task, day.date, day.date, week.isPast, allTasksMap, registeredByDay, estByDay);
           }
           cache[`${load.taskId}__${day.date}`] = mins;
           if (!load.parentId) totals[day.date] = (totals[day.date] || 0) + mins;
@@ -833,7 +849,7 @@ export function WorkloadView({
       });
     });
     return { dayLoadCache: cache, totalDayMins: totals };
-  }, [taskLoads, expandedWeeks, allTasksMap, registeredByDay, months, today]);
+  }, [taskLoads, expandedWeeks, allTasksMap, registeredByDay, months, today, jornada]);
 
   const toggleMonth = (key: string) => setExpandedMonths(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const toggleWeek = (key: string) => setExpandedWeeks(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });

@@ -461,6 +461,48 @@ export function getStatsForDay(
 // FECHA como parámetro (no asume hoy) — lo necesita el cierre en diferido. Mi Día ya usaba exactamente este pipeline;
 // aquí se extrae para que Semana, Carga, reporte y repaso midan LO MISMO. Devuelve el mapa del día + las hojas filtradas
 // + los stats (getStatsForDay), para que cada consumidor tome lo que necesite sin recalcular.
+// §16.99: ENRIQUECER el mapa del día con las subtareas MANUALES (creadas desde el Dashboard, con dueDate===date).
+// getVisibleSubtasksForDay ESCANEA el mapa entero buscando hijas del contenedor (no lee container.subtasks), así que
+// esas subtareas deben ESTAR en el mapa o no se cuentan. Mi Día ya lo hacía inline (dashboardTasksMap); se extrae aquí
+// para que Mi Día Y el canónico usen LA MISMA construcción (era el desfase Semana 8h6m vs Mi Día 12h6m). Lógica idéntica
+// a la de App.tsx para que Mi Día quede byte a byte igual.
+export function enrichMapWithManualSubtasks(
+  baseMap: Record<string, Task>,
+  dayTasks: Task[],
+  allTasks: Record<string, Task>,
+  date: string
+): Record<string, Task> {
+  const map: Record<string, Task> = { ...baseMap };
+  dayTasks.forEach(t => {
+    map[t.id] = t;
+    // subtareas de este contenedor/instancia con dueDate===date
+    if (t.subtasks && t.subtasks.length > 0) {
+      t.subtasks.forEach(subId => {
+        const sub = allTasks[subId];
+        if (sub && sub.dueDate === date) {
+          if (sub.delegation) {
+            const hasRealTag = (sub.tags || []).some((tag: string) => tag !== 'resto');
+            if (!hasRealTag) return;
+          }
+          map[subId] = sub;
+        }
+      });
+    }
+    // subtareas manuales del TEMPLATE con dueDate===date (no instancias recurrentes)
+    const templateId = t.templateId || (t.id.startsWith('inst-') ? t.id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '') : t.id);
+    const tmpl = templateId ? allTasks[templateId] : null;
+    if (tmpl?.subtasks) {
+      tmpl.subtasks.forEach((subId: string) => {
+        const sub = allTasks[subId];
+        if (sub && !sub.isDeleted && sub.dueDate === date && !sub.templateId && !subId.startsWith('inst-')) {
+          map[subId] = sub;
+        }
+      });
+    }
+  });
+  return map;
+}
+
 export function getCanonicalDayView(
   date: string,
   allTasks: Record<string, Task>,
@@ -468,12 +510,14 @@ export function getCanonicalDayView(
   timeEntries: any[] = [],
   opts: { hideCompleted?: boolean } = {}
 ): { dayMap: Record<string, Task>; dayTasks: Task[]; stats: DayStats } {
-  const dayMap = reconcileDay(date, allTasks);
-  const candidates = Object.values(dayMap).filter(t => t && !t.isDeleted && !t.isTemplate) as Task[];
-  const dayTasks = filterTasksForDay(candidates, dayMap, activeBlockIds, date, {
+  const baseMap = reconcileDay(date, allTasks);
+  const candidates = Object.values(baseMap).filter(t => t && !t.isDeleted && !t.isTemplate) as Task[];
+  const dayTasks = filterTasksForDay(candidates, baseMap, activeBlockIds, date, {
     hideCompleted: opts.hideCompleted ?? false,
     hideDelegatedNoTag: true,
   });
+  // §16.99: mismo mapa enriquecido que Mi Día (si no, getStatsForDay no ve las subtareas manuales → cuenta de menos).
+  const dayMap = enrichMapWithManualSubtasks(baseMap, dayTasks, allTasks, date);
   const stats = getStatsForDay(dayTasks, dayMap, timeEntries, date);
   return { dayMap, dayTasks, stats };
 }
