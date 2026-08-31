@@ -5735,6 +5735,27 @@ contribuye a los líos (orphans, dueDates perdidos). **No converge a un valor ca
 que "arreglar".** FIX (cuando toque #2): hacer los repairs idempotentes-y-convergentes, gatearlos (una vez / detrás de flag), o
 retirarlos. Cuadrar cifras contra esto es perder el tiempo hasta arreglarlo.
 
+### 16.78-bis REPAIR-on-load — impacto medido + propuesta (prioridad MÁXIMA, paso #2)
+**Antigüedad:** existen desde **Sesión 2 (08/05/2026)** — ~4 meses mutando en cada carga. **Impacto medido HOY:**
+- 117 filas is_template:true vivas. **repair2 (el peligroso, convierte a is_template:true + limpia due_date): 0 conversiones
+  pendientes AHORA** → ya convergió (convirtió durante las recargas del test; por eso el total bajó 104→100). Las 5 filas tocadas
+  a las 17:3x eran subtareas recurrentes YA-plantilla (sin pérdida nueva).
+- repair1 (limpia datos prohibidos de contenedores): 1 fila is_template con due_date en churn + limpieza de tags en contenedores.
+- Solo **1 plantilla INERTE** (sin recurrence ni hijas, posible víctima histórica / cabo §16.16); 24 de las 25 sin-recurrence son
+  contenedores reales.
+- **Recuperabilidad (1b):** el `due_date` que repair1 pone a null NO es recuperable (no hay auditoría del valor viejo). El flag
+  is_template SÍ es reversible, pero las conversiones históricas ya no se distinguen de plantillas legítimas. Estado actual: casi
+  limpio (0 conversiones pendientes). El incidente "22 subtareas escondidas" fue PASADO, no está activo ahora.
+- **¿Se puede usar la app? (respuesta a la propietaria):** riesgo BAJO ahora mismo (convergido), pero cada carga aún ejecuta los
+  repairs (1 due_date + tags). Recomendación: **el arreglo de escritura (Fase 1) va ANTES que publicar el fix del guard.**
+- **Qué se rompe si se desactivan (1d):** repair1 → un contenedor con dueDate/tags legado los conserva (bajo impacto: la
+  contenedor-idad se DERIVA de las hijas, no del dueDate). repair2 → un contenedor que perdiera is_template no materializaría sus
+  hijas (materializeDay exige isTemplate===true); pero HOY no existe ninguno así → no rompe nada ahora.
+- **PROPUESTA (1e, aprobar):** **Fase 1 (urgente, pequeña):** quitar las 3 escrituras `supabase.update` de los dos repairs; se
+  conserva la corrección EN MEMORIA (mappedTasks) para que la sesión renderice bien, pero **NO se persiste** → cero mutación de BD
+  al cargar. **Fase 2:** sustituir la corrección en memoria por un REPORTE de filas inconsistentes que la propietaria revisa y
+  decide (nada se corrige solo). Es el principio que ella fijó: nada escribe en la BD durante la carga.
+
 ## 16.79 UN SOLO MOTOR de recurrencia (regla + plan, sesión 26)
 **REGLA (propietaria):** un solo motor de recurrencia. Ninguna vista calcula ocurrencias por su cuenta. Mismo principio que
 `bulkEffectiveIds` para el alcance de las acciones. Hoy hay TRES: `materializeDay` (Mi Día vía reconcileDay), `generateInstances`
@@ -5760,3 +5781,30 @@ día) · 6. **Compositor, búsqueda (bug foco input añadir-subtarea, prioridad 
 (§16.77) · 8. **En Espera por delegado** · 9. **ALCANCE** (Delegadas: agrupar tareas de cada persona por tema; incluye la
 compresión de fila y quitar el rango de fechas) · 10. **Barrido visual + selección de Semana** (paquete multi-día aprobado,
 `activeDate: string | null`).
+
+## 16.81 Semana toggle completadas — etiqueta ambigua (resuelto en local, sesión 26)
+La propietaria vio en producción "21h28m ocultando ↔ 17h36m mostrando" (parecía BAJAR al mostrar). Re-medido en dev sin recargar:
+ocultando 17h41m / lunes 3h16m ↔ mostrando 21h33m / lunes 7h8m → **SUBE, el cálculo es correcto.** Sus dos números estaban
+INTERCAMBIADOS porque la etiqueta del botón era "Completadas" en AMBOS modos (§16.75 dejó `? 'Completadas' : 'Completadas'`) → no
+se distinguía. FIX: etiqueta = ESTADO ("Completadas ocultas" / "Completadas visibles"). Commit LOCAL, sin publicar.
+
+## 16.82 Hallazgos de producción (sesión 26) — anotados, sin arreglar
+- **(3a) Mi Día 1-sep: "ESTIMADO VS REGISTRADO HOY" pone 0m|0m** aunque las tareas tienen tiempo (40m,15m,5m). El estimado del día
+  sale 0 → revisar por qué (¿la cifra "estimado hoy" de la cabecera se calcula distinto del estimatedPending / no coincide con las
+  hojas?). Anotado.
+- **(3b) Calendario septiembre "82h47m de 176h"** (antes medí 94h1m) → repair mutando entre medidas, o cálculo distinto. Ligado a
+  §16.78. Anotado.
+- **(3c) Calendario: el total del MES no lleva %** (las filas semanales sí: 81%, 49%…). ¿Falta o intencionado? → añadir el % del mes
+  al total (coherencia con las semanas). Anotado, prioridad baja.
+- **(4) Papelera SIN selección:** tiene contenido pero no hay casillas para seleccionar. Mismo hueco que Semana. → con el barrido
+  visual (paso #10).
+- **(5) La barra de selección debe ir ARRIBA y quedar FIJA** mientras el modo selección esté activo (al hacer scroll desaparece).
+  → con el barrido visual (paso #10).
+- **(6) On Boarding Lucia:** existe (contenedor plantilla t-1781858398975, sin pauta propia). Instancias vivas 29/07 y **31/08
+  (hoy)**; la de 05/08 borrada. NO tiene instancia el 18/08 → por eso no sale ese día. (La validación §16.71 fue sobre la hija
+  "Seguimiento Plan" con dueDate 18/08, no sobre el contenedor.)
+- **(7) VALIDADO por la propietaria en pantalla:** papelera con contenido real; borrado en lote (tarda en refrescar pero llega);
+  mover NO va a papelera; interruptor de alcance con check parcial distinguible; Rutinas Mañana (4). Correctos.
+- **ESTADO GIT:** doc §16.76/§16.77 y §16.78-80 PUBLICADOS; a partir de aquí TODO en LOCAL sin publicar (fix guard `05794dd`, fix
+  etiqueta Semana, y estas anotaciones) — la propietaria dio "PARA, no publiques nada". Datos ya aplicados: gafgaf soft-borrada,
+  FINCA reactivada.
