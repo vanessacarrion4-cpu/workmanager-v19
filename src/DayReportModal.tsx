@@ -293,19 +293,7 @@ export function DayReportModal({
           />
         </div>
 
-        {/* GUARDAR */}
-        <div className="flex items-center justify-end gap-3">
-          {saved && <span className="text-[11px] font-bold text-verde flex items-center gap-1"><Check size={13} /> Guardado</span>}
-          <button
-            onClick={guardar}
-            disabled={saving}
-            className="px-5 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest bg-turquesa text-white hover:bg-turquesa/90 transition-all disabled:opacity-50"
-          >
-            {saving ? 'Guardando…' : 'Guardar reporte'}
-          </button>
-        </div>
-
-        {/* 6 · REPASO DE LO NO HECHO (§16.47) — al final del todo */}
+        {/* 6 · REPASO DE LO NO HECHO (§16.47) — antes de guardar */}
         <RepasoSection
           pendingTasks={pendingTasks}
           activeDate={activeDate}
@@ -317,6 +305,18 @@ export function DayReportModal({
           repasoWillCollide={repasoWillCollide}
           repasoDayLoad={repasoDayLoad}
         />
+
+        {/* GUARDAR — §16.103: al FINAL de todo, después del repaso. Cerrar el día es un solo acto. */}
+        <div className="flex items-center justify-end gap-3 mt-6 pt-5 border-t dark:border-border-main border-border-main-light">
+          {saved && <span className="text-[11px] font-bold text-verde flex items-center gap-1"><Check size={13} /> Guardado</span>}
+          <button
+            onClick={guardar}
+            disabled={saving}
+            className="px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest bg-turquesa text-white hover:bg-turquesa/90 transition-all disabled:opacity-50"
+          >
+            {saving ? 'Guardando…' : 'Guardar reporte y cerrar el día'}
+          </button>
+        </div>
       </div>
     </div>
   );
