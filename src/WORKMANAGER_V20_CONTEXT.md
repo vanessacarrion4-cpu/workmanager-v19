@@ -5908,3 +5908,22 @@ materializeDay). CAMBIAN: (1) **Carga** (pasa de occursOn a materializeDay) → 
 ocurrencias recurrentes bajarán su % (dejan de contar ocurrencias que en realidad no existen) → más exacto pero los números BAJAN
 ahí. (2) **Panel de instancias** (deja de usar generateInstances) → su lista de futuras cuadrará exactamente con Mi Día (hoy puede
 listar ocurrencias que están borradas). Ninguna cifra SUBE artificialmente; el cambio es que Carga deja de contar de más.
+
+## 16.90 REGLA NUEVA: el tiempo de un contenedor = suma de sus hijas (sesión 26)
+SUSTITUYE a la regla vieja (estimated_hours_total autoritativo + suma informativa + aviso 15%), que describía un uso que la
+propietaria NO hace.
+- El tiempo de un contenedor es la SUMA del tiempo de sus hijas. Punto. El contenedor NO tiene tiempo propio (coherente con el
+  modelo: tampoco tiene fecha propia, ni recurrencia propia, ni cuenta en contadores). El aviso de desviación 15% desaparece (no hay
+  dos cifras).
+**Diagnóstico (el código YA cumple la regla nueva):** (b) el chip de estimación en un contenedor ya muestra la SUMA y NO es editable
+(TaskCard:752, onChange guardado por !hasSubtasks). (c/d) NINGÚN sitio usa el tiempo propio del contenedor: `total_estimated_combo`
+se persiste pero nunca se lee (campo muerto, 0 en todos); getTaskEstimatedCombo y el reporte suman hijas. (a) 118 contenedores; solo
+**4 con estimated_minutes propio huérfano** (JC Cobo 30m, tema planta EAM 15m, ADIL 10m, Poner fechas 15m) — de cuando eran tarea;
+ignorado en pantalla, presente en BD.
+**TRANSICIÓN tarea↔contenedor (PENDIENTE de construir, decidido el diseño):**
+- Tarea con estimación → contenedor: NO borrar su tiempo en silencio. AVISAR y que la propietaria decida (repartir entre hijas o
+  descartar). Hoy: se oculta sin avisar (los 4 huérfanos).
+- Borrar la última hija → vuelve a tarea suelta: debe recuperar tiempo propio. El estimated_minutes propio sigue en BD (dormido) →
+  al revertir reaparece; propuesta: mantenerlo dormido mientras es contenedor, restaurar al revertir (no borrarlo en la transición).
+- Tarea con tiempo REGISTRADO (play) → contenedor: el registrado vive en time_entries (por id de tarea), NO en el row → SOBREVIVE la
+  conversión. PENDIENTE verificar que el registrado del contenedor propio se SUMA en el display (si no, quedaría oculto). No se pierde.
