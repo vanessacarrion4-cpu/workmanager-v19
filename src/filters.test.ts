@@ -293,6 +293,20 @@ describe('computeVerdict — NOTA del día', () => {
     const v = computeVerdict(S({ completed: 5, total: 10, registered: 300 }), foto(360, ['P1'], 2), 480, [te('P1', 300)], DAY);
     expect(v.hechasTrasFijar).toBe(3);
   });
+
+  // §16.102: el denominador del reporte viene del PLAN CONGELADO, no del recuento en vivo.
+  it('con planCompletion: total = plan congelado, hechas = del plan (NO stats en vivo)', () => {
+    const v = computeVerdict(S({ completed: 78, total: 78, registered: 465 }), foto(360, ['P1'], 60), 480, [], DAY, { total: 100, hechas: 78 });
+    expect(v.total).toBe(100);   // plan congelado, no los 78 vivos
+    expect(v.hechas).toBe(78);
+    expect(v.hechasTrasFijar).toBe(18); // 78 − 60
+  });
+
+  it('sin foto (o sin plan): total = null → el reporte NO inventa denominador', () => {
+    const v = computeVerdict(S({ completed: 78, total: 78, registered: 465 }), null, 480, [], DAY, null);
+    expect(v.total).toBeNull();
+    expect(v.hechas).toBe(78); // recuento honesto de lo hecho hoy
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

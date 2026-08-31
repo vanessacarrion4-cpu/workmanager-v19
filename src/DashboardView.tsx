@@ -213,13 +213,21 @@ export function DashboardView({
   // TRAMO 4 (reporte del día): valoración automática + motivos/nota guardados.
   const [showReport, setShowReport] = useState(false);
   const { report: dayReport, guardar: guardarReport } = useDayReport(activeDate);
+  // §16.102: denominador del reporte = PLAN CONGELADO de la foto (no recuento en vivo, que se mueve). `hechas` = cuántas
+  // de ese plan están hechas AHORA. Sin foto con plan → null → el reporte muestra recuento sin "de M" (hueco honesto).
+  const planCompletion = useMemo(() => {
+    const plan = daySnapshot?.plan_task_ids;
+    if (!plan || plan.length === 0) return null;
+    const hechas = plan.filter((id: string) => isCompletedForDay(id, allTasksMap, activeDate)).length;
+    return { total: plan.length, hechas };
+  }, [daySnapshot, allTasksMap, activeDate]);
   const verdict = useMemo(
     () => computeVerdict(
       stats,
       daySnapshot ? { estimated_minutes: daySnapshot.estimated_minutes, completed_count: daySnapshot.completed_count, plan_task_ids: daySnapshot.plan_task_ids } : null,
-      jornada, timeEntries, activeDate
+      jornada, timeEntries, activeDate, planCompletion
     ),
-    [stats, daySnapshot, jornada, timeEntries, activeDate]
+    [stats, daySnapshot, jornada, timeEntries, activeDate, planCompletion]
   );
   const reportBreakdown = useMemo(() => getReportBreakdown(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
   // §16.101 ¿Estimo bien? — desviación estimado vs registrado de lo completado (no depende de la foto).

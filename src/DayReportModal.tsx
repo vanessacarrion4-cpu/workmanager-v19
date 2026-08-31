@@ -142,8 +142,14 @@ export function DayReportModal({
         {/* 2 · LAS TRES MEDIDAS */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           <Medida titulo="Cumplimiento">
-            <span className="tabular-nums">{verdict.hechas} de {verdict.total}</span>
-            <span className="text-[11px] font-bold dark:text-text-secondary text-text-secondary-light"> tareas</span>
+            {/* §16.102: "de M" solo si hay denominador CONGELADO (foto). Sin foto → recuento honesto, sin inventar total. */}
+            {verdict.total != null ? (
+              <><span className="tabular-nums">{verdict.hechas} de {verdict.total}</span>
+              <span className="text-[11px] font-bold dark:text-text-secondary text-text-secondary-light"> tareas</span></>
+            ) : (
+              <><span className="tabular-nums">{verdict.hechas}</span>
+              <span className="text-[11px] font-bold dark:text-text-secondary text-text-secondary-light"> hechas · sin fijar</span></>
+            )}
             {verdict.hasFoto && verdict.hechasTrasFijar != null && verdict.hechasTrasFijar > 0 && (
               <div className="text-[10px] font-bold dark:text-text-secondary text-text-secondary-light mt-0.5">{verdict.hechasTrasFijar} tras fijar</div>
             )}

@@ -602,8 +602,8 @@ export interface DayVerdict {
   planRegistered: number;         // registrado en tareas DEL PLAN (numerador de la nota)
   outOfPlan: number;              // registrado FUERA del plan ("dedicaste Nh a cosas no previstas")
   anadido: number | null;         // estimatedTotal actual − previsto (desviación de estimado)
-  hechas: number;
-  total: number;
+  hechas: number;                 // completadas: del PLAN congelado si hay foto; si no, cuántas hechas hoy (recuento, sin denominador)
+  total: number | null;           // §16.102: denominador CONGELADO (tamaño del plan de la foto). null = sin foto → NO se inventa denominador
   hechasTrasFijar: number | null;
 }
 
@@ -612,11 +612,15 @@ export function computeVerdict(
   foto: { estimated_minutes: number; completed_count: number; plan_task_ids?: string[] } | null,
   jornada: number,
   timeEntries: any[] = [],
-  activeDate: string = ''
+  activeDate: string = '',
+  // §16.102: conteo del PLAN CONGELADO (tamaño del plan de la foto + cuántas de ese plan están hechas AHORA). Lo calcula
+  // quien tiene el mapa (DashboardView). null = no hay foto con plan → el reporte NO inventa denominador (hueco honesto).
+  planCompletion: { total: number; hechas: number } | null = null
 ): DayVerdict {
   const registrado = stats.registered;
-  const hechas = stats.completed;
-  const total = stats.total;
+  // hechas: del plan congelado si lo hay; si no, cuántas hay hechas hoy (recuento honesto, sin afirmar denominador).
+  const hechas = planCompletion ? planCompletion.hechas : stats.completed;
+  const total = planCompletion ? planCompletion.total : null; // null → la vista no pinta "de M"
   const base = {
     hasFoto: !!foto, previsto: foto ? foto.estimated_minutes : null, registrado,
     anadido: foto ? stats.estimatedTotal - foto.estimated_minutes : null,
