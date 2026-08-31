@@ -288,6 +288,11 @@ function resolveBlockId(task: any, allTasksMap: Record<string, Task>): string | 
   return null;
 }
 
+// §16.100: "tu carga" — lo delegado SIN etiqueta real no es tu tiempo (mismo criterio que Mi Día/Semana getTaskMins).
+// Aplicado en TODOS los puntos donde Carga atribuye minutos, para que las tres vistas den la misma cifra por día.
+const isDelegatedNoTag = (t: any): boolean =>
+  !!(t && t.delegation) && !((t.tags || []).some((tag: string) => tag && tag !== 'resto'));
+
 function buildTaskLoads(
   allTasksMap: Record<string, Task>,
   months: MonthInfo[],
@@ -366,6 +371,7 @@ function buildTaskLoads(
       const m: Record<string, number> = {};
       for (const inst of materializeDay(cur, allTasksMap)) {
         if (inst.templateId && (inst.estimatedMinutes || 0) > 0) {
+          if (isDelegatedNoTag(inst) || isDelegatedNoTag(allTasksMap[inst.templateId])) continue; // §16.100
           m[inst.templateId] = (m[inst.templateId] || 0) + (inst.estimatedMinutes || 0);
         }
       }
@@ -387,6 +393,7 @@ function buildTaskLoads(
     if (isContainer) {
       const subs = (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => {
         if (!s || s.isDeleted) return false;
+        if (isDelegatedNoTag(s)) return false; // §16.100: "tu carga" — delegado-sin-etiqueta no es tu tiempo
         // Sin recurrencia y con fecha pasada → no tiene carga futura
         if (!s.recurrence && s.dueDate && s.dueDate < today) return false;
         // Completada sin recurrencia y sin fecha → ya hecha
@@ -445,6 +452,7 @@ function buildTaskLoads(
       (task.subtasks || []).forEach((subId: string) => {
         const sub = allTasksMap[subId] as any;
         if (!sub || sub.isDeleted) return;
+        if (isDelegatedNoTag(sub)) return; // §16.100
         // Sin recurrencia y con fecha pasada → no tiene carga futura
         if (!sub.recurrence && sub.dueDate && sub.dueDate < today) return;
         // Sin recurrencia y completada → ya hecha
@@ -475,6 +483,7 @@ function buildTaskLoads(
   ).forEach((t: any) => {
     const isCont = (t.subtasks || []).length > 0;
     if (!isCont) {
+      if (isDelegatedNoTag(t)) return; // §16.100: hoja delegada-sin-etiqueta no es tu carga
       const inRange = months.some(mo => {
         const firstDay = formatLocalISO(new Date(mo.year, mo.month, 1));
         const lastDay = formatLocalISO(new Date(mo.year, mo.month + 1, 0));
@@ -823,6 +832,7 @@ export function WorkloadView({
         const m: Record<string, number> = {};
         for (const inst of materializeDay(day.date, allTasksMap)) {
           if (inst.templateId && (inst.estimatedMinutes || 0) > 0) {
+            if (isDelegatedNoTag(inst) || isDelegatedNoTag(allTasksMap[inst.templateId])) continue; // §16.100
             m[inst.templateId] = (m[inst.templateId] || 0) + (inst.estimatedMinutes || 0);
           }
         }
@@ -837,10 +847,10 @@ export function WorkloadView({
           if (!task) return;
           let mins = 0;
           if (load.isContainer) {
-            const subs = (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted);
+            const subs = (task.subtasks || []).map((sid: string) => allTasksMap[sid]).filter((s: any) => s && !s.isDeleted && !isDelegatedNoTag(s)); // §16.100
             mins = subs.reduce((acc: number, sub: any) =>
               acc + calcRangeMinutes(sub, day.date, day.date, week.isPast, allTasksMap, registeredByDay, estByDay), 0);
-          } else {
+          } else if (!isDelegatedNoTag(task)) { // §16.100: hoja delegada-sin-etiqueta no cuenta
             mins = calcRangeMinutes(task, day.date, day.date, week.isPast, allTasksMap, registeredByDay, estByDay);
           }
           cache[`${load.taskId}__${day.date}`] = mins;
