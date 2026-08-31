@@ -42,8 +42,11 @@ const verdictColor = (key: string) =>
     : (key === 'sin_fijar' || key === 'sin_nota') ? 'dark:text-text-secondary text-text-secondary-light'
     : 'text-naranja';
 
+// §16.104 (pieza 3): resumen de decisiones del repaso, guardado junto a las medidas.
+type Decisiones = { manana: number; otro: number; completadas: number; eliminadas: number };
+
 export function DayReportModal({
-  open, onClose, activeDate, verdict, breakdown, deviation, entrada, blocks, report, onGuardar,
+  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, entrada, blocks, report, onGuardar,
   pendingTasks = [], timeEntries = [], onComplete, onDelete, onRepasoMove, repasoWillCollide, repasoDayLoad,
 }: {
   open: boolean;
@@ -55,7 +58,7 @@ export function DayReportModal({
   entrada: EntradaForDay | null;
   blocks: any[];
   report: DayReport | null;
-  onGuardar: (motivos: MotivoKey[], nota: string) => Promise<void>;
+  onGuardar: (measures: any, motivos: MotivoKey[], nota: string) => Promise<void>;
   // FASE 6 · Repaso de lo no hecho (§16.47)
   pendingTasks?: any[];
   timeEntries?: any[];
@@ -69,6 +72,9 @@ export function DayReportModal({
   const [nota, setNota] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // §16.104 (pieza 2): CONGELAR las medidas al ABRIR. El reporte refleja el estado ANTES de las decisiones del repaso
+  // (si acabas con 29 pendientes y las mueves a mañana, el reporte dice 29, no 0). `decisiones` cuenta lo del repaso (pieza 3).
+  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; pendingAtOpen: number; decisiones: Decisiones } | null>(null);
 
   // Al abrir / cambiar de día, precargar lo guardado.
   useEffect(() => {
@@ -77,7 +83,19 @@ export function DayReportModal({
     setSaved(false);
   }, [report, activeDate, open]);
 
+  // Captura ÚNICA al abrir (o al cambiar de día con el modal abierto). No re-captura durante el repaso.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (open) setSnap({ verdict: verdictLive, deviation: deviationLive, breakdown: breakdownLive, pendingAtOpen: pendingTasks.length, decisiones: { manana: 0, otro: 0, completadas: 0, eliminadas: 0 } });
+  }, [open, activeDate]);
+
   if (!open) return null;
+
+  // Medidas CONGELADAS (caen a los props vivos solo en el primer frame antes de que corra la captura).
+  const verdict = snap?.verdict ?? verdictLive;
+  const deviation = snap?.deviation ?? deviationLive;
+  const breakdown = snap?.breakdown ?? breakdownLive;
+  const pendingAtOpen = snap?.pendingAtOpen ?? pendingTasks.length;
 
   const blockName = (id: string) => blocks.find((b: any) => b.id === id)?.name || '—';
   const blockColor = (id: string) => blocks.find((b: any) => b.id === id)?.color || '#888';
@@ -89,7 +107,14 @@ export function DayReportModal({
   const guardar = async () => {
     setSaving(true);
     try {
-      await onGuardar(motivos, nota);
+      // §16.104: se guardan las medidas CONGELADAS (verdict del snap) + el resumen de decisiones del repaso.
+      const measures = {
+        key: verdict.key, nota: verdict.nota, previsto: verdict.previsto, registrado: verdict.registrado,
+        planRegistered: verdict.planRegistered, outOfPlan: verdict.outOfPlan, anadido: verdict.anadido,
+        hechas: verdict.hechas, total: verdict.total, hechasTrasFijar: verdict.hechasTrasFijar,
+        sinHacer: pendingAtOpen, decisiones: snap?.decisiones ?? null,
+      };
+      await onGuardar(measures, motivos, nota);
       setSaved(true);
     } catch (e) {
       toast.error('No se pudo guardar el reporte. Reintenta.');

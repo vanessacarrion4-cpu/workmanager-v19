@@ -728,11 +728,7 @@ export function DashboardView({
         entrada={entrada}
         blocks={blocks}
         report={dayReport}
-        onGuardar={async (motivos, nota) => { await guardarReport(verdict.key, {
-          nota: verdict.nota, previsto: verdict.previsto, registrado: verdict.registrado,
-          planRegistered: verdict.planRegistered, outOfPlan: verdict.outOfPlan, anadido: verdict.anadido,
-          hechas: verdict.hechas, total: verdict.total, hechasTrasFijar: verdict.hechasTrasFijar,
-        }, motivos, nota); }}
+        onGuardar={async (measures: any, motivos, nota) => { await guardarReport(measures.key, measures, motivos, nota); }}
         pendingTasks={pendingLeaves}
         timeEntries={timeEntries}
         onComplete={onToggle}
