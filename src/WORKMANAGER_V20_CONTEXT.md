@@ -5828,3 +5828,23 @@ Guard isActive (la propietaria valida el 2, 5 y 15-sep en pantalla ANTES de cerr
 en el chat se mezclaron). RESUELTO por la propietaria: `pruebaaaaaaaaaaaaaa` borrada; `Seguimiento Plan Ver situacion`
 reconvertida a SUBTAREA NORMAL de "On Boarding Lucia" (is_template:false, conserva parent t-1781858398975 + dueDate 18/08).
 Fase 1 CONFIRMADA en produccion por la propietaria (recargas: la cabecera ya no se mueve).
+
+## 16.84 FASE 2 del repair — diagnóstico (sesión 26, sin construir)
+**(a) Qué corrige en memoria cada carga y cuántas filas:** AHORA MISMO **0 filas** — ambos repairs convergidos (repair1: 0
+contenedores con datos prohibidos; repair2: 0 recurrentes-no-plantilla). El reporte de Fase 2 saldría VACÍO hoy; el chequeo se
+mantiene por si aparece una inconsistencia.
+**(b) Dónde debería verse el reporte (propuesta, NO construido):** un panel "Salud de datos" no bloqueante, reusando el contador
+DIAG de abajo-izquierda como entrada; lista las filas inconsistentes detectadas con un "corregir" por fila (la propietaria decide,
+nada automático). Alternativa: banner discreto al cargar sólo si hay ≥1 inconsistencia. Nunca corrección silenciosa.
+**(c) INVENTARIO COMPLETO de escrituras a la BD SIN que la propietaria lo pida** (grep exhaustivo de los 55 writes en 16 ficheros):
+  1. `repairContainersWithForbiddenData` (useSupabase) — Fase 1: YA NO ESCRIBE (solo memoria).
+  2. `repairRecurringContainers` (useSupabase) — Fase 1: YA NO ESCRIBE.
+  3. 🔴 **`Limpieza automática` (useSupabase:438) — SIGUE ACTIVA. HARD DELETE (borrado FÍSICO, irrecuperable) en CADA carga** de
+     tareas `is_deleted=true` + `template_id` + `instance_date` de más de 30 días. Borraría 0 filas ahora, pero es un proceso
+     destructivo permanente y silencioso que corre en cada apertura. **CONTRADICE la papelera** (useDeletedTasks dice "pasados 30
+     días el dato sigue en BD, recuperable" — falso para instancias recurrentes: esta limpieza las borra físicamente). → Debe ser
+     lo PRIMERO de Fase 2: quitar el auto-delete; si se quiere purga, que sea explícita/manual y avisada.
+  · NO hay suscripciones realtime, NI intervalos, NI writes en cambio de vista, NI migraciones/backfills ocultos. Los otros ~52
+    writes están TODOS en handlers disparados por la propietaria (CRUD, bulk, reorder, restaurar, timer, fijar, reporte).
+**PRINCIPIO (§16.83) aplicado:** las 3 escrituras-al-cargar (2 repairs + 1 hard-delete) son exactamente lo que viola "detectar sí,
+escribir no". Fase 1 tapó 2; la limpieza automática es la 3ª y falta.
