@@ -5848,3 +5848,33 @@ nada automático). Alternativa: banner discreto al cargar sólo si hay ≥1 inco
     writes están TODOS en handlers disparados por la propietaria (CRUD, bulk, reorder, restaurar, timer, fijar, reporte).
 **PRINCIPIO (§16.83) aplicado:** las 3 escrituras-al-cargar (2 repairs + 1 hard-delete) son exactamente lo que viola "detectar sí,
 escribir no". Fase 1 tapó 2; la limpieza automática es la 3ª y falta.
+
+## 16.85 TERCERA escritura oculta — hard-delete de carga APAGADO (sesión 26, PUBLICADO)
+**1a Desde cuándo:** commit `17d4d6c` (Sesión 3, **09/05/2026**), ~4 meses.
+**1b/1d Daño (matiz que baja la gravedad):** las 534 filas is_deleted+template_id que aún existen son TODAS `is_exception`
+(MARCADORES de "día borrado"), instance_date todas < 30 días (lo de >30 ya está a 0 = borrado). Quitar un marcador de borrado
+recurrente NO pierde contenido → hace REAPARECER la ocurrencia (resurrección) en su día pasado. Las no-recurrentes (96 is_deleted sin
+template_id) NUNCA se tocaban. → No es "datos perdidos para siempre": es resurrección de borrados antiguos + que la papelera no
+podía mostrarlos. No se puede contar exacto lo ya borrado (hard-delete = sin rastro), pero el tipo de daño es reversible/benigno.
+**1c Backups:** no se puede consultar por REST; la propietaria debe mirar Supabase Dashboard → Database → Backups (Pro = diarios,
+retención 7-30d con PITR; Free = sin backups). Dado que el daño es resurrección y no pérdida, probablemente no hace falta.
+**APAGADO:** retirado el bloque `supabase.delete()` de useSupabase (§16.85, commit 30a6362, PUBLICADO). Nada se borra físicamente al
+cargar. Purga futura = manual, avisada, con lista aprobada.
+
+## 16.86 La papelera — verdad tras los arreglos (sesión 26)
+**3a Qué dice al usuario (PapeleraView:46):** "Lo borrado en los últimos 30 días. Restaura lo que quieras." → HONESTO sobre la
+ventana. La "mentira" NO estaba en ese texto sino en: (1) §16.70 (los borrados en lote no sellaban deleted_at → no salían — YA
+arreglado) y (2) un COMENTARIO interno de useDeletedTasks que afirmaba "el dato sigue en BD, recuperable" (falso por el hard-delete).
+**3b Tras §16.85 + §16.70:** el dato ahora PERSISTE (no se borra físicamente) y los borrados en lote SÍ salen. La papelera muestra
+los últimos 30 días de forma fiable. Limitación restante: los borrados de >30 días no se MUESTRAN (aunque ahora sí persisten en BD).
+**3c Pendiente (texto/feature):** o se extiende la ventana de la papelera más allá de 30 días (feature), o se corrige el comentario
+interno de useDeletedTasks (ya no aplica el hard-delete). El texto de usuario NO necesita cambio. Prioridad baja.
+
+## 16.87 REGLAS + APRENDIZAJE (sesión 26)
+**REGLA (firme):** ninguna función automática borra FÍSICAMENTE datos. Borrado físico SOLO a petición de la propietaria, con lista
+previa y confirmación. Todo lo demás es borrado LÓGICO (is_deleted) y reversible.
+**REGLA (§16.83, recordatorio):** ninguna función de mantenimiento MODIFICA datos sin petición explícita — ni al cargar, ni en
+segundo plano. Detectar sí, escribir no.
+**APRENDIZAJE:** se encontraron TRES escrituras automáticas (2 repairs + 1 hard-delete) persiguiendo unos números que no cuadraban en
+la cabecera. Cuando una cifra no cuadra, la causa puede estar mucho más abajo de donde se ve (aquí: en la CARGA de datos, no en el
+cálculo). No parchear la cifra; rastrear hasta la fuente.
