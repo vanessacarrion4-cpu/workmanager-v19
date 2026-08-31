@@ -2,7 +2,7 @@
 // sabiendo lo que ha pasado. Consultable siempre (no solo al cerrar) y para días pasados. NO es un "cerrar el día"
 // obligatorio: el reporte + la nota ES el cierre; el día se congela solo a medianoche. Spec §16.39 tramo 4, umbrales §16.42.
 import React, { useState, useEffect } from 'react';
-import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2 } from 'lucide-react';
+import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { formatMinutes } from './utils';
 import { toast } from './toast';
 import { TAG_LABELS } from './constants';
@@ -75,6 +75,7 @@ export function DayReportModal({
   // §16.104 (pieza 2): CONGELAR las medidas al ABRIR. El reporte refleja el estado ANTES de las decisiones del repaso
   // (si acabas con 29 pendientes y las mueves a mañana, el reporte dice 29, no 0). `decisiones` cuenta lo del repaso (pieza 3).
   const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; pendingAtOpen: number; decisiones: Decisiones } | null>(null);
+  const [entradaOpen, setEntradaOpen] = useState(true); // §16.104 (pieza 4): plegable
 
   // Al abrir / cambiar de día, precargar lo guardado.
   useEffect(() => {
@@ -215,13 +216,17 @@ export function DayReportModal({
           </div>
         )}
 
-        {/* 3 · ENTRADA DEL DÍA (versión de cierre: lista completa desplegada) */}
+        {/* 3 · ENTRADA DEL DÍA (versión de cierre: lista completa desplegada) — §16.104 (pieza 4): plegable */}
         {entrada && entrada.total > 0 && (
           <div className="mb-6">
-            <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 mb-1.5">
-              Entró el {diaLargo(entrada.day)} · {entrada.total} tarea{entrada.total === 1 ? '' : 's'}
-              {entrada.forToday > 0 && entrada.later > 0 && <span className="opacity-70"> ({entrada.forToday} para hoy · {entrada.later} más adelante)</span>}
-            </p>
+            <button onClick={() => setEntradaOpen(o => !o)} className="flex items-center gap-1.5 mb-1.5 group">
+              {entradaOpen ? <ChevronDown size={12} className="text-text-secondary/70" /> : <ChevronRight size={12} className="text-text-secondary/70" />}
+              <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 group-hover:text-turquesa transition-colors">
+                Entró el {diaLargo(entrada.day)} · {entrada.total} tarea{entrada.total === 1 ? '' : 's'}
+                {entrada.forToday > 0 && entrada.later > 0 && <span className="opacity-70"> ({entrada.forToday} para hoy · {entrada.later} más adelante)</span>}
+              </span>
+            </button>
+            {entradaOpen && (
             <div className="space-y-1 pl-3 border-l dark:border-border-main border-border-main-light">
               {entrada.items.map(it => (
                 <div key={it.id} className="flex items-center gap-2 text-[11px]">
@@ -236,6 +241,7 @@ export function DayReportModal({
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -424,6 +430,7 @@ function RepasoSection({ pendingTasks, activeDate, blocks, timeEntries, onComple
   const [collision, setCollision] = useState<any>(null);
   const [deleteFor, setDeleteFor] = useState<any>(null);
   const [dragAll, setDragAll] = useState(false);
+  const [openRep, setOpenRep] = useState(true); // §16.104 (pieza 4): plegable
 
   if (!pendingTasks || pendingTasks.length === 0) return null;
   const tomorrow = repNextDay(activeDate);
@@ -440,7 +447,11 @@ function RepasoSection({ pendingTasks, activeDate, blocks, timeEntries, onComple
 
   return (
     <div className="mt-6 pt-5 border-t dark:border-border-main border-border-main-light">
-      <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 mb-2.5">Te quedan {pendingTasks.length} sin hacer</p>
+      <button onClick={() => setOpenRep(o => !o)} className="flex items-center gap-1.5 mb-2.5 group">
+        {openRep ? <ChevronDown size={12} className="text-text-secondary/70" /> : <ChevronRight size={12} className="text-text-secondary/70" />}
+        <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 group-hover:text-turquesa transition-colors">Te quedan {pendingTasks.length} sin hacer</span>
+      </button>
+      {openRep && (<>
       <div className="space-y-0.5">
         {pendingTasks.map((t: any) => {
           const roll = t.rolledOverCount || 0;
@@ -468,6 +479,7 @@ function RepasoSection({ pendingTasks, activeDate, blocks, timeEntries, onComple
       <button onClick={() => setDragAll(true)} className="mt-3 text-[10px] font-black uppercase tracking-widest text-turquesa hover:underline flex items-center gap-1">
         <ArrowRight size={12} /> Arrastrar todo a mañana ({formatMinutes(totalMins)})
       </button>
+      </>)}
 
       {otherFor && (
         <div className="fixed inset-0 z-[320] flex items-center justify-center p-4">
