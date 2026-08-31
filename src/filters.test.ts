@@ -321,3 +321,64 @@ describe('getReportBreakdown — día completo (incluye completadas)', () => {
     expect(rep.byTag).toEqual([{ tag: 'focus', minutes: 60 }, { tag: 'espera', minutes: 30 }]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §16.101 · getEstimationDeviation — ¿estimo bien? (estimado vs registrado de lo COMPLETADO)
+// Distinto del FIJADO vs HECHO. No depende de la foto. Completadas sin tiempo → aparte.
+// ─────────────────────────────────────────────────────────────────────────────
+import { getEstimationDeviation } from './filters';
+
+describe('getEstimationDeviation — desviación estimado vs registrado', () => {
+  const D = '2026-07-15';
+  it('solo completadas CON tiempo; tardé +20m en total; por bloque y etiqueta', () => {
+    const ts = [
+      task({ id: 'A', dueDate: D, status: 'completed', estimatedMinutes: 60, tags: ['focus'] }),
+      task({ id: 'B', dueDate: D, status: 'completed', estimatedMinutes: 30, tags: ['resto'] }),
+      task({ id: 'C', dueDate: D, status: 'completed', estimatedMinutes: 45, tags: ['focus'] }), // sin tiempo
+      task({ id: 'D', dueDate: D, status: 'pending', estimatedMinutes: 100 }),                   // no completada
+    ];
+    const te = [
+      { taskId: 'A', subtaskId: null, date: D, duration: 90 },   // estimé 60, tardé 90 → +30
+      { taskId: 'B', subtaskId: null, date: D, duration: 20 },   // estimé 30, tardé 20 → −10
+    ];
+    const dev = getEstimationDeviation(ts, mapOf(ts), te, D);
+    expect(dev.count).toBe(2);
+    expect(dev.estimated).toBe(90);
+    expect(dev.registered).toBe(110);
+    expect(dev.deviation).toBe(20);
+    expect(dev.ratioPct).toBe(122);
+    expect(dev.sinTiempo).toEqual({ count: 1, estimated: 45 });
+    expect(dev.byBlock).toEqual([{ key: 'b1', estimated: 90, registered: 110, deviation: 20, count: 2 }]);
+    // ordenado por |desviación|: focus(+30) antes que resto(−10)
+    expect(dev.byTag).toEqual([
+      { key: 'focus', estimated: 60, registered: 90, deviation: 30, count: 1 },
+      { key: 'resto', estimated: 30, registered: 20, deviation: -10, count: 1 },
+    ]);
+  });
+
+  it('registrado = SOLO el del día (día-scoped): no agrega histórico de recurrentes', () => {
+    const ts = [task({ id: 'A', dueDate: D, status: 'completed', estimatedMinutes: 60, tags: ['focus'] })];
+    const te = [
+      { taskId: 'A', subtaskId: null, date: '2026-07-14', duration: 40 }, // otro día → NO cuenta
+      { taskId: 'A', subtaskId: null, date: D, duration: 50 },            // el del día → cuenta
+    ];
+    const dev = getEstimationDeviation(ts, mapOf(ts), te, D);
+    expect(dev.registered).toBe(50); // solo el del día
+    expect(dev.deviation).toBe(-10); // estimé 60, fiché 50 ese día
+  });
+
+  it('día sin fijación: funciona igual (no toca la foto)', () => {
+    const ts = [task({ id: 'A', dueDate: D, status: 'completed', estimatedMinutes: 60 })];
+    const te = [{ taskId: 'A', subtaskId: null, date: D, duration: 60 }];
+    const dev = getEstimationDeviation(ts, mapOf(ts), te, D);
+    expect(dev.deviation).toBe(0);
+    expect(dev.ratioPct).toBe(100);
+  });
+
+  it('nada completado → todo a cero', () => {
+    const ts = [task({ id: 'A', dueDate: D, status: 'pending', estimatedMinutes: 60 })];
+    const dev = getEstimationDeviation(ts, mapOf(ts), [], D);
+    expect(dev).toMatchObject({ count: 0, estimated: 0, registered: 0, deviation: 0, ratioPct: null });
+    expect(dev.sinTiempo).toEqual({ count: 0, estimated: 0 });
+  });
+});

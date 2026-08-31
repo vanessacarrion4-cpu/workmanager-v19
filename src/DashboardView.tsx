@@ -15,7 +15,7 @@ import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { getTaskEstimatedCombo, formatMinutes } from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getPendingLeavesForDay, collectLeafTasks } from './filters';
+import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getEstimationDeviation, getPendingLeavesForDay, collectLeafTasks } from './filters';
 import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completado POR DÍA para el filtro "ocultar completadas"
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
@@ -222,6 +222,8 @@ export function DashboardView({
     [stats, daySnapshot, jornada, timeEntries, activeDate]
   );
   const reportBreakdown = useMemo(() => getReportBreakdown(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
+  // §16.101 ¿Estimo bien? — desviación estimado vs registrado de lo completado (no depende de la foto).
+  const reportDeviation = useMemo(() => getEstimationDeviation(dayTasks, allTasksMap, timeEntries, activeDate), [dayTasks, allTasksMap, timeEntries, activeDate]);
   // FASE 6 (cierre del día): hojas pendientes del día para el "Repaso de lo no hecho".
   const pendingLeaves = useMemo(() => getPendingLeavesForDay(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
 
@@ -714,6 +716,7 @@ export function DashboardView({
         activeDate={activeDate}
         verdict={verdict}
         breakdown={reportBreakdown}
+        deviation={reportDeviation}
         entrada={entrada}
         blocks={blocks}
         report={dayReport}

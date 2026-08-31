@@ -684,3 +684,58 @@ export function getReportBreakdown(
   const byTag = Array.from(tagMap.entries()).map(([tag, minutes]) => ({ tag, minutes })).sort((a, b) => b.minutes - a.minutes);
   return { byType, byBlock, byTag };
 }
+
+// §16.101 DESVIACIÓN ESTIMADO vs REGISTRADO (de lo COMPLETADO) — "¿estimo bien?". DISTINTO del FIJADO vs HECHO:
+// aquello compara PLAN (foto) contra realidad; esto compara MI ESTIMACIÓN contra MI TIEMPO REAL en lo que sí hice.
+//  · NO depende de la foto → funciona en días sin fijación.
+//  · Solo tareas COMPLETADAS del día. Registrado = tiempo fichado ESE DÍA (día-scoped). NO el total histórico: una
+//    recurrente diaria comparte template, y sumar todas las fechas agregaba TODO su histórico (CM11l 51m→47h → 1109%).
+//    El estimado es por-ocurrencia (el de ese día), así que el registrado también debe ser el de ese día.
+//  · Completadas SIN tiempo registrado ese día → FUERA de la desviación (no hay con qué comparar), en su contador aparte.
+//  · Desglose por bloque y por etiqueta.
+export interface DeviationRow { key: string; estimated: number; registered: number; deviation: number; count: number; }
+export interface EstimationDeviation {
+  count: number;              // completadas CON tiempo registrado (las que entran en la desviación)
+  estimated: number;         // suma estimado de esas
+  registered: number;        // suma registrado real de esas
+  deviation: number;         // registered − estimated  (>0 = tardé MÁS de lo estimado)
+  ratioPct: number | null;   // registered/estimated·100  (null si estimated=0)
+  byBlock: DeviationRow[];
+  byTag: DeviationRow[];
+  sinTiempo: { count: number; estimated: number }; // completadas SIN registro, aparte
+}
+export function getEstimationDeviation(
+  dayTasks: Task[],
+  allTasksMap: Record<string, Task>,
+  timeEntries: any[],
+  activeDate: string
+): EstimationDeviation {
+  const done = collectLeafTasks(dayTasks, allTasksMap, activeDate).filter(t => isTaskCompleted(t.id, allTasksMap));
+  let estimated = 0, registered = 0, count = 0;
+  const sinTiempo = { count: 0, estimated: 0 };
+  const blockMap = new Map<string, { est: number; reg: number; count: number }>();
+  const tagMap = new Map<string, { est: number; reg: number; count: number }>();
+  done.forEach(t => {
+    const est = t.estimatedMinutes || 0;
+    const reg = getTaskRegisteredSelf(t.id, timeEntries, activeDate); // día-scoped (evita agregar el histórico de recurrentes)
+    if (reg <= 0) { sinTiempo.count++; sinTiempo.estimated += est; return; }
+    estimated += est; registered += reg; count++;
+    const b = blockMap.get(t.blockId) || { est: 0, reg: 0, count: 0 };
+    b.est += est; b.reg += reg; b.count++; blockMap.set(t.blockId, b);
+    const tag = (t.tags && t.tags[0]) || 'resto';
+    const g = tagMap.get(tag) || { est: 0, reg: 0, count: 0 };
+    g.est += est; g.reg += reg; g.count++; tagMap.set(tag, g);
+  });
+  const toRows = (m: Map<string, { est: number; reg: number; count: number }>): DeviationRow[] =>
+    Array.from(m.entries())
+      .map(([key, v]) => ({ key, estimated: v.est, registered: v.reg, deviation: v.reg - v.est, count: v.count }))
+      .sort((a, b) => Math.abs(b.deviation) - Math.abs(a.deviation));
+  return {
+    count, estimated, registered,
+    deviation: registered - estimated,
+    ratioPct: estimated > 0 ? Math.round((registered / estimated) * 100) : null,
+    byBlock: toRows(blockMap),
+    byTag: toRows(tagMap),
+    sinTiempo,
+  };
+}

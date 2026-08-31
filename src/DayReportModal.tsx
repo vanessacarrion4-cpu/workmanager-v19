@@ -6,7 +6,7 @@ import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2 } from
 import { formatMinutes } from './utils';
 import { toast } from './toast';
 import { TAG_LABELS } from './constants';
-import { DayVerdict, DayBreakdown, EntradaForDay } from './filters';
+import { DayVerdict, DayBreakdown, EntradaForDay, EstimationDeviation } from './filters';
 import { DayReport, MotivoKey } from './useDayReport';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { MonthDatePicker } from './TimeComponents';
@@ -43,7 +43,7 @@ const verdictColor = (key: string) =>
     : 'text-naranja';
 
 export function DayReportModal({
-  open, onClose, activeDate, verdict, breakdown, entrada, blocks, report, onGuardar,
+  open, onClose, activeDate, verdict, breakdown, deviation, entrada, blocks, report, onGuardar,
   pendingTasks = [], timeEntries = [], onComplete, onDelete, onRepasoMove, repasoWillCollide, repasoDayLoad,
 }: {
   open: boolean;
@@ -51,6 +51,7 @@ export function DayReportModal({
   activeDate: string;
   verdict: DayVerdict;
   breakdown: DayBreakdown;
+  deviation: EstimationDeviation;
   entrada: EntradaForDay | null;
   blocks: any[];
   report: DayReport | null;
@@ -216,6 +217,50 @@ export function DayReportModal({
           </div>
         </div>
 
+        {/* 4b · ¿ESTIMO BIEN? — desviación estimado vs registrado de lo COMPLETADO (§16.101). No depende de la foto. */}
+        <div className="mb-6">
+          <div className="flex items-baseline gap-2 mb-2 flex-wrap">
+            <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">¿Estimo bien?</p>
+            <span className="text-[9px] dark:text-text-secondary text-text-secondary-light">estimado vs tiempo real · solo completadas</span>
+          </div>
+          {deviation.count === 0 ? (
+            <p className="text-[11px] dark:text-text-secondary text-text-secondary-light">
+              Sin tareas completadas con tiempo fichado{deviation.sinTiempo.count > 0 ? ` · ${deviation.sinTiempo.count} completada${deviation.sinTiempo.count === 1 ? '' : 's'} sin fichar` : ''}.
+            </p>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 flex-wrap mb-2.5 text-[12px] font-bold">
+                <span className="dark:text-white text-text-main-light">Estimé {formatMinutes(deviation.estimated)} · tardé {formatMinutes(deviation.registered)}</span>
+                <span className={`tabular-nums ${devColor(deviation.ratioPct)}`}>{devDelta(deviation.deviation)}{deviation.ratioPct != null ? ` (${deviation.ratioPct}%)` : ''}</span>
+                <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">{deviation.count} tarea{deviation.count === 1 ? '' : 's'}</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3">
+                {deviation.byBlock.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por bloque</span>
+                    {deviation.byBlock.slice(0, 10).map(r => (
+                      <DevRow key={r.key} label={blockName(r.key)} color={blockColor(r.key)} est={r.estimated} reg={r.registered} delta={r.deviation} />
+                    ))}
+                  </div>
+                )}
+                {deviation.byTag.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por etiqueta</span>
+                    {[...deviation.byTag].sort((a, b) => tagRank(a.key) - tagRank(b.key)).slice(0, 10).map(r => (
+                      <DevRow key={r.key} label={tagLabel(r.key)} color={tagHexKey(r.key)} est={r.estimated} reg={r.registered} delta={r.deviation} />
+                    ))}
+                  </div>
+                )}
+              </div>
+              {deviation.sinTiempo.count > 0 && (
+                <p className="text-[10px] dark:text-text-secondary text-text-secondary-light mt-2">
+                  {deviation.sinTiempo.count} completada{deviation.sinTiempo.count === 1 ? '' : 's'} sin tiempo fichado — fuera del cálculo.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
         {/* 5 · MOTIVO (opcional, varias) + nota libre */}
         <div className="mb-5">
           <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 mb-2">Motivo (opcional)</p>
@@ -288,6 +333,26 @@ function BarRow({ label, minutes, pct, color, neutral }: { label: string; minute
         <div className={`h-full rounded-full ${neutral ? 'dark:bg-white/40 bg-black/40' : ''}`} style={{ width: `${pct}%`, backgroundColor: neutral ? undefined : color }} />
       </div>
       <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(minutes)}</span>
+    </div>
+  );
+}
+
+// §16.101 · desviación estimado vs registrado: signo + color por precisión.
+const devDelta = (min: number): string => (min === 0 ? 'clavado' : `${min > 0 ? '+' : '−'}${formatMinutes(Math.abs(min))}`);
+const devColor = (ratioPct: number | null): string => {
+  if (ratioPct == null) return 'dark:text-text-secondary text-text-secondary-light';
+  if (ratioPct >= 90 && ratioPct <= 110) return 'text-verde';         // dentro de ±10% → estimé bien
+  if (ratioPct >= 70 && ratioPct <= 130) return 'text-naranja';       // desviación moderada
+  return 'text-rosa';                                                  // muy desviado
+};
+function DevRow({ label, color, est, reg, delta }: { label: string; color?: string; est: number; reg: number; delta: number }) {
+  const ratio = est > 0 ? Math.round((reg / est) * 100) : null;
+  return (
+    <div className="flex items-center gap-2 text-[11px] font-bold">
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+      <span className="w-24 truncate dark:text-text-secondary text-text-secondary-light">{label}</span>
+      <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(est)}→{formatMinutes(reg)}</span>
+      <span className={`tabular-nums ${devColor(ratio)}`}>{devDelta(delta)}</span>
     </div>
   );
 }
