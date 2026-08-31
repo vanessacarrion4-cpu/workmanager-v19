@@ -5608,3 +5608,115 @@ cuyo único cambio es el order) — no urgente, A ya las hace inocuas.
 - **VERIFICADO EN PANTALLA:** semana 31/08 → total 24h 44m (ocultar) ↔ 28h 39m (mostrar); lunes 31 8h ↔ 11h 55m. Lunes 24
   (comprobación de la propietaria): cabecera 30m en AMBOS modos → cuadra (los 30m son 1 pendiente RRHH; CMTIL 2/2 y BANCOS 1/1
   completadas aportan 0m estimado; en ocultar desaparecen, en mostrar salen con 0m). El total case con lo que se ve.
+
+## 16.76 DIAGNÓSTICO del bloque (sesión 26) — SOLO LECTURA, construcción en dos tiempos
+**Regla de trabajo nueva (propietaria):** a partir de aquí nada sube a producción sin que ella lo mire en pantalla. Se puede
+commitear en local; hay que decir siempre si algo queda *commiteado* o *publicado*, y esperar su OK para publicar.
+
+**DIVISIÓN EN DOS TIEMPOS (construcción futura, aún NO hecha):**
+- **TIEMPO 1** (un solo paquete, inseparable): arreglar el motor de recurrencia (guard `isActive`) **Y** cerrar las series
+  truncadas del split, juntos. Si se arregla la generación y las viejas siguen sin endDate, empezarían a generar → duplicados.
+  Alimentado por los puntos 2 y 3.
+- **TIEMPO 2**: limpiar las duplicadas ya existentes y después cuadrar los cálculos del día. Alimentado por los puntos 4 y 5.
+
+### Punto 0 — "bug de rutinas" ya cerrado = §16.73 (reconcileDay, commit 3998780)
+NO toca la generación (ortogonal a occursOn/matchesRecurrence). No cambia el comportamiento de las mensuales; solo des-sombrea
+hijas ya materializadas.
+
+### Punto 2 — MOTOR: las mensuales de "Pagos del mes FINCA" no generan
+- **Inventario recurrentes activas:** monthly 61, weekdays 21, weekly 5, yearly 2, daily 4 (= 93).
+- **El dato NO es la causa:** las 61 mensuales tienen `monthDay` correcto. "Pago proveedores" `monthDay:5`, sin endDate → debería
+  materializar el 5-sep.
+- **CAUSA RAÍZ:** el contenedor padre **"Pagos del mes FINCA" (t-1777881869522) tiene `is_active:false`**. `materializeDay`
+  ([instanceEngine:230](src/instanceEngine.ts)) y `generateInstances` ([utils:116](src/utils.ts)) excluyen `isActive===false` →
+  el contenedor y sus **5 hijas mensuales** (Pago proveedores d5, Recibir pagos Bego d15, revisar pagos Blai Finca d15, Poner
+  pagos Finca Acces d15, Pago eventuales d2) **no se materializan NUNCA**. Es GENERACIÓN, no visualización. El panel de instancias
+  usa el mismo guard → dice "0 futuras". 2f: una excepción NO corta el bucle; la causa es el guard.
+- **Escala:** 4 contenedores top-level inactivos, pero solo FINCA tiene hijas recurrentes (5). Los otros 3 (pruebaaaa, gafgaf,
+  Firmas RRHH) son basura de prueba. 2 hojas recurrentes top-level inactivas: `gafgaf` (daily, test) y `Firmas RRHH`
+  (weekdays con endDate 19/08 pasado → no genera). **Impacto real = FINCA + sus 5 mensuales.**
+- **Cuándo/por qué se apagó:** `modified_at` del contenedor = **26/07/2026**. Origen LEGACY: el "terminar la rutina" ANTIGUO
+  (pre-sesión 23) usaba `is_active:false` (el bug de las 4 fantasmas, §16.16). **Ningún camino ACTUAL pone `is_active:false` en un
+  contenedor VIVO** (grep: solo se escribe junto a `is_deleted:true` en borrados). No puede repetirse solo con el código de hoy.
+
+### Punto 3 — SPLIT truncado: NO hay problema vivo
+- El split ACTUAL ([useTaskCRUD:551](src/useTaskCRUD.ts)) SÍ sella `endDate` en la serie vieja.
+- Solo 2 títulos de plantilla duplicados ("Pasar albaranes a Bego", "Hacer cuadro Resumen") y en AMBOS la vieja tiene endDate →
+  **0 series partidas sin sellar.** Fijar la generación NO dispararía duplicados por split.
+- 3d: sellar endDate sin borrar instancias es trivial (`update recurrence.endDate`; materializeDay respeta endDate hacia el futuro
+  y el pasado materializado queda intacto) — pero no hace falta, no hay ninguna.
+
+### Punto 4 — DUPLICADAS existentes: escala pequeña
+- "Cierre Central" = DOS linajes: viejo "Cierre Central" (t-1778695383047, hijas manuales completadas de mayo) + nuevo
+  "Cierre Central Rec" (t-1781192525690-08d4q2cdx, hijas recurrentes d12). Las 3 tareas (Demanar Jordi PPV / Verificar PPV /
+  Fer rent PPV) tienen 2 instancias d12 (inst 06-12 y 08-12) con **due_date movido ambas a 31/08** → salen dobles ese día
+  (una completada, una pendiente).
+- **Global:** 8 grupos duplicados (mismo título+fecha+padre), **8 filas excedentes**. De las 16 implicadas: 12 completadas, 4
+  pendientes. Solo **4 inflan contadores del día pendiente**. NO es una multiplicación descontrolada.
+- FIX (Tiempo 2): limpiar las 8 excedentes tras verificar.
+
+### Punto 5 — CÁLCULOS del día: TRES motores divergentes
+- **Mi Día** (cabecera/grupos/desglose/repaso): `getStatsForDay`/`collectLeafTasks` sobre `dayTasks` (= `reconcileDay` →
+  materializeDay + estado). Honra excepciones. Cuenta HOJAS (baja contenedores). Acepta fecha (activeDate).
+- **Semana:** `getTaskMins` sobre `materializeDay` por día. Honra excepciones. Hojas. hideCompleted (toggle §16.75).
+- **Carga (WorkloadView):** `occursOn` RAW por día ([WorkloadView:249](src/WorkloadView.tsx)) → **NO honra excepciones por-día**
+  (una ocurrencia borrada/movida sigue contando) + el mismo guard `isActive`. **ES EL OUTLIER estructural.**
+- `getDayLoad` (impacto de "pasar a otro día" en el repaso): materializeDay (motor 2).
+- **5d:** la NOTA del reporte (`computeVerdict`) usa `planRegistered` = registrado sobre `plan_task_ids` de la FOTO, NO el
+  registrado total (que se muestra al lado). Denominador = previsto de la foto.
+- **5c:** una tarea MOVIDA a otra fecha durante el día SALE de "Te quedan N sin hacer" (`getPendingLeavesForDay` recomputa en vivo
+  sobre dayTasks; dueDate≠activeDate → fuera). Esto es lo que la decisión de #9 quiere evitar para el DATO GUARDADO (capturar al abrir).
+- **5e:** solo **2 fijaciones guardadas, en 1 día** → impacto de cualquier bug de nota mínimo.
+- **5f:** las funciones núcleo YA aceptan fecha (activeDate/dayISO); el registrado filtra timeEntries por fecha → **el cierre en
+  diferido con corte a medianoche es viable sin re-arquitectura.**
+- **5g:** "CON HORA" desaparecido → necesita repro con día/estado exacto (probable: sus tareas quedaron completadas → hideCompleted,
+  o el grupo vacío). Sin las dos capturas no es concluyente.
+- **5a:** en el dev los números de la cabecera BAILAN entre recargas (observados 11/128, 117/20h10m, 80/104, 24/4h56m) → señal de
+  inestabilidad; la re-medición fiable la hace la propietaria en producción en un momento estable. El descuadre ESTRUCTURAL
+  confirmado = Carga (occursOn, exception-blind) vs Mi Día/Semana (materializeDay).
+
+### Punto 6 — títulos vacíos
+**0 tareas vivas sin título** (11 borradas históricas). El guard #3 impide persistir vacías. "No deja escribir" en Búsqueda al
+añadir subtarea a un contenedor = **bug de FOCO/input** del campo (no acumula datos). Pendiente: revisar el input de añadir-subtarea
+en SearchView (probable patrón editingTaskId/foco, como §bug-titulo-foco).
+
+### REGLA DE MODELO (decidida por la propietaria, a cumplir en Tiempo 1)
+**La recurrencia vive en la tarea HIJA y no depende de NINGÚN estado del contenedor.** Un contenedor es una agrupación
+ESTRUCTURAL, no una entidad con estado propio que se propague. Es el mismo error que `isTemplate`: usar un flag del contenedor
+como proxy de algo que pertenece a las hijas. → **Bomba viva del mismo tipo: `isActive`** (materializeDay, generateInstances,
+WorkloadView). `status` ya se corrigió (§16.16, se deriva). `isDeleted` y la identidad (`isTemplate`/`!parentTaskId`) son correctos.
+
+### FIX del guard isActive (Tiempo 1) — dos opciones
+- **(a) Quitar el guard `isActive` de la generación (3 sitios).** Cumple la regla. Resucita SOLO `gafgaf` (hoja daily de prueba) →
+  **borrar `gafgaf` antes**. Los otros inactivos no tienen hijas recurrentes (pruebaaaa) o tienen endDate pasado (Firmas RRHH) → no
+  generan. **Recomendada.**
+- **(b) Solo reactivar FINCA** (`is_active:true`): no rompe nada pero deja el error de modelo en pie (tirita).
+
+### Punto 7 — decisiones sobre los dos paquetes (aparcados, NO construir)
+- **Semana selección multi-día:** DISEÑO APROBADO (`activeDate: string | null`). Se construye al final del barrido visual.
+- **Delegadas compresión de fila:** APARCADO — se rediseña la vista con el campo **ALCANCE** (agrupar tareas de cada persona por
+  tema). No tocar la fila dos veces.
+- **Delegadas rango de fechas:** **QUITAR** (no navega reuniones por ventana temporal). Se hace cuando toque el paquete Delegadas.
+
+## 16.77 CIERRE DEL DÍA — pendiente (decisiones tomadas, NO construido)
+- "Entró el lunes" y "Te quedan N sin hacer" deben poder PLEGARSE.
+- "Guardar reporte" va al FINAL de todo, tras el repaso: cerrar el día es un solo acto.
+- **El dato guardado es el de ANTES del repaso:** se captura al ABRIR el cierre y se guarda al PULSAR. Si acabo con 29 pendientes y
+  las muevo a mañana, el reporte dice 29, no 0.
+- Resumen de decisiones junto a las medidas, y guardarlo: "29 sin hacer · 20 a mañana · 3 a otro día · 2 completadas · 4
+  eliminadas · 0 sin tocar".
+- El desglose del reporte muestra FIJADO vs HECHO por bloque y etiqueta. **BLOQUEADO hasta que el cálculo del día sea canónico y
+  fiable** (hoy la columna "hecho" saldría mal → depende de Tiempo 2).
+- El repaso lista el ESTADO ACTUAL, nunca `plan_task_ids`.
+- **Si abro el cierre y me voy sin guardar:** no se guarda nada; no hay reporte hasta pulsar guardar; aviso al salir ("tienes un
+  cierre sin guardar").
+- **RESCATE al día siguiente:** al entrar a fijar, si hay un día anterior CON tareas y SIN reporte, se ofrece cerrarlo primero.
+  Condiciones: (1) el ofrecimiento aparece ANTES del compositor de la foto (cerrar ayer va antes de fijar hoy); (2) se ofrece el día
+  más reciente hacia atrás con tareas y sin reporte, sin límite de antigüedad, NUNCA más de uno a la vez (los más antiguos se quedan
+  sin reporte, no se encolan) — cubre fin de semana/ausencias (el lunes se ofrece el viernes); (3) el texto nombra la fecha concreta
+  ("Cerrar el viernes 28"), nunca "el día anterior"; (4) un día SIN tareas no se ofrece; (5) se puede saltar ("ahora no") y no
+  vuelve a preguntar ese día; (6) el reporte se calcula con CORTE A MEDIANOCHE del día que cierra (lo hecho hoy no cuenta como
+  registrado ayer → exige el cálculo canónico con fecha-parámetro, punto 5f: viable); (7) se marca `closed_late` con la fecha real
+  de cierre (no comparar un cierre en caliente con uno a la mañana siguiente).
+- Los días SIN reporte se EXCLUYEN de medias, rachas y estadísticas agregadas. Nunca cuentan como 0 (fines de semana / no laborables
+  no hunden el histórico).
