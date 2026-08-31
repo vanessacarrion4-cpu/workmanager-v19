@@ -447,7 +447,9 @@ export function WeekView({
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all text-[10px] font-black uppercase tracking-widest ${hideCompleted ? 'dark:border-border-main border-border-main-light dark:text-text-secondary text-text-secondary-light hover:border-turquesa/50 hover:text-turquesa' : 'border-turquesa/60 text-turquesa'}`}
             title={hideCompleted ? 'Mostrar completadas (el tiempo las incluirá)' : 'Ocultar completadas (el tiempo será solo lo pendiente)'}>
             {hideCompleted ? <EyeOff size={12} /> : <Eye size={12} />}
-            {hideCompleted ? 'Completadas' : 'Completadas'}
+            {/* §16.81: la etiqueta dice el ESTADO (antes era "Completadas" en ambos modos → no se distinguía ocultar de
+                mostrar y se leían los totales al revés). El botón resaltado (turquesa) = completadas VISIBLES. */}
+            {hideCompleted ? 'Completadas ocultas' : 'Completadas visibles'}
           </button>
           {/* §16.63: control ÚNICO plegar/desplegar TODO — los 5 días, todos los agrupadores, recordado entre visitas */}
           <button onClick={() => setGlobalExpandPersist(globalExpand === true ? false : true)}
