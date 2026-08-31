@@ -224,23 +224,20 @@ export function materializeDay(dateStr: string, allTasks: Record<string, Task>):
     if (t?.subtasks) for (const id of t.subtasks) childIds.add(id);
   }
 
-  // Plantillas-contenedor reales (nivel 1): isTemplate, sin templateId ni padre,
-  // activas, y que no son subtarea de nadie.
+  // Plantillas-contenedor reales (nivel 1): isTemplate, sin templateId ni padre, y que no son subtarea de nadie.
   //
-  // ⚠️ `isActive` NO ES LA PRIMITIVA DE TERMINACIÓN de una serie. Solo se lee AQUÍ, y solo filtra
-  // contenedores TOP-LEVEL. Una HIJA con isActive:false SIGUE generando (este predicado no la ve;
-  // resolveChildForDay tampoco lo mira). Terminar una serie = `recurrence.endDate` (lo respeta
-  // matchesRecurrence para TODAS: top-level e hijas). Si algún día quieres cortar una serie, usa endDate,
-  // NO isActive (fue el origen del bug de las 4 hijas fantasma, sesión 23 / §16.16). Esta guarda se
-  // conserva como defensa por si queda alguna fila legada con isActive:false; retirarla del todo = item
-  // aparte pendiente (§16.16 "consecuencia a vigilar").
+  // §16.79 (regla de modelo): la recurrencia vive en la HIJA y NO depende de ningún estado del contenedor.
+  // Se RETIRA el guard `isActive !== false` (era el mismo error que `isTemplate`: un flag del contenedor apagando
+  // a las hijas). Era el origen del bug "las mensuales de Pagos del mes FINCA no generan" (§16.76): el contenedor
+  // quedó is_active:false (legacy, terminar-rutina viejo) y suprimía sus 5 hijas mensuales. Terminar una serie =
+  // `recurrence.endDate` (lo respeta matchesRecurrence), NUNCA isActive. Basura legada con is_active:false que
+  // pudiera resucitar: limpiada antes (gafgaf borrada; pruebaaaa sin hijas recurrentes; Firmas RRHH con endDate).
   const containers = Object.values(allTasks).filter(t =>
     t &&
     t.isTemplate === true &&
     !t.templateId &&
     !t.parentTaskId &&
     !childIds.has(t.id) &&
-    t.isActive !== false &&
     !t.isDeleted
   );
 

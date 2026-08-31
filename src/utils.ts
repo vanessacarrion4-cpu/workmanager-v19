@@ -110,10 +110,10 @@ export function generateInstances(
   const newInstances: Task[] = [];
   // CRÍTICO: Solo procesar templates REALES (isTemplate:true, sin templateId propio)
   // Excluir instancias generadas (tienen templateId) para evitar inst-inst-... y bucles
-  const templates = Object.values(allTasks).filter(t => 
-    t && 
-    !t.parentTaskId && 
-    t.isActive !== false && 
+  const templates = Object.values(allTasks).filter(t =>
+    t &&
+    !t.parentTaskId &&
+    // §16.79: retirado el guard `isActive !== false` (la recurrencia no depende del estado del contenedor). Ver instanceEngine.
     t.isTemplate === true &&      // Solo templates reales
     !t.templateId &&              // Nunca instancias
     !t.isDeleted &&               // Nunca borrados

@@ -460,7 +460,7 @@ function buildTaskLoads(
   };
 
   Object.values(allTasksMap).filter((t: any) =>
-    t && t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId && t.isActive !== false
+    t && t.isTemplate && !t.templateId && !t.isDeleted && !t.parentTaskId // §16.79: retirado guard isActive (no gatea hijas)
   ).forEach((t: any) => processTask(t));
 
   Object.values(allTasksMap).filter((t: any) =>
