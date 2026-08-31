@@ -5927,3 +5927,29 @@ ignorado en pantalla, presente en BD.
   al revertir reaparece; propuesta: mantenerlo dormido mientras es contenedor, restaurar al revertir (no borrarlo en la transición).
 - Tarea con tiempo REGISTRADO (play) → contenedor: el registrado vive en time_entries (por id de tarea), NO en el row → SOBREVIVE la
   conversión. PENDIENTE verificar que el registrado del contenedor propio se SUMA en el display (si no, quedaría oculto). No se pierde.
+
+## 16.91 Motor único (A) PUBLICADO + correcciones + cierre paso 4 (sesión 26)
+**PUBLICADO** (e239e69): Carga y panel usan materializeDay. **CORRECCIÓN a la previsión:** Carga NO baja uniformemente — honra
+excepciones en AMBOS sentidos (borradas restan, movidas-a suman) → se vuelve exacta, se mueve ↑ y ↓. Verificado dev: W36 48→54%.
+**Contenedores:** regla nueva escrita (§16.90). Los 4 con estimated_minutes huérfano → **puestos a 0** (dato sucio limpiado).
+**ORDEN ACTUALIZADO:** 1. Hard delete (HECHO) · 2. Motor único A (HECHO/publicado) · 3. Cálculo canónico del día (+ transición
+tarea↔contenedor, van juntos) · 3b. **LIMPIEZA DEL MOTOR MUERTO** (borrar generateInstances + matchesRecurrence + projectLoad/
+projectLoadForDay/getEstimatedForInstance de utils.ts, ~290 líneas sin llamadores vivos — tarea con nombre propio, NO "limpieza
+trivial sin fecha": un motor de recurrencia muerto es trampa a 3 meses) · 4. Cierre del día COMPLETO · 5. Fase 2 panel Salud de
+datos · 6. Duplicadas · 7. Compositor, búsqueda y TIPO · 8. En Espera por delegado · 9. ALCANCE · 10. Barrido visual + selección
+de Semana.
+
+## 16.92 CIERRE DEL DÍA (paso 4) — requisitos nuevos (decidido, sin construir)
+Dos requisitos que comparten pieza (agrupar por contenedor + plegar) → construir juntos.
+**1 · DESPLEGAR EL TIEMPO NO PREVISTO** (el outOfPlan de la nota, hoy "dedicaste 2h 10m a cosas no previstas" sin nombres):
+- La línea se despliega y muestra las TAREAS concretas donde se registró ese tiempo, cada una con sus minutos.
+- Hija de contenedor → sale AGRUPADA bajo su contenedor (no suelta). El contenedor muestra la SUMA de lo gastado en sus hijas.
+- Plegado por defecto. La suma de lo desplegado cuadra EXACTAMENTE con la cifra de cabecera.
+- Complementa el desglose por bloque/etiqueta: el desglose dice POR DÓNDE se fue el día, esta lista dice EN QUÉ. Los dos.
+**2 · "ENTRÓ EL LUNES" — dos secciones** (hoy plana y larga):
+- Dos secciones: PLANIFICADAS PARA HOY primero, PARA OTRO DÍA después. Cada una con su cuenta y su tiempo. Plegables, plegadas
+  por defecto. Dentro, las hijas de un contenedor AGRUPADAS bajo él; el contenedor muestra la suma de sus hijas.
+- CONTENEDOR REPARTIDO entre las dos secciones: si tiene 1 hija para hoy y 2 para otra fecha, aparece en LAS DOS, cada una con
+  sus hijas + nota de las de la otra ("2 más para otra fecha" / "1 para hoy"). Coherente con el modelo (el contenedor es
+  agrupación, sin fecha propia, puede salir en las dos). Evita creer que el contenedor es solo lo de la sección que se mira.
+- DUDA PENDIENTE: las que entraron SIN fecha asignada (si existe el caso) → ¿dónde van? Necesitan sitio. Resolver al construir.
