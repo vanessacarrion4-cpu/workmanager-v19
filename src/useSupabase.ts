@@ -216,7 +216,11 @@ function repairContainersWithForbiddenData(mappedTasks: Record<string, Task>): v
       (task.recurrence && !task.isTemplate);
 
     if (hasForbiddenData) {
-      console.log('[REPAIR] Limpiando contenedor con datos prohibidos:', task.title);
+      // §16.78 FASE 1 (regla: NINGUNA función de mantenimiento escribe en la BD sin que la propietaria lo pida —
+      // ni al cargar). Se conserva la corrección EN MEMORIA (para que la sesión pinte coherente) pero se ELIMINA
+      // la escritura a Supabase (era la mutación silenciosa que hacía bailar los números al recargar). FASE 2:
+      // sustituir esto por un REPORTE de inconsistencias que la propietaria revisa.
+      console.warn('[REPAIR·detect] contenedor con datos prohibidos (solo en memoria, NO se escribe):', task.title);
       mappedTasks[task.id] = {
         ...task,
         dueDate: null,
@@ -225,13 +229,6 @@ function repairContainersWithForbiddenData(mappedTasks: Record<string, Task>): v
         delegation: undefined,
         estimatedMinutes: 0,
       };
-      supabase.from('tasks')
-        .update({ due_date: null, due_time: null, tags: [], delegation: null, estimated_minutes: 0 })
-        .eq('id', task.id)
-        .then(({ error }) => {
-          if (error) console.error('[REPAIR] Error limpiando contenedor:', error);
-          else console.log('[REPAIR] Contenedor limpiado en Supabase:', task.title);
-        });
     }
   });
 }
@@ -251,32 +248,22 @@ function repairRecurringContainers(mappedTasks: Record<string, Task>): void {
 
     if (!hasRecurringChild) return;
 
-    // Reparar el padre
+    // §16.78 FASE 1: corrección SOLO EN MEMORIA, sin escribir en Supabase (ver repair1). Antes convertía filas a
+    // is_template:true + due_date:null persistiéndolo → mutación silenciosa al cargar (bajaba el total al recargar).
+    // Nota: repair2 solo toca filas que YA tienen recurrence (o contenedores que la alojan) → NUNCA convierte una
+    // tarea normal; el efecto era de visibilidad (una regla deja de contarse como tarea del día), no pérdida de datos.
+    // Reparar el padre (en memoria)
     if (!task.isTemplate) {
-      console.log('[REPAIR] Reparando contenedor recurrente:', task.title, '→ isTemplate: true');
+      console.warn('[REPAIR·detect] contenedor recurrente sin isTemplate (solo en memoria):', task.title);
       mappedTasks[task.id] = { ...mappedTasks[task.id], isTemplate: true, dueDate: null };
-      supabase.from('tasks')
-        .update({ is_template: true, due_date: null })
-        .eq('id', task.id)
-        .then(({ error }) => {
-          if (error) console.error('[REPAIR] Error reparando contenedor recurrente:', error);
-          else console.log('[REPAIR] Contenedor recurrente reparado en Supabase:', task.title);
-        });
     }
 
-    // Reparar subtareas recurrentes sin isTemplate
+    // Reparar subtareas recurrentes sin isTemplate (en memoria)
     task.subtasks.forEach(subId => {
       const sub = mappedTasks[subId];
       if (!sub || !sub.recurrence || sub.isTemplate) return;
-      console.log('[REPAIR] Reparando subtarea recurrente:', sub.title, '→ isTemplate: true');
+      console.warn('[REPAIR·detect] subtarea recurrente sin isTemplate (solo en memoria):', sub.title);
       mappedTasks[subId] = { ...sub, isTemplate: true, dueDate: null };
-      supabase.from('tasks')
-        .update({ is_template: true, due_date: null })
-        .eq('id', subId)
-        .then(({ error }) => {
-          if (error) console.error('[REPAIR] Error reparando subtarea:', error);
-          else console.log('[REPAIR] Subtarea reparada en Supabase:', sub.title);
-        });
     });
   });
 }
