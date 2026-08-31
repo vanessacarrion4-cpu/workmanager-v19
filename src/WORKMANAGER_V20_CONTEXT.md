@@ -5968,3 +5968,19 @@ cuenta y materializeDay no. Caracterización (a-d): (a) OTROS DÍAS: ninguna (to
 true), reconcileDay las incluye porque pertenecen a hoy → LEGÍTIMAS. **DIRECCIÓN CONFIRMADA: reconcileDay canónico (Semana/Carga
 suben).** CAVEAT: los 50m de duplicadas viajan en el canónico hasta que se limpien las 8 (paso 6) — Mi Día hoy incluye esos 50m
 espurios.
+
+## 16.94 3er caso del patrón: contenedores MANUALES invisibles para Semana/Carga (sesión 26)
+**Escala (2a):** 94 contenedores MANUALES (is_template=false con hijas) → **465 subtareas** que Semana y Carga NO ven. **(2b) Desde
+el inicio** (contenedores creados 28/04–31/08). **(2c) Se arregla en el CANÓNICO**, no tocando materializeDay: materializeDay es el
+GENERADOR (solo recurrentes); los contenedores/subtareas MANUALES son estáticos y los aporta el OVERLAY de estado (reconcileDay). El
+bug es que Semana/Carga calculan el día desde materializeDay SOLO, sin el overlay → pierden los 465. El canónico (reconcileDay) los
+ve → al usar todas las vistas el canónico, quedan cubiertos.
+**(2d) MÁS SITIOS del mismo patrón (flag del contenedor decide si las hijas cuentan):** además de isActive (§16.79, arreglado) y el
+filtro isTemplate de materializeDay (correcto para el GENERADOR), está **WorkloadView:382** `isContainer = subtasks.length>0 &&
+task.isTemplate` → excluye contenedores manuales de la iteración de hijas en Carga. El canónico lo neutraliza (Carga usará el día
+canónico, ya con las hojas resueltas). PRINCIPIO: un flag estructural del contenedor no puede decidir si sus hijas cuentan — 3er caso
+en un día (isTemplate escondió 22 subtareas, isActive dejó 5 mensuales sin generar, isTemplate/overlay deja 465 sin ver en Semana/Carga).
+**FIJACIÓN — qué foto usa el reporte (pregunta de la propietaria):** hoy `useDaySnapshot` usa `latest` (el ÚLTIMO snapshot del día) →
+si refijas a mediodía, el fijado cambia. DECISIÓN de la propietaria: refijar el mismo día NO debe añadir en silencio; debe AVISAR
+("ya fijaste hoy a las HH:MM") y ofrecer [Sustituir la foto / Cancelar] (default seguro = cancelar, se conserva la de la mañana). Así
+hay UNA foto/día. Contestar esto ANTES de construir FIJADO vs HECHO (si compara contra la foto equivocada, todo el reporte sale mal).
