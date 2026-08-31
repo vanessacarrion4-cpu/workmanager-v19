@@ -5720,3 +5720,43 @@ WorkloadView). `status` ya se corrigió (§16.16, se deriva). `isDeleted` y la i
   de cierre (no comparar un cierre en caliente con uno a la mañana siguiente).
 - Los días SIN reporte se EXCLUYEN de medias, rachas y estadísticas agregadas. Nunca cuentan como 0 (fines de semana / no laborables
   no hunden el histórico).
+
+## 16.78 NO DETERMINISMO de la cabecera = REPAIR-on-load (sesión 26, diagnóstico)
+**Verificación A (reaseguro del is_active):** el fix "terminar la rutina → endDate" (commit `eb49729`, fase5 A1) es del **18/08/2026**;
+el contenedor FINCA se apagó el **26/07/2026** → 3 semanas ANTES. En 26/07 el código viejo (is_active:false) seguía vivo → mi
+explicación CUADRA, no hay camino sin identificar. El código actual no reactiva ese riesgo.
+**Test de recargas (Mi Día, hoy, sin tocar nada):** 24|80/104 → 27|77/104 (×4) → 24|77/101 (×3) → 23|77/100 (×3). El TOTAL DECRECE
+monótonamente (104→101→100). No es carrera de pintado (setTasks es ÚNICO tras paginar, useSupabase:411; y ya pintado no deriva).
+**CAUSA:** dos funciones REPAIR corren en CADA carga y ESCRIBEN en Supabase ([useSupabase:408-409](src/useSupabase.ts)):
+`repairContainersWithForbiddenData` (limpia due_date/tags/estimated del contenedor, :228) y `repairRecurringContainers`
+(convierte filas con hija recurrente a `is_template:true` + `due_date:null`, :258/:273). Al convertir una fila a plantilla, deja de
+contar como tarea del día → el total baja cada recarga. Es MUTACIÓN SILENCIOSA DE DATOS al cargar, no solo un número inestable →
+contribuye a los líos (orphans, dueDates perdidos). **No converge a un valor canónico mientras los repairs sigan encontrando algo
+que "arreglar".** FIX (cuando toque #2): hacer los repairs idempotentes-y-convergentes, gatearlos (una vez / detrás de flag), o
+retirarlos. Cuadrar cifras contra esto es perder el tiempo hasta arreglarlo.
+
+## 16.79 UN SOLO MOTOR de recurrencia (regla + plan, sesión 26)
+**REGLA (propietaria):** un solo motor de recurrencia. Ninguna vista calcula ocurrencias por su cuenta. Mismo principio que
+`bulkEffectiveIds` para el alcance de las acciones. Hoy hay TRES: `materializeDay` (Mi Día vía reconcileDay), `generateInstances`
+(legacy, solo el panel de instancias, utils.ts), y `occursOn` directo en Carga (WorkloadView, ciego a excepciones).
+**Plan (D, sin construir):**
+- (a) **Quitar `generateInstances`, panel usa `materializeDay`:** el panel (Modals.tsx) llamaría materializeDay por día en su ventana
+  (60 fut / 180 pas) y filtraría por templateId; ya honra excepciones, así que su dateMap se simplifica. Rompe poco (UI diagnóstica).
+  Coste bajo. Mata un motor.
+- (b) **Carga usa `materializeDay` en vez de `occursOn`:** Carga proyecta carga por semanas/meses (muchos días). materializeDay por día
+  es más caro que occursOn (resuelve excepciones/hijas) pero CalendarView ya lo hace por mes → viable con memo. En pantalla: Carga
+  pasaría a HONRAR excepciones (ocurrencias borradas/movidas dejan de contar) → los % bajarían en semanas con muchas bajas/movimientos
+  = más exacto pero distinto.
+- (c) **¿Razón real para que Carga no pueda?** Ninguna fundamental — es deuda histórica (Carga se hizo sobre occursOn antes de
+  materializeDay). Único cuidado: rendimiento (proyectar muchos meses) → memoizar / acotar ventana.
+- (d) **Qué cifras cambiarían al unificar:** Carga (honraría excepciones → %), y la lista del panel (cuadraría con Mi Día). Mi Día NO
+  cambia (ya usa materializeDay). Requiere antes el guard isActive (Tiempo 1) para que FINCA salga también en Carga/panel.
+
+## 16.80 ORDEN DE TRABAJO (decidido, sesión 26)
+1. **Tiempo 1** (is_active: quitar guard + borrar gafgaf + reactivar FINCA) · 2. **No determinismo** (repair-on-load, §16.78) ·
+3. **Motor único** (§16.79) · 4. **Cálculo canónico del día** (con fecha-parámetro, para cierre diferido) · 5. **Duplicadas**
+(8 filas, 4 pendientes — lista y aprobación de la propietaria ANTES de borrar; no vienen del split sino de due_date movido al mismo
+día) · 6. **Compositor, búsqueda (bug foco input añadir-subtarea, prioridad media) y agrupador TIPO** · 7. **Cierre del día**
+(§16.77) · 8. **En Espera por delegado** · 9. **ALCANCE** (Delegadas: agrupar tareas de cada persona por tema; incluye la
+compresión de fila y quitar el rango de fechas) · 10. **Barrido visual + selección de Semana** (paquete multi-día aprobado,
+`activeDate: string | null`).
