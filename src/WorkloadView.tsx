@@ -16,7 +16,7 @@ import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Layers, Tag, X } fro
 import { Task, WorkBlock, TimeEntry } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { formatMinutes } from './utils';
-import { occursOn } from './instanceEngine';
+import { materializeDay } from './instanceEngine'; // §16.79 motor único: Carga proyecta con materializeDay (honra excepciones), no occursOn
 import { useJornada } from './useJornada';
 
 // ─── Capacidad ────────────────────────────────────────────────────────────────
@@ -237,36 +237,14 @@ function buildDays(week: WeekInfo, today: string, jornadaMins: number = MINS_PER
 
 // ─── Cálculo recurrencia ──────────────────────────────────────────────────────
 
-function countOccurrencesInRange(recurrence: any, startStr: string, endStr: string): number {
-  if (!recurrence) return 0;
-  // Fuente única de verdad: se delega la regla de recurrencia en occursOn.
-  // Se conservan el corte por endDate y el salto anual como optimizaciones del bucle.
-  const recurringTask = { recurrence } as Task;
-  let count = 0, current = startStr;
-  while (current <= endStr) {
-    if (current < (recurrence.startDate || '')) { current = addDays(current, 1); continue; }
-    if (recurrence.endDate && current > recurrence.endDate) break;
-    const matches = occursOn(recurringTask, current);
-    if (matches) count++;
-    // Optimización: para yearly saltar al año siguiente tras encontrar la fecha
-    if (recurrence.frequency === 'yearly' && matches) {
-      const date = parseLocalISO(current);
-      const next = new Date(date.getFullYear() + 1, date.getMonth(), date.getDate());
-      current = formatLocalISO(next);
-    } else {
-      current = addDays(current, 1);
-    }
-  }
-  return count;
-}
-
 // ─── Calcular minutos de una tarea hoja en un rango ──────────────────────────
 
 function calcRangeMinutes(
   task: any, startStr: string, endStr: string,
   isPast: boolean,
   allTasksMap: Record<string, Task>,
-  registeredByDay: Record<string, number>
+  registeredByDay: Record<string, number>,
+  dayEstByTemplate: Record<string, Record<string, number>> // §16.79 motor único: estimado por (día, templateId) de materializeDay
 ): number {
   if (isPast) {
     let total = 0;
@@ -277,11 +255,17 @@ function calcRangeMinutes(
     }
     return total;
   }
-  // Presente y futuro: usar cálculo matemático siempre que haya recurrence
-  // (más fiable y rápido que buscar instancias en memoria)
+  // §16.79 MOTOR ÚNICO: presente/futuro se lee de materializeDay (mismo motor que Mi Día/Semana) → HONRA excepciones
+  // (ocurrencias borradas no cuentan, movidas cuentan en su nuevo día). Antes: countOccurrencesInRange (occursOn) ciego a
+  // excepciones → Carga contaba de más. `dayEstByTemplate[día][task.id]` = estimado de la instancia resuelta ese día.
   if (task.recurrence) {
-    const count = countOccurrencesInRange(task.recurrence, startStr, endStr);
-    return count * (task.estimatedMinutes || 0);
+    let total = 0;
+    let current = startStr;
+    while (current <= endStr) {
+      total += dayEstByTemplate[current]?.[task.id] || 0;
+      current = addDays(current, 1);
+    }
+    return total;
   }
   // Tarea puntual con fecha
   if (task.dueDate && task.dueDate >= startStr && task.dueDate <= endStr)
@@ -371,9 +355,28 @@ function buildTaskLoads(
     };
   });
 
+  // §16.79 MOTOR ÚNICO: materializar cada día del window UNA sola vez (memo local) → estimado por (día, templateId).
+  // materializeDay honra excepciones (borradas no cuentan, movidas cuentan en su día nuevo). Los contenedores no aportan
+  // estimación propia (§16.90); solo las hojas tienen estimatedMinutes, así que se suman por su templateId.
+  const dayEstByTemplate: Record<string, Record<string, number>> = {};
+  {
+    const windowStart = months.length ? formatLocalISO(new Date(months[0].year, months[0].month, 1)) : today;
+    let cur = windowStart;
+    while (cur <= generatedEndStr) {
+      const m: Record<string, number> = {};
+      for (const inst of materializeDay(cur, allTasksMap)) {
+        if (inst.templateId && (inst.estimatedMinutes || 0) > 0) {
+          m[inst.templateId] = (m[inst.templateId] || 0) + (inst.estimatedMinutes || 0);
+        }
+      }
+      dayEstByTemplate[cur] = m;
+      cur = addDays(cur, 1);
+    }
+  }
+
   // ── FUTURO/PRESENTE: calcular desde tareas con recurrencia o dueDate ───────
   const calcLoad = (task: any, startStr: string, endStr: string, isPast: boolean) =>
-    calcRangeMinutes(task, startStr, endStr, isPast, allTasksMap, registeredByDay);
+    calcRangeMinutes(task, startStr, endStr, isPast, allTasksMap, registeredByDay, dayEstByTemplate);
 
   const processTask = (task: any, parentId?: string) => {
     const isContainer = (task.subtasks || []).length > 0 && task.isTemplate;

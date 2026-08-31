@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { WorkBlock, Task, TagType } from './types';
 import { COLORS, TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
-import { generateInstances } from './utils';
+import { materializeDay } from './instanceEngine'; // §16.79 motor único: el panel usa materializeDay (honra excepciones), no generateInstances
 
 // §16.31 (sesión 24): banda-inventario del borrado — LISTA lo que se va, no solo lo cuenta. Un contenedor partido
 // por etiqueta se lleva las hijas de los OTROS grupos (que no se ven); el aviso debe enseñarlas. Formato ÚNICO (sin
@@ -331,55 +331,39 @@ export function InstancesModal({ task, allTasksMap, timeEntries = [], onClose, o
   const [showPast, setShowPast] = useState(false);
   const today = formatLocalISO(new Date());
 
-  // Calcular instancias: ventana futuros 60 días, pasados 180 días
+  // Calcular instancias: ventana futuros 60 días, pasados 180 días.
+  // §16.79 MOTOR ÚNICO: se usa materializeDay por día (mismo motor que Mi Día/Semana) → las instancias que muestra el
+  // panel HONRAN las excepciones (landed/borradas/movidas) y cuadran exactamente con lo que se ve en Mi Día. Antes usaba
+  // generateInstances (occursOn ciego a excepciones), que podía listar ocurrencias en realidad borradas o movidas.
   const allInstances = useMemo(() => {
     const DAYS_FUTURE = 60;
     const DAYS_PAST = 180;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - DAYS_PAST);
-    const startStr = formatLocalISO(startDate);
 
-    // Generar instancias en ventana completa usando solo templates
-    const templatesOnly = Object.fromEntries(
-      Object.entries(allTasksMap).filter(([, t]) => !t.templateId && !t.isDeleted)
-    );
-    const generated = generateInstances(templatesOnly, startStr, DAYS_PAST + DAYS_FUTURE);
-
-    // Filtrar instancias que pertenecen a este template concreto
-    const myInstances = generated.filter(t => t.templateId === task.id);
-
-    // También buscar excepciones guardadas en Supabase
-    const exceptions = Object.values(allTasksMap).filter(t =>
-      t.templateId === task.id && t.isException && !t.isDeleted
-    );
-    const deletedExceptions = Object.values(allTasksMap).filter(t =>
-      t.templateId === task.id && t.isException && t.isDeleted
-    );
-
-    // Construir mapa de fechas con su estado
     const dateMap: Record<string, { date: string; instance: Task | null; exception: Task | null; deleted: Task | null }> = {};
 
-    myInstances.forEach(inst => {
-      const d = inst.dueDate || inst.instanceDate || '';
-      if (!d) return;
-      if (!dateMap[d]) dateMap[d] = { date: d, instance: inst, exception: null, deleted: null };
-    });
+    // Instancias REALES del día (materializeDay ya resuelve landed/movidas y suprime las borradas).
+    for (let i = 0; i < DAYS_PAST + DAYS_FUTURE; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+      const ds = formatLocalISO(d);
+      for (const inst of materializeDay(ds, allTasksMap)) {
+        if (inst.templateId === task.id) {
+          dateMap[ds] = { date: ds, instance: inst, exception: inst.isException ? inst : null, deleted: null };
+        }
+      }
+    }
 
-    exceptions.forEach(exc => {
-      const origDate = exc.instanceDate || '';
-      const newDate = exc.dueDate || '';
-      const key = origDate || newDate;
-      if (!key) return;
-      if (!dateMap[key]) dateMap[key] = { date: key, instance: null, exception: exc, deleted: null };
-      else dateMap[key].exception = exc;
-    });
-
-    deletedExceptions.forEach(del => {
-      const key = del.instanceDate || del.dueDate || '';
-      if (!key) return;
-      if (!dateMap[key]) dateMap[key] = { date: key, instance: null, exception: null, deleted: del };
-      else dateMap[key].deleted = del;
-    });
+    // Días BORRADOS (informativo): materializeDay los suprime, pero el panel los muestra como "borrado" para diagnóstico.
+    Object.values(allTasksMap)
+      .filter(t => t.templateId === task.id && t.isException && t.isDeleted)
+      .forEach(del => {
+        const key = del.instanceDate || del.dueDate || '';
+        if (!key) return;
+        if (!dateMap[key]) dateMap[key] = { date: key, instance: null, exception: null, deleted: del };
+        else dateMap[key].deleted = del;
+      });
 
     return Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
   }, [task.id, allTasksMap]);
