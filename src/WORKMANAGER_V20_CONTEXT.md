@@ -5808,3 +5808,18 @@ se distinguía. FIX: etiqueta = ESTADO ("Completadas ocultas" / "Completadas vis
 - **ESTADO GIT:** doc §16.76/§16.77 y §16.78-80 PUBLICADOS; a partir de aquí TODO en LOCAL sin publicar (fix guard `05794dd`, fix
   etiqueta Semana, y estas anotaciones) — la propietaria dio "PARA, no publiques nada". Datos ya aplicados: gafgaf soft-borrada,
   FINCA reactivada.
+
+## 16.83 PRINCIPIO (decidido, sesion 26) + Fase 2 del repair
+**PRINCIPIO GENERAL (regla firme):** ninguna funcion de mantenimiento puede MODIFICAR los datos de la propietaria sin que ella lo
+pida explicitamente — ni al cargar, ni en segundo plano, ni "para arreglar". **Detectar si, escribir no.** (Origen: los repairs de
+useSupabase llevaban ~4 meses mutando en cada carga.)
+**FASE 2 del repair (decidida, se construye DESPUES):** sustituir la correccion en memoria por un REPORTE de filas inconsistentes
+que la propietaria revisa y decide. Ni correccion automatica ni silenciosa. (Fase 1 ya publicada: quitadas las 3 escrituras.)
+**Analisis de las 117 plantillas (para revision de la propietaria):** 92 con pauta propia / 25 sin. De las 25 sin pauta: 23
+contenedores reales + **2 INERTES** (plantilla sin pauta y sin hijas): `pruebaaaaaaaaaaaaaa` (basura) y `Seguimiento Plan Ver
+situacion Actual y avance` (la hija de-recurrida de §16.71, conocida). **Mecanica clave (leida en codigo): repair1 solo toca
+is_template; repair2 solo toca filas que YA tienen recurrence -> NINGUNO puede convertir una tarea NORMAL en plantilla.** El efecto
+era de VISIBILIDAD (una regla recurrente deja de contarse como tarea del dia) + nulificar due_date de reglas (que no deben tenerlo),
+NO perdida de tareas normales. El incidente "22 subtareas escondidas" fue eso: reglas que pasaron a plantilla, no borrado.
+**ORDEN DE PUBLICACION (de uno en uno, con confirmacion entre medias):** 1. Fase 1 repair (PUBLICADA) . 2. Etiqueta Semana . 3.
+Guard isActive (la propietaria valida el 2, 5 y 15-sep en pantalla ANTES de cerrar; no publicar hasta que confirme Fase 1 en prod).
