@@ -6049,3 +6049,22 @@ El cierre del día es el Reporte + repaso, en un solo acto. Piezas (un commit ca
     cierres en diferido llevan `closedLate:true` pero cuentan (son cierres reales). Cuando se construya la feature, promediar SOLO
     sobre filas de `day_reports` (nunca rellenar días ausentes con 0). Ver también §16.96 (día con reporte pero sin foto: `previsto=null`
     marca que no entra en medias que comparan plan). Decisión: "solo la regla de datos por ahora, no construyo pantalla de medias".
+
+## 16.106 / 16.107 REPORTE — 4 cifras de "previsto" diagnosticadas + fixes (sesión 27)
+El reporte del 1/09 mostraba varias cifras de "previsto" mezcladas sin etiqueta: **640** (foto, congelado, correcto) /
+**669** (FIJADO recalculado en vivo — bug) / **710** (estimatedTotal en vivo = DESVIACIÓN y Desglose estimado). Diagnóstico y arreglos:
+- **§16.106 FIJADO CONGELADO sin columna nueva.** `day_snapshots` no tiene columna jsonb (a diferencia de `day_reports.measures`).
+  Se codifica el plan en el propio `plan_task_ids` (text[]): `"id::estimado::bloque::etiqueta::tipo"` al fijar. `getFijadoVsHecho`
+  lee el estimado/bloque/etiqueta/tipo CONGELADOS → el fijado no se mueve aunque se edite el estimado o se mueva la tarea de bloque.
+  Helpers `encodePlanEntry`/`planEntryId`/`planEntryMeta`. Fotos antiguas (sin `::`) → estado en vivo (compat). Lectores
+  (computeVerdict, planCompletion, getOutOfPlanBreakdown) usan `planEntryId`.
+- **§16.107 #2 HECHO = solo lo del plan.** `getFijadoVsHecho` cuenta solo el tiempo de tareas del plan, agrupado por su grupo
+  congelado. Lo no previsto ya tiene su línea aparte (no se duplica ni infla bloques).
+- **§16.107 #3 tarjeta DESVIACIÓN separada.** Antes mostraba `anadido` (estimatedTotal−previsto) mal nombrado. Ahora: tarjeta
+  **"Desviación de tiempo" = registré − fijé** (con subtítulo), y **"Añadido durante el día"** en línea aparte (estimatedTotal−previsto).
+- **§16.107 #4 quitado el "Desglose del día (estimado)"** de la pantalla (era el 4º número confuso). El dato SÍ se guarda en
+  `measures.desglose.estimado` para las gráficas de evolución.
+- **PENDIENTE (§16.107):** un reporte YA guardado debería MOSTRAR lo guardado (congelado al cerrar), no recalcular con el estado de
+  hoy. Reabrir+guardar recalcula → puede sobrescribir un reporte correcto con datos de otro día. Por eso NO reabrir el 1/09. Fix futuro.
+- **REGLA (§16.107, anotada en memoria):** cada cifra del reporte dice CONTRA QUÉ compara en pantalla; lo del plan congelado se
+  lee de la foto y no se recalcula; el estado actual se etiqueta como tal.
