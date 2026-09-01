@@ -464,3 +464,32 @@ describe('getOutOfPlanBreakdown — tiempo no previsto', () => {
     expect(suelta?.minutes).toBe(30);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §16.104 (pieza 6) · getFijadoVsHecho — plan (estimado) vs realidad (registrado), en tiempo
+// ─────────────────────────────────────────────────────────────────────────────
+import { getFijadoVsHecho } from './filters';
+
+describe('getFijadoVsHecho — fijado vs hecho por bloque y etiqueta', () => {
+  const D = '2026-07-15';
+  it('fijado del plan; hecho = todo el registrado del día (dentro y fuera del plan)', () => {
+    const ts = [
+      task({ id: 'a', blockId: 'b1', tags: ['focus'], estimatedMinutes: 60 }),  // plan
+      task({ id: 'b', blockId: 'b2', tags: ['resto'], estimatedMinutes: 30 }),   // plan, no hecho
+      task({ id: 'X', blockId: 'b1', tags: ['focus'] }),                         // fuera del plan
+    ];
+    const te = [
+      { taskId: 'a', subtaskId: null, date: D, duration: 90 },
+      { taskId: 'X', subtaskId: null, date: D, duration: 10 },
+    ];
+    const r = getFijadoVsHecho(['a', 'b'], te, mapOf(ts), D);
+    expect(r.totalFijado).toBe(90);   // 60 + 30
+    expect(r.totalHecho).toBe(100);   // 90 + 10
+    const b1 = r.byBlock.find(x => x.key === 'b1');
+    expect(b1).toMatchObject({ fijado: 60, hecho: 100 });
+    const b2 = r.byBlock.find(x => x.key === 'b2');
+    expect(b2).toMatchObject({ fijado: 30, hecho: 0 });
+    const focus = r.byTag.find(x => x.key === 'focus');
+    expect(focus).toMatchObject({ fijado: 60, hecho: 100 });
+  });
+});

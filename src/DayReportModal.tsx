@@ -6,7 +6,7 @@ import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2, Chevr
 import { formatMinutes } from './utils';
 import { toast } from './toast';
 import { TAG_LABELS } from './constants';
-import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup } from './filters';
+import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup, FijadoVsHecho } from './filters';
 import { DayReport, MotivoKey } from './useDayReport';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { MonthDatePicker } from './TimeComponents';
@@ -46,7 +46,7 @@ const verdictColor = (key: string) =>
 type Decisiones = { manana: number; otro: number; completadas: number; eliminadas: number };
 
 export function DayReportModal({
-  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, entrada, blocks, report, onGuardar,
+  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entrada, blocks, report, onGuardar,
   pendingTasks = [], timeEntries = [], onComplete, onDelete, onRepasoMove, repasoWillCollide, repasoDayLoad,
 }: {
   open: boolean;
@@ -56,6 +56,7 @@ export function DayReportModal({
   breakdown: DayBreakdown;
   deviation: EstimationDeviation;
   outOfPlan?: { total: number; groups: OutOfPlanGroup[] };
+  fijadoHecho?: FijadoVsHecho;
   entrada: EntradaForDay | null;
   blocks: any[];
   report: DayReport | null;
@@ -254,6 +255,31 @@ export function DayReportModal({
           </div>
         )}
 
+        {/* 2c · FIJADO vs HECHO (§16.104 pieza 6) — plan contra realidad, en tiempo, por bloque y etiqueta. Necesita foto. */}
+        {verdict.hasPlan && fijadoHecho && fijadoHecho.byBlock.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-baseline gap-2 mb-2 flex-wrap">
+              <p className="text-[9px] font-black uppercase tracking-widest text-turquesa">Fijado vs hecho</p>
+              <span className="text-[9px] dark:text-text-secondary text-text-secondary-light">plan contra realidad · en tiempo</span>
+              <span className="text-[11px] font-bold dark:text-white text-text-main-light ml-auto tabular-nums">{formatMinutes(fijadoHecho.totalFijado)} → {formatMinutes(fijadoHecho.totalHecho)}</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3">
+              <div className="space-y-1">
+                <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por bloque</span>
+                {fijadoHecho.byBlock.slice(0, 12).map(r => (
+                  <FhRow key={r.key} label={blockName(r.key)} color={blockColor(r.key)} fijado={r.fijado} hecho={r.hecho} />
+                ))}
+              </div>
+              <div className="space-y-1">
+                <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por etiqueta</span>
+                {[...fijadoHecho.byTag].sort((a, b) => tagRank(a.key) - tagRank(b.key)).slice(0, 12).map(r => (
+                  <FhRow key={r.key} label={tagLabel(r.key)} color={tagHexKey(r.key)} fijado={r.fijado} hecho={r.hecho} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 3 · ENTRADA DEL DÍA (versión de cierre: lista completa desplegada) — §16.104 (pieza 4): plegable */}
         {entrada && entrada.total > 0 && (
           <div className="mb-6">
@@ -444,6 +470,19 @@ function DevRow({ label, color, est, reg, delta }: { label: string; color?: stri
       <span className="w-24 truncate dark:text-text-secondary text-text-secondary-light">{label}</span>
       <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(est)}→{formatMinutes(reg)}</span>
       <span className={`tabular-nums ${devColor(ratio)}`}>{devDelta(delta)}</span>
+    </div>
+  );
+}
+
+// §16.104 (pieza 6): fila FIJADO → HECHO (en tiempo) por bloque/etiqueta.
+function FhRow({ label, color, fijado, hecho }: { label: string; color?: string; fijado: number; hecho: number }) {
+  const ratio = fijado > 0 ? Math.round((hecho / fijado) * 100) : null;
+  return (
+    <div className="flex items-center gap-2 text-[11px] font-bold">
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+      <span className="w-24 truncate dark:text-text-secondary text-text-secondary-light">{label}</span>
+      <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(fijado)}→{formatMinutes(hecho)}</span>
+      <span className={`tabular-nums ${devColor(ratio)}`}>{devDelta(hecho - fijado)}</span>
     </div>
   );
 }
