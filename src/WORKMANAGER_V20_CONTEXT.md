@@ -6022,3 +6022,30 @@ hoy nada lo compara mal; es una regla para el futuro.)
   aflorar en HOY (rollover / sección "atrasadas"). Es lo que obligó a mover las PPV pendientes a hoy en vez de des-moverlas a su día.
 - **Duplicadas — contexto:** 137 movimientos vivos (due≠instance); solo 5 colisionan (se cuentan como dup). Los otros 132 son
   decisiones de la propietaria y NO se cuentan como duplicado. "Ver Montse Vidal" (30/08→31/08) es movimiento deliberado suyo, NO dup.
+
+## 16.104 CIERRE DEL DÍA COMPLETO (sesión 27) — CONSTRUIDO, 10 piezas
+El cierre del día es el Reporte + repaso, en un solo acto. Piezas (un commit cada una):
+1. **Guardar al FINAL**, después del repaso. Un solo acto ("Guardar reporte y cerrar el día").
+2. **Medidas CONGELADAS al abrir** el modal — el reporte refleja el estado ANTES de las decisiones del repaso (acabas con 29
+   pendientes y las mueves a mañana → el reporte dice 29, no 0). `onGuardar` recibe las medidas congeladas del modal.
+3. **Resumen de decisiones del repaso** junto a las medidas y guardado: "N sin hacer · X a mañana · Y a otro día · Z completadas ·
+   W eliminadas · V sin tocar". Se cuenta envolviendo los callbacks del repaso (mañana vs otro por la fecha destino).
+4. **"Entró el lunes" y "Te quedan N" plegables** (chevron; por defecto abiertas).
+5. **El repaso lista el estado ACTUAL** (`getPendingLeavesForDay`, hojas no completadas), NUNCA `plan_task_ids`. Verificado, ya lo hacía.
+6. **FIJADO vs HECHO por bloque y etiqueta, EN TIEMPO** (`getFijadoVsHecho`): fijado = estimado del plan congelado; hecho = tiempo
+   realmente fichado ese día (dentro y fuera del plan = la realidad). Solo con foto (hasPlan).
+7. **Desplegar el tiempo NO previsto** (`getOutOfPlanBreakdown`): "dedicaste 2h10m a cosas no previstas" se despliega (plegado por
+   defecto) y muestra las tareas con sus minutos, hijas agrupadas bajo su contenedor con la suma. Cuadra exacta con outOfPlan.
+8. **"Entró el lunes" en dos apartados**: PLANIFICADAS PARA HOY primero, PARA OTRO DÍA después (cuenta+tiempo, plegables). Hijas
+   agrupadas bajo su contenedor; un contenedor con hijas en las dos secciones aparece en ambas con nota ("N para otra fecha"/"N para hoy").
+   `getEntradaForDay` devuelve `hoy`/`otro` (secciones agrupadas), manteniendo total/forToday/later para DayHeader.
+9. **RESCATE del día anterior**: al pulsar FIJAR, busca el día MÁS RECIENTE < hoy con actividad (fijado o tiempo fichado) y SIN
+   reporte, y ofrece cerrarlo ("Cerrar el viernes 21") o saltarlo. Nunca más de uno, sin límite de antigüedad. "Cerrar" navega a ese
+   día y abre su reporte (cierre en diferido). **closed_late** se guarda en `measures.closedLate` (día del reporte < hoy) — SIN cambiar
+   el esquema. Corte a medianoche = ya lo da el día-scoped. Detección sobre day_snapshots + time_entries (DashboardView no tiene el
+   mapa completo de tareas pasadas; los días con solo tareas planificadas y sin tiempo/foto no se ofrecen — alcance acordado).
+10. **REGLA DE DATOS (medias/rachas): un día SIN reporte NO cuenta — nunca como 0.** NO existe aún feature de medias/rachas (el
+    "Historial" es de tiempo). La regla está garantizada por construcción: sin reporte = sin fila en `day_reports` → excluido; los
+    cierres en diferido llevan `closedLate:true` pero cuentan (son cierres reales). Cuando se construya la feature, promediar SOLO
+    sobre filas de `day_reports` (nunca rellenar días ausentes con 0). Ver también §16.96 (día con reporte pero sin foto: `previsto=null`
+    marca que no entra en medias que comparan plan). Decisión: "solo la regla de datos por ahora, no construyo pantalla de medias".
