@@ -472,27 +472,36 @@ import { getFijadoVsHecho } from './filters';
 
 describe('getFijadoVsHecho — fijado vs hecho por bloque y etiqueta', () => {
   const D = '2026-07-15';
-  it('fijado del plan; hecho = todo el registrado del día (dentro y fuera del plan)', () => {
+  it('§16.107 (#2): HECHO = SOLO tiempo del plan (lo de fuera no cuenta aquí)', () => {
     const ts = [
       task({ id: 'a', blockId: 'b1', tags: ['focus'], taskType: 'core', estimatedMinutes: 60 }), // plan, core
       task({ id: 'b', blockId: 'b2', tags: ['resto'], estimatedMinutes: 30 }),   // plan, no hecho, adhoc
-      task({ id: 'X', blockId: 'b1', tags: ['focus'] }),                         // fuera del plan, adhoc
+      task({ id: 'X', blockId: 'b1', tags: ['focus'] }),                         // fuera del plan → NO cuenta en hecho
     ];
     const te = [
       { taskId: 'a', subtaskId: null, date: D, duration: 90 },
-      { taskId: 'X', subtaskId: null, date: D, duration: 10 },
+      { taskId: 'X', subtaskId: null, date: D, duration: 10 }, // fuera del plan → excluido
     ];
     const r = getFijadoVsHecho(['a', 'b'], te, mapOf(ts), D);
     expect(r.totalFijado).toBe(90);   // 60 + 30
-    expect(r.totalHecho).toBe(100);   // 90 + 10
-    const b1 = r.byBlock.find(x => x.key === 'b1');
-    expect(b1).toMatchObject({ fijado: 60, hecho: 100 });
-    const b2 = r.byBlock.find(x => x.key === 'b2');
-    expect(b2).toMatchObject({ fijado: 30, hecho: 0 });
-    const focus = r.byTag.find(x => x.key === 'focus');
-    expect(focus).toMatchObject({ fijado: 60, hecho: 100 });
-    // §16.105 (pieza 3): por tipo — core = a (60→90); adhoc = b (30 fijado) + X (10 hecho)
+    expect(r.totalHecho).toBe(90);    // solo 'a' (90); la X queda fuera
+    expect(r.byBlock.find(x => x.key === 'b1')).toMatchObject({ fijado: 60, hecho: 90 });
+    expect(r.byBlock.find(x => x.key === 'b2')).toMatchObject({ fijado: 30, hecho: 0 });
     expect(r.byType.find(x => x.key === 'core')).toMatchObject({ fijado: 60, hecho: 90 });
-    expect(r.byType.find(x => x.key === 'adhoc')).toMatchObject({ fijado: 30, hecho: 10 });
+    expect(r.byType.find(x => x.key === 'adhoc')).toMatchObject({ fijado: 30, hecho: 0 });
+  });
+
+  it('§16.106: plan CONGELADO — fijado usa el estimado/bloque de la foto aunque la tarea cambie después', () => {
+    // La tarea 'a' se fijó con estimado 60 en bloque b1; DESPUÉS se editó a 10 y se movió a b2.
+    const ts = [
+      task({ id: 'a', blockId: 'b2', tags: ['focus'], taskType: 'core', estimatedMinutes: 10 }),
+    ];
+    const encoded = ['a::60::b1::focus::core']; // lo que se guardó AL FIJAR
+    const te = [{ taskId: 'a', subtaskId: null, date: D, duration: 45 }];
+    const r = getFijadoVsHecho(encoded, te, mapOf(ts), D);
+    // FIJADO sigue siendo 60 en b1 (congelado), NO 10 en b2 (estado actual)
+    expect(r.totalFijado).toBe(60);
+    expect(r.byBlock.find(x => x.key === 'b1')).toMatchObject({ fijado: 60, hecho: 45 });
+    expect(r.byBlock.find(x => x.key === 'b2')).toBeUndefined();
   });
 });

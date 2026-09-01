@@ -15,7 +15,7 @@ import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { getTaskEstimatedCombo, formatMinutes } from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getEstimationDeviation, getOutOfPlanBreakdown, getFijadoVsHecho, getPendingLeavesForDay, collectLeafTasks } from './filters';
+import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getEstimationDeviation, getOutOfPlanBreakdown, getFijadoVsHecho, getPendingLeavesForDay, collectLeafTasks, encodePlanEntry, planEntryId } from './filters';
 import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completado POR DÍA para el filtro "ocultar completadas"
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
@@ -218,7 +218,7 @@ export function DashboardView({
   const planCompletion = useMemo(() => {
     const plan = daySnapshot?.plan_task_ids;
     if (!plan || plan.length === 0) return null;
-    const hechas = plan.filter((id: string) => isCompletedForDay(id, allTasksMap, activeDate)).length;
+    const hechas = plan.filter((e: string) => isCompletedForDay(planEntryId(e), allTasksMap, activeDate)).length; // §16.106
     return { total: plan.length, hechas };
   }, [daySnapshot, allTasksMap, activeDate]);
   const verdict = useMemo(
@@ -241,7 +241,8 @@ export function DashboardView({
   // tiempo fichado) y SIN reporte, y ofrecer cerrarlo primero. Nunca más de uno; se puede saltar. closed_late lo marca el modal.
   const [rescateDay, setRescateDay] = useState<string | null>(null);
   const doFijar = () => {
-    const planIds = collectLeafTasks(dayTasks, allTasksMap, activeDate).map(t => t.id);
+    // §16.106: congelar el plan (estimado + bloque + etiqueta + tipo por tarea) codificado en plan_task_ids, sin columna nueva.
+    const planIds = collectLeafTasks(dayTasks, allTasksMap, activeDate).map(t => encodePlanEntry(t, allTasksMap));
     fijar(stats.total, stats.estimatedTotal, stats.completed, planIds).catch(() => {});
   };
   const findPreviousUnclosedDay = async (): Promise<string | null> => {

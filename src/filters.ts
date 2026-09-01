@@ -680,7 +680,8 @@ export function computeVerdict(
   }
 
   const previsto = foto.estimated_minutes;
-  const planRegistered = plan.reduce((acc, id) => acc + getTaskRegisteredSelf(id, timeEntries, activeDate), 0);
+  // §16.106: las entradas del plan pueden venir codificadas ("id::est::bloque::etiqueta::tipo") → usar solo el id.
+  const planRegistered = plan.reduce((acc, e) => acc + getTaskRegisteredSelf(planEntryId(e), timeEntries, activeDate), 0);
   const outOfPlan = Math.max(0, registrado - planRegistered); // total − plan (tiempo en cosas que entraron después)
   // §16.88 (decisión propietaria): la NOTA usa el registrado TOTAL del día (`registrado`), NO `planRegistered`. Antes
   // (§16.47) medía solo el tiempo en tareas del plan → excluía el trabajo real en tareas que entraron después (era la
@@ -707,6 +708,34 @@ export function computeVerdict(
 // total cuadra EXACTA con outOfPlan (= registrado del día − registrado en tareas del plan).
 const resolveInstId = (id: string | null | undefined): string =>
   !id ? '' : (id.startsWith('inst-') ? id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '') : id);
+
+// §16.106 (FIJADO congelado, sin columna nueva): cada entrada de `plan_task_ids` guarda el estado del plan AL FIJAR,
+// codificado en la propia cadena del array text[]: "id::estimadoMin::bloque::etiqueta::tipo". Fotos antiguas (sin "::")
+// se leen como id pelado (meta=null → los lectores caen a la tarea en vivo). Así FIJADO no se mueve aunque después edites
+// el estimado o muevas la tarea de bloque.
+export interface PlanEntryMeta { estMin: number; blockId: string; tag: string; type: 'core' | 'adhoc'; }
+export function planEntryId(entry: string): string {
+  const i = entry.indexOf('::');
+  return i === -1 ? entry : entry.slice(0, i);
+}
+export function planEntryMeta(entry: string): PlanEntryMeta | null {
+  const parts = entry.split('::');
+  if (parts.length < 5) return null;
+  return { estMin: Number(parts[1]) || 0, blockId: parts[2] || '', tag: parts[3] || 'resto', type: parts[4] === 'core' ? 'core' : 'adhoc' };
+}
+function climbBlockIdF(task: any, allTasksMap: Record<string, Task>): string {
+  let t = task, guard = 0;
+  while (t && !t.blockId && t.parentTaskId && guard++ < 10) t = allTasksMap[t.parentTaskId];
+  return (t && t.blockId) || '';
+}
+// Codifica una tarea del plan en el momento de fijar (congela estimado + bloque + etiqueta + tipo).
+export function encodePlanEntry(task: any, allTasksMap: Record<string, Task>): string {
+  const blk = climbBlockIdF(task, allTasksMap);
+  const tag = (task.tags && task.tags[0]) || 'resto';
+  const type = task.taskType === 'core' ? 'core' : 'adhoc';
+  return `${task.id}::${task.estimatedMinutes || 0}::${blk}::${tag}::${type}`;
+}
+
 export interface OutOfPlanRow { id: string; title: string; minutes: number; }
 export interface OutOfPlanGroup { containerId: string | null; title: string; isContainer: boolean; rows: OutOfPlanRow[]; minutes: number; }
 export function getOutOfPlanBreakdown(
@@ -715,7 +744,7 @@ export function getOutOfPlanBreakdown(
   allTasksMap: Record<string, Task>,
   activeDate: string
 ): { total: number; groups: OutOfPlanGroup[] } {
-  const planSet = new Set((planTaskIds || []).map(resolveInstId));
+  const planSet = new Set((planTaskIds || []).map(e => resolveInstId(planEntryId(e)))); // §16.106: entradas codificadas
   // minutos por tarea concreta (subtaskId o taskId), SOLO del día y SOLO fuera del plan
   const minsByTask: Record<string, number> = {};
   (timeEntries || []).forEach((e: any) => {
@@ -767,7 +796,7 @@ export function getFijadoVsHecho(
   const block: Record<string, FijadoHechoRow> = {};
   const tag: Record<string, FijadoHechoRow> = {};
   const type: Record<string, FijadoHechoRow> = {};
-  const tType = (t: any) => (t.taskType === 'core' ? 'core' : 'adhoc'); // #6: sin tipo → adhoc
+  const tType = (t: any): 'core' | 'adhoc' => (t.taskType === 'core' ? 'core' : 'adhoc'); // #6: sin tipo → adhoc
   const bumpFijado = (bk: string, tg: string, ty: string, min: number) => {
     (block[bk] ||= { key: bk, fijado: 0, hecho: 0 }).fijado += min;
     (tag[tg] ||= { key: tg, fijado: 0, hecho: 0 }).fijado += min;
@@ -778,19 +807,31 @@ export function getFijadoVsHecho(
     (tag[tg] ||= { key: tg, fijado: 0, hecho: 0 }).hecho += min;
     (type[ty] ||= { key: ty, fijado: 0, hecho: 0 }).hecho += min;
   };
-  // FIJADO: estimado de cada tarea del plan, por su bloque/etiqueta/tipo
-  (planTaskIds || []).forEach(id => {
-    const t = allTasksMap[id] || allTasksMap[resolveInstId(id)];
-    if (!t) return;
-    bumpFijado(climbBlockId(t, allTasksMap), (t.tags && t.tags[0]) || 'resto', tType(t), t.estimatedMinutes || 0);
+  // §16.106: grupo CONGELADO de cada tarea del plan (bloque/etiqueta/tipo AL FIJAR). Frozen si la foto es nueva (meta),
+  // si no, en vivo (foto antigua). Clave = id resuelto, para casar con las time_entries.
+  const planGroup: Record<string, { blockId: string; tag: string; type: 'core' | 'adhoc' }> = {};
+  (planTaskIds || []).forEach(entry => {
+    const meta = planEntryMeta(entry);
+    const rid = resolveInstId(planEntryId(entry));
+    if (meta) {
+      bumpFijado(meta.blockId, meta.tag, meta.type, meta.estMin);           // FIJADO congelado
+      planGroup[rid] = { blockId: meta.blockId, tag: meta.tag, type: meta.type };
+    } else {
+      const t = allTasksMap[planEntryId(entry)] || allTasksMap[rid];
+      if (!t) return;
+      const g = { blockId: climbBlockId(t, allTasksMap), tag: (t.tags && t.tags[0]) || 'resto', type: tType(t) };
+      bumpFijado(g.blockId, g.tag, g.type, t.estimatedMinutes || 0);
+      planGroup[rid] = g;
+    }
   });
-  // HECHO: tiempo fichado ese día, por el bloque/etiqueta/tipo de la tarea a la que apunta
+  // HECHO (§16.107, decisión #2): SOLO el tiempo de tareas DEL PLAN, agrupado por su grupo CONGELADO (así fijado y hecho
+  // caen en el mismo bloque aunque la tarea se haya movido). Lo no previsto ya tiene su línea aparte.
   (timeEntries || []).forEach((e: any) => {
     if (!e || e.date !== activeDate || !(e.duration > 0)) return;
-    const key = e.subtaskId || e.taskId;
-    const t = allTasksMap[key] || allTasksMap[resolveInstId(key)];
-    if (!t) return;
-    bumpHecho(climbBlockId(t, allTasksMap), (t.tags && t.tags[0]) || 'resto', tType(t), e.duration);
+    const rid = resolveInstId(e.subtaskId || e.taskId);
+    const g = planGroup[rid] || planGroup[resolveInstId(e.taskId)];
+    if (!g) return; // no es del plan → fuera
+    bumpHecho(g.blockId, g.tag, g.type, e.duration);
   });
   const rows = (m: Record<string, FijadoHechoRow>) =>
     Object.values(m).filter(r => r.fijado > 0 || r.hecho > 0).sort((a, b) => (b.fijado + b.hecho) - (a.fijado + a.hecho));
