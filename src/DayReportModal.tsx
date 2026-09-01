@@ -119,6 +119,8 @@ export function DayReportModal({
         planRegistered: verdict.planRegistered, outOfPlan: verdict.outOfPlan, anadido: verdict.anadido,
         hechas: verdict.hechas, total: verdict.total, hechasTrasFijar: verdict.hechasTrasFijar,
         sinHacer: pendingAtOpen, decisiones: snap?.decisiones ?? null,
+        // §16.104 (pieza 9): cerrado en DIFERIDO si el día del reporte es anterior a hoy (rescate del día anterior).
+        closedLate: activeDate < formatLocalISO(new Date()),
       };
       await onGuardar(measures, motivos, nota);
       setSaved(true);

@@ -236,6 +236,33 @@ export function DashboardView({
   const outOfPlanBreakdown = useMemo(() => getOutOfPlanBreakdown(daySnapshot?.plan_task_ids || [], timeEntries, allTasksMap, activeDate), [daySnapshot, timeEntries, allTasksMap, activeDate]);
   // §16.104 (pieza 6): FIJADO vs HECHO en tiempo, por bloque y etiqueta (necesita foto con plan).
   const reportFijadoHecho = useMemo(() => getFijadoVsHecho(daySnapshot?.plan_task_ids || [], timeEntries, allTasksMap, activeDate), [daySnapshot, timeEntries, allTasksMap, activeDate]);
+
+  // §16.104 (pieza 9): RESCATE del día anterior. Al ir a fijar, buscar el día MÁS RECIENTE < hoy con actividad (fijado o
+  // tiempo fichado) y SIN reporte, y ofrecer cerrarlo primero. Nunca más de uno; se puede saltar. closed_late lo marca el modal.
+  const [rescateDay, setRescateDay] = useState<string | null>(null);
+  const doFijar = () => {
+    const planIds = collectLeafTasks(dayTasks, allTasksMap, activeDate).map(t => t.id);
+    fijar(stats.total, stats.estimatedTotal, stats.completed, planIds).catch(() => {});
+  };
+  const findPreviousUnclosedDay = async (): Promise<string | null> => {
+    try {
+      const [{ data: reps }, { data: snaps }] = await Promise.all([
+        supabase.from('day_reports').select('date'),
+        supabase.from('day_snapshots').select('date'),
+      ]);
+      const reportSet = new Set((reps || []).map((r: any) => r.date));
+      const cand = new Set<string>();
+      (snaps || []).forEach((s: any) => { if (s.date && s.date < activeDate) cand.add(s.date); });
+      (timeEntries || []).forEach((e: any) => { if (e && e.date && e.date < activeDate) cand.add(e.date); });
+      const unclosed = [...cand].filter(d => !reportSet.has(d)).sort();
+      return unclosed.length ? unclosed[unclosed.length - 1] : null;
+    } catch { return null; }
+  };
+  const attemptFijar = async () => {
+    const prev = await findPreviousUnclosedDay();
+    if (prev) { setRescateDay(prev); return; }
+    doFijar();
+  };
   // FASE 6 (cierre del día): hojas pendientes del día para el "Repaso de lo no hecho".
   const pendingLeaves = useMemo(() => getPendingLeavesForDay(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
 
@@ -380,11 +407,7 @@ export function DashboardView({
         latest={daySnapshot}
         jornada={jornada}
         entrada={entrada}
-        onFijar={() => {
-          // §16.47: el PLAN = ids de TODAS las hojas del día ahora (pendientes + completadas); la nota mide el registrado sobre ellas.
-          const planIds = collectLeafTasks(dayTasks, allTasksMap, activeDate).map(t => t.id);
-          fijar(stats.total, stats.estimatedTotal, stats.completed, planIds).catch(() => {});
-        }}
+        onFijar={() => { attemptFijar(); }}
         onSetJornada={setJornada}
         onOpenTimeHistory={() => setShowTimeHistory(true)}
         onOpenReport={() => setShowReport(true)}
@@ -743,6 +766,29 @@ export function DashboardView({
         repasoWillCollide={repasoWillCollide}
         repasoDayLoad={repasoDayLoad}
       />
+
+      {/* §16.104 (pieza 9): RESCATE del día anterior sin cerrar — antes de fijar hoy */}
+      {rescateDay && (
+        <div className="fixed inset-0 z-[320] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setRescateDay(null)} />
+          <div className="relative dark:bg-bg-card bg-white rounded-3xl p-6 shadow-2xl border dark:border-border-main border-border-main-light w-full max-w-sm z-10">
+            <h3 className="text-base font-black dark:text-white text-text-main-light mb-1">Tienes un día sin cerrar</h3>
+            <p className="text-[12px] dark:text-text-secondary text-text-secondary-light mb-4">
+              Dejaste <span className="font-black text-turquesa">{new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric' }).format(parseLocalISO(rescateDay))}</span> sin reporte. Ciérralo antes de fijar hoy, o sáltatelo.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => { const d = rescateDay; setRescateDay(null); onSetDate(d); setShowReport(true); }}
+                className="w-full px-4 py-2.5 rounded-xl bg-turquesa text-white text-[11px] font-black uppercase tracking-widest hover:bg-turquesa/90"
+              >Cerrar el {new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric' }).format(parseLocalISO(rescateDay))}</button>
+              <button
+                onClick={() => { setRescateDay(null); doFijar(); }}
+                className="w-full px-4 py-2 rounded-xl text-[11px] font-bold text-text-secondary hover:text-text-main-light"
+              >Saltar y fijar hoy</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal historial de tiempo registrado */}
       {showTimeHistory && (
