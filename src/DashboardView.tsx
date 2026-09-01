@@ -246,14 +246,19 @@ export function DashboardView({
   };
   const findPreviousUnclosedDay = async (): Promise<string | null> => {
     try {
-      const [{ data: reps }, { data: snaps }] = await Promise.all([
+      // §16.104 (pieza 9 + ampliación): candidatos = días < hoy con actividad. Señales: fijado (day_snapshots), tiempo
+      // fichado (time_entries, en memoria) y TAREAS PLANIFICADAS (tasks.due_date pasado — se consulta porque esta vista solo
+      // tiene el mapa del día). Se ofrece el más reciente que NO tenga fila en day_reports.
+      const [{ data: reps }, { data: snaps }, { data: dued }] = await Promise.all([
         supabase.from('day_reports').select('date'),
         supabase.from('day_snapshots').select('date'),
+        supabase.from('tasks').select('due_date').eq('is_deleted', false).eq('is_template', false).lt('due_date', activeDate).not('due_date', 'is', null).order('due_date', { ascending: false }).limit(1000),
       ]);
       const reportSet = new Set((reps || []).map((r: any) => r.date));
       const cand = new Set<string>();
       (snaps || []).forEach((s: any) => { if (s.date && s.date < activeDate) cand.add(s.date); });
       (timeEntries || []).forEach((e: any) => { if (e && e.date && e.date < activeDate) cand.add(e.date); });
+      (dued || []).forEach((t: any) => { if (t.due_date && t.due_date < activeDate) cand.add(t.due_date); });
       const unclosed = [...cand].filter(d => !reportSet.has(d)).sort();
       return unclosed.length ? unclosed[unclosed.length - 1] : null;
     } catch { return null; }
