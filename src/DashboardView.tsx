@@ -15,7 +15,7 @@ import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { getTaskEstimatedCombo, formatMinutes } from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getEstimationDeviation, getPendingLeavesForDay, collectLeafTasks } from './filters';
+import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getEstimationDeviation, getOutOfPlanBreakdown, getPendingLeavesForDay, collectLeafTasks } from './filters';
 import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completado POR DÍA para el filtro "ocultar completadas"
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
@@ -232,6 +232,8 @@ export function DashboardView({
   const reportBreakdown = useMemo(() => getReportBreakdown(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
   // §16.101 ¿Estimo bien? — desviación estimado vs registrado de lo completado (no depende de la foto).
   const reportDeviation = useMemo(() => getEstimationDeviation(dayTasks, allTasksMap, timeEntries, activeDate), [dayTasks, allTasksMap, timeEntries, activeDate]);
+  // §16.104 (pieza 7): desglose del tiempo NO previsto (tareas con tiempo fuera del plan de la foto).
+  const outOfPlanBreakdown = useMemo(() => getOutOfPlanBreakdown(daySnapshot?.plan_task_ids || [], timeEntries, allTasksMap, activeDate), [daySnapshot, timeEntries, allTasksMap, activeDate]);
   // FASE 6 (cierre del día): hojas pendientes del día para el "Repaso de lo no hecho".
   const pendingLeaves = useMemo(() => getPendingLeavesForDay(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
 
@@ -725,6 +727,7 @@ export function DashboardView({
         verdict={verdict}
         breakdown={reportBreakdown}
         deviation={reportDeviation}
+        outOfPlan={outOfPlanBreakdown}
         entrada={entrada}
         blocks={blocks}
         report={dayReport}

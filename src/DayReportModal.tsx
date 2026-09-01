@@ -6,7 +6,7 @@ import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2, Chevr
 import { formatMinutes } from './utils';
 import { toast } from './toast';
 import { TAG_LABELS } from './constants';
-import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation } from './filters';
+import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup } from './filters';
 import { DayReport, MotivoKey } from './useDayReport';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { MonthDatePicker } from './TimeComponents';
@@ -46,7 +46,7 @@ const verdictColor = (key: string) =>
 type Decisiones = { manana: number; otro: number; completadas: number; eliminadas: number };
 
 export function DayReportModal({
-  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, entrada, blocks, report, onGuardar,
+  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, entrada, blocks, report, onGuardar,
   pendingTasks = [], timeEntries = [], onComplete, onDelete, onRepasoMove, repasoWillCollide, repasoDayLoad,
 }: {
   open: boolean;
@@ -55,6 +55,7 @@ export function DayReportModal({
   verdict: DayVerdict;
   breakdown: DayBreakdown;
   deviation: EstimationDeviation;
+  outOfPlan?: { total: number; groups: OutOfPlanGroup[] };
   entrada: EntradaForDay | null;
   blocks: any[];
   report: DayReport | null;
@@ -78,6 +79,7 @@ export function DayReportModal({
   const [entradaOpen, setEntradaOpen] = useState(true); // §16.104 (pieza 4): plegable
   const [hoyOpen, setHoyOpen] = useState(true);          // §16.104 (pieza 8): apartado "para hoy"
   const [otroOpen, setOtroOpen] = useState(true);        // §16.104 (pieza 8): apartado "para otro día"
+  const [outOfPlanOpen, setOutOfPlanOpen] = useState(false); // §16.104 (pieza 7): plegado por defecto
 
   // Al abrir / cambiar de día, precargar lo guardado.
   useEffect(() => {
@@ -164,7 +166,10 @@ export function DayReportModal({
                 <p className={`text-base font-black ${verdictColor(verdict.key)}`}>{verdict.label}</p>
                 <p className="text-[12px] dark:text-text-secondary text-text-secondary-light">{verdict.frase}</p>
                 {verdict.outOfPlan > 0 && (
-                  <p className="text-[12px] font-bold text-morado">dedicaste {formatMinutes(verdict.outOfPlan)} a cosas no previstas</p>
+                  <button onClick={() => setOutOfPlanOpen(o => !o)} className="flex items-center gap-1 group">
+                    {outOfPlanOpen ? <ChevronDown size={11} className="text-morado" /> : <ChevronRight size={11} className="text-morado" />}
+                    <span className="text-[12px] font-bold text-morado group-hover:underline">dedicaste {formatMinutes(verdict.outOfPlan)} a cosas no previstas</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -172,6 +177,37 @@ export function DayReportModal({
             <div>
               <p className={`text-lg font-black ${verdictColor(verdict.key)}`}>{verdict.label}</p>
               {verdict.frase && <p className="text-[12px] dark:text-text-secondary text-text-secondary-light mt-0.5">{verdict.frase}</p>}
+            </div>
+          )}
+          {/* §16.104 (pieza 7): desglose del tiempo NO previsto, plegado por defecto. Hijas agrupadas bajo su contenedor. */}
+          {verdict.outOfPlan > 0 && outOfPlanOpen && outOfPlan && (
+            <div className="mt-2 pl-3 border-l-2 border-morado/40 space-y-1.5">
+              {outOfPlan.groups.map((g, gi) => (
+                <div key={g.containerId || `oop-${gi}`}>
+                  {g.containerId ? (
+                    <>
+                      <div className="flex items-center gap-2 text-[11px]">
+                        <span className="font-bold dark:text-white text-text-main-light truncate max-w-[300px]">{g.title}</span>
+                        <span className="text-[10px] tabular-nums text-morado shrink-0 ml-auto">{formatMinutes(g.minutes)}</span>
+                      </div>
+                      <div className="pl-3 space-y-0.5 mt-0.5">
+                        {g.rows.map(r => (
+                          <div key={r.id} className="flex items-center gap-2 text-[11px]">
+                            <span className="dark:text-text-secondary text-text-secondary-light truncate max-w-[280px]">{r.title}</span>
+                            <span className="text-[10px] tabular-nums text-text-secondary shrink-0 ml-auto">{formatMinutes(r.minutes)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="dark:text-white text-text-main-light truncate max-w-[300px]">{g.title}</span>
+                      <span className="text-[10px] tabular-nums text-morado shrink-0 ml-auto">{formatMinutes(g.minutes)}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <p className="text-[9px] font-black uppercase tracking-widest text-morado/70 pt-1">Total no previsto · {formatMinutes(outOfPlan.total)}</p>
             </div>
           )}
         </div>

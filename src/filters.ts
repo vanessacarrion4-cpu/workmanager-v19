@@ -702,6 +702,51 @@ export function computeVerdict(
   return { key, label, nota, frase, hasPlan: true, planRegistered, outOfPlan, ...base };
 }
 
+// §16.104 (pieza 7): DESGLOSE del tiempo NO PREVISTO ("dedicaste 2h10m a cosas no previstas"). Lista las tareas con
+// tiempo fichado ESE DÍA que NO están en el plan de la foto, agrupando las hijas bajo su contenedor con la suma. La suma
+// total cuadra EXACTA con outOfPlan (= registrado del día − registrado en tareas del plan).
+const resolveInstId = (id: string | null | undefined): string =>
+  !id ? '' : (id.startsWith('inst-') ? id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '') : id);
+export interface OutOfPlanRow { id: string; title: string; minutes: number; }
+export interface OutOfPlanGroup { containerId: string | null; title: string; isContainer: boolean; rows: OutOfPlanRow[]; minutes: number; }
+export function getOutOfPlanBreakdown(
+  planTaskIds: string[],
+  timeEntries: any[],
+  allTasksMap: Record<string, Task>,
+  activeDate: string
+): { total: number; groups: OutOfPlanGroup[] } {
+  const planSet = new Set((planTaskIds || []).map(resolveInstId));
+  // minutos por tarea concreta (subtaskId o taskId), SOLO del día y SOLO fuera del plan
+  const minsByTask: Record<string, number> = {};
+  (timeEntries || []).forEach((e: any) => {
+    if (!e || e.date !== activeDate || !(e.duration > 0)) return;
+    const key = e.subtaskId || e.taskId;
+    if (!key) return;
+    const inPlan = planSet.has(resolveInstId(e.taskId)) || planSet.has(resolveInstId(e.subtaskId));
+    if (inPlan) return;
+    minsByTask[key] = (minsByTask[key] || 0) + e.duration;
+  });
+  // agrupar por contenedor
+  const groupsMap: Record<string, OutOfPlanGroup> = {};
+  const standalone: OutOfPlanGroup[] = [];
+  Object.entries(minsByTask).forEach(([taskId, minutes]) => {
+    const t = allTasksMap[taskId] || allTasksMap[resolveInstId(taskId)];
+    const title = t?.title || '(tarea)';
+    const parentId = t?.parentTaskId || null;
+    const row: OutOfPlanRow = { id: taskId, title, minutes };
+    if (parentId) {
+      const cont = allTasksMap[parentId];
+      const g = groupsMap[parentId] || (groupsMap[parentId] = { containerId: parentId, title: cont?.title || '(contenedor)', isContainer: true, rows: [], minutes: 0 });
+      g.rows.push(row); g.minutes += minutes;
+    } else {
+      standalone.push({ containerId: null, title, isContainer: false, rows: [row], minutes });
+    }
+  });
+  const groups = [...Object.values(groupsMap), ...standalone].sort((a, b) => b.minutes - a.minutes);
+  const total = groups.reduce((a, g) => a + g.minutes, 0);
+  return { total, groups };
+}
+
 // Desglose del REPORTE = el DÍA COMPLETO (hechas + pendientes), por tipo/bloque/etiqueta. Misma forma que el desglose de
 // la cabecera (byType/byBlock/byTag) pero sobre TODAS las hojas, no solo las pendientes (§16.42, confirmado: el reporte es
 // "cómo ha ido", no "qué queda"). Suma estimatedMinutes.

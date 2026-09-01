@@ -434,3 +434,33 @@ describe('getEntradaForDay — agrupado en dos secciones', () => {
     expect(e.otro.groups[0]).toMatchObject({ containerId: null, title: 'X', minutes: 15 });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §16.104 (pieza 7) · getOutOfPlanBreakdown — tiempo fichado FUERA del plan, agrupado por contenedor
+// ─────────────────────────────────────────────────────────────────────────────
+import { getOutOfPlanBreakdown } from './filters';
+
+describe('getOutOfPlanBreakdown — tiempo no previsto', () => {
+  const D = '2026-07-15';
+  it('excluye el tiempo del plan; agrupa hijas bajo contenedor; suma = outOfPlan', () => {
+    const ts = [
+      task({ id: 'P1', dueDate: D }),                       // en el plan
+      task({ id: 'X', dueDate: D }),                        // fuera del plan, suelta
+      task({ id: 'C', subtasks: ['a'] }),
+      task({ id: 'a', parentTaskId: 'C' }),                 // fuera del plan, hija de C
+    ];
+    const te = [
+      { taskId: 'P1', subtaskId: null, date: D, duration: 60 }, // plan → NO cuenta
+      { taskId: 'X', subtaskId: null, date: D, duration: 30 },  // fuera
+      { taskId: 'a', subtaskId: null, date: D, duration: 20 },  // fuera, hija de C
+      { taskId: 'X', subtaskId: null, date: '2026-07-14', duration: 99 }, // otro día → NO
+    ];
+    const r = getOutOfPlanBreakdown(['P1'], te, mapOf(ts), D);
+    expect(r.total).toBe(50); // 30 + 20
+    const cont = r.groups.find(g => g.containerId === 'C');
+    expect(cont?.rows).toEqual([{ id: 'a', title: 'a', minutes: 20 }]);
+    expect(cont?.minutes).toBe(20);
+    const suelta = r.groups.find(g => g.containerId === null);
+    expect(suelta?.minutes).toBe(30);
+  });
+});
