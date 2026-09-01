@@ -76,7 +76,7 @@ export function DayReportModal({
   const [saved, setSaved] = useState(false);
   // §16.104 (pieza 2): CONGELAR las medidas al ABRIR. El reporte refleja el estado ANTES de las decisiones del repaso
   // (si acabas con 29 pendientes y las mueves a mañana, el reporte dice 29, no 0). `decisiones` cuenta lo del repaso (pieza 3).
-  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; pendingAtOpen: number; decisiones: Decisiones } | null>(null);
+  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; pendingAtOpen: number; decisiones: Decisiones } | null>(null);
   const [entradaOpen, setEntradaOpen] = useState(true); // §16.104 (pieza 4): plegable
   const [hoyOpen, setHoyOpen] = useState(true);          // §16.104 (pieza 8): apartado "para hoy"
   const [otroOpen, setOtroOpen] = useState(true);        // §16.104 (pieza 8): apartado "para otro día"
@@ -92,7 +92,7 @@ export function DayReportModal({
   // Captura ÚNICA al abrir (o al cambiar de día con el modal abierto). No re-captura durante el repaso.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (open) setSnap({ verdict: verdictLive, deviation: deviationLive, breakdown: breakdownLive, pendingAtOpen: pendingTasks.length, decisiones: { manana: 0, otro: 0, completadas: 0, eliminadas: 0 } });
+    if (open) setSnap({ verdict: verdictLive, deviation: deviationLive, breakdown: breakdownLive, fijadoHecho, outOfPlan, pendingAtOpen: pendingTasks.length, decisiones: { manana: 0, otro: 0, completadas: 0, eliminadas: 0 } });
   }, [open, activeDate]);
 
   if (!open) return null;
@@ -101,6 +101,8 @@ export function DayReportModal({
   const verdict = snap?.verdict ?? verdictLive;
   const deviation = snap?.deviation ?? deviationLive;
   const breakdown = snap?.breakdown ?? breakdownLive;
+  const fh = snap?.fijadoHecho ?? fijadoHecho;
+  const oop = snap?.outOfPlan ?? outOfPlan;
   const pendingAtOpen = snap?.pendingAtOpen ?? pendingTasks.length;
 
   const blockName = (id: string) => blocks.find((b: any) => b.id === id)?.name || '—';
@@ -121,6 +123,15 @@ export function DayReportModal({
         sinHacer: pendingAtOpen, decisiones: snap?.decisiones ?? null,
         // §16.104 (pieza 9): cerrado en DIFERIDO si el día del reporte es anterior a hoy (rescate del día anterior).
         closedLate: activeDate < formatLocalISO(new Date()),
+        // §16.105 (pieza 2 del ajuste): guardar TODO el desglose del día para poder dibujar la EVOLUCIÓN semana a semana.
+        // Por tipo/bloque/etiqueta: estimado (desglose del día), fijado-vs-hecho (en tiempo), desviación (estimo bien), no previsto.
+        // NOTA: `fijadoHecho.fijado` hoy recalcula en vivo (bug diagnosticado §1.b); quedará correcto al congelar el plan al fijar.
+        desglose: {
+          estimado: { byType: breakdown.byType, byBlock: breakdown.byBlock, byTag: breakdown.byTag },
+          fijadoHecho: fh ? { byBlock: fh.byBlock, byTag: fh.byTag, totalFijado: fh.totalFijado, totalHecho: fh.totalHecho } : null,
+          desviacion: { byBlock: deviation.byBlock, byTag: deviation.byTag, estimated: deviation.estimated, registered: deviation.registered, deviation: deviation.deviation, ratioPct: deviation.ratioPct },
+          noPrevisto: oop ? { total: oop.total, groups: oop.groups } : null,
+        },
       };
       await onGuardar(measures, motivos, nota);
       setSaved(true);
