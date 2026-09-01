@@ -752,7 +752,7 @@ export function getOutOfPlanBreakdown(
 //  · HECHO  = tiempo REALMENTE fichado ese día, por bloque/etiqueta (TODO el registrado, dentro y fuera del plan — es la
 //    realidad de dónde fue tu tiempo). Compara plan contra realidad; distinto de "¿estimo bien?" (estimado vs real por tarea).
 export interface FijadoHechoRow { key: string; fijado: number; hecho: number; }
-export interface FijadoVsHecho { byBlock: FijadoHechoRow[]; byTag: FijadoHechoRow[]; totalFijado: number; totalHecho: number; }
+export interface FijadoVsHecho { byType: FijadoHechoRow[]; byBlock: FijadoHechoRow[]; byTag: FijadoHechoRow[]; totalFijado: number; totalHecho: number; }
 function climbBlockId(task: any, allTasksMap: Record<string, Task>): string {
   let t = task, guard = 0;
   while (t && !t.blockId && t.parentTaskId && guard++ < 10) t = allTasksMap[t.parentTaskId];
@@ -766,33 +766,37 @@ export function getFijadoVsHecho(
 ): FijadoVsHecho {
   const block: Record<string, FijadoHechoRow> = {};
   const tag: Record<string, FijadoHechoRow> = {};
-  const bumpFijado = (bk: string, tg: string, min: number) => {
+  const type: Record<string, FijadoHechoRow> = {};
+  const tType = (t: any) => (t.taskType === 'core' ? 'core' : 'adhoc'); // #6: sin tipo → adhoc
+  const bumpFijado = (bk: string, tg: string, ty: string, min: number) => {
     (block[bk] ||= { key: bk, fijado: 0, hecho: 0 }).fijado += min;
     (tag[tg] ||= { key: tg, fijado: 0, hecho: 0 }).fijado += min;
+    (type[ty] ||= { key: ty, fijado: 0, hecho: 0 }).fijado += min;
   };
-  const bumpHecho = (bk: string, tg: string, min: number) => {
+  const bumpHecho = (bk: string, tg: string, ty: string, min: number) => {
     (block[bk] ||= { key: bk, fijado: 0, hecho: 0 }).hecho += min;
     (tag[tg] ||= { key: tg, fijado: 0, hecho: 0 }).hecho += min;
+    (type[ty] ||= { key: ty, fijado: 0, hecho: 0 }).hecho += min;
   };
-  // FIJADO: estimado de cada tarea del plan, por su bloque/etiqueta
+  // FIJADO: estimado de cada tarea del plan, por su bloque/etiqueta/tipo
   (planTaskIds || []).forEach(id => {
     const t = allTasksMap[id] || allTasksMap[resolveInstId(id)];
     if (!t) return;
-    bumpFijado(climbBlockId(t, allTasksMap), (t.tags && t.tags[0]) || 'resto', t.estimatedMinutes || 0);
+    bumpFijado(climbBlockId(t, allTasksMap), (t.tags && t.tags[0]) || 'resto', tType(t), t.estimatedMinutes || 0);
   });
-  // HECHO: tiempo fichado ese día, por el bloque/etiqueta de la tarea a la que apunta
+  // HECHO: tiempo fichado ese día, por el bloque/etiqueta/tipo de la tarea a la que apunta
   (timeEntries || []).forEach((e: any) => {
     if (!e || e.date !== activeDate || !(e.duration > 0)) return;
     const key = e.subtaskId || e.taskId;
     const t = allTasksMap[key] || allTasksMap[resolveInstId(key)];
     if (!t) return;
-    bumpHecho(climbBlockId(t, allTasksMap), (t.tags && t.tags[0]) || 'resto', e.duration);
+    bumpHecho(climbBlockId(t, allTasksMap), (t.tags && t.tags[0]) || 'resto', tType(t), e.duration);
   });
   const rows = (m: Record<string, FijadoHechoRow>) =>
     Object.values(m).filter(r => r.fijado > 0 || r.hecho > 0).sort((a, b) => (b.fijado + b.hecho) - (a.fijado + a.hecho));
-  const byBlock = rows(block), byTag = rows(tag);
+  const byBlock = rows(block), byTag = rows(tag), byType = rows(type);
   return {
-    byBlock, byTag,
+    byType, byBlock, byTag,
     totalFijado: byBlock.reduce((a, r) => a + r.fijado, 0),
     totalHecho: byBlock.reduce((a, r) => a + r.hecho, 0),
   };

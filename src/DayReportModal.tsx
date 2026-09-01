@@ -43,7 +43,11 @@ const verdictColor = (key: string) =>
     : 'text-naranja';
 
 // §16.104 (pieza 3): resumen de decisiones del repaso, guardado junto a las medidas.
-type Decisiones = { manana: number; otro: number; completadas: number; eliminadas: number };
+// §16.105 (pieza 4): con TIEMPO por grupo (min), no solo el conteo — cuánto tiempo dejo sin decidir.
+type Decisiones = {
+  manana: number; otro: number; completadas: number; eliminadas: number;
+  mananaMin: number; otroMin: number; completadasMin: number; eliminadasMin: number;
+};
 
 export function DayReportModal({
   open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entrada, blocks, report, onGuardar,
@@ -76,7 +80,7 @@ export function DayReportModal({
   const [saved, setSaved] = useState(false);
   // §16.104 (pieza 2): CONGELAR las medidas al ABRIR. El reporte refleja el estado ANTES de las decisiones del repaso
   // (si acabas con 29 pendientes y las mueves a mañana, el reporte dice 29, no 0). `decisiones` cuenta lo del repaso (pieza 3).
-  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; pendingAtOpen: number; decisiones: Decisiones } | null>(null);
+  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; pendingAtOpen: number; pendingMinsAtOpen: number; decisiones: Decisiones } | null>(null);
   const [entradaOpen, setEntradaOpen] = useState(true); // §16.104 (pieza 4): plegable
   const [hoyOpen, setHoyOpen] = useState(true);          // §16.104 (pieza 8): apartado "para hoy"
   const [otroOpen, setOtroOpen] = useState(true);        // §16.104 (pieza 8): apartado "para otro día"
@@ -92,7 +96,12 @@ export function DayReportModal({
   // Captura ÚNICA al abrir (o al cambiar de día con el modal abierto). No re-captura durante el repaso.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (open) setSnap({ verdict: verdictLive, deviation: deviationLive, breakdown: breakdownLive, fijadoHecho, outOfPlan, pendingAtOpen: pendingTasks.length, decisiones: { manana: 0, otro: 0, completadas: 0, eliminadas: 0 } });
+    if (open) setSnap({
+      verdict: verdictLive, deviation: deviationLive, breakdown: breakdownLive, fijadoHecho, outOfPlan,
+      pendingAtOpen: pendingTasks.length,
+      pendingMinsAtOpen: pendingTasks.reduce((a: number, t: any) => a + (t.estimatedMinutes || 0), 0),
+      decisiones: { manana: 0, otro: 0, completadas: 0, eliminadas: 0, mananaMin: 0, otroMin: 0, completadasMin: 0, eliminadasMin: 0 },
+    });
   }, [open, activeDate]);
 
   if (!open) return null;
@@ -128,7 +137,7 @@ export function DayReportModal({
         // NOTA: `fijadoHecho.fijado` hoy recalcula en vivo (bug diagnosticado §1.b); quedará correcto al congelar el plan al fijar.
         desglose: {
           estimado: { byType: breakdown.byType, byBlock: breakdown.byBlock, byTag: breakdown.byTag },
-          fijadoHecho: fh ? { byBlock: fh.byBlock, byTag: fh.byTag, totalFijado: fh.totalFijado, totalHecho: fh.totalHecho } : null,
+          fijadoHecho: fh ? { byType: fh.byType, byBlock: fh.byBlock, byTag: fh.byTag, totalFijado: fh.totalFijado, totalHecho: fh.totalHecho } : null,
           desviacion: { byBlock: deviation.byBlock, byTag: deviation.byTag, estimated: deviation.estimated, registered: deviation.registered, deviation: deviation.deviation, ratioPct: deviation.ratioPct },
           noPrevisto: oop ? { total: oop.total, groups: oop.groups } : null,
         },
@@ -142,14 +151,19 @@ export function DayReportModal({
     }
   };
 
-  // §16.104 (pieza 3): contar las decisiones del repaso. 'mañana' vs 'otro día' según la fecha destino.
+  // §16.104 (pieza 3) + §16.105 (pieza 4): contar las decisiones del repaso, con TIEMPO. 'mañana' vs 'otro día' por la fecha destino.
   const tomorrow = repNextDay(activeDate);
-  const bump = (k: keyof Decisiones) => setSnap(s => (s ? { ...s, decisiones: { ...s.decisiones, [k]: s.decisiones[k] + 1 } } : s));
-  const onCompleteW = (id: string) => { bump('completadas'); onComplete?.(id); };
-  const onDeleteW = (id: string) => { bump('eliminadas'); onDelete?.(id); };
-  const onRepasoMoveW = (task: any, date: string) => { bump(date === tomorrow ? 'manana' : 'otro'); onRepasoMove?.(task, date); };
-  const dec = snap?.decisiones ?? { manana: 0, otro: 0, completadas: 0, eliminadas: 0 };
+  const minsOf = (id: string) => (pendingTasks.find((t: any) => t.id === id)?.estimatedMinutes || 0);
+  const bump = (k: 'manana' | 'otro' | 'completadas' | 'eliminadas', min: number) => setSnap(s => (s ? {
+    ...s, decisiones: { ...s.decisiones, [k]: s.decisiones[k] + 1, [`${k}Min`]: (s.decisiones as any)[`${k}Min`] + min },
+  } : s));
+  const onCompleteW = (id: string) => { bump('completadas', minsOf(id)); onComplete?.(id); };
+  const onDeleteW = (id: string) => { bump('eliminadas', minsOf(id)); onDelete?.(id); };
+  const onRepasoMoveW = (task: any, date: string) => { bump(date === tomorrow ? 'manana' : 'otro', task?.estimatedMinutes || 0); onRepasoMove?.(task, date); };
+  const dec = snap?.decisiones ?? { manana: 0, otro: 0, completadas: 0, eliminadas: 0, mananaMin: 0, otroMin: 0, completadasMin: 0, eliminadasMin: 0 };
+  const pendingMinsAtOpen = snap?.pendingMinsAtOpen ?? 0;
   const sinTocar = Math.max(0, pendingAtOpen - dec.manana - dec.otro - dec.completadas - dec.eliminadas);
+  const sinTocarMin = Math.max(0, pendingMinsAtOpen - dec.mananaMin - dec.otroMin - dec.completadasMin - dec.eliminadasMin);
 
   const fechaLarga = (() => {
     const [y, m, d] = activeDate.split('-').map(Number);
@@ -259,12 +273,12 @@ export function DayReportModal({
         {/* 2b · RESUMEN DE DECISIONES DEL REPASO (§16.104 pieza 3) — junto a las medidas, se guarda también. */}
         {pendingAtOpen > 0 && (
           <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mb-6 text-[11px] font-bold">
-            <span className="dark:text-white text-text-main-light">{pendingAtOpen} sin hacer</span>
-            {dec.manana > 0 && <span className="text-turquesa">· {dec.manana} a mañana</span>}
-            {dec.otro > 0 && <span className="text-turquesa">· {dec.otro} a otro día</span>}
-            {dec.completadas > 0 && <span className="text-verde">· {dec.completadas} completada{dec.completadas === 1 ? '' : 's'}</span>}
-            {dec.eliminadas > 0 && <span className="text-rosa">· {dec.eliminadas} eliminada{dec.eliminadas === 1 ? '' : 's'}</span>}
-            <span className="dark:text-text-secondary text-text-secondary-light">· {sinTocar} sin tocar</span>
+            <span className="dark:text-white text-text-main-light">{pendingAtOpen} sin hacer · {formatMinutes(pendingMinsAtOpen)}</span>
+            {dec.manana > 0 && <span className="text-turquesa">· {dec.manana} a mañana · {formatMinutes(dec.mananaMin)}</span>}
+            {dec.otro > 0 && <span className="text-turquesa">· {dec.otro} a otro día · {formatMinutes(dec.otroMin)}</span>}
+            {dec.completadas > 0 && <span className="text-verde">· {dec.completadas} completada{dec.completadas === 1 ? '' : 's'} · {formatMinutes(dec.completadasMin)}</span>}
+            {dec.eliminadas > 0 && <span className="text-rosa">· {dec.eliminadas} eliminada{dec.eliminadas === 1 ? '' : 's'} · {formatMinutes(dec.eliminadasMin)}</span>}
+            <span className="dark:text-text-secondary text-text-secondary-light">· {sinTocar} sin tocar · {formatMinutes(sinTocarMin)}</span>
           </div>
         )}
 
@@ -276,6 +290,15 @@ export function DayReportModal({
               <span className="text-[9px] dark:text-text-secondary text-text-secondary-light">plan contra realidad · en tiempo</span>
               <span className="text-[11px] font-bold dark:text-white text-text-main-light ml-auto tabular-nums">{formatMinutes(fijadoHecho.totalFijado)} → {formatMinutes(fijadoHecho.totalHecho)}</span>
             </div>
+            {/* §16.105 (pieza 3): Por TIPO (Core/Ad-hoc) — dice si el día se fue en puntual vs trabajo de fondo. */}
+            {fijadoHecho.byType.length > 0 && (
+              <div className="flex items-center gap-x-6 gap-y-1 flex-wrap mb-2">
+                <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por tipo</span>
+                {[...fijadoHecho.byType].sort((a, b) => (a.key === 'core' ? -1 : 1)).map(r => (
+                  <FhRow key={r.key} label={r.key === 'core' ? 'Core' : 'Ad-hoc'} color={r.key === 'core' ? CORE_HEX : ADHOC_HEX} fijado={r.fijado} hecho={r.hecho} />
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3">
               <div className="space-y-1">
                 <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por bloque</span>

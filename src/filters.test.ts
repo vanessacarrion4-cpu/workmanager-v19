@@ -474,9 +474,9 @@ describe('getFijadoVsHecho — fijado vs hecho por bloque y etiqueta', () => {
   const D = '2026-07-15';
   it('fijado del plan; hecho = todo el registrado del día (dentro y fuera del plan)', () => {
     const ts = [
-      task({ id: 'a', blockId: 'b1', tags: ['focus'], estimatedMinutes: 60 }),  // plan
-      task({ id: 'b', blockId: 'b2', tags: ['resto'], estimatedMinutes: 30 }),   // plan, no hecho
-      task({ id: 'X', blockId: 'b1', tags: ['focus'] }),                         // fuera del plan
+      task({ id: 'a', blockId: 'b1', tags: ['focus'], taskType: 'core', estimatedMinutes: 60 }), // plan, core
+      task({ id: 'b', blockId: 'b2', tags: ['resto'], estimatedMinutes: 30 }),   // plan, no hecho, adhoc
+      task({ id: 'X', blockId: 'b1', tags: ['focus'] }),                         // fuera del plan, adhoc
     ];
     const te = [
       { taskId: 'a', subtaskId: null, date: D, duration: 90 },
@@ -491,5 +491,8 @@ describe('getFijadoVsHecho — fijado vs hecho por bloque y etiqueta', () => {
     expect(b2).toMatchObject({ fijado: 30, hecho: 0 });
     const focus = r.byTag.find(x => x.key === 'focus');
     expect(focus).toMatchObject({ fijado: 60, hecho: 100 });
+    // §16.105 (pieza 3): por tipo — core = a (60→90); adhoc = b (30 fijado) + X (10 hecho)
+    expect(r.byType.find(x => x.key === 'core')).toMatchObject({ fijado: 60, hecho: 90 });
+    expect(r.byType.find(x => x.key === 'adhoc')).toMatchObject({ fijado: 30, hecho: 10 });
   });
 });
