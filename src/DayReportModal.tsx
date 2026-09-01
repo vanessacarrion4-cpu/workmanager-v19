@@ -113,6 +113,9 @@ export function DayReportModal({
   const fh = snap?.fijadoHecho ?? fijadoHecho;
   const oop = snap?.outOfPlan ?? outOfPlan;
   const pendingAtOpen = snap?.pendingAtOpen ?? pendingTasks.length;
+  // §16.107 (#3): la tarjeta "Desviación" era en realidad "añadido" (estimatedTotal−previsto), mal nombrada. Se separan:
+  //  · Desviación de tiempo = registré − fijé (lo que esperabas ver).   · Añadido durante el día = estimatedTotal − previsto.
+  const devTiempo = verdict.hasFoto && verdict.previsto != null ? verdict.registrado - verdict.previsto : null;
 
   const blockName = (id: string) => blocks.find((b: any) => b.id === id)?.name || '—';
   const blockColor = (id: string) => blocks.find((b: any) => b.id === id)?.color || '#888';
@@ -261,14 +264,23 @@ export function DayReportModal({
               <span className="text-[11px] font-bold dark:text-text-secondary text-text-secondary-light"> de {formatMinutes(verdict.previsto)}</span>
             )}
           </Medida>
-          <Medida titulo="Desviación">
-            {verdict.hasFoto && verdict.anadido != null ? (
-              <span className="tabular-nums">{verdict.anadido >= 0 ? '+' : '−'}{formatMinutes(Math.abs(verdict.anadido))}</span>
+          <Medida titulo="Desviación de tiempo">
+            {devTiempo != null ? (
+              <span className={`tabular-nums ${devTiempo <= 0 ? 'text-verde' : 'text-rosa'}`}>{devTiempo >= 0 ? '+' : '−'}{formatMinutes(Math.abs(devTiempo))}</span>
             ) : (
               <span className="dark:text-text-secondary text-text-secondary-light">—</span>
             )}
+            <span className="block text-[9px] font-bold dark:text-text-secondary text-text-secondary-light mt-0.5">registré − fijé</span>
           </Medida>
         </div>
+
+        {/* §16.107 (#3): "Añadido durante el día" = lo que ENTRÓ después de fijar (estimatedTotal − previsto). NO es desviación. */}
+        {verdict.hasFoto && verdict.anadido != null && verdict.anadido !== 0 && (
+          <p className="text-[11px] font-bold text-morado mb-6 -mt-3">
+            Añadido durante el día: {verdict.anadido >= 0 ? '+' : '−'}{formatMinutes(Math.abs(verdict.anadido))}
+            <span className="font-normal dark:text-text-secondary text-text-secondary-light"> — trabajo estimado que entró después de fijar</span>
+          </p>
+        )}
 
         {/* 2b · RESUMEN DE DECISIONES DEL REPASO (§16.104 pieza 3) — junto a las medidas, se guarda también. */}
         {pendingAtOpen > 0 && (
@@ -340,35 +352,9 @@ export function DayReportModal({
           </div>
         )}
 
-        {/* 4 · DESGLOSE DEL DÍA COMPLETO (tipo / bloque / etiqueta) */}
-        <div className="mb-6">
-          <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 mb-2">Desglose del día (estimado)</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3">
-            <div className="space-y-2">
-              <div className="flex items-center gap-4 text-[11px] font-bold flex-wrap dark:text-white text-text-main-light">
-                <span className="text-[9px] font-black uppercase tracking-widest dark:text-text-secondary text-text-secondary-light">Por tipo</span>
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CORE_HEX }} /> Core {formatMinutes(breakdown.byType.core)}</span>
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: ADHOC_HEX }} /> Ad-hoc {formatMinutes(breakdown.byType.adhoc)}</span>
-              </div>
-              {breakdown.byBlock.length > 0 && (
-                <div className="space-y-1">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por bloque</span>
-                  {breakdown.byBlock.slice(0, 10).map(b => (
-                    <BarRow key={b.blockId} label={blockName(b.blockId)} minutes={b.minutes} pct={Math.min(100, Math.round((b.minutes / (maxBlock || 1)) * 100))} color={blockColor(b.blockId)} />
-                  ))}
-                </div>
-              )}
-            </div>
-            {breakdown.byTag.length > 0 && (
-              <div className="space-y-1">
-                <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por etiqueta</span>
-                {[...breakdown.byTag].sort((a, b) => tagRank(a.tag) - tagRank(b.tag)).slice(0, 10).map(g => (
-                  <BarRow key={g.tag} label={tagLabel(g.tag)} minutes={g.minutes} pct={Math.min(100, Math.round((g.minutes / (maxTag || 1)) * 100))} color={tagHexKey(g.tag)} />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        {/* §16.107 (#4): quitado el "Desglose del día (estimado)" — era el estado del día al cierre con lo añadido dentro
+            (el 4º número que confundía). El dato SÍ se sigue guardando en measures.desglose.estimado para las gráficas de
+            evolución; solo se retira de la pantalla del reporte. Se ve en Mi Día durante la jornada si hace falta. */}
 
         {/* 4b · ¿ESTIMO BIEN? — desviación estimado vs registrado de lo COMPLETADO (§16.101). No depende de la foto. */}
         <div className="mb-6">
