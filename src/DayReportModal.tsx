@@ -6,7 +6,7 @@ import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2, Chevr
 import { formatMinutes } from './utils';
 import { toast } from './toast';
 import { TAG_LABELS } from './constants';
-import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup, FijadoVsHecho } from './filters';
+import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup, FijadoVsHecho, EntradasSalidas } from './filters';
 import { DayReport, MotivoKey } from './useDayReport';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { MonthDatePicker } from './TimeComponents';
@@ -50,7 +50,7 @@ type Decisiones = {
 };
 
 export function DayReportModal({
-  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entrada, blocks, report, onGuardar,
+  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entradasSalidas, entrada, blocks, report, onGuardar,
   pendingTasks = [], timeEntries = [], onComplete, onDelete, onRepasoMove, repasoWillCollide, repasoDayLoad,
 }: {
   open: boolean;
@@ -61,6 +61,7 @@ export function DayReportModal({
   deviation: EstimationDeviation;
   outOfPlan?: { total: number; groups: OutOfPlanGroup[] };
   fijadoHecho?: FijadoVsHecho;
+  entradasSalidas?: EntradasSalidas;
   entrada: EntradaForDay | null;
   blocks: any[];
   report: DayReport | null;
@@ -80,7 +81,10 @@ export function DayReportModal({
   const [saved, setSaved] = useState(false);
   // §16.104 (pieza 2): CONGELAR las medidas al ABRIR. El reporte refleja el estado ANTES de las decisiones del repaso
   // (si acabas con 29 pendientes y las mueves a mañana, el reporte dice 29, no 0). `decisiones` cuenta lo del repaso (pieza 3).
-  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; pendingAtOpen: number; pendingMinsAtOpen: number; decisiones: Decisiones } | null>(null);
+  // §16.108: un reporte YA GUARDADO es un DOCUMENTO HISTÓRICO — se renderiza desde lo guardado (measures.frozen), no se
+  // recalcula con el estado de hoy. `fromSaved` marca ese modo; `entradaSaved` es la entrada congelada del cierre.
+  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; entradasSalidas?: EntradasSalidas; entradaSaved?: EntradaForDay | null; pendingAtOpen: number; pendingMinsAtOpen: number; decisiones: Decisiones; fromSaved?: boolean } | null>(null);
+  const [forceLive, setForceLive] = useState(false); // §16.108: "Actualizar con hoy" fuerza recálculo en vivo de un reporte cerrado
   const [entradaOpen, setEntradaOpen] = useState(true); // §16.104 (pieza 4): plegable
   const [hoyOpen, setHoyOpen] = useState(true);          // §16.104 (pieza 8): apartado "para hoy"
   const [otroOpen, setOtroOpen] = useState(true);        // §16.104 (pieza 8): apartado "para otro día"
@@ -93,16 +97,27 @@ export function DayReportModal({
     setSaved(false);
   }, [report, activeDate, open]);
 
-  // Captura ÚNICA al abrir (o al cambiar de día con el modal abierto). No re-captura durante el repaso.
+  useEffect(() => { setForceLive(false); }, [open, activeDate]); // reset del "actualizar con hoy" al abrir/cambiar de día
+
+  // §16.108: si el día tiene reporte GUARDADO con snap congelado → renderizar ESO (documento histórico). Si no (día sin
+  // cerrar, o reporte antiguo sin `frozen`), capturar en vivo AL ABRIR (congelado antes del repaso). No re-captura en el repaso.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (open) setSnap({
-      verdict: verdictLive, deviation: deviationLive, breakdown: breakdownLive, fijadoHecho, outOfPlan,
-      pendingAtOpen: pendingTasks.length,
-      pendingMinsAtOpen: pendingTasks.reduce((a: number, t: any) => a + (t.estimatedMinutes || 0), 0),
-      decisiones: { manana: 0, otro: 0, completadas: 0, eliminadas: 0, mananaMin: 0, otroMin: 0, completadasMin: 0, eliminadasMin: 0 },
-    });
-  }, [open, activeDate]);
+    if (!open) return;
+    const f = (report?.measures as any)?.frozen;
+    if (f && !forceLive) {
+      setSnap({ ...f, fromSaved: true });
+    } else {
+      setSnap({
+        verdict: verdictLive, deviation: deviationLive, breakdown: breakdownLive, fijadoHecho, outOfPlan, entradasSalidas,
+        entradaSaved: null,
+        pendingAtOpen: pendingTasks.length,
+        pendingMinsAtOpen: pendingTasks.reduce((a: number, t: any) => a + (t.estimatedMinutes || 0), 0),
+        decisiones: { manana: 0, otro: 0, completadas: 0, eliminadas: 0, mananaMin: 0, otroMin: 0, completadasMin: 0, eliminadasMin: 0 },
+        fromSaved: false,
+      });
+    }
+  }, [open, activeDate, report, forceLive]);
 
   if (!open) return null;
 
@@ -112,6 +127,9 @@ export function DayReportModal({
   const breakdown = snap?.breakdown ?? breakdownLive;
   const fh = snap?.fijadoHecho ?? fijadoHecho;
   const oop = snap?.outOfPlan ?? outOfPlan;
+  const es = snap?.entradasSalidas ?? entradasSalidas;
+  const entradaEff = snap?.entradaSaved ?? entrada; // §16.108: entrada congelada si es documento histórico
+  const isSaved = !!snap?.fromSaved;
   const pendingAtOpen = snap?.pendingAtOpen ?? pendingTasks.length;
   // §16.107 (#3): la tarjeta "Desviación" era en realidad "añadido" (estimatedTotal−previsto), mal nombrada. Se separan:
   //  · Desviación de tiempo = registré − fijé (lo que esperabas ver).   · Añadido durante el día = estimatedTotal − previsto.
@@ -119,8 +137,6 @@ export function DayReportModal({
 
   const blockName = (id: string) => blocks.find((b: any) => b.id === id)?.name || '—';
   const blockColor = (id: string) => blocks.find((b: any) => b.id === id)?.color || '#888';
-  const maxBlock = breakdown.byBlock.length ? breakdown.byBlock[0].minutes : 1;
-  const maxTag = breakdown.byTag.length ? breakdown.byTag[0].minutes : 1;
 
   const toggleMotivo = (k: MotivoKey) => setMotivos(m => (m.includes(k) ? m.filter(x => x !== k) : [...m, k]));
 
@@ -135,6 +151,12 @@ export function DayReportModal({
         sinHacer: pendingAtOpen, decisiones: snap?.decisiones ?? null,
         // §16.104 (pieza 9): cerrado en DIFERIDO si el día del reporte es anterior a hoy (rescate del día anterior).
         closedLate: activeDate < formatLocalISO(new Date()),
+        entradasSalidas: es ?? null,
+        // §16.108: SNAP COMPLETO congelado → al reabrir, el reporte se renderiza desde aquí (documento histórico), no se recalcula.
+        frozen: {
+          verdict, deviation, breakdown, fijadoHecho: fh ?? null, outOfPlan: oop ?? null, entradasSalidas: es ?? null,
+          entrada: entradaEff ?? null, pendingAtOpen, pendingMinsAtOpen, decisiones: snap?.decisiones ?? null,
+        },
         // §16.105 (pieza 2 del ajuste): guardar TODO el desglose del día para poder dibujar la EVOLUCIÓN semana a semana.
         // Por tipo/bloque/etiqueta: estimado (desglose del día), fijado-vs-hecho (en tiempo), desviación (estimo bien), no previsto.
         // NOTA: `fijadoHecho.fijado` hoy recalcula en vivo (bug diagnosticado §1.b); quedará correcto al congelar el plan al fijar.
@@ -187,6 +209,14 @@ export function DayReportModal({
             <X size={16} />
           </button>
         </div>
+
+        {/* §16.108: aviso de documento histórico — el reporte cerrado muestra lo GUARDADO, no recalcula. */}
+        {isSaved && (
+          <div className="flex items-center gap-2 flex-wrap mb-4 px-3 py-2 rounded-xl dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light">
+            <span className="text-[10px] font-bold dark:text-text-secondary text-text-secondary-light">📄 Reporte cerrado — muestra lo que guardaste, no recalcula.</span>
+            <button onClick={() => setForceLive(true)} className="ml-auto text-[10px] font-black uppercase tracking-widest text-turquesa hover:underline">Actualizar con hoy</button>
+          </div>
+        )}
 
         {/* 1 · NOTA (grande) + ETIQUETA + FRASE + tiempo fuera de plan (§16.47) */}
         <div className="mb-5">
@@ -274,12 +304,16 @@ export function DayReportModal({
           </Medida>
         </div>
 
-        {/* §16.107 (#3): "Añadido durante el día" = lo que ENTRÓ después de fijar (estimatedTotal − previsto). NO es desviación. */}
-        {verdict.hasFoto && verdict.anadido != null && verdict.anadido !== 0 && (
-          <p className="text-[11px] font-bold text-morado mb-6 -mt-3">
-            Añadido durante el día: {verdict.anadido >= 0 ? '+' : '−'}{formatMinutes(Math.abs(verdict.anadido))}
-            <span className="font-normal dark:text-text-secondary text-text-secondary-light"> — trabajo estimado que entró después de fijar</span>
-          </p>
+        {/* §16.107 (#b): ENTRARON / SALIERON respecto al plan (sustituye el "añadido neto" que podía salir negativo). */}
+        {verdict.hasFoto && es && (es.entraron.count > 0 || es.salieron.count > 0) && (
+          <div className="flex items-center gap-x-4 gap-y-1 flex-wrap mb-6 -mt-3 text-[11px] font-bold">
+            {es.entraron.count > 0 && (
+              <span className="text-morado">Entraron {es.entraron.count} tarea{es.entraron.count === 1 ? '' : 's'} · {formatMinutes(es.entraron.mins)}<span className="font-normal dark:text-text-secondary text-text-secondary-light"> después de fijar</span></span>
+            )}
+            {es.salieron.count > 0 && (
+              <span className="text-morado">Salieron {es.salieron.count} tarea{es.salieron.count === 1 ? '' : 's'} · {formatMinutes(es.salieron.mins)}<span className="font-normal dark:text-text-secondary text-text-secondary-light"> del plan (movidas/borradas)</span></span>
+            )}
+          </div>
         )}
 
         {/* 2b · RESUMEN DE DECISIONES DEL REPASO (§16.104 pieza 3) — junto a las medidas, se guarda también. */}
@@ -329,23 +363,23 @@ export function DayReportModal({
         )}
 
         {/* 3 · ENTRADA DEL DÍA (versión de cierre: lista completa desplegada) — §16.104 (pieza 4): plegable */}
-        {entrada && entrada.total > 0 && (
+        {entradaEff && entradaEff.total > 0 && (
           <div className="mb-6">
             <button onClick={() => setEntradaOpen(o => !o)} className="flex items-center gap-1.5 mb-1.5 group">
               {entradaOpen ? <ChevronDown size={12} className="text-text-secondary/70" /> : <ChevronRight size={12} className="text-text-secondary/70" />}
               <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 group-hover:text-turquesa transition-colors">
-                Entró el {diaLargo(entrada.day)} · {entrada.total} tarea{entrada.total === 1 ? '' : 's'}
-                {entrada.forToday > 0 && entrada.later > 0 && <span className="opacity-70"> ({entrada.forToday} para hoy · {entrada.later} más adelante)</span>}
+                Entró el {diaLargo(entradaEff.day)} · {entradaEff.total} tarea{entradaEff.total === 1 ? '' : 's'}
+                {entradaEff.forToday > 0 && entradaEff.later > 0 && <span className="opacity-70"> ({entradaEff.forToday} para hoy · {entradaEff.later} más adelante)</span>}
               </span>
             </button>
             {entradaOpen && (
             <div className="space-y-3 pl-3 border-l dark:border-border-main border-border-main-light">
               {/* §16.104 (pieza 8): dos apartados — PARA HOY primero, PARA OTRO DÍA después */}
-              {entrada.hoy.count > 0 && (
-                <EntradaSectionView label="Planificadas para hoy" section={entrada.hoy} otherPhrase="para otra fecha" open={hoyOpen} onToggle={() => setHoyOpen(o => !o)} showDate={false} />
+              {entradaEff.hoy.count > 0 && (
+                <EntradaSectionView label="Planificadas para hoy" section={entradaEff.hoy} otherPhrase="para otra fecha" open={hoyOpen} onToggle={() => setHoyOpen(o => !o)} showDate={false} />
               )}
-              {entrada.otro.count > 0 && (
-                <EntradaSectionView label="Para otro día" section={entrada.otro} otherPhrase="para hoy" open={otroOpen} onToggle={() => setOtroOpen(o => !o)} showDate={true} />
+              {entradaEff.otro.count > 0 && (
+                <EntradaSectionView label="Para otro día" section={entradaEff.otro} otherPhrase="para hoy" open={otroOpen} onToggle={() => setOtroOpen(o => !o)} showDate={true} />
               )}
             </div>
             )}

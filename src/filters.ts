@@ -843,6 +843,35 @@ export function getFijadoVsHecho(
   };
 }
 
+// §16.107 (#b): ENTRARON / SALIERON respecto al plan. El "añadido neto" (estimatedTotal−previsto) podía salir negativo y no
+// significaba nada claro. Se parte en dos: lo que ENTRÓ al día después de fijar (hojas de hoy que no estaban en el plan) y
+// lo que SALIÓ (tareas del plan que ya no cuelgan del día: movidas o borradas). Las que salieron usan su estimado CONGELADO.
+export interface EntradasSalidas {
+  entraron: { count: number; mins: number };
+  salieron: { count: number; mins: number };
+}
+export function getEntradasSalidas(
+  planTaskIds: string[],
+  dayTasks: Task[],
+  allTasksMap: Record<string, Task>,
+  activeDate: string
+): EntradasSalidas {
+  const planIdSet = new Set((planTaskIds || []).map(planEntryId));
+  const leaves = collectLeafTasks(dayTasks, allTasksMap, activeDate);
+  const leafIdSet = new Set(leaves.map(l => l.id));
+  let entN = 0, entMin = 0;
+  leaves.forEach(l => { if (!planIdSet.has(l.id)) { entN++; entMin += l.estimatedMinutes || 0; } }); // hoja de hoy que NO estaba en el plan
+  let salN = 0, salMin = 0;
+  (planTaskIds || []).forEach(e => {
+    const id = planEntryId(e);
+    if (leafIdSet.has(id)) return; // sigue en el día
+    salN++;
+    const m = planEntryMeta(e);
+    salMin += m ? m.estMin : (allTasksMap[id]?.estimatedMinutes || 0); // estimado CONGELADO si lo hay
+  });
+  return { entraron: { count: entN, mins: entMin }, salieron: { count: salN, mins: salMin } };
+}
+
 // Desglose del REPORTE = el DÍA COMPLETO (hechas + pendientes), por tipo/bloque/etiqueta. Misma forma que el desglose de
 // la cabecera (byType/byBlock/byTag) pero sobre TODAS las hojas, no solo las pendientes (§16.42, confirmado: el reporte es
 // "cómo ha ido", no "qué queda"). Suma estimatedMinutes.

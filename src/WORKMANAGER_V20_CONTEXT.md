@@ -6068,3 +6068,13 @@ El reporte del 1/09 mostraba varias cifras de "previsto" mezcladas sin etiqueta:
   hoy. Reabrir+guardar recalcula → puede sobrescribir un reporte correcto con datos de otro día. Por eso NO reabrir el 1/09. Fix futuro.
 - **REGLA (§16.107, anotada en memoria):** cada cifra del reporte dice CONTRA QUÉ compara en pantalla; lo del plan congelado se
   lee de la foto y no se recalcula; el estado actual se etiqueta como tal.
+
+## 16.108 REPORTE = DOCUMENTO HISTÓRICO (sesión 27)
+- **#b entraron/salieron**: el "Añadido durante el día" era `estimatedTotal−previsto` (neto, podía salir NEGATIVO = no era añadido).
+  Sustituido por dos cifras direccionales: ENTRARON (hojas de hoy fuera del plan, tras fijar) y SALIERON (plan que ya no cuelga
+  del día: movidas/borradas, con estimado CONGELADO). `getEntradasSalidas`.
+- **Reporte cerrado = documento histórico**: al guardar, `measures.frozen` guarda el SNAP COMPLETO (verdict, deviation, breakdown,
+  fijadoHecho, outOfPlan, entradasSalidas, entrada, decisiones, pendientes). Al reabrir un día CON reporte guardado → se renderiza
+  desde `frozen`, NO se recalcula (banner "📄 Reporte cerrado"). Botón "Actualizar con hoy" (`forceLive`) para re-calcular a
+  propósito. Reportes ANTIGUOS sin `frozen` (p.ej. 1/09) caen al cálculo en vivo (legacy) — reabrir para VER no toca lo guardado;
+  solo pulsar Guardar sobrescribiría. Desde la próxima fijación+cierre, todo queda congelado y reabrir es seguro.

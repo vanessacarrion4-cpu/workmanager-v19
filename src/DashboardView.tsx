@@ -15,7 +15,7 @@ import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { getTaskEstimatedCombo, formatMinutes } from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getEstimationDeviation, getOutOfPlanBreakdown, getFijadoVsHecho, getPendingLeavesForDay, collectLeafTasks, encodePlanEntry, planEntryId } from './filters';
+import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getEstimationDeviation, getOutOfPlanBreakdown, getFijadoVsHecho, getEntradasSalidas, getPendingLeavesForDay, collectLeafTasks, encodePlanEntry, planEntryId } from './filters';
 import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completado POR DÍA para el filtro "ocultar completadas"
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
@@ -236,6 +236,8 @@ export function DashboardView({
   const outOfPlanBreakdown = useMemo(() => getOutOfPlanBreakdown(daySnapshot?.plan_task_ids || [], timeEntries, allTasksMap, activeDate), [daySnapshot, timeEntries, allTasksMap, activeDate]);
   // §16.104 (pieza 6): FIJADO vs HECHO en tiempo, por bloque y etiqueta (necesita foto con plan).
   const reportFijadoHecho = useMemo(() => getFijadoVsHecho(daySnapshot?.plan_task_ids || [], timeEntries, allTasksMap, activeDate), [daySnapshot, timeEntries, allTasksMap, activeDate]);
+  // §16.107 (#b): entraron/salieron respecto al plan (reemplaza el "añadido neto").
+  const reportEntradasSalidas = useMemo(() => getEntradasSalidas(daySnapshot?.plan_task_ids || [], dayTasks, allTasksMap, activeDate), [daySnapshot, dayTasks, allTasksMap, activeDate]);
 
   // §16.104 (pieza 9): RESCATE del día anterior. Al ir a fijar, buscar el día MÁS RECIENTE < hoy con actividad (fijado o
   // tiempo fichado) y SIN reporte, y ofrecer cerrarlo primero. Nunca más de uno; se puede saltar. closed_late lo marca el modal.
@@ -760,6 +762,7 @@ export function DashboardView({
         deviation={reportDeviation}
         outOfPlan={outOfPlanBreakdown}
         fijadoHecho={reportFijadoHecho}
+        entradasSalidas={reportEntradasSalidas}
         entrada={entrada}
         blocks={blocks}
         report={dayReport}

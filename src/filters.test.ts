@@ -505,3 +505,23 @@ describe('getFijadoVsHecho — fijado vs hecho por bloque y etiqueta', () => {
     expect(r.byBlock.find(x => x.key === 'b2')).toBeUndefined();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §16.107 (#b) · getEntradasSalidas — entraron/salieron respecto al plan congelado
+// ─────────────────────────────────────────────────────────────────────────────
+import { getEntradasSalidas } from './filters';
+
+describe('getEntradasSalidas', () => {
+  const D = '2026-07-15';
+  it('entraron = hojas de hoy fuera del plan; salieron = plan que ya no cuelga del día (estimado congelado)', () => {
+    // Plan congelado: a (60) y b (30). Hoy 'a' sigue, 'b' salió (movida), y entró 'X' (20).
+    const plan = ['a::60::b1::focus::core', 'b::30::b2::resto::adhoc'];
+    const ts = [
+      task({ id: 'a', dueDate: D, estimatedMinutes: 60 }),
+      task({ id: 'X', dueDate: D, estimatedMinutes: 20 }), // nueva, no estaba en el plan
+    ];
+    const r = getEntradasSalidas(plan, ts, mapOf(ts), D);
+    expect(r.entraron).toEqual({ count: 1, mins: 20 }); // X
+    expect(r.salieron).toEqual({ count: 1, mins: 30 }); // b, con su estimado CONGELADO (30)
+  });
+});
