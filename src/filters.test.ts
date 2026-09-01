@@ -396,3 +396,41 @@ describe('getEstimationDeviation — desviación estimado vs registrado', () => 
     expect(dev.sinTiempo).toEqual({ count: 0, estimated: 0 });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §16.104 (pieza 8) · getEntradaForDay — dos secciones + hijas agrupadas bajo su contenedor
+// ─────────────────────────────────────────────────────────────────────────────
+import { getEntradaForDay } from './filters';
+
+describe('getEntradaForDay — agrupado en dos secciones', () => {
+  const D = '2026-07-15';
+  const born = { createdAt: `${D}T10:00:00` };
+  it('contenedor con hijas en las dos secciones aparece en ambas con su nota', () => {
+    const ts = [
+      task({ id: 'C', subtasks: ['a', 'b'], ...born }),
+      task({ id: 'a', parentTaskId: 'C', dueDate: D, estimatedMinutes: 10, ...born }),        // hoy
+      task({ id: 'b', parentTaskId: 'C', dueDate: '2026-07-20', estimatedMinutes: 5, ...born }), // otro
+      task({ id: 'S', dueDate: D, estimatedMinutes: 30, ...born }),                            // suelta, hoy
+    ];
+    const e = getEntradaForDay(D, mapOf(ts));
+    // sección HOY: la suelta S + el contenedor C con hija a (y nota: 1 en la otra)
+    expect(e.hoy.count).toBe(2);
+    expect(e.hoy.minutes).toBe(40);
+    const cHoy = e.hoy.groups.find(g => g.containerId === 'C');
+    expect(cHoy?.rows.map(r => r.id)).toEqual(['a']);
+    expect(cHoy?.otherCount).toBe(1);
+    // sección OTRO: el contenedor C con hija b (nota: 1 para hoy)
+    expect(e.otro.count).toBe(1);
+    const cOtro = e.otro.groups.find(g => g.containerId === 'C');
+    expect(cOtro?.rows.map(r => r.id)).toEqual(['b']);
+    expect(cOtro?.otherCount).toBe(1);
+  });
+
+  it('tarea suelta va en su sección, sin contenedor', () => {
+    const ts = [task({ id: 'X', dueDate: '2026-07-20', estimatedMinutes: 15, ...born })];
+    const e = getEntradaForDay(D, mapOf(ts));
+    expect(e.hoy.count).toBe(0);
+    expect(e.otro.count).toBe(1);
+    expect(e.otro.groups[0]).toMatchObject({ containerId: null, title: 'X', minutes: 15 });
+  });
+});

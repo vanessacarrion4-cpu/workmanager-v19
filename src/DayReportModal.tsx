@@ -6,7 +6,7 @@ import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2, Chevr
 import { formatMinutes } from './utils';
 import { toast } from './toast';
 import { TAG_LABELS } from './constants';
-import { DayVerdict, DayBreakdown, EntradaForDay, EstimationDeviation } from './filters';
+import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation } from './filters';
 import { DayReport, MotivoKey } from './useDayReport';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { MonthDatePicker } from './TimeComponents';
@@ -76,6 +76,8 @@ export function DayReportModal({
   // (si acabas con 29 pendientes y las mueves a mañana, el reporte dice 29, no 0). `decisiones` cuenta lo del repaso (pieza 3).
   const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; pendingAtOpen: number; decisiones: Decisiones } | null>(null);
   const [entradaOpen, setEntradaOpen] = useState(true); // §16.104 (pieza 4): plegable
+  const [hoyOpen, setHoyOpen] = useState(true);          // §16.104 (pieza 8): apartado "para hoy"
+  const [otroOpen, setOtroOpen] = useState(true);        // §16.104 (pieza 8): apartado "para otro día"
 
   // Al abrir / cambiar de día, precargar lo guardado.
   useEffect(() => {
@@ -227,19 +229,14 @@ export function DayReportModal({
               </span>
             </button>
             {entradaOpen && (
-            <div className="space-y-1 pl-3 border-l dark:border-border-main border-border-main-light">
-              {entrada.items.map(it => (
-                <div key={it.id} className="flex items-center gap-2 text-[11px]">
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${it.taskType === 'adhoc' ? 'bg-rosa' : 'bg-turquesa'}`} />
-                  <span className="dark:text-white text-text-main-light truncate max-w-[380px]">{it.title || '(sin título)'}</span>
-                  <span className={`text-[9px] font-black uppercase tracking-wider shrink-0 ${it.forToday ? 'text-verde' : 'dark:text-text-secondary text-text-secondary-light'}`}>
-                    {it.forToday ? 'para hoy' : (it.dueDate ? diaLargo(it.dueDate) : 'sin fecha')}
-                  </span>
-                  {it.estimatedMinutes > 0 && (
-                    <span className="text-[10px] tabular-nums dark:text-text-secondary text-text-secondary-light shrink-0">{formatMinutes(it.estimatedMinutes)}</span>
-                  )}
-                </div>
-              ))}
+            <div className="space-y-3 pl-3 border-l dark:border-border-main border-border-main-light">
+              {/* §16.104 (pieza 8): dos apartados — PARA HOY primero, PARA OTRO DÍA después */}
+              {entrada.hoy.count > 0 && (
+                <EntradaSectionView label="Planificadas para hoy" section={entrada.hoy} otherPhrase="para otra fecha" open={hoyOpen} onToggle={() => setHoyOpen(o => !o)} showDate={false} />
+              )}
+              {entrada.otro.count > 0 && (
+                <EntradaSectionView label="Para otro día" section={entrada.otro} otherPhrase="para hoy" open={otroOpen} onToggle={() => setOtroOpen(o => !o)} showDate={true} />
+              )}
             </div>
             )}
           </div>
@@ -411,6 +408,56 @@ function DevRow({ label, color, est, reg, delta }: { label: string; color?: stri
       <span className="w-24 truncate dark:text-text-secondary text-text-secondary-light">{label}</span>
       <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(est)}→{formatMinutes(reg)}</span>
       <span className={`tabular-nums ${devColor(ratio)}`}>{devDelta(delta)}</span>
+    </div>
+  );
+}
+
+// §16.104 (pieza 8): un apartado de la entrada (para hoy / para otro día), plegable, con hijas agrupadas bajo su contenedor.
+function EntradaSectionView({ label, section, otherPhrase, open, onToggle, showDate }: { label: string; section: EntradaSection; otherPhrase: string; open: boolean; onToggle: () => void; showDate: boolean }) {
+  return (
+    <div>
+      <button onClick={onToggle} className="flex items-center gap-1.5 group w-full">
+        {open ? <ChevronDown size={11} className="text-text-secondary/60" /> : <ChevronRight size={11} className="text-text-secondary/60" />}
+        <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/60 group-hover:text-turquesa transition-colors">{label}</span>
+        <span className="text-[10px] font-bold dark:text-text-secondary text-text-secondary-light">· {section.count} · {formatMinutes(section.minutes)}</span>
+      </button>
+      {open && (
+        <div className="mt-1 space-y-1.5">
+          {section.groups.map((g, gi) => (
+            <div key={g.containerId || `s-${gi}`}>
+              {g.containerId ? (
+                <>
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-turquesa" />
+                    <span className="font-bold dark:text-white text-text-main-light truncate max-w-[300px]">{g.title || '(contenedor)'}</span>
+                    {g.otherCount > 0 && <span className="text-[9px] font-bold text-text-secondary/70 shrink-0">· {g.otherCount} {otherPhrase}</span>}
+                    {g.minutes > 0 && <span className="text-[10px] tabular-nums text-text-secondary shrink-0 ml-auto">{formatMinutes(g.minutes)}</span>}
+                  </div>
+                  <div className="pl-4 space-y-0.5 mt-0.5">
+                    {g.rows.map(r => (
+                      <div key={r.id} className="flex items-center gap-2 text-[11px]">
+                        <span className={`w-1 h-1 rounded-full shrink-0 ${r.taskType === 'adhoc' ? 'bg-rosa' : 'bg-turquesa'}`} />
+                        <span className="dark:text-text-secondary text-text-secondary-light truncate max-w-[300px]">{r.title || '(sin título)'}</span>
+                        {showDate && r.dueDate && <span className="text-[9px] font-black uppercase tracking-wider text-text-secondary/60 shrink-0">{diaLargo(r.dueDate)}</span>}
+                        {r.estimatedMinutes > 0 && <span className="text-[10px] tabular-nums text-text-secondary shrink-0 ml-auto">{formatMinutes(r.estimatedMinutes)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                g.rows.map(r => (
+                  <div key={r.id} className="flex items-center gap-2 text-[11px]">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${r.taskType === 'adhoc' ? 'bg-rosa' : 'bg-turquesa'}`} />
+                    <span className="dark:text-white text-text-main-light truncate max-w-[300px]">{r.title || '(sin título)'}</span>
+                    {showDate && r.dueDate && <span className="text-[9px] font-black uppercase tracking-wider text-text-secondary/60 shrink-0">{diaLargo(r.dueDate)}</span>}
+                    {r.estimatedMinutes > 0 && <span className="text-[10px] tabular-nums text-text-secondary shrink-0 ml-auto">{formatMinutes(r.estimatedMinutes)}</span>}
+                  </div>
+                ))
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

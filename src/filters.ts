@@ -541,13 +541,27 @@ export interface EntradaItem {
   estimatedMinutes: number;
   taskType?: 'core' | 'adhoc';
   forToday: boolean; // dueDate === día visto
+  parentTaskId: string | null; // §16.104 (pieza 8): para agrupar hijas bajo su contenedor
+  isContainer: boolean;
 }
+// §16.104 (pieza 8): entrada agrupada por contenedor, en dos secciones (para hoy / para otro día).
+export interface EntradaGroup {
+  containerId: string | null;   // null = tarea suelta
+  title: string;                // título del contenedor (o de la tarea suelta)
+  isContainer: boolean;
+  rows: EntradaItem[];          // filas de ESTA sección (hijas del contenedor, o la propia tarea suelta)
+  minutes: number;              // suma estimada de rows
+  otherCount: number;           // hijas del MISMO contenedor que caen en la OTRA sección (para la nota)
+}
+export interface EntradaSection { count: number; minutes: number; groups: EntradaGroup[]; }
 export interface EntradaForDay {
   day: string;
   total: number;
   forToday: number;
   later: number;
   items: EntradaItem[]; // ordenadas: primero "para hoy", luego por hora de creación
+  hoy: EntradaSection;   // §16.104 (pieza 8): PLANIFICADAS PARA HOY
+  otro: EntradaSection;  // §16.104 (pieza 8): PARA OTRO DÍA
 }
 
 function createdLocalISO(createdAt: string): string {
@@ -574,6 +588,8 @@ export function getEntradaForDay(dayISO: string, allTasks: Record<string, Task>)
       estimatedMinutes: t.estimatedMinutes || 0,
       taskType: t.taskType,
       forToday,
+      parentTaskId: t.parentTaskId ?? null,
+      isContainer: (t.subtasks || []).length > 0,
     });
   });
   items.sort((a, b) => {
@@ -581,7 +597,34 @@ export function getEntradaForDay(dayISO: string, allTasks: Record<string, Task>)
     return String(allTasks[a.id]?.createdAt || '').localeCompare(String(allTasks[b.id]?.createdAt || ''));
   });
   const forToday = items.filter(i => i.forToday).length;
-  return { day: dayISO, total: items.length, forToday, later: items.length - forToday, items };
+
+  // §16.104 (pieza 8): agrupar por contenedor y partir en dos secciones. Una hija va bajo su contenedor; una tarea sin
+  // padre es su propio grupo. Un contenedor con hijas en las DOS secciones aparece en ambas, con la cuenta de la otra (nota).
+  const childrenOf: Record<string, EntradaItem[]> = {};
+  const roots: EntradaItem[] = [];
+  items.forEach(i => { if (i.parentTaskId) (childrenOf[i.parentTaskId] ||= []).push(i); else roots.push(i); });
+  const byId: Record<string, EntradaItem> = Object.fromEntries(items.map(i => [i.id, i]));
+  const containerIds = new Set<string>([...roots.filter(r => childrenOf[r.id]).map(r => r.id), ...Object.keys(childrenOf)]);
+  const buildSection = (wantToday: boolean): EntradaSection => {
+    const groups: EntradaGroup[] = [];
+    // tareas sueltas (sin padre y sin hijas-entrada) de esta sección
+    roots.filter(r => !childrenOf[r.id] && r.forToday === wantToday)
+      .forEach(r => groups.push({ containerId: null, title: r.title, isContainer: r.isContainer, rows: [r], minutes: r.estimatedMinutes, otherCount: 0 }));
+    // contenedores con hijas en esta sección
+    containerIds.forEach(cid => {
+      const kids = childrenOf[cid] || [];
+      const here = kids.filter(k => k.forToday === wantToday);
+      if (here.length === 0) return;
+      const there = kids.filter(k => k.forToday !== wantToday).length;
+      const title = byId[cid]?.title || (allTasks[cid]?.title as string) || '(contenedor)';
+      groups.push({ containerId: cid, title, isContainer: true, rows: here, minutes: here.reduce((a, k) => a + k.estimatedMinutes, 0), otherCount: there });
+    });
+    const count = groups.reduce((a, g) => a + g.rows.length, 0);
+    const minutes = groups.reduce((a, g) => a + g.minutes, 0);
+    return { count, minutes, groups };
+  };
+
+  return { day: dayISO, total: items.length, forToday, later: items.length - forToday, items, hoy: buildSection(true), otro: buildSection(false) };
 }
 
 // ─────────────────────────────────────────────
