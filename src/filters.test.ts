@@ -559,44 +559,52 @@ describe('§16.109 destino del plan + descomposición del desvío', () => {
   });
 
   it('getFateAccounting: la recurrente completada NO se cuenta como nueva', () => {
-    const dayTasks = [all['r1'], all['r2'], all['exA'], all['X']];
+    // §16.123: la instancia recurrente pendiente (inst-tB) la materializa el día real; aquí se añade a dayTasks (como haría el materializador).
+    const instB = task({ id: 'inst-tB-2026-07-15', templateId: 'tB', instanceDate: D, dueDate: D, estimatedMinutes: 25, status: 'pending' } as any);
+    const dayTasks = [all['r1'], all['r2'], all['exA'], all['X'], instB];
     const a = getFateAccounting(all, plan, dayTasks, D);
     expect(a).toMatchObject({ plan: 6, cumplidas: 2, pendientes: 2, movidas: 1, borradas: 1, nuevas: 1, nuevasMin: 12 });
   });
 
   it('getDayReconciliation: la secuencia CIERRA (todo estimado; registrado es otro eje)', () => {
     const te = [{ taskId: 'r1', subtaskId: null, date: D, duration: 50 }, { taskId: 'tA', subtaskId: null, date: D, duration: 40 }];
-    const r = getDayReconciliation(all, plan, [all['r1'], all['r2'], all['exA'], all['X']], te, D);
+    // §16.123: inst-tB (recurrente pendiente) materializada en el día → cuenta en "sin hacer" (misma lista que el repaso).
+    const instB = task({ id: 'inst-tB-2026-07-15', templateId: 'tB', instanceDate: D, dueDate: D, estimatedMinutes: 25, status: 'pending' } as any);
+    const r = getDayReconciliation(all, plan, [all['r1'], all['r2'], all['exA'], all['X'], instB], te, D);
     expect(r.fijado).toBe(140);
     expect(r.entraronMin).toBe(12); expect(r.entraronCount).toBe(1); // X
     expect(r.saqueMin).toBe(25); // movida 10 + borrada 15
     expect(r.diaMin).toBe(127); // 140 − 25 + 12
     expect(r.cumplidoMin).toBe(70); // r1 30 + tA 40
-    expect(r.sinHacerMin).toBe(57); // 127 − 70 = pendiente 45 + nueva pendiente 12
+    expect(r.sinHacerMin).toBe(57); // r2 20 (congelado) + inst-tB 25 (congelado) + X 12 (nueva) = 57
     expect(r.sinHacerCount).toBe(3);
+    expect(r.sinHacerTasks.map(t => t.id).sort()).toEqual(['X', 'inst-tB-2026-07-15', 'r2']); // §16.123 lista única
     expect(r.registrado).toBe(90); // eje aparte
     // la identidad cierra:
     expect(r.fijado - r.saqueMin + r.entraronMin).toBe(r.diaMin);
     expect(r.diaMin - r.cumplidoMin).toBe(r.sinHacerMin);
   });
 
-  it('getDesvioCauses: UNA tabla, peso vs sin-hacer; entraron nuevas como causa; en espera por onHold', () => {
+  it('getDesvioCauses: UNA tabla; "apareció trabajo nuevo" fusiona entraron+fuera (peso por estimado, trabajado aparte)', () => {
     const te = [{ taskId: 'r1', subtaskId: null, date: D, duration: 50 }, { taskId: 'tA', subtaskId: null, date: D, duration: 40 }];
-    const t = getDesvioCauses(all, plan, [all['r1'], all['r2'], all['exA'], all['X']], te, D, 60,
+    const instB = task({ id: 'inst-tB-2026-07-15', templateId: 'tB', instanceDate: D, dueDate: D, estimatedMinutes: 25, status: 'pending' } as any);
+    const t = getDesvioCauses(all, plan, [all['r1'], all['r2'], all['exA'], all['X'], instB], te, D, 60,
       { total: 30, groups: [{ containerId: null, title: 'G', isContainer: false, rows: [], minutes: 30 }] }, [{ label: 'Visita', minutes: 45 }]);
     expect(t.sinHacerMin).toBe(57);
     const m = Object.fromEntries(t.causas.map(c => [c.key, c.mins]));
-    expect(m['entraron']).toBe(12);   // la nueva
+    // §16.125: "apareció trabajo nuevo" pesa por ESTIMADO (12, la nueva X); ya NO existe fila "fuera" aparte.
+    expect(m['aparecio']).toBe(12);
+    expect(m['fuera']).toBeUndefined();
     expect(m['sobreplan']).toBe(80);  // 140 − 60
     expect(m['tardeMas']).toBe(20);   // r1: 50 − 30
-    expect(m['fuera']).toBe(30);
     expect(m['espera']).toBe(20);     // r2 onHold
     expect(m['ext-0']).toBe(45);      // Visita
-    // §16.112: dos columnas. IMPACTO vs sin-hacer (puede pasar del 100%: sobreplan 80/57 = 140%);
-    // PESO RELATIVO vs suma de causas (207) → sobreplan 80/207 = 39%. Ordenadas por peso relativo.
+    // el tiempo REALMENTE trabajado en lo aparecido va aparte (no suma al peso): "de eso trabajé 30"
+    expect(t.causas.find(c => c.key === 'aparecio')!.worked).toBe(30);
+    // §16.112: IMPACTO vs sin-hacer (sobreplan 80/57 = 140%); PESO REL vs suma de causas (177) → sobreplan 80/177 = 45%.
     expect(t.causas[0].key).toBe('sobreplan');
-    expect(t.totalCausasMin).toBe(207); // 12+80+20+30+20+45
+    expect(t.totalCausasMin).toBe(177); // 12+80+20+20+45 (sin la fila "fuera")
     expect(t.causas.find(c => c.key === 'sobreplan')!.impacto).toBe(140);
-    expect(t.causas.find(c => c.key === 'sobreplan')!.pesoRel).toBe(39);
+    expect(t.causas.find(c => c.key === 'sobreplan')!.pesoRel).toBe(45);
   });
 });

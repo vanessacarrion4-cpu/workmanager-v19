@@ -17,7 +17,7 @@
 import { Task } from './types';
 import { isTaskCompleted, isExpiredTemplate, formatMinutes, getTaskRegisteredSelf } from './utils';
 import { belongsToDay, materializeDay } from './instanceEngine'; // FASE 3: única definición de "pertenece a un día"
-import { reconcileDay } from './fase3Contracts'; // §16.98 CÁLCULO CANÓNICO: única fuente del día (reconcileDay = materializeDay + overlay)
+import { reconcileDay, isCompletedForDay } from './fase3Contracts'; // §16.98 CÁLCULO CANÓNICO: única fuente del día (reconcileDay = materializeDay + overlay); §16.123 isCompletedForDay = completado día-scoped (mismo criterio que "N de M" de la cabecera)
 
 // ─────────────────────────────────────────────
 // TIPOS
@@ -377,7 +377,17 @@ export function getPendingLeavesForDay(
   activeDate: string,
   opts?: { includeDelegatedNoTag?: boolean }
 ): Task[] {
-  return collectLeafTasks(dayTasks, allTasksMap, activeDate, opts).filter(t => !isTaskCompleted(t.id, allTasksMap));
+  // §16.123: completado DÍA-SCOPED (isCompletedForDay), no isTaskCompleted global — una recurrente completada HOY se detecta
+  // por su fecha, no por el status de una fila que puede estar desalineada. Evita que salgan como "pendientes" tareas ya hechas.
+  return collectLeafTasks(dayTasks, allTasksMap, activeDate, opts).filter(t => !isCompletedForDay(t.id, allTasksMap, activeDate));
+}
+
+// §16.123: conjunto de ids (crudos + resueltos) de las hojas PENDIENTES de hoy — la VERDAD de "qué queda", tal como se ve en
+// pantalla (día materializado). getPlanFates lo usa para clasificar 'pendiente' sin adivinar desde filas obsoletas/borradas.
+function pendingLeafIdSet(dayTasks: Task[], allTasksMap: Record<string, Task>, date: string): Set<string> {
+  const s = new Set<string>();
+  getPendingLeavesForDay(dayTasks, allTasksMap, date, { includeDelegatedNoTag: true }).forEach(l => { s.add(l.id); s.add(resolveInstId(l.id)); });
+  return s;
 }
 
 // FASE 6 (cierre del día): carga PENDIENTE estimada de un día CUALQUIERA (para el impacto de "pasar a otro día" — ver lo que
@@ -911,7 +921,12 @@ export function getReportBreakdown(
 // lo que le PASÓ a cada tarea, mirando la excepción recurrente por templateId+instanceDate (no por id). Necesita el mapa COMPLETO.
 export type PlanFateKind = 'cumplida' | 'pendiente' | 'movida' | 'borrada';
 export interface PlanFate { id: string; estMin: number; blockId: string; tag: string; type: 'core' | 'adhoc'; kind: PlanFateKind; onHold: boolean; rolledOverCount: number; title: string; }
-export function getPlanFates(allTasks: Record<string, Task>, planTaskIds: string[], date: string): PlanFate[] {
+// §16.123 · CLASIFICACIÓN por el DÍA MATERIALIZADO (lo que se ve en pantalla), no adivinando desde filas de la BD. Motivo:
+// hay filas obsoletas/borradas duplicadas y `instance_date` desalineados, así que ni el id directo ni el índice plantilla+fecha
+// bastan por sí solos (el id-directo marcaba 'cumplida' 3 recurrentes hechas —bien— pero 'borrada' otra que seguía pendiente —mal—).
+// Verdad única: cumplida = isCompletedForDay (mismo criterio que "N de M" de la cabecera); pendiente = está en las hojas
+// pendientes de HOY (`pendingLeafIds`); si no → salió del día (borrada si no queda fila viva, movida si tiene otra fecha).
+export function getPlanFates(allTasks: Record<string, Task>, planTaskIds: string[], date: string, pendingLeafIds?: Set<string>): PlanFate[] {
   const excByKey: Record<string, any> = {};
   Object.values(allTasks).forEach((t: any) => { if (t && t.templateId && t.instanceDate) excByKey[`${t.templateId}__${t.instanceDate}`] = t; });
   return (planTaskIds || []).map(entry => {
@@ -919,17 +934,27 @@ export function getPlanFates(allTasks: Record<string, Task>, planTaskIds: string
     const meta = planEntryMeta(entry) || { estMin: 0, blockId: '', tag: 'resto', type: 'adhoc' as const };
     const isInst = id.startsWith('inst-');
     const tid = isInst ? id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '') : '';
-    const cur: any = isInst ? (excByKey[`${tid}__${date}`] || null) : (allTasks[id] || null);
-    let kind: PlanFateKind; let onHold = false; let roll = 0; let title = '';
-    if (!cur) {
-      kind = isInst ? 'pendiente' : 'borrada'; // recurrente sin excepción → sigue pendiente; real sin fila → desaparecida
-      if (isInst) { const tpl: any = allTasks[tid]; onHold = !!tpl?.onHold; title = tpl?.title || ''; }
+    const rid = resolveInstId(id);
+    // fila REPRESENTATIVA (solo para título/onHold/roll): preferir viva sobre borrada, id exacto sobre índice plantilla+fecha.
+    const rowExact: any = allTasks[id] || null;
+    const rowExc: any = isInst ? (excByKey[`${tid}__${date}`] || null) : null;
+    const row: any = (rowExact && !rowExact.isDeleted ? rowExact : null) || (rowExc && !rowExc.isDeleted ? rowExc : null) || rowExact || rowExc || (isInst ? allTasks[tid] : null) || null;
+    const title = row?.title || '';
+    const roll = row?.rolledOverCount || row?.rolled_over_count || 0;
+    let kind: PlanFateKind; let onHold = false;
+    const completed = isCompletedForDay(id, allTasks, date) || (!!row && !row.isDeleted && isCompletedForDay(row.id, allTasks, date));
+    if (completed) {
+      kind = 'cumplida';
+    } else if (pendingLeafIds) {
+      if (pendingLeafIds.has(id) || pendingLeafIds.has(rid)) { kind = 'pendiente'; onHold = !!row?.onHold; }
+      else if (!row || row.isDeleted) kind = 'borrada';
+      else kind = 'movida';
     } else {
-      title = cur.title || ''; roll = cur.rolledOverCount || cur.rolled_over_count || 0;
-      if (cur.isDeleted) kind = 'borrada';
-      else if (cur.status === 'completed') kind = 'cumplida';
-      else if (cur.dueDate && cur.dueDate !== date) kind = 'movida';
-      else { kind = 'pendiente'; onHold = !!cur.onHold; }
+      // fallback legacy (sin conjunto de pendientes): criterio antiguo por fila representativa
+      if (!row) kind = isInst ? 'pendiente' : 'borrada';
+      else if (row.isDeleted) kind = 'borrada';
+      else if (row.dueDate && row.dueDate !== date) kind = 'movida';
+      else { kind = 'pendiente'; onHold = !!row.onHold; }
     }
     return { id, estMin: meta.estMin, blockId: meta.blockId, tag: meta.tag, type: meta.type, kind, onHold, rolledOverCount: roll, title };
   });
@@ -939,7 +964,7 @@ export function getPlanFates(allTasks: Record<string, Task>, planTaskIds: string
 // NO estaban en el plan; una recurrente completada NO cuenta como nueva aunque su id de excepción cambie).
 export interface FateAccounting { plan: number; cumplidas: number; pendientes: number; movidas: number; borradas: number; nuevas: number; nuevasMin: number; }
 export function getFateAccounting(allTasks: Record<string, Task>, planTaskIds: string[], dayTasks: Task[], date: string): FateAccounting {
-  const fates = getPlanFates(allTasks, planTaskIds, date);
+  const fates = getPlanFates(allTasks, planTaskIds, date, pendingLeafIdSet(dayTasks, allTasks, date)); // §16.123
   const c = (k: PlanFateKind) => fates.filter(f => f.kind === k).length;
   const planIdSet = new Set((planTaskIds || []).map(planEntryId));
   const leafFromPlan = (l: any) => planIdSet.has(l.id) || (l.templateId && l.instanceDate === date && planIdSet.has(`inst-${l.templateId}-${date}`));
@@ -971,18 +996,22 @@ export interface DayReconciliation {
   saqueDetail: { title: string; mins: number }[];
   cumplidoDetail: { title: string; mins: number }[];
   sinHacerDetail: { title: string; mins: number }[];
+  sinHacerTasks: Task[]; // §16.123: las hojas pendientes REALES (para el repaso) — misma lista que el número y el detalle
 }
 export function getDayReconciliation(
   allTasks: Record<string, Task>, planTaskIds: string[], dayTasks: Task[], timeEntries: any[], date: string
 ): DayReconciliation {
-  const fates = getPlanFates(allTasks, planTaskIds, date);
+  // §16.123: UNA sola lista de pendientes (la del repaso, día materializado) alimenta la clasificación, el número y el detalle.
+  const pendingLeaves = getPendingLeavesForDay(dayTasks, allTasks, date, { includeDelegatedNoTag: true });
+  const pendSet = new Set<string>(); pendingLeaves.forEach(l => { pendSet.add(l.id); pendSet.add(resolveInstId(l.id)); });
+  const fates = getPlanFates(allTasks, planTaskIds, date, pendSet);
   const sumEst = (k: PlanFateKind) => fates.filter(f => f.kind === k).reduce((a, f) => a + f.estMin, 0);
   const cntF = (k: PlanFateKind) => fates.filter(f => f.kind === k).length;
   const fijado = fates.reduce((a, f) => a + f.estMin, 0);
   const planIdSet = new Set((planTaskIds || []).map(planEntryId));
-  const leafFromPlan = (l: any) => planIdSet.has(l.id) || (l.templateId && l.instanceDate === date && planIdSet.has(`inst-${l.templateId}-${date}`));
+  const leafFromPlan = (l: any) => planIdSet.has(l.id) || planIdSet.has(`inst-${resolveInstId(l.id)}-${date}`) || (l.templateId && l.instanceDate === date && planIdSet.has(`inst-${l.templateId}-${date}`));
   const nuevas = collectLeafTasks(dayTasks, allTasks, date).filter(l => !leafFromPlan(l));
-  const nuevasCompl = nuevas.filter(l => isTaskCompleted(l.id, allTasks));
+  const nuevasCompl = nuevas.filter(l => isCompletedForDay(l.id, allTasks, date));
   const nuevasMin = nuevas.reduce((a, l) => a + (l.estimatedMinutes || 0), 0);
   const nuevasComplMin = nuevasCompl.reduce((a, l) => a + (l.estimatedMinutes || 0), 0);
   const saqueMin = sumEst('movida') + sumEst('borrada');
@@ -991,17 +1020,23 @@ export function getDayReconciliation(
   const registrado = (timeEntries || []).filter((e: any) => e && e.date === date).reduce((a: number, e: any) => a + (e.duration || 0), 0);
   const fd = (kind: PlanFateKind) => fates.filter(f => f.kind === kind).map(f => ({ title: f.title || '(tarea)', mins: f.estMin }));
   const nd = (ls: any[]) => ls.map(l => ({ title: l.title || '(tarea)', mins: l.estimatedMinutes || 0 }));
-  const nuevasPend = nuevas.filter(l => !isTaskCompleted(l.id, allTasks));
+  // §16.123: sinHacerTasks = las hojas pendientes REALES (para el repaso), con el estimado CONGELADO si estaban en el plan (para
+  // que el total cuadre con la secuencia); estimado vivo si son nuevas. Número, detalle y repaso salen todos de aquí → cuadran.
+  const frozenById = new Map<string, number>();
+  (planTaskIds || []).forEach(e => { const m = planEntryMeta(e); if (m) frozenById.set(resolveInstId(planEntryId(e)), m.estMin); });
+  const sinHacerTasks = pendingLeaves.map(t => { const fz = frozenById.get(resolveInstId(t.id)); return fz != null ? { ...t, estimatedMinutes: fz } : t; });
+  const sinHacerMin = sinHacerTasks.reduce((a, t) => a + (t.estimatedMinutes || 0), 0);
   return {
     fijado, entraronMin: nuevasMin, entraronCount: nuevas.length,
     saqueMin, saqueCount: cntF('movida') + cntF('borrada'),
     diaMin, cumplidoMin, cumplidoCount: cntF('cumplida') + nuevasCompl.length,
-    sinHacerMin: diaMin - cumplidoMin, sinHacerCount: cntF('pendiente') + (nuevas.length - nuevasCompl.length),
+    sinHacerMin, sinHacerCount: sinHacerTasks.length,
     registrado,
     entraronDetail: nd(nuevas),
     saqueDetail: [...fd('movida'), ...fd('borrada')].sort((a, b) => b.mins - a.mins),
     cumplidoDetail: [...fd('cumplida'), ...nd(nuevasCompl)].sort((a, b) => b.mins - a.mins),
-    sinHacerDetail: [...fd('pendiente'), ...nd(nuevasPend)].sort((a, b) => b.mins - a.mins),
+    sinHacerDetail: sinHacerTasks.map(t => ({ title: t.title || '(tarea)', mins: t.estimatedMinutes || 0 })).sort((a, b) => b.mins - a.mins),
+    sinHacerTasks,
   };
 }
 
@@ -1011,7 +1046,8 @@ export interface DesvioCausa {
   key: string; label: string; mins: number; count?: number;
   impacto: number;  // §16.112: mins / lo-que-quedó-sin-hacer (puede pasar del 100% entre todas — peso real, no tarta)
   pesoRel: number;  // §16.112: mins / suma de TODAS las causas (suma 100; comparable entre días → gráficas de evolución)
-  detail: { title: string; mins: number }[];
+  worked?: number;  // §16.125: solo "apareció trabajo nuevo" — tiempo REAL fichado en eso ("de eso trabajé X"); NO suma al peso
+  detail: { title: string; mins: number; worked?: boolean; real?: number }[];
 }
 export interface DesvioTable { sinHacerMin: number; totalCausasMin: number; jornada: number; fijado: number; sobreplan: number; causas: DesvioCausa[]; }
 export function getDesvioCauses(
@@ -1019,12 +1055,19 @@ export function getDesvioCauses(
   jornada: number, outOfPlan: { total: number; groups: OutOfPlanGroup[] }, externalCauses: { label: string; minutes: number }[] = []
 ): DesvioTable {
   const rec = getDayReconciliation(allTasks, planTaskIds, dayTasks, timeEntries, date);
-  const fates = getPlanFates(allTasks, planTaskIds, date);
+  const pendSet = pendingLeafIdSet(dayTasks, allTasks, date); // §16.123
+  const fates = getPlanFates(allTasks, planTaskIds, date, pendSet);
   const sinHacer = rec.sinHacerMin;
-  // Entraron nuevas (para hoy) — la causa más grande cuando engorda el día
+  // §16.125: "Apareció trabajo nuevo" = lo que entró hoy sin estar en el plan. UNA causa (antes "entraron" + "fuera del plan"
+  // eran dos filas del MISMO trabajo, una por estimado y otra por tiempo real → inflaba el peso). Pesa por ESTIMADO (como el
+  // resto de la tabla) y muestra aparte "de eso trabajé N" (tiempo REAL fichado). El detalle distingue lo trabajado de lo no tocado.
   const planIdSet = new Set((planTaskIds || []).map(planEntryId));
-  const leafFromPlan = (l: any) => planIdSet.has(l.id) || (l.templateId && l.instanceDate === date && planIdSet.has(`inst-${l.templateId}-${date}`));
+  const leafFromPlan = (l: any) => planIdSet.has(l.id) || planIdSet.has(`inst-${resolveInstId(l.id)}-${date}`) || (l.templateId && l.instanceDate === date && planIdSet.has(`inst-${l.templateId}-${date}`));
   const nuevas = collectLeafTasks(dayTasks, allTasks, date).filter(l => !leafFromPlan(l));
+  const aparecioDetail = nuevas.map((l: any) => {
+    const real = getTaskRegisteredSelf(l.id, timeEntries, date);
+    return { title: l.title || '(tarea)', mins: l.estimatedMinutes || 0, worked: real > 0, real };
+  }).sort((a, b) => (Number(b.worked) - Number(a.worked)) || (b.mins - a.mins)); // trabajadas primero
   // Tardé más = minutos de MÁS (registrado − estimado) en lo cumplido del plan
   const tardeMasDetail: { title: string; mins: number }[] = [];
   fates.filter(f => f.kind === 'cumplida').forEach(f => {
@@ -1035,14 +1078,12 @@ export function getDesvioCauses(
   // En espera = estimado de pendientes en on_hold
   const enEsperaFates = fates.filter(f => f.kind === 'pendiente' && f.onHold);
   const enEspera = enEsperaFates.reduce((a, f) => a + f.estMin, 0);
-  const fueraDetail = (outOfPlan?.groups || []).map(g => ({ title: g.title, mins: g.minutes }));
   const raw = [
-    { key: 'entraron', label: 'Entraron cosas nuevas', mins: rec.entraronMin, count: rec.entraronCount, detail: nuevas.map((l: any) => ({ title: l.title || '(tarea)', mins: l.estimatedMinutes || 0 })) },
-    { key: 'sobreplan', label: 'Sobreplanifiqué', mins: Math.max(0, rec.fijado - jornada), detail: [] as { title: string; mins: number }[] },
+    { key: 'aparecio', label: 'Apareció trabajo nuevo', mins: rec.entraronMin, count: rec.entraronCount, worked: outOfPlan?.total || 0, detail: aparecioDetail },
+    { key: 'sobreplan', label: 'Sobreplanifiqué', mins: Math.max(0, rec.fijado - jornada), detail: [] as { title: string; mins: number; worked?: boolean; real?: number }[] },
     { key: 'tardeMas', label: 'Tardé más de lo estimado', mins: tardeMas, detail: tardeMasDetail.sort((a, b) => b.mins - a.mins) },
-    { key: 'fuera', label: 'Fuera del plan', mins: outOfPlan?.total || 0, detail: fueraDetail },
     { key: 'espera', label: 'En espera', mins: enEspera, count: enEsperaFates.length, detail: enEsperaFates.map(f => ({ title: f.title || '(tarea)', mins: f.estMin })) },
-    ...(externalCauses || []).map((c, i) => ({ key: `ext-${i}`, label: c.label, mins: c.minutes || 0, detail: [] as { title: string; mins: number }[] })),
+    ...(externalCauses || []).map((c, i) => ({ key: `ext-${i}`, label: c.label, mins: c.minutes || 0, detail: [] as { title: string; mins: number; worked?: boolean; real?: number }[] })),
   ].filter(c => c.mins > 0);
   const totalCausas = raw.reduce((a, c) => a + c.mins, 0);
   const causas: DesvioCausa[] = raw

@@ -239,9 +239,16 @@ export function DashboardView({
   const reportFijadoHecho = useMemo(() => getFijadoVsHecho(daySnapshot?.plan_task_ids || [], timeEntries, allTasksMap, activeDate), [daySnapshot, timeEntries, allTasksMap, activeDate]);
   // §16.107 (#b): entraron/salieron respecto al plan (reemplaza el "añadido neto").
   const reportEntradasSalidas = useMemo(() => getEntradasSalidas(daySnapshot?.plan_task_ids || [], dayTasks, allTasksMap, activeDate), [daySnapshot, dayTasks, allTasksMap, activeDate]);
-  // §16.110: la SECUENCIA del día que cierra (estimado) + la TABLA de causas (peso vs sin-hacer). Usan el mapa COMPLETO.
-  const reportReconciliation = useMemo(() => getDayReconciliation(allTasksFull, daySnapshot?.plan_task_ids || [], dayTasks, timeEntries, activeDate), [allTasksFull, daySnapshot, dayTasks, timeEntries, activeDate]);
-  const reportCauses = useMemo(() => getDesvioCauses(allTasksFull, daySnapshot?.plan_task_ids || [], dayTasks, timeEntries, activeDate, jornada, outOfPlanBreakdown, []), [allTasksFull, daySnapshot, dayTasks, timeEntries, activeDate, jornada, outOfPlanBreakdown]);
+  // §16.118/§16.123: día SIN el filtro hideDelegatedNoTag → incluye las delegadas-sin-etiqueta, para que el repaso, la secuencia
+  // "sin hacer" y el número salgan del MISMO conjunto y ninguna pendiente quede invisible. Fuente única de las pendientes.
+  const dayTasksAll = useMemo(() => {
+    const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
+    return filterTasksForDay(tasks, allTasksMap, activeBlockIds, activeDate, { hideCompleted: false, hideDelegatedNoTag: false });
+  }, [tasks, activeDate, blocks, allTasksMap]);
+  // §16.110: la SECUENCIA del día que cierra (estimado) + la TABLA de causas (peso vs sin-hacer). Usan el mapa COMPLETO y el
+  // día CON delegadas (dayTasksAll) para que "sin hacer" == repaso (§16.123).
+  const reportReconciliation = useMemo(() => getDayReconciliation(allTasksFull, daySnapshot?.plan_task_ids || [], dayTasksAll, timeEntries, activeDate), [allTasksFull, daySnapshot, dayTasksAll, timeEntries, activeDate]);
+  const reportCauses = useMemo(() => getDesvioCauses(allTasksFull, daySnapshot?.plan_task_ids || [], dayTasksAll, timeEntries, activeDate, jornada, outOfPlanBreakdown, []), [allTasksFull, daySnapshot, dayTasksAll, timeEntries, activeDate, jornada, outOfPlanBreakdown]);
   // §16.114: lista de CAUSAS EXTERNAS (gestionada como los bloques, en settings JSON, sin SQL). Semilla si no existe.
   const [causasExternas, setCausasExternas] = useState<{ id: string; label: string }[]>([]);
   useEffect(() => {
@@ -294,14 +301,12 @@ export function DashboardView({
     if (prev) { setRescateDay(prev); return; }
     doFijar();
   };
-  // FASE 6 (cierre del día): hojas pendientes del día para el "Repaso de lo no hecho".
-  // §16.118 (#4): el repaso incluye las delegadas-SIN-etiqueta (para que coincida con "sin hacer" de la secuencia y NINGUNA
-  // pendiente quede invisible). Se recalcula el día SIN el filtro hideDelegatedNoTag y se recogen sus hojas.
-  const dayTasksAll = useMemo(() => {
-    const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
-    return filterTasksForDay(tasks, allTasksMap, activeBlockIds, activeDate, { hideCompleted: false, hideDelegatedNoTag: false });
-  }, [tasks, activeDate, blocks, allTasksMap]);
-  const pendingLeaves = useMemo(() => getPendingLeavesForDay(dayTasksAll, allTasksMap, activeDate, { includeDelegatedNoTag: true }), [dayTasksAll, allTasksMap, activeDate]);
+  // FASE 6 (cierre del día): §16.123 el repaso usa la MISMA lista que la secuencia "sin hacer" (rec.sinHacerTasks) → número, detalle
+  // y repaso cuadran siempre. Fallback a getPendingLeavesForDay si aún no hay reconciliación (sin foto).
+  const pendingLeaves = useMemo(
+    () => reportReconciliation?.sinHacerTasks ?? getPendingLeavesForDay(dayTasksAll, allTasksMap, activeDate, { includeDelegatedNoTag: true }),
+    [reportReconciliation, dayTasksAll, allTasksMap, activeDate]
+  );
 
   // F6-x2 (§16.33): ids seleccionables de un conjunto de entradas de grupo = contenedor + sus hijas PENDIENTES del día
   // (aunque el contenedor esté contraído; el alcance es el DÍA, no la visibilidad). Mismo criterio que toggleTaskSelection.

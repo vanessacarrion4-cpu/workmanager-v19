@@ -147,8 +147,8 @@ export function DayReportModal({
   // §16.114: fundir las causas CALCULADAS con las EXTERNAS que mete la usuaria, y recalcular impacto/peso-rel.
   const mergedCausas = (() => {
     const sinHacer = rec?.sinHacerMin || 0;
-    const base = (caus?.causas || []).map(c => ({ key: c.key, label: c.label, mins: c.mins, count: c.count as number | undefined, detail: c.detail, ext: false }));
-    const ext = extSel.filter(e => e.mins > 0).map((e, i) => ({ key: `ext-${i}`, label: e.label, mins: e.mins, count: undefined as number | undefined, detail: [] as { title: string; mins: number }[], ext: true }));
+    const base = (caus?.causas || []).map(c => ({ key: c.key, label: c.label, mins: c.mins, count: c.count as number | undefined, worked: (c as any).worked as number | undefined, detail: c.detail as { title: string; mins: number; worked?: boolean; real?: number }[], ext: false }));
+    const ext = extSel.filter(e => e.mins > 0).map((e, i) => ({ key: `ext-${i}`, label: e.label, mins: e.mins, count: undefined as number | undefined, worked: undefined as number | undefined, detail: [] as { title: string; mins: number; worked?: boolean; real?: number }[], ext: true }));
     const all = [...base, ...ext];
     const total = all.reduce((a, c) => a + c.mins, 0);
     return all.map(c => ({ ...c, impacto: sinHacer > 0 ? Math.round((c.mins / sinHacer) * 100) : 0, pesoRel: total > 0 ? Math.round((c.mins / total) * 100) : 0 }))
@@ -346,7 +346,7 @@ export function DayReportModal({
               <div className="space-y-0.5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por qué no cerró</p>
                 <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light mb-1 leading-snug">
-                  <b className="text-morado">Impacto</b>: sobre lo que quedó sin hacer (puede pasar del 100%). <b className="text-turquesa">Peso rel.</b>: sobre el total de causas (suma 100, comparable entre días). Una tarea nueva en la que fichaste tiempo cuenta en <b>Entraron</b> (por su estimado) y en <b>Fuera del plan</b> (por el tiempo fichado): son medidas distintas, no doble conteo.
+                  <b className="text-morado">Impacto</b>: sobre lo que quedó sin hacer (puede pasar del 100%). <b className="text-turquesa">Peso rel.</b>: sobre el total de causas (suma 100, comparable entre días).
                 </p>
                 {/* cabecera de columnas */}
                 <div className="flex items-center gap-2 text-[8px] font-black uppercase tracking-widest text-text-secondary/50">
@@ -365,9 +365,13 @@ export function DayReportModal({
                         onClick={() => hasDetail && setOpenCauses(prev => { const n = new Set(prev); n.has(c.key) ? n.delete(c.key) : n.add(c.key); return n; })}
                         className={`flex items-center gap-2 text-[11px] font-bold w-full text-left ${hasDetail ? 'group' : 'cursor-default'}`}
                       >
-                        <span className="flex-1 truncate dark:text-white text-text-main-light flex items-center gap-1">
-                          {hasDetail && (isOpen ? <ChevronDown size={10} className="text-text-secondary/60 shrink-0" /> : <ChevronRight size={10} className="text-text-secondary/60 shrink-0" />)}
-                          <span className={hasDetail ? 'group-hover:text-turquesa transition-colors' : ''}>{c.label}</span>
+                        <span className="flex-1 min-w-0 flex flex-col dark:text-white text-text-main-light">
+                          <span className="flex items-center gap-1 truncate">
+                            {hasDetail && (isOpen ? <ChevronDown size={10} className="text-text-secondary/60 shrink-0" /> : <ChevronRight size={10} className="text-text-secondary/60 shrink-0" />)}
+                            <span className={hasDetail ? 'group-hover:text-turquesa transition-colors truncate' : 'truncate'}>{c.label}</span>
+                          </span>
+                          {/* §16.125: "de eso trabajé N" (tiempo real fichado en lo aparecido); no suma al peso. */}
+                          {(c.worked ?? 0) > 0 && <span className="text-[9px] font-bold text-verde/80 pl-4">de eso trabajé {formatMinutes(c.worked || 0)}</span>}
                         </span>
                         <span className="w-8 text-right tabular-nums dark:text-text-secondary text-text-secondary-light">{c.count != null ? c.count : '—'}</span>
                         <span className="w-14 text-right tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(c.mins)}</span>
@@ -378,9 +382,11 @@ export function DayReportModal({
                         <div className="pl-4 py-0.5 space-y-0.5 border-l dark:border-border-main/40 border-border-main-light/40 ml-1">
                           {c.detail.map((d, di) => (
                             <div key={di} className="flex items-center gap-2 text-[10px]">
-                              {/* §16.122: tiempo pegado al título. */}
-                              <span className="truncate max-w-[70%] dark:text-text-secondary text-text-secondary-light">{d.title}</span>
-                              <span className="tabular-nums shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(d.mins)}</span>
+                              {/* §16.122/§16.125: tiempo pegado al título; en "apareció trabajo nuevo" se distingue lo trabajado (verde, tiempo real) de lo no tocado. */}
+                              <span className="truncate max-w-[62%] dark:text-text-secondary text-text-secondary-light">{d.title}</span>
+                              {d.worked
+                                ? <span className="tabular-nums shrink-0 text-verde">{formatMinutes(d.real || 0)} fichado</span>
+                                : <span className="tabular-nums shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(d.mins)}{d.worked === false ? ' · sin tocar' : ''}</span>}
                               <span className="flex-1" />
                             </div>
                           ))}
