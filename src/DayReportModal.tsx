@@ -330,8 +330,10 @@ export function DayReportModal({
                     <div className="pl-3 mt-1 space-y-0.5 border-l-2 border-turquesa/30">
                       {d.map((x, xi) => (
                         <div key={xi} className="flex items-center gap-2 text-[10px]">
-                          <span className="flex-1 truncate dark:text-text-secondary text-text-secondary-light">{x.title}</span>
-                          <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(x.mins)}</span>
+                          {/* §16.122: el tiempo pegado al título (no al borde) — se leen juntos. */}
+                          <span className="truncate max-w-[70%] dark:text-text-secondary text-text-secondary-light">{x.title}</span>
+                          <span className="tabular-nums shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(x.mins)}</span>
+                          <span className="flex-1" />
                         </div>
                       ))}
                     </div>
@@ -373,11 +375,13 @@ export function DayReportModal({
                         <span className="w-14 text-right tabular-nums text-turquesa">{c.pesoRel}%</span>
                       </button>
                       {hasDetail && isOpen && (
-                        <div className="pl-4 py-0.5 space-y-0.5">
+                        <div className="pl-4 py-0.5 space-y-0.5 border-l dark:border-border-main/40 border-border-main-light/40 ml-1">
                           {c.detail.map((d, di) => (
                             <div key={di} className="flex items-center gap-2 text-[10px]">
-                              <span className="flex-1 truncate dark:text-text-secondary text-text-secondary-light">{d.title}</span>
-                              <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(d.mins)}</span>
+                              {/* §16.122: tiempo pegado al título. */}
+                              <span className="truncate max-w-[70%] dark:text-text-secondary text-text-secondary-light">{d.title}</span>
+                              <span className="tabular-nums shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(d.mins)}</span>
+                              <span className="flex-1" />
                             </div>
                           ))}
                         </div>
@@ -578,7 +582,7 @@ export function DayReportModal({
 // §16.116 · pregunta plegable: el titular ya da la respuesta; se abre para el detalle. Cerrada por defecto.
 function Question({ title, headline, open, onToggle, children }: { title: string; headline?: React.ReactNode; open: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
-    <div className="mb-2 border-t dark:border-border-main/40 border-border-main-light/40 pt-2.5">
+    <div className="mb-4 border-t dark:border-border-main/40 border-border-main-light/40 pt-4">
       {/* §16.121: header como DIV clicable (no <button>), porque el titular puede contener botones (tramos de la secuencia) —
           botón dentro de botón es HTML inválido y truncaba el render (faltaban repaso y guardar). */}
       <div onClick={onToggle} role="button" tabIndex={0} className="flex items-start gap-2 w-full text-left group cursor-pointer">
@@ -662,19 +666,23 @@ function EntradaSectionView({ label, section, otherPhrase, open, onToggle, showD
             <div key={g.containerId || `s-${gi}`}>
               {g.containerId ? (
                 <>
+                  {/* §16.122: contenedor MÁS marcado (dot mayor + título) para que se vea de qué cuelgan las hijas. */}
                   <div className="flex items-center gap-2 text-[11px]">
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-turquesa" />
-                    <span className="font-bold dark:text-white text-text-main-light truncate max-w-[300px]">{g.title || '(contenedor)'}</span>
-                    {g.otherCount > 0 && <span className="text-[9px] font-bold text-text-secondary/70 shrink-0">· {g.otherCount} {otherPhrase}</span>}
-                    {g.minutes > 0 && <span className="text-[10px] tabular-nums text-text-secondary shrink-0 ml-auto">{formatMinutes(g.minutes)}</span>}
+                    <span className="w-2 h-2 rounded-full shrink-0 bg-turquesa" />
+                    <span className="font-bold dark:text-white text-text-main-light truncate max-w-[240px]">{g.title || '(contenedor)'}</span>
+                    {g.otherCount > 0 && <span className="text-[9px] font-bold text-text-secondary/60 shrink-0">· {g.otherCount} {otherPhrase}</span>}
+                    {g.minutes > 0 && <span className="text-[10px] tabular-nums text-text-secondary shrink-0">{formatMinutes(g.minutes)}</span>}
+                    <span className="flex-1" />
                   </div>
-                  <div className="pl-4 space-y-0.5 mt-0.5">
+                  {/* §16.122: hijas más indentadas + guía vertical → jerarquía clara. */}
+                  <div className="pl-5 ml-1 space-y-0.5 mt-0.5 border-l dark:border-border-main/40 border-border-main-light/40">
                     {g.rows.map(r => (
                       <div key={r.id} className="flex items-center gap-2 text-[11px]">
                         <span className={`w-1 h-1 rounded-full shrink-0 ${r.taskType === 'adhoc' ? 'bg-rosa' : 'bg-turquesa'}`} />
-                        <span className="dark:text-text-secondary text-text-secondary-light truncate max-w-[300px]">{r.title || '(sin título)'}</span>
-                        {showDate && r.dueDate && <span className="text-[9px] font-black uppercase tracking-wider text-text-secondary/60 shrink-0">{diaLargo(r.dueDate)}</span>}
-                        {r.estimatedMinutes > 0 && <span className="text-[10px] tabular-nums text-text-secondary shrink-0 ml-auto">{formatMinutes(r.estimatedMinutes)}</span>}
+                        <span className="dark:text-text-secondary text-text-secondary-light truncate max-w-[220px]">{r.title || '(sin título)'}</span>
+                        {r.estimatedMinutes > 0 && <span className="text-[10px] tabular-nums text-text-secondary shrink-0">{formatMinutes(r.estimatedMinutes)}</span>}
+                        {showDate && r.dueDate && <span className="text-[8px] font-bold uppercase tracking-wider text-text-secondary/45 shrink-0">{diaLargo(r.dueDate)}</span>}
+                        <span className="flex-1" />
                       </div>
                     ))}
                   </div>
@@ -683,9 +691,10 @@ function EntradaSectionView({ label, section, otherPhrase, open, onToggle, showD
                 g.rows.map(r => (
                   <div key={r.id} className="flex items-center gap-2 text-[11px]">
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${r.taskType === 'adhoc' ? 'bg-rosa' : 'bg-turquesa'}`} />
-                    <span className="dark:text-white text-text-main-light truncate max-w-[300px]">{r.title || '(sin título)'}</span>
-                    {showDate && r.dueDate && <span className="text-[9px] font-black uppercase tracking-wider text-text-secondary/60 shrink-0">{diaLargo(r.dueDate)}</span>}
-                    {r.estimatedMinutes > 0 && <span className="text-[10px] tabular-nums text-text-secondary shrink-0 ml-auto">{formatMinutes(r.estimatedMinutes)}</span>}
+                    <span className="dark:text-white text-text-main-light truncate max-w-[240px]">{r.title || '(sin título)'}</span>
+                    {r.estimatedMinutes > 0 && <span className="text-[10px] tabular-nums text-text-secondary shrink-0">{formatMinutes(r.estimatedMinutes)}</span>}
+                    {showDate && r.dueDate && <span className="text-[8px] font-bold uppercase tracking-wider text-text-secondary/45 shrink-0">{diaLargo(r.dueDate)}</span>}
+                    <span className="flex-1" />
                   </div>
                 ))
               )}
@@ -747,12 +756,13 @@ function RepasoSection({ pendingTasks, activeDate, blocks, timeEntries, onComple
             <div key={t.id} className="flex items-center gap-2 py-1 group/rep">
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tagDot(t.tags) }} />
               {isRecurrent(t) && <Repeat size={11} className="shrink-0 text-text-secondary/60" />}
+              {/* §16.122: título primero (12px); tiempo pegado; bloque/estado con menos peso visual. */}
               <span className="text-[12px] dark:text-white text-text-main-light truncate max-w-[200px]">{t.title || '(sin título)'}</span>
-              {blockName(t.blockId) && <span className="text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: blockColor(t.blockId) + '22', color: blockColor(t.blockId) }}>{blockName(t.blockId)}</span>}
               {(t.estimatedMinutes || 0) > 0 && <span className="text-[10px] tabular-nums text-text-secondary shrink-0">{formatMinutes(t.estimatedMinutes)}</span>}
+              {blockName(t.blockId) && <span className="text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0 opacity-70" style={{ backgroundColor: blockColor(t.blockId) + '18', color: blockColor(t.blockId) }}>{blockName(t.blockId)}</span>}
               {isHalfDone(t) && <span className="text-[8px] font-black uppercase tracking-wider text-azul shrink-0">a medias</span>}
-              {roll >= 3 && <span className={`text-[8px] font-black uppercase tracking-wider shrink-0 ${alert ? 'text-naranja' : 'text-text-secondary/60'}`}>↻ movida {roll} veces</span>}
-              <div className="flex items-center gap-0.5 ml-auto shrink-0 opacity-60 group-hover/rep:opacity-100 transition-opacity">
+              {roll >= 3 && <span className={`text-[8px] font-black uppercase tracking-wider shrink-0 ${alert ? 'text-naranja' : 'text-text-secondary/50'}`}>↻ movida {roll} veces</span>}
+              <div className="flex items-center gap-0.5 ml-auto shrink-0 opacity-40 group-hover/rep:opacity-100 transition-opacity">
                 <button onClick={() => onComplete?.(t.id)} title="Completar" className="p-1 rounded hover:bg-verde/10 text-verde"><CheckCircle2 size={14} /></button>
                 <button onClick={() => move(t, tomorrow)} title="Pasar a mañana" className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider text-turquesa hover:bg-turquesa/10">Mañana</button>
                 <button onClick={() => { setOtherFor(t); setOtherDate(null); }} title="Pasar a otro día" className="p-1 rounded hover:bg-turquesa/10 text-text-secondary hover:text-turquesa"><CalendarDays size={13} /></button>
