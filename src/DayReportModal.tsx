@@ -96,6 +96,7 @@ export function DayReportModal({
   const [openCauses, setOpenCauses] = useState<Set<string>>(new Set()); // §16.113: detalle desplegable por causa
   const [openSeq, setOpenSeq] = useState<string | null>(null);          // §16.113: tramo de la secuencia desplegado
   const [openQ, setOpenQ] = useState<Set<string>>(new Set());           // §16.116: preguntas plegadas (todas cerradas por defecto)
+  const [deletedRolls, setDeletedRolls] = useState<number[]>([]);       // §16.120 (#f): arrastres de las borradas en el repaso
   const toggleQ = (k: string) => setOpenQ(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const [extSel, setExtSel] = useState<{ label: string; mins: number }[]>([]); // §16.114: causas externas seleccionadas (con su tiempo)
   const [extPickLabel, setExtPickLabel] = useState('');
@@ -107,6 +108,7 @@ export function DayReportModal({
     setNota(report?.nota || '');
     setSaved(false);
     setExtSel(((report?.measures as any)?.frozen?.externalSelected) || (report?.measures as any)?.externalSelected || []); // §16.114 restaurar
+    setDeletedRolls((report?.measures as any)?.deletedRolls || []); // §16.120 restaurar
   }, [report, activeDate, open]);
 
   useEffect(() => { setForceLive(false); }, [open, activeDate]); // reset del "actualizar con hoy" al abrir/cambiar de día
@@ -179,6 +181,7 @@ export function DayReportModal({
         closedLate: activeDate < formatLocalISO(new Date()),
         entradasSalidas: es ?? null,
         externalSelected: extSel, // §16.114: causas externas seleccionadas (para la tabla y las gráficas)
+        deletedRolls, // §16.120 (#f): arrastres de las tareas borradas en el repaso
         // §16.108: SNAP COMPLETO congelado → al reabrir, el reporte se renderiza desde aquí (documento histórico), no se recalcula.
         frozen: {
           verdict, deviation, breakdown, fijadoHecho: fh ?? null, outOfPlan: oop ?? null, entradasSalidas: es ?? null,
@@ -211,7 +214,8 @@ export function DayReportModal({
     ...s, decisiones: { ...s.decisiones, [k]: s.decisiones[k] + 1, [`${k}Min`]: (s.decisiones as any)[`${k}Min`] + min },
   } : s));
   const onCompleteW = (id: string) => { bump('completadas', minsOf(id)); onComplete?.(id); };
-  const onDeleteW = (id: string) => { bump('eliminadas', minsOf(id)); onDelete?.(id); };
+  const rollOf = (id: string) => (pendingTasks.find((t: any) => t.id === id)?.rolledOverCount || 0);
+  const onDeleteW = (id: string) => { const r = rollOf(id); if (r > 0) setDeletedRolls(prev => [...prev, r]); bump('eliminadas', minsOf(id)); onDelete?.(id); };
   const onRepasoMoveW = (task: any, date: string) => { bump(date === tomorrow ? 'manana' : 'otro', task?.estimatedMinutes || 0); onRepasoMove?.(task, date); };
   const dec = snap?.decisiones ?? { manana: 0, otro: 0, completadas: 0, eliminadas: 0, mananaMin: 0, otroMin: 0, completadasMin: 0, eliminadasMin: 0 };
   const pendingMinsAtOpen = rec?.sinHacerMin ?? snap?.pendingMinsAtOpen ?? 0;
@@ -548,6 +552,12 @@ export function DayReportModal({
             <span className="dark:text-text-secondary text-text-secondary-light">· {sinTocar} sin tocar · {formatMinutes(sinTocarMin)}</span>
           </div>
         )}
+        {/* §16.120 (#f): borraste tareas que arrastrabas — más revelador que el número de borradas. */}
+        {deletedRolls.length > 0 && (
+          <p className="text-[10px] font-bold text-rosa mt-1">
+            Borraste {deletedRolls.length} que arrastrabas {deletedRolls.slice().sort((a, b) => b - a).join(' y ')} día{deletedRolls.length === 1 && deletedRolls[0] === 1 ? '' : 's'}
+          </p>
+        )}
 
         {/* GUARDAR — §16.103: al FINAL de todo, después del repaso. Cerrar el día es un solo acto. */}
         <div className="flex items-center justify-end gap-3 mt-6 pt-5 border-t dark:border-border-main border-border-main-light">
@@ -569,13 +579,15 @@ export function DayReportModal({
 function Question({ title, headline, open, onToggle, children }: { title: string; headline?: React.ReactNode; open: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
     <div className="mb-2 border-t dark:border-border-main/40 border-border-main-light/40 pt-2.5">
-      <button onClick={onToggle} className="flex items-start gap-2 w-full text-left group">
+      {/* §16.121: header como DIV clicable (no <button>), porque el titular puede contener botones (tramos de la secuencia) —
+          botón dentro de botón es HTML inválido y truncaba el render (faltaban repaso y guardar). */}
+      <div onClick={onToggle} role="button" tabIndex={0} className="flex items-start gap-2 w-full text-left group cursor-pointer">
         {open ? <ChevronDown size={13} className="mt-0.5 text-turquesa shrink-0" /> : <ChevronRight size={13} className="mt-0.5 text-text-secondary/60 shrink-0" />}
         <div className="flex-1 min-w-0">
           <p className="text-[10px] font-black uppercase tracking-widest dark:text-white text-text-main-light group-hover:text-turquesa transition-colors">{title}</p>
           {headline && <div className="text-[11px] dark:text-text-secondary text-text-secondary-light mt-0.5">{headline}</div>}
         </div>
-      </button>
+      </div>
       {open && <div className="mt-2 pl-5">{children}</div>}
     </div>
   );
@@ -585,7 +597,7 @@ function Medida({ titulo, children }: { titulo: string; children: React.ReactNod
   return (
     <div className="dark:bg-bg-main bg-gray-50 rounded-xl border dark:border-border-main border-border-main-light p-3">
       <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 mb-1">{titulo}</p>
-      <p className="text-base font-black dark:text-white text-text-main-light">{children}</p>
+      <div className="text-base font-black dark:text-white text-text-main-light">{children}</div>
     </div>
   );
 }
@@ -717,15 +729,20 @@ function RepasoSection({ pendingTasks, activeDate, blocks, timeEntries, onComple
 
   return (
     <div className="mt-6 pt-5 border-t dark:border-border-main border-border-main-light">
-      <button onClick={() => setOpenRep(o => !o)} className="flex items-center gap-1.5 mb-2.5 group">
+      <button onClick={() => setOpenRep(o => !o)} className="flex items-center gap-1.5 mb-1 group">
         {openRep ? <ChevronDown size={12} className="text-text-secondary/70" /> : <ChevronRight size={12} className="text-text-secondary/70" />}
-        <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 group-hover:text-turquesa transition-colors">Te quedan {pendingTasks.length} sin hacer</span>
+        <span className="text-[10px] font-black uppercase tracking-widest dark:text-white text-text-main-light group-hover:text-turquesa transition-colors">¿Qué hago con lo que queda? · {pendingTasks.length}</span>
       </button>
+      {/* §16.120 (#e): aviso de las muy arrastradas — decisiones que estás evitando. */}
+      {(() => { const muy = pendingTasks.filter((t: any) => (t.rolledOverCount || 0) > 5).length; return muy > 0
+        ? <p className="text-[10px] font-bold text-naranja mb-1.5">{muy} tarea{muy === 1 ? '' : 's'} llevan más de 5 arrastres — decide{muy === 1 ? '' : 'n'} ya</p>
+        : null; })()}
       {openRep && (<>
       <div className="space-y-0.5">
-        {pendingTasks.map((t: any) => {
+        {/* §16.120 (#d): las de MÁS arrastres primero (son las que hay que decidir de verdad). */}
+        {[...pendingTasks].sort((a: any, b: any) => (b.rolledOverCount || 0) - (a.rolledOverCount || 0)).map((t: any) => {
           const roll = t.rolledOverCount || 0;
-          const alert = roll >= 3; // §16.47: 3 veces movida = decisión que no se está tomando, no una tarea. Naranja.
+          const alert = roll >= 5; // §16.120: naranja a partir de la 5ª (decisión que llevas evitando)
           return (
             <div key={t.id} className="flex items-center gap-2 py-1 group/rep">
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tagDot(t.tags) }} />
@@ -734,7 +751,7 @@ function RepasoSection({ pendingTasks, activeDate, blocks, timeEntries, onComple
               {blockName(t.blockId) && <span className="text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: blockColor(t.blockId) + '22', color: blockColor(t.blockId) }}>{blockName(t.blockId)}</span>}
               {(t.estimatedMinutes || 0) > 0 && <span className="text-[10px] tabular-nums text-text-secondary shrink-0">{formatMinutes(t.estimatedMinutes)}</span>}
               {isHalfDone(t) && <span className="text-[8px] font-black uppercase tracking-wider text-azul shrink-0">a medias</span>}
-              {roll >= 2 && <span className={`text-[8px] font-black uppercase tracking-wider shrink-0 ${alert ? 'text-naranja' : 'text-text-secondary/60'}`}>↻ movida {roll} veces</span>}
+              {roll >= 3 && <span className={`text-[8px] font-black uppercase tracking-wider shrink-0 ${alert ? 'text-naranja' : 'text-text-secondary/60'}`}>↻ movida {roll} veces</span>}
               <div className="flex items-center gap-0.5 ml-auto shrink-0 opacity-60 group-hover/rep:opacity-100 transition-opacity">
                 <button onClick={() => onComplete?.(t.id)} title="Completar" className="p-1 rounded hover:bg-verde/10 text-verde"><CheckCircle2 size={14} /></button>
                 <button onClick={() => move(t, tomorrow)} title="Pasar a mañana" className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider text-turquesa hover:bg-turquesa/10">Mañana</button>

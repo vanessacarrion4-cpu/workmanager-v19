@@ -197,6 +197,7 @@ export function useTaskCRUD({
           modifiedAt: timestamp,
           completedAt: status === 'completed' ? timestamp : undefined,
           wasRecurring: status === 'completed' && isRecurring ? true : targetTask.wasRecurring,
+          rolledOverCount: status === 'completed' ? 0 : targetTask.rolledOverCount, // §16.120: completar REINICIA el contador de arrastres
         });
 
         if (isInstance && targetTask.templateId && !targetTask.templateId.startsWith('inst-')) {
@@ -286,6 +287,7 @@ export function useTaskCRUD({
           recurrence: null,
           delegation: t.delegation || null,
           was_recurring: t.wasRecurring || false,
+          rolled_over_count: t.rolledOverCount || 0, // §16.120: persistir el reinicio del contador al completar
           created_at: t.createdAt || timestamp,
           modified_at: timestamp,
         }, { onConflict: 'id' }), { verbo: 'guardar', titulo: t.title });
@@ -293,6 +295,7 @@ export function useTaskCRUD({
         persist(supabase.from('tasks').update({
           status: t.status,
           completed_at: t.completedAt || null,
+          rolled_over_count: t.rolledOverCount || 0, // §16.120: persistir el reinicio del contador al completar
           modified_at: timestamp
         }).eq('id', t.id), { verbo: 'guardar', titulo: t.title });
       }
