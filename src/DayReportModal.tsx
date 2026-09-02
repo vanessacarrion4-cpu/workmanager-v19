@@ -154,7 +154,9 @@ export function DayReportModal({
   })();
   const entradaEff = snap?.entradaSaved ?? entrada; // §16.108: entrada congelada si es documento histórico
   const isSaved = !!snap?.fromSaved;
-  const pendingAtOpen = snap?.pendingAtOpen ?? pendingTasks.length;
+  // §16.118: "en el repaso" = mismo conjunto que "sin hacer" de la secuencia (ya alineados). Cuenta y minutos salen de la
+  // contabilidad congelada (rec) para que cuadren exacto; si no hay foto, cae al recuento del repaso.
+  const pendingAtOpen = rec?.sinHacerCount ?? snap?.pendingAtOpen ?? pendingTasks.length;
   // §16.107 (#3): la tarjeta "Desviación" era en realidad "añadido" (estimatedTotal−previsto), mal nombrada. Se separan:
   //  · Desviación de tiempo = registré − fijé (lo que esperabas ver).   · Añadido durante el día = estimatedTotal − previsto.
   const devTiempo = verdict.hasFoto && verdict.previsto != null ? verdict.registrado - verdict.previsto : null;
@@ -212,7 +214,7 @@ export function DayReportModal({
   const onDeleteW = (id: string) => { bump('eliminadas', minsOf(id)); onDelete?.(id); };
   const onRepasoMoveW = (task: any, date: string) => { bump(date === tomorrow ? 'manana' : 'otro', task?.estimatedMinutes || 0); onRepasoMove?.(task, date); };
   const dec = snap?.decisiones ?? { manana: 0, otro: 0, completadas: 0, eliminadas: 0, mananaMin: 0, otroMin: 0, completadasMin: 0, eliminadasMin: 0 };
-  const pendingMinsAtOpen = snap?.pendingMinsAtOpen ?? 0;
+  const pendingMinsAtOpen = rec?.sinHacerMin ?? snap?.pendingMinsAtOpen ?? 0;
   const sinTocar = Math.max(0, pendingAtOpen - dec.manana - dec.otro - dec.completadas - dec.eliminadas);
   const sinTocarMin = Math.max(0, pendingMinsAtOpen - dec.mananaMin - dec.otroMin - dec.completadasMin - dec.eliminadasMin);
 
@@ -338,7 +340,7 @@ export function DayReportModal({
               <div className="space-y-0.5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por qué no cerró</p>
                 <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light mb-1 leading-snug">
-                  <b className="text-morado">Impacto</b>: sobre lo que quedó sin hacer (puede pasar del 100%). <b className="text-turquesa">Peso rel.</b>: sobre el total de causas (suma 100, comparable entre días).
+                  <b className="text-morado">Impacto</b>: sobre lo que quedó sin hacer (puede pasar del 100%). <b className="text-turquesa">Peso rel.</b>: sobre el total de causas (suma 100, comparable entre días). Una tarea nueva en la que fichaste tiempo cuenta en <b>Entraron</b> (por su estimado) y en <b>Fuera del plan</b> (por el tiempo fichado): son medidas distintas, no doble conteo.
                 </p>
                 {/* cabecera de columnas */}
                 <div className="flex items-center gap-2 text-[8px] font-black uppercase tracking-widest text-text-secondary/50">

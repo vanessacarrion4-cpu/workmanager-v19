@@ -345,7 +345,8 @@ export function groupTasksByTag(
 export function collectLeafTasks(
   dayTasks: Task[],
   allTasksMap: Record<string, Task>,
-  activeDate: string
+  activeDate: string,
+  opts?: { includeDelegatedNoTag?: boolean } // §16.118: el repaso las incluye (verlas y decidir); la cabecera no (default)
 ): Task[] {
   const leafTasks: Task[] = [];
   const seenIds = new Set<string>();
@@ -358,7 +359,7 @@ export function collectLeafTasks(
     if (!t.subtasks || t.subtasks.length === 0) {
       if (t.dueDate === activeDate) addLeaf(t); // tarea simple: solo si es de hoy
     } else {
-      const visibleSubs = getVisibleSubtasksForDay(t, allTasksMap, activeDate, { hideDelegatedNoTag: true });
+      const visibleSubs = getVisibleSubtasksForDay(t, allTasksMap, activeDate, { hideDelegatedNoTag: !opts?.includeDelegatedNoTag });
       visibleSubs.forEach((sub: Task) => {
         if (!sub.subtasks || sub.subtasks.length === 0) addLeaf(sub);
       });
@@ -367,13 +368,16 @@ export function collectLeafTasks(
   return leafTasks;
 }
 
-// FASE 6 (cierre del día): hojas PENDIENTES del día (para el "Repaso de lo no hecho"). Mismo conjunto que la cabecera.
+// FASE 6 (cierre del día): hojas PENDIENTES del día (para el "Repaso de lo no hecho").
+// §16.118: `includeDelegatedNoTag` para que el repaso liste TODO lo pendiente (incl. delegadas-sin-etiqueta) y coincida con
+// "sin hacer" de la secuencia — así ninguna pendiente queda invisible (mismo principio que las 465 subtareas).
 export function getPendingLeavesForDay(
   dayTasks: Task[],
   allTasksMap: Record<string, Task>,
-  activeDate: string
+  activeDate: string,
+  opts?: { includeDelegatedNoTag?: boolean }
 ): Task[] {
-  return collectLeafTasks(dayTasks, allTasksMap, activeDate).filter(t => !isTaskCompleted(t.id, allTasksMap));
+  return collectLeafTasks(dayTasks, allTasksMap, activeDate, opts).filter(t => !isTaskCompleted(t.id, allTasksMap));
 }
 
 // FASE 6 (cierre del día): carga PENDIENTE estimada de un día CUALQUIERA (para el impacto de "pasar a otro día" — ver lo que

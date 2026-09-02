@@ -295,7 +295,13 @@ export function DashboardView({
     doFijar();
   };
   // FASE 6 (cierre del día): hojas pendientes del día para el "Repaso de lo no hecho".
-  const pendingLeaves = useMemo(() => getPendingLeavesForDay(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
+  // §16.118 (#4): el repaso incluye las delegadas-SIN-etiqueta (para que coincida con "sin hacer" de la secuencia y NINGUNA
+  // pendiente quede invisible). Se recalcula el día SIN el filtro hideDelegatedNoTag y se recogen sus hojas.
+  const dayTasksAll = useMemo(() => {
+    const activeBlockIds = new Set(blocks.filter((b: any) => b.isActive).map((b: any) => b.id));
+    return filterTasksForDay(tasks, allTasksMap, activeBlockIds, activeDate, { hideCompleted: false, hideDelegatedNoTag: false });
+  }, [tasks, activeDate, blocks, allTasksMap]);
+  const pendingLeaves = useMemo(() => getPendingLeavesForDay(dayTasksAll, allTasksMap, activeDate, { includeDelegatedNoTag: true }), [dayTasksAll, allTasksMap, activeDate]);
 
   // F6-x2 (§16.33): ids seleccionables de un conjunto de entradas de grupo = contenedor + sus hijas PENDIENTES del día
   // (aunque el contenedor esté contraído; el alcance es el DÍA, no la visibilidad). Mismo criterio que toggleTaskSelection.
