@@ -517,6 +517,17 @@ export function useTaskCRUD({
       return;
     }
 
+    // §16.111 · ARRASTRES — contar CUALQUIER posponer (no solo desde el repaso). Si la fecha pasa a un día POSTERIOR,
+    // +1 al contador. Solo posponer (adelantar o programar a futuro desde sin-fecha no cuenta). Guarda anti-doble: si el
+    // caller ya subió el contador (p.ej. handleRepasoMove), no se vuelve a sumar. Recurrentes vía repaso siguen por su vía.
+    {
+      const _prevMove = tasks[updatedTask.id];
+      if (_prevMove && _prevMove.dueDate && updatedTask.dueDate && updatedTask.dueDate > _prevMove.dueDate
+          && (updatedTask.rolledOverCount || 0) === (_prevMove.rolledOverCount || 0)) {
+        updatedTask = { ...updatedTask, rolledOverCount: (_prevMove.rolledOverCount || 0) + 1 };
+      }
+    }
+
     // ── F5-6 (ii): CAMBIAR LA PAUTA de una plantilla recurrente HOJA existente = PARTIR la serie ──
     // Cambiar la pauta NO debe reescribir el pasado (§16.16). En vez de re-upsertar la recurrencia sobre la
     // misma plantilla (retroactivo = el bug), se CIERRA la serie vieja (endDate = víspera del corte, conserva su
