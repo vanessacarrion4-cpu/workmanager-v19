@@ -95,6 +95,8 @@ export function DayReportModal({
   const [outOfPlanOpen, setOutOfPlanOpen] = useState(false); // §16.104 (pieza 7): plegado por defecto
   const [openCauses, setOpenCauses] = useState<Set<string>>(new Set()); // §16.113: detalle desplegable por causa
   const [openSeq, setOpenSeq] = useState<string | null>(null);          // §16.113: tramo de la secuencia desplegado
+  const [openQ, setOpenQ] = useState<Set<string>>(new Set());           // §16.116: preguntas plegadas (todas cerradas por defecto)
+  const toggleQ = (k: string) => setOpenQ(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const [extSel, setExtSel] = useState<{ label: string; mins: number }[]>([]); // §16.114: causas externas seleccionadas (con su tiempo)
   const [extPickLabel, setExtPickLabel] = useState('');
   const [extPickMins, setExtPickMins] = useState('');
@@ -294,51 +296,44 @@ export function DayReportModal({
 
         {/* §16.115: "Entraron/Salieron" retirado — ya vive en la SECUENCIA (entraron / saqué) de "¿En qué se me fue el día?". */}
 
-        {/* 2b · RESUMEN DE DECISIONES DEL REPASO (§16.104 pieza 3) — junto a las medidas, se guarda también. */}
-        {pendingAtOpen > 0 && (
-          <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mb-6 text-[11px] font-bold">
-            <span className="dark:text-white text-text-main-light">{pendingAtOpen} sin hacer · {formatMinutes(pendingMinsAtOpen)}</span>
-            {dec.manana > 0 && <span className="text-turquesa">· {dec.manana} a mañana · {formatMinutes(dec.mananaMin)}</span>}
-            {dec.otro > 0 && <span className="text-turquesa">· {dec.otro} a otro día · {formatMinutes(dec.otroMin)}</span>}
-            {dec.completadas > 0 && <span className="text-verde">· {dec.completadas} completada{dec.completadas === 1 ? '' : 's'} · {formatMinutes(dec.completadasMin)}</span>}
-            {dec.eliminadas > 0 && <span className="text-rosa">· {dec.eliminadas} eliminada{dec.eliminadas === 1 ? '' : 's'} · {formatMinutes(dec.eliminadasMin)}</span>}
-            <span className="dark:text-text-secondary text-text-secondary-light">· {sinTocar} sin tocar · {formatMinutes(sinTocarMin)}</span>
-          </div>
-        )}
+        {/* §16.116: el resumen de decisiones se movió abajo, con el repaso (la cabecera queda: nota + tarjetas + secuencia). */}
 
         {/* §16.110 · ¿EN QUÉ SE ME FUE EL DÍA? — la secuencia que CIERRA (estimado) + UNA tabla de causas (peso vs sin-hacer). */}
         {rec && rec.fijado > 0 && (
-          <div className="mb-6">
-            <p className="text-[9px] font-black uppercase tracking-widest text-turquesa mb-1.5">¿En qué se me fue el día?</p>
-            <div className="text-[11px] dark:text-text-secondary text-text-secondary-light mb-1 leading-relaxed">
-              {(() => {
-                const seg = (key: string, node: React.ReactNode, detail: { title: string; mins: number }[]) => (
-                  <button onClick={() => detail.length && setOpenSeq(s => s === key ? null : key)} className={detail.length ? 'underline decoration-dotted decoration-text-secondary/40 hover:decoration-turquesa' : ''}>{node}</button>
-                );
-                return <>
-                  Fijé <b className="dark:text-white text-text-main-light">{formatMinutes(rec.fijado)}</b>
-                  {' · '}entraron {seg('entraron', <b className="dark:text-white text-text-main-light">{formatMinutes(rec.entraronMin)}</b>, rec.entraronDetail)} para hoy
-                  {rec.saqueMin > 0 && <>{' · '}saqué {seg('saque', <b className="dark:text-white text-text-main-light">{formatMinutes(rec.saqueMin)}</b>, rec.saqueDetail)}</>}
-                  {' · '}el día quedó en <b className="dark:text-white text-text-main-light">{formatMinutes(rec.diaMin)}</b>
-                  {' · '}cumplí {seg('cumpli', <b className="dark:text-white text-text-main-light">{formatMinutes(rec.cumplidoMin)}</b>, rec.cumplidoDetail)}
-                  {' · '}quedó {seg('sinhacer', <b className="text-rosa">sin hacer {formatMinutes(rec.sinHacerMin)}</b>, rec.sinHacerDetail)} ({rec.sinHacerCount} tarea{rec.sinHacerCount === 1 ? '' : 's'})
-                </>;
-              })()}
-            </div>
-            {openSeq && (() => {
-              const d = openSeq === 'entraron' ? rec.entraronDetail : openSeq === 'saque' ? rec.saqueDetail : openSeq === 'cumpli' ? rec.cumplidoDetail : rec.sinHacerDetail;
-              return (
-                <div className="pl-3 mb-2 space-y-0.5 border-l-2 border-turquesa/30">
-                  {d.map((x, xi) => (
-                    <div key={xi} className="flex items-center gap-2 text-[10px]">
-                      <span className="flex-1 truncate dark:text-text-secondary text-text-secondary-light">{x.title}</span>
-                      <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(x.mins)}</span>
-                    </div>
-                  ))}
+          <Question title="¿En qué se me fue el día?" open={openQ.has('desvio')} onToggle={() => toggleQ('desvio')}
+            headline={(
+              <div>
+                <div className="leading-relaxed">
+                  {(() => {
+                    const seg = (key: string, node: React.ReactNode, detail: { title: string; mins: number }[]) => (
+                      <button onClick={(e) => { e.stopPropagation(); detail.length && setOpenSeq(s => s === key ? null : key); }} className={detail.length ? 'underline decoration-dotted decoration-text-secondary/40 hover:decoration-turquesa' : ''}>{node}</button>
+                    );
+                    return <>
+                      Fijé <b className="dark:text-white text-text-main-light">{formatMinutes(rec.fijado)}</b>
+                      {' · '}entraron {seg('entraron', <b className="dark:text-white text-text-main-light">{formatMinutes(rec.entraronMin)}</b>, rec.entraronDetail)} para hoy
+                      {rec.saqueMin > 0 && <>{' · '}saqué {seg('saque', <b className="dark:text-white text-text-main-light">{formatMinutes(rec.saqueMin)}</b>, rec.saqueDetail)}</>}
+                      {' · '}el día quedó en <b className="dark:text-white text-text-main-light">{formatMinutes(rec.diaMin)}</b>
+                      {' · '}cumplí {seg('cumpli', <b className="dark:text-white text-text-main-light">{formatMinutes(rec.cumplidoMin)}</b>, rec.cumplidoDetail)}
+                      {' · '}quedó {seg('sinhacer', <b className="text-rosa">sin hacer {formatMinutes(rec.sinHacerMin)}</b>, rec.sinHacerDetail)} ({rec.sinHacerCount} tarea{rec.sinHacerCount === 1 ? '' : 's'})
+                    </>;
+                  })()}
                 </div>
-              );
-            })()}
-            <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light mb-2.5">Todo en tiempo estimado · fiché {formatMinutes(rec.registrado)} — tiempo real, se compara aparte. Subrayado = desplegable a sus tareas.</p>
+                {openSeq && (() => {
+                  const d = openSeq === 'entraron' ? rec.entraronDetail : openSeq === 'saque' ? rec.saqueDetail : openSeq === 'cumpli' ? rec.cumplidoDetail : rec.sinHacerDetail;
+                  return (
+                    <div className="pl-3 mt-1 space-y-0.5 border-l-2 border-turquesa/30">
+                      {d.map((x, xi) => (
+                        <div key={xi} className="flex items-center gap-2 text-[10px]">
+                          <span className="flex-1 truncate dark:text-text-secondary text-text-secondary-light">{x.title}</span>
+                          <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(x.mins)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light mt-1">Todo en tiempo estimado · fiché {formatMinutes(rec.registrado)} — tiempo real, se compara aparte.</p>
+              </div>
+            )}>
             {mergedCausas.length > 0 && (
               <div className="space-y-0.5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por qué no cerró</p>
@@ -414,17 +409,13 @@ export function DayReportModal({
                 }} className="text-[10px] font-black uppercase tracking-widest text-turquesa hover:underline px-1">Añadir</button>
               </div>
             </div>
-          </div>
+          </Question>
         )}
 
-        {/* 2c · FIJADO vs HECHO (§16.104 pieza 6) — plan contra realidad, en tiempo, por bloque y etiqueta. Necesita foto. */}
+        {/* 2c · ¿CUMPLÍ MI PLAN? — FIJADO vs HECHO (§16.104 pieza 6). Plegable, titular = fijado → hecho. Necesita foto. */}
         {verdict.hasPlan && fijadoHecho && fijadoHecho.byBlock.length > 0 && (
-          <div className="mb-6">
-            <div className="flex items-baseline gap-2 mb-2 flex-wrap">
-              <p className="text-[9px] font-black uppercase tracking-widest text-turquesa">Fijado vs hecho</p>
-              <span className="text-[9px] dark:text-text-secondary text-text-secondary-light">plan contra realidad · en tiempo</span>
-              <span className="text-[11px] font-bold dark:text-white text-text-main-light ml-auto tabular-nums">{formatMinutes(fijadoHecho.totalFijado)} → {formatMinutes(fijadoHecho.totalHecho)}</span>
-            </div>
+          <Question title="¿Cumplí mi plan?" open={openQ.has('cumpli')} onToggle={() => toggleQ('cumpli')}
+            headline={<span className="tabular-nums">{formatMinutes(fijadoHecho.totalFijado)} → {formatMinutes(fijadoHecho.totalHecho)} <span className="text-text-secondary/70">fijado → hecho</span></span>}>
             {/* §16.105 (pieza 3): Por TIPO (Core/Ad-hoc) — dice si el día se fue en puntual vs trabajo de fondo. */}
             {fijadoHecho.byType.length > 0 && (
               <div className="flex items-center gap-x-6 gap-y-1 flex-wrap mb-2">
@@ -448,20 +439,13 @@ export function DayReportModal({
                 ))}
               </div>
             </div>
-          </div>
+          </Question>
         )}
 
-        {/* 3 · ENTRADA DEL DÍA (versión de cierre: lista completa desplegada) — §16.104 (pieza 4): plegable */}
+        {/* 3 · ¿QUÉ ENTRÓ HOY? — plegable (Question); titular = N tareas · M para hoy */}
         {entradaEff && entradaEff.total > 0 && (
-          <div className="mb-6">
-            <button onClick={() => setEntradaOpen(o => !o)} className="flex items-center gap-1.5 mb-1.5 group">
-              {entradaOpen ? <ChevronDown size={12} className="text-text-secondary/70" /> : <ChevronRight size={12} className="text-text-secondary/70" />}
-              <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 group-hover:text-turquesa transition-colors">
-                Entró el {diaLargo(entradaEff.day)} · {entradaEff.total} tarea{entradaEff.total === 1 ? '' : 's'}
-                {entradaEff.forToday > 0 && entradaEff.later > 0 && <span className="opacity-70"> ({entradaEff.forToday} para hoy · {entradaEff.later} más adelante)</span>}
-              </span>
-            </button>
-            {entradaOpen && (
+          <Question title="¿Qué entró hoy?" open={openQ.has('entro')} onToggle={() => toggleQ('entro')}
+            headline={<span>{entradaEff.total} tarea{entradaEff.total === 1 ? '' : 's'} · {entradaEff.forToday} para hoy{entradaEff.later > 0 ? ` · ${entradaEff.later} más adelante` : ''}</span>}>
             <div className="space-y-3 pl-3 border-l dark:border-border-main border-border-main-light">
               {/* §16.104 (pieza 8): dos apartados — PARA HOY primero, PARA OTRO DÍA después */}
               {entradaEff.hoy.count > 0 && (
@@ -471,8 +455,7 @@ export function DayReportModal({
                 <EntradaSectionView label="Para otro día" section={entradaEff.otro} otherPhrase="para hoy" open={otroOpen} onToggle={() => setOtroOpen(o => !o)} showDate={true} />
               )}
             </div>
-            )}
-          </div>
+          </Question>
         )}
 
         {/* §16.107 (#4): quitado el "Desglose del día (estimado)" — era el estado del día al cierre con lo añadido dentro
@@ -480,22 +463,16 @@ export function DayReportModal({
             evolución; solo se retira de la pantalla del reporte. Se ve en Mi Día durante la jornada si hace falta. */}
 
         {/* 4b · ¿ESTIMO BIEN? — desviación estimado vs registrado de lo COMPLETADO (§16.101). No depende de la foto. */}
-        <div className="mb-6">
-          <div className="flex items-baseline gap-2 mb-2 flex-wrap">
-            <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">¿Estimo bien?</p>
-            <span className="text-[9px] dark:text-text-secondary text-text-secondary-light">estimado vs tiempo real · solo completadas</span>
-          </div>
+        <Question title="¿Estimo bien?" open={openQ.has('estimo')} onToggle={() => toggleQ('estimo')}
+          headline={deviation.count === 0
+            ? <span className="text-text-secondary/70">estimado vs real · sin completadas con tiempo</span>
+            : <span>Estimé {formatMinutes(deviation.estimated)} · tardé {formatMinutes(deviation.registered)} <span className={`tabular-nums ${devColor(deviation.ratioPct)}`}>{devDelta(deviation.deviation)}{deviation.ratioPct != null ? ` (${deviation.ratioPct}%)` : ''}</span></span>}>
           {deviation.count === 0 ? (
             <p className="text-[11px] dark:text-text-secondary text-text-secondary-light">
               Sin tareas completadas con tiempo fichado{deviation.sinTiempo.count > 0 ? ` · ${deviation.sinTiempo.count} completada${deviation.sinTiempo.count === 1 ? '' : 's'} sin fichar` : ''}.
             </p>
           ) : (
             <>
-              <div className="flex items-center gap-3 flex-wrap mb-2.5 text-[12px] font-bold">
-                <span className="dark:text-white text-text-main-light">Estimé {formatMinutes(deviation.estimated)} · tardé {formatMinutes(deviation.registered)}</span>
-                <span className={`tabular-nums ${devColor(deviation.ratioPct)}`}>{devDelta(deviation.deviation)}{deviation.ratioPct != null ? ` (${deviation.ratioPct}%)` : ''}</span>
-                <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">{deviation.count} tarea{deviation.count === 1 ? '' : 's'}</span>
-              </div>
               {/* §16.110 (#3): Por TIPO (Core/Ad-hoc) — ¿estimo peor lo puntual que lo de fondo? (como FIJADO vs HECHO) */}
               {deviation.byType && deviation.byType.length > 0 && (
                 <div className="flex items-center gap-x-6 gap-y-1 flex-wrap mb-2">
@@ -530,31 +507,17 @@ export function DayReportModal({
               )}
             </>
           )}
-        </div>
+        </Question>
 
-        {/* 5 · MOTIVO (opcional, varias) + nota libre */}
-        <div className="mb-5">
-          <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 mb-2">Motivo (opcional)</p>
-          <div className="space-y-1.5">
-            {MOTIVOS.map(m => (
-              <button
-                key={m.key}
-                onClick={() => toggleMotivo(m.key)}
-                className="flex items-center gap-2.5 w-full text-left group"
-              >
-                <span className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-all ${motivos.includes(m.key) ? 'bg-turquesa border-turquesa' : 'dark:border-border-main border-border-main-light'}`}>
-                  {motivos.includes(m.key) && <Check size={11} className="text-white" strokeWidth={3} />}
-                </span>
-                <span className="text-[12px] font-bold dark:text-white text-text-main-light">{m.label}</span>
-              </button>
-            ))}
-          </div>
+        {/* §16.116: casillas de MOTIVO retiradas — las causas se calculan y viven en la tabla del desvío (+ causas externas).
+            Se conserva solo una nota libre opcional. */}
+        <div className="mb-5 mt-3">
           <textarea
             value={nota}
             onChange={e => { setNota(e.target.value); setSaved(false); }}
-            placeholder="Nota libre…"
+            placeholder="Nota del día (opcional)…"
             rows={2}
-            className="mt-3 w-full px-3 py-2 rounded-xl text-[12px] dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light dark:text-white text-text-main-light outline-none focus:border-turquesa transition-all resize-none"
+            className="w-full px-3 py-2 rounded-xl text-[12px] dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light dark:text-white text-text-main-light outline-none focus:border-turquesa transition-all resize-none"
           />
         </div>
 
@@ -571,6 +534,19 @@ export function DayReportModal({
           repasoDayLoad={repasoDayLoad}
         />
 
+        {/* §16.116: resumen de decisiones del repaso (movido aquí). "En el repaso" = las que tienes delante para decidir
+            (lista del repaso); NO es lo mismo que "sin hacer" de la secuencia (plan+nuevas pendientes del día, otro cálculo). */}
+        {pendingAtOpen > 0 && (
+          <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mt-2 text-[11px] font-bold">
+            <span className="dark:text-white text-text-main-light">{pendingAtOpen} en el repaso · {formatMinutes(pendingMinsAtOpen)}</span>
+            {dec.manana > 0 && <span className="text-turquesa">· {dec.manana} a mañana · {formatMinutes(dec.mananaMin)}</span>}
+            {dec.otro > 0 && <span className="text-turquesa">· {dec.otro} a otro día · {formatMinutes(dec.otroMin)}</span>}
+            {dec.completadas > 0 && <span className="text-verde">· {dec.completadas} completada{dec.completadas === 1 ? '' : 's'} · {formatMinutes(dec.completadasMin)}</span>}
+            {dec.eliminadas > 0 && <span className="text-rosa">· {dec.eliminadas} eliminada{dec.eliminadas === 1 ? '' : 's'} · {formatMinutes(dec.eliminadasMin)}</span>}
+            <span className="dark:text-text-secondary text-text-secondary-light">· {sinTocar} sin tocar · {formatMinutes(sinTocarMin)}</span>
+          </div>
+        )}
+
         {/* GUARDAR — §16.103: al FINAL de todo, después del repaso. Cerrar el día es un solo acto. */}
         <div className="flex items-center justify-end gap-3 mt-6 pt-5 border-t dark:border-border-main border-border-main-light">
           {saved && <span className="text-[11px] font-bold text-verde flex items-center gap-1"><Check size={13} /> Guardado</span>}
@@ -583,6 +559,22 @@ export function DayReportModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// §16.116 · pregunta plegable: el titular ya da la respuesta; se abre para el detalle. Cerrada por defecto.
+function Question({ title, headline, open, onToggle, children }: { title: string; headline?: React.ReactNode; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <div className="mb-2 border-t dark:border-border-main/40 border-border-main-light/40 pt-2.5">
+      <button onClick={onToggle} className="flex items-start gap-2 w-full text-left group">
+        {open ? <ChevronDown size={13} className="mt-0.5 text-turquesa shrink-0" /> : <ChevronRight size={13} className="mt-0.5 text-text-secondary/60 shrink-0" />}
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-widest dark:text-white text-text-main-light group-hover:text-turquesa transition-colors">{title}</p>
+          {headline && <div className="text-[11px] dark:text-text-secondary text-text-secondary-light mt-0.5">{headline}</div>}
+        </div>
+      </button>
+      {open && <div className="mt-2 pl-5">{children}</div>}
     </div>
   );
 }
