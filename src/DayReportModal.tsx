@@ -250,12 +250,6 @@ export function DayReportModal({
               <div className="min-w-0">
                 <p className={`text-base font-black ${verdictColor(verdict.key)}`}>{verdict.label}</p>
                 <p className="text-[12px] dark:text-text-secondary text-text-secondary-light">{verdict.frase}</p>
-                {verdict.outOfPlan > 0 && (
-                  <button onClick={() => setOutOfPlanOpen(o => !o)} className="flex items-center gap-1 group">
-                    {outOfPlanOpen ? <ChevronDown size={11} className="text-morado" /> : <ChevronRight size={11} className="text-morado" />}
-                    <span className="text-[12px] font-bold text-morado group-hover:underline">dedicaste {formatMinutes(verdict.outOfPlan)} a cosas no previstas</span>
-                  </button>
-                )}
               </div>
             </div>
           ) : (
@@ -264,37 +258,7 @@ export function DayReportModal({
               {verdict.frase && <p className="text-[12px] dark:text-text-secondary text-text-secondary-light mt-0.5">{verdict.frase}</p>}
             </div>
           )}
-          {/* §16.104 (pieza 7): desglose del tiempo NO previsto, plegado por defecto. Hijas agrupadas bajo su contenedor. */}
-          {verdict.outOfPlan > 0 && outOfPlanOpen && outOfPlan && (
-            <div className="mt-2 pl-3 border-l-2 border-morado/40 space-y-1.5">
-              {outOfPlan.groups.map((g, gi) => (
-                <div key={g.containerId || `oop-${gi}`}>
-                  {g.containerId ? (
-                    <>
-                      <div className="flex items-center gap-2 text-[11px]">
-                        <span className="font-bold dark:text-white text-text-main-light truncate max-w-[300px]">{g.title}</span>
-                        <span className="text-[10px] tabular-nums text-morado shrink-0 ml-auto">{formatMinutes(g.minutes)}</span>
-                      </div>
-                      <div className="pl-3 space-y-0.5 mt-0.5">
-                        {g.rows.map(r => (
-                          <div key={r.id} className="flex items-center gap-2 text-[11px]">
-                            <span className="dark:text-text-secondary text-text-secondary-light truncate max-w-[280px]">{r.title}</span>
-                            <span className="text-[10px] tabular-nums text-text-secondary shrink-0 ml-auto">{formatMinutes(r.minutes)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex items-center gap-2 text-[11px]">
-                      <span className="dark:text-white text-text-main-light truncate max-w-[300px]">{g.title}</span>
-                      <span className="text-[10px] tabular-nums text-morado shrink-0 ml-auto">{formatMinutes(g.minutes)}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-              <p className="text-[9px] font-black uppercase tracking-widest text-morado/70 pt-1">Total no previsto · {formatMinutes(outOfPlan.total)}</p>
-            </div>
-          )}
+          {/* §16.115: el desglose del tiempo NO previsto vive ahora en la tabla de causas ("Fuera del plan", desplegable). */}
         </div>
 
         {/* 2 · LAS TRES MEDIDAS */}
@@ -328,17 +292,7 @@ export function DayReportModal({
           </Medida>
         </div>
 
-        {/* §16.107 (#b): ENTRARON / SALIERON respecto al plan (sustituye el "añadido neto" que podía salir negativo). */}
-        {verdict.hasFoto && es && (es.entraron.count > 0 || es.salieron.count > 0) && (
-          <div className="flex items-center gap-x-4 gap-y-1 flex-wrap mb-6 -mt-3 text-[11px] font-bold">
-            {es.entraron.count > 0 && (
-              <span className="text-morado">Entraron {es.entraron.count} tarea{es.entraron.count === 1 ? '' : 's'} · {formatMinutes(es.entraron.mins)}<span className="font-normal dark:text-text-secondary text-text-secondary-light"> después de fijar</span></span>
-            )}
-            {es.salieron.count > 0 && (
-              <span className="text-morado">Salieron {es.salieron.count} tarea{es.salieron.count === 1 ? '' : 's'} · {formatMinutes(es.salieron.mins)}<span className="font-normal dark:text-text-secondary text-text-secondary-light"> del plan (movidas/borradas)</span></span>
-            )}
-          </div>
-        )}
+        {/* §16.115: "Entraron/Salieron" retirado — ya vive en la SECUENCIA (entraron / saqué) de "¿En qué se me fue el día?". */}
 
         {/* 2b · RESUMEN DE DECISIONES DEL REPASO (§16.104 pieza 3) — junto a las medidas, se guarda también. */}
         {pendingAtOpen > 0 && (
