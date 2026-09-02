@@ -962,6 +962,11 @@ export interface DayReconciliation {
   cumplidoMin: number; cumplidoCount: number;       // estimado de TODO lo completado (plan + nuevas)
   sinHacerMin: number; sinHacerCount: number;       // día − cumplido = pendiente al final (plan + nuevas sin hacer)
   registrado: number;                               // FICHÉ — tiempo real, eje aparte
+  // §16.113: cada tramo desplegable a sus TAREAS concretas
+  entraronDetail: { title: string; mins: number }[];
+  saqueDetail: { title: string; mins: number }[];
+  cumplidoDetail: { title: string; mins: number }[];
+  sinHacerDetail: { title: string; mins: number }[];
 }
 export function getDayReconciliation(
   allTasks: Record<string, Task>, planTaskIds: string[], dayTasks: Task[], timeEntries: any[], date: string
@@ -980,12 +985,19 @@ export function getDayReconciliation(
   const diaMin = fijado - saqueMin + nuevasMin;
   const cumplidoMin = sumEst('cumplida') + nuevasComplMin;
   const registrado = (timeEntries || []).filter((e: any) => e && e.date === date).reduce((a: number, e: any) => a + (e.duration || 0), 0);
+  const fd = (kind: PlanFateKind) => fates.filter(f => f.kind === kind).map(f => ({ title: f.title || '(tarea)', mins: f.estMin }));
+  const nd = (ls: any[]) => ls.map(l => ({ title: l.title || '(tarea)', mins: l.estimatedMinutes || 0 }));
+  const nuevasPend = nuevas.filter(l => !isTaskCompleted(l.id, allTasks));
   return {
     fijado, entraronMin: nuevasMin, entraronCount: nuevas.length,
     saqueMin, saqueCount: cntF('movida') + cntF('borrada'),
     diaMin, cumplidoMin, cumplidoCount: cntF('cumplida') + nuevasCompl.length,
     sinHacerMin: diaMin - cumplidoMin, sinHacerCount: cntF('pendiente') + (nuevas.length - nuevasCompl.length),
     registrado,
+    entraronDetail: nd(nuevas),
+    saqueDetail: [...fd('movida'), ...fd('borrada')].sort((a, b) => b.mins - a.mins),
+    cumplidoDetail: [...fd('cumplida'), ...nd(nuevasCompl)].sort((a, b) => b.mins - a.mins),
+    sinHacerDetail: [...fd('pendiente'), ...nd(nuevasPend)].sort((a, b) => b.mins - a.mins),
   };
 }
 

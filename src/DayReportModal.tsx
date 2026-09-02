@@ -92,6 +92,7 @@ export function DayReportModal({
   const [otroOpen, setOtroOpen] = useState(true);        // §16.104 (pieza 8): apartado "para otro día"
   const [outOfPlanOpen, setOutOfPlanOpen] = useState(false); // §16.104 (pieza 7): plegado por defecto
   const [openCauses, setOpenCauses] = useState<Set<string>>(new Set()); // §16.113: detalle desplegable por causa
+  const [openSeq, setOpenSeq] = useState<string | null>(null);          // §16.113: tramo de la secuencia desplegado
 
   // Al abrir / cambiar de día, precargar lo guardado.
   useEffect(() => {
@@ -339,9 +340,34 @@ export function DayReportModal({
           <div className="mb-6">
             <p className="text-[9px] font-black uppercase tracking-widest text-turquesa mb-1.5">¿En qué se me fue el día?</p>
             <div className="text-[11px] dark:text-text-secondary text-text-secondary-light mb-1 leading-relaxed">
-              Fijé <b className="dark:text-white text-text-main-light">{formatMinutes(rec.fijado)}</b> · entraron <b className="dark:text-white text-text-main-light">{formatMinutes(rec.entraronMin)}</b> para hoy{rec.saqueMin > 0 && <> · saqué <b className="dark:text-white text-text-main-light">{formatMinutes(rec.saqueMin)}</b></>} · el día quedó en <b className="dark:text-white text-text-main-light">{formatMinutes(rec.diaMin)}</b> · cumplí <b className="dark:text-white text-text-main-light">{formatMinutes(rec.cumplidoMin)}</b> · quedó <b className="text-rosa">sin hacer {formatMinutes(rec.sinHacerMin)}</b> ({rec.sinHacerCount} tarea{rec.sinHacerCount === 1 ? '' : 's'})
+              {(() => {
+                const seg = (key: string, node: React.ReactNode, detail: { title: string; mins: number }[]) => (
+                  <button onClick={() => detail.length && setOpenSeq(s => s === key ? null : key)} className={detail.length ? 'underline decoration-dotted decoration-text-secondary/40 hover:decoration-turquesa' : ''}>{node}</button>
+                );
+                return <>
+                  Fijé <b className="dark:text-white text-text-main-light">{formatMinutes(rec.fijado)}</b>
+                  {' · '}entraron {seg('entraron', <b className="dark:text-white text-text-main-light">{formatMinutes(rec.entraronMin)}</b>, rec.entraronDetail)} para hoy
+                  {rec.saqueMin > 0 && <>{' · '}saqué {seg('saque', <b className="dark:text-white text-text-main-light">{formatMinutes(rec.saqueMin)}</b>, rec.saqueDetail)}</>}
+                  {' · '}el día quedó en <b className="dark:text-white text-text-main-light">{formatMinutes(rec.diaMin)}</b>
+                  {' · '}cumplí {seg('cumpli', <b className="dark:text-white text-text-main-light">{formatMinutes(rec.cumplidoMin)}</b>, rec.cumplidoDetail)}
+                  {' · '}quedó {seg('sinhacer', <b className="text-rosa">sin hacer {formatMinutes(rec.sinHacerMin)}</b>, rec.sinHacerDetail)} ({rec.sinHacerCount} tarea{rec.sinHacerCount === 1 ? '' : 's'})
+                </>;
+              })()}
             </div>
-            <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light mb-2.5">Todo en tiempo estimado · fiché {formatMinutes(rec.registrado)} — tiempo real, se compara aparte</p>
+            {openSeq && (() => {
+              const d = openSeq === 'entraron' ? rec.entraronDetail : openSeq === 'saque' ? rec.saqueDetail : openSeq === 'cumpli' ? rec.cumplidoDetail : rec.sinHacerDetail;
+              return (
+                <div className="pl-3 mb-2 space-y-0.5 border-l-2 border-turquesa/30">
+                  {d.map((x, xi) => (
+                    <div key={xi} className="flex items-center gap-2 text-[10px]">
+                      <span className="flex-1 truncate dark:text-text-secondary text-text-secondary-light">{x.title}</span>
+                      <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(x.mins)}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light mb-2.5">Todo en tiempo estimado · fiché {formatMinutes(rec.registrado)} — tiempo real, se compara aparte. Subrayado = desplegable a sus tareas.</p>
             {caus && caus.causas.length > 0 && (
               <div className="space-y-0.5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por qué no cerró</p>
