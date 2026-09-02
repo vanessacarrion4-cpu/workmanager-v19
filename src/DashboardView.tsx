@@ -4,7 +4,7 @@
  * Extraído de App.tsx - Sesión 3 del refactor.
  */
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   Plus, CheckCircle2, ChevronRight, ChevronDown, Clock,
   Zap, ArrowRight, X, CalendarIcon, Trash2, Edit
@@ -242,6 +242,25 @@ export function DashboardView({
   // §16.110: la SECUENCIA del día que cierra (estimado) + la TABLA de causas (peso vs sin-hacer). Usan el mapa COMPLETO.
   const reportReconciliation = useMemo(() => getDayReconciliation(allTasksFull, daySnapshot?.plan_task_ids || [], dayTasks, timeEntries, activeDate), [allTasksFull, daySnapshot, dayTasks, timeEntries, activeDate]);
   const reportCauses = useMemo(() => getDesvioCauses(allTasksFull, daySnapshot?.plan_task_ids || [], dayTasks, timeEntries, activeDate, jornada, outOfPlanBreakdown, []), [allTasksFull, daySnapshot, dayTasks, timeEntries, activeDate, jornada, outOfPlanBreakdown]);
+  // §16.114: lista de CAUSAS EXTERNAS (gestionada como los bloques, en settings JSON, sin SQL). Semilla si no existe.
+  const [causasExternas, setCausasExternas] = useState<{ id: string; label: string }[]>([]);
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const { data } = await supabase.from('settings').select('value').eq('key', 'causas_externas').maybeSingle();
+      let list = (data as any)?.value;
+      if (!Array.isArray(list) || list.length === 0) {
+        list = [{ id: 'c1', label: 'Visita o reunión imprevista' }, { id: 'c2', label: 'Incidencia urgente' }, { id: 'c3', label: 'Ausencia o indisposición' }, { id: 'c4', label: 'Otro' }];
+      }
+      if (!cancel) setCausasExternas(list);
+    })();
+    return () => { cancel = true; };
+  }, []);
+  const addCausaExterna = useCallback(async (label: string) => {
+    const nl = [...causasExternas, { id: `c-${Date.now()}`, label }];
+    setCausasExternas(nl);
+    await supabase.from('settings').upsert({ key: 'causas_externas', value: nl, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+  }, [causasExternas]);
 
   // §16.104 (pieza 9): RESCATE del día anterior. Al ir a fijar, buscar el día MÁS RECIENTE < hoy con actividad (fijado o
   // tiempo fichado) y SIN reporte, y ofrecer cerrarlo primero. Nunca más de uno; se puede saltar. closed_late lo marca el modal.
@@ -769,6 +788,8 @@ export function DashboardView({
         entradasSalidas={reportEntradasSalidas}
         reconciliation={reportReconciliation}
         causes={reportCauses}
+        causasExternas={causasExternas}
+        onAddCausaExterna={addCausaExterna}
         entrada={entrada}
         blocks={blocks}
         report={dayReport}

@@ -50,7 +50,7 @@ type Decisiones = {
 };
 
 export function DayReportModal({
-  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entradasSalidas, reconciliation, causes, entrada, blocks, report, onGuardar,
+  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entradasSalidas, reconciliation, causes, causasExternas = [], onAddCausaExterna, entrada, blocks, report, onGuardar,
   pendingTasks = [], timeEntries = [], onComplete, onDelete, onRepasoMove, repasoWillCollide, repasoDayLoad,
 }: {
   open: boolean;
@@ -64,6 +64,8 @@ export function DayReportModal({
   entradasSalidas?: EntradasSalidas;
   reconciliation?: DayReconciliation;
   causes?: DesvioTable;
+  causasExternas?: { id: string; label: string }[];
+  onAddCausaExterna?: (label: string) => void;
   entrada: EntradaForDay | null;
   blocks: any[];
   report: DayReport | null;
@@ -93,12 +95,16 @@ export function DayReportModal({
   const [outOfPlanOpen, setOutOfPlanOpen] = useState(false); // §16.104 (pieza 7): plegado por defecto
   const [openCauses, setOpenCauses] = useState<Set<string>>(new Set()); // §16.113: detalle desplegable por causa
   const [openSeq, setOpenSeq] = useState<string | null>(null);          // §16.113: tramo de la secuencia desplegado
+  const [extSel, setExtSel] = useState<{ label: string; mins: number }[]>([]); // §16.114: causas externas seleccionadas (con su tiempo)
+  const [extPickLabel, setExtPickLabel] = useState('');
+  const [extPickMins, setExtPickMins] = useState('');
 
   // Al abrir / cambiar de día, precargar lo guardado.
   useEffect(() => {
     setMotivos(report?.motivos || []);
     setNota(report?.nota || '');
     setSaved(false);
+    setExtSel(((report?.measures as any)?.frozen?.externalSelected) || (report?.measures as any)?.externalSelected || []); // §16.114 restaurar
   }, [report, activeDate, open]);
 
   useEffect(() => { setForceLive(false); }, [open, activeDate]); // reset del "actualizar con hoy" al abrir/cambiar de día
@@ -134,6 +140,16 @@ export function DayReportModal({
   const es = snap?.entradasSalidas ?? entradasSalidas;
   const rec = snap?.reconciliation ?? reconciliation; // §16.110: secuencia del día (congelada)
   const caus = snap?.causes ?? causes;                 // §16.110: tabla de causas (congelada)
+  // §16.114: fundir las causas CALCULADAS con las EXTERNAS que mete la usuaria, y recalcular impacto/peso-rel.
+  const mergedCausas = (() => {
+    const sinHacer = rec?.sinHacerMin || 0;
+    const base = (caus?.causas || []).map(c => ({ key: c.key, label: c.label, mins: c.mins, count: c.count as number | undefined, detail: c.detail, ext: false }));
+    const ext = extSel.filter(e => e.mins > 0).map((e, i) => ({ key: `ext-${i}`, label: e.label, mins: e.mins, count: undefined as number | undefined, detail: [] as { title: string; mins: number }[], ext: true }));
+    const all = [...base, ...ext];
+    const total = all.reduce((a, c) => a + c.mins, 0);
+    return all.map(c => ({ ...c, impacto: sinHacer > 0 ? Math.round((c.mins / sinHacer) * 100) : 0, pesoRel: total > 0 ? Math.round((c.mins / total) * 100) : 0 }))
+      .sort((a, b) => b.pesoRel - a.pesoRel);
+  })();
   const entradaEff = snap?.entradaSaved ?? entrada; // §16.108: entrada congelada si es documento histórico
   const isSaved = !!snap?.fromSaved;
   const pendingAtOpen = snap?.pendingAtOpen ?? pendingTasks.length;
@@ -158,6 +174,7 @@ export function DayReportModal({
         // §16.104 (pieza 9): cerrado en DIFERIDO si el día del reporte es anterior a hoy (rescate del día anterior).
         closedLate: activeDate < formatLocalISO(new Date()),
         entradasSalidas: es ?? null,
+        externalSelected: extSel, // §16.114: causas externas seleccionadas (para la tabla y las gráficas)
         // §16.108: SNAP COMPLETO congelado → al reabrir, el reporte se renderiza desde aquí (documento histórico), no se recalcula.
         frozen: {
           verdict, deviation, breakdown, fijadoHecho: fh ?? null, outOfPlan: oop ?? null, entradasSalidas: es ?? null,
@@ -368,7 +385,7 @@ export function DayReportModal({
               );
             })()}
             <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light mb-2.5">Todo en tiempo estimado · fiché {formatMinutes(rec.registrado)} — tiempo real, se compara aparte. Subrayado = desplegable a sus tareas.</p>
-            {caus && caus.causas.length > 0 && (
+            {mergedCausas.length > 0 && (
               <div className="space-y-0.5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por qué no cerró</p>
                 <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light mb-1 leading-snug">
@@ -382,7 +399,7 @@ export function DayReportModal({
                   <span className="w-12 text-right text-morado/70">Impacto</span>
                   <span className="w-14 text-right text-turquesa/70">Peso rel.</span>
                 </div>
-                {caus.causas.map(c => {
+                {mergedCausas.map(c => {
                   const hasDetail = c.detail && c.detail.length > 0;
                   const isOpen = openCauses.has(c.key);
                   return (
@@ -415,6 +432,34 @@ export function DayReportModal({
                 })}
               </div>
             )}
+            {/* §16.114: causas EXTERNAS — elige de la lista o escribe una nueva, con su tiempo; entra en la misma tabla. */}
+            <div className="mt-2.5 pt-2 border-t dark:border-border-main/50 border-border-main-light/50">
+              <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 mb-1">Causas externas (las que solo tú sabes)</p>
+              {extSel.length > 0 && (
+                <div className="space-y-0.5 mb-1.5">
+                  {extSel.map((e, i) => (
+                    <div key={i} className="flex items-center gap-2 text-[11px] font-bold">
+                      <span className="flex-1 truncate text-morado">{e.label}</span>
+                      <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(e.mins)}</span>
+                      <button onClick={() => { setExtSel(s => s.filter((_, j) => j !== i)); setSaved(false); }} className="text-rosa/70 hover:text-rosa"><X size={11} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <input list="causas-ext-list" value={extPickLabel} onChange={e => setExtPickLabel(e.target.value)} placeholder="Visita, incidencia, ausencia…"
+                  className="flex-1 min-w-[140px] text-[11px] px-2 py-1 rounded-lg dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light dark:text-white text-text-main-light outline-none focus:border-turquesa" />
+                <datalist id="causas-ext-list">{causasExternas.map(c => <option key={c.id} value={c.label} />)}</datalist>
+                <input value={extPickMins} onChange={e => setExtPickMins(e.target.value.replace(/[^0-9]/g, ''))} placeholder="min"
+                  className="w-14 text-[11px] px-2 py-1 rounded-lg dark:bg-bg-main bg-gray-50 border dark:border-border-main border-border-main-light dark:text-white text-text-main-light outline-none focus:border-turquesa tabular-nums" />
+                <button onClick={() => {
+                  const label = extPickLabel.trim(); const mins = parseInt(extPickMins || '0', 10);
+                  if (!label || mins <= 0) return;
+                  if (!causasExternas.some(c => c.label.toLowerCase() === label.toLowerCase())) onAddCausaExterna?.(label); // persistir nueva etiqueta
+                  setExtSel(s => [...s, { label, mins }]); setExtPickLabel(''); setExtPickMins(''); setSaved(false);
+                }} className="text-[10px] font-black uppercase tracking-widest text-turquesa hover:underline px-1">Añadir</button>
+              </div>
+            </div>
           </div>
         )}
 
