@@ -407,6 +407,15 @@ export function DayReportModal({
                 <span className={`tabular-nums ${devColor(deviation.ratioPct)}`}>{devDelta(deviation.deviation)}{deviation.ratioPct != null ? ` (${deviation.ratioPct}%)` : ''}</span>
                 <span className="text-[10px] dark:text-text-secondary text-text-secondary-light">{deviation.count} tarea{deviation.count === 1 ? '' : 's'}</span>
               </div>
+              {/* §16.110 (#3): Por TIPO (Core/Ad-hoc) — ¿estimo peor lo puntual que lo de fondo? (como FIJADO vs HECHO) */}
+              {deviation.byType && deviation.byType.length > 0 && (
+                <div className="flex items-center gap-x-6 gap-y-1 flex-wrap mb-2">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por tipo</span>
+                  {[...deviation.byType].sort((a, b) => (a.key === 'core' ? -1 : 1)).map(r => (
+                    <DevRow key={r.key} label={r.key === 'core' ? 'Core' : 'Ad-hoc'} color={r.key === 'core' ? CORE_HEX : ADHOC_HEX} est={r.estimated} reg={r.registered} delta={r.deviation} />
+                  ))}
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3">
                 {deviation.byBlock.length > 0 && (
                   <div className="space-y-1">
