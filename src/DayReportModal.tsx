@@ -342,13 +342,26 @@ export function DayReportModal({
             </div>
             <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light mb-2.5">Todo en tiempo estimado · fiché {formatMinutes(rec.registrado)} — tiempo real, se compara aparte</p>
             {caus && caus.causas.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 mb-0.5">Por qué no cerró · peso vs lo que quedó sin hacer</p>
+              <div className="space-y-0.5">
+                <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por qué no cerró</p>
+                <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light mb-1 leading-snug">
+                  <b className="text-morado">Impacto</b>: sobre lo que quedó sin hacer (puede pasar del 100%). <b className="text-turquesa">Peso rel.</b>: sobre el total de causas (suma 100, comparable entre días).
+                </p>
+                {/* cabecera de columnas */}
+                <div className="flex items-center gap-2 text-[8px] font-black uppercase tracking-widest text-text-secondary/50">
+                  <span className="flex-1">Causa</span>
+                  <span className="w-8 text-right">Tar.</span>
+                  <span className="w-14 text-right">Tiempo</span>
+                  <span className="w-12 text-right text-morado/70">Impacto</span>
+                  <span className="w-14 text-right text-turquesa/70">Peso rel.</span>
+                </div>
                 {caus.causas.map(c => (
                   <div key={c.key} className="flex items-center gap-2 text-[11px] font-bold">
-                    <span className="flex-1 truncate dark:text-white text-text-main-light">{c.label}{c.count != null && <span className="font-normal dark:text-text-secondary text-text-secondary-light"> · {c.count}</span>}</span>
-                    <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(c.mins)}</span>
-                    <span className="w-12 text-right tabular-nums text-turquesa">{c.pct}%</span>
+                    <span className="flex-1 truncate dark:text-white text-text-main-light">{c.label}</span>
+                    <span className="w-8 text-right tabular-nums dark:text-text-secondary text-text-secondary-light">{c.count != null ? c.count : '—'}</span>
+                    <span className="w-14 text-right tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(c.mins)}</span>
+                    <span className="w-12 text-right tabular-nums text-morado">{c.impacto}%</span>
+                    <span className="w-14 text-right tabular-nums text-turquesa">{c.pesoRel}%</span>
                   </div>
                 ))}
               </div>

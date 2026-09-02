@@ -991,8 +991,13 @@ export function getDayReconciliation(
 
 // §16.110 · UNA SOLA TABLA de causas del desvío, PESO vs "sin hacer" (100% = lo que quedó sin hacer). Pueden pasar del 100%:
 // es peso de impacto, no reparto de una tarta. Juntas las que calculo yo y las EXTERNAS que mete la usuaria (misma escala).
-export interface DesvioCausa { key: string; label: string; mins: number; count?: number; pct: number; detail: { title: string; mins: number }[]; }
-export interface DesvioTable { sinHacerMin: number; jornada: number; fijado: number; sobreplan: number; causas: DesvioCausa[]; }
+export interface DesvioCausa {
+  key: string; label: string; mins: number; count?: number;
+  impacto: number;  // §16.112: mins / lo-que-quedó-sin-hacer (puede pasar del 100% entre todas — peso real, no tarta)
+  pesoRel: number;  // §16.112: mins / suma de TODAS las causas (suma 100; comparable entre días → gráficas de evolución)
+  detail: { title: string; mins: number }[];
+}
+export interface DesvioTable { sinHacerMin: number; totalCausasMin: number; jornada: number; fijado: number; sobreplan: number; causas: DesvioCausa[]; }
 export function getDesvioCauses(
   allTasks: Record<string, Task>, planTaskIds: string[], dayTasks: Task[], timeEntries: any[], date: string,
   jornada: number, outOfPlan: { total: number; groups: OutOfPlanGroup[] }, externalCauses: { label: string; minutes: number }[] = []
@@ -1015,18 +1020,23 @@ export function getDesvioCauses(
   const enEsperaFates = fates.filter(f => f.kind === 'pendiente' && f.onHold);
   const enEspera = enEsperaFates.reduce((a, f) => a + f.estMin, 0);
   const fueraDetail = (outOfPlan?.groups || []).map(g => ({ title: g.title, mins: g.minutes }));
-  const raw: DesvioCausa[] = [
-    { key: 'entraron', label: 'Entraron cosas nuevas', mins: rec.entraronMin, count: rec.entraronCount, pct: 0, detail: nuevas.map((l: any) => ({ title: l.title || '(tarea)', mins: l.estimatedMinutes || 0 })) },
-    { key: 'sobreplan', label: 'Sobreplanifiqué', mins: Math.max(0, rec.fijado - jornada), pct: 0, detail: [] },
-    { key: 'tardeMas', label: 'Tardé más de lo estimado', mins: tardeMas, pct: 0, detail: tardeMasDetail.sort((a, b) => b.mins - a.mins) },
-    { key: 'fuera', label: 'Fuera del plan', mins: outOfPlan?.total || 0, pct: 0, detail: fueraDetail },
-    { key: 'espera', label: 'En espera', mins: enEspera, count: enEsperaFates.length, pct: 0, detail: enEsperaFates.map(f => ({ title: f.title || '(tarea)', mins: f.estMin })) },
-    ...(externalCauses || []).map((c, i) => ({ key: `ext-${i}`, label: c.label, mins: c.minutes || 0, pct: 0, detail: [] as { title: string; mins: number }[] })),
-  ];
-  const causas = raw.filter(c => c.mins > 0)
-    .map(c => ({ ...c, pct: sinHacer > 0 ? Math.round((c.mins / sinHacer) * 100) : 0 }))
-    .sort((a, b) => b.mins - a.mins);
-  return { sinHacerMin: sinHacer, jornada, fijado: rec.fijado, sobreplan: Math.max(0, rec.fijado - jornada), causas };
+  const raw = [
+    { key: 'entraron', label: 'Entraron cosas nuevas', mins: rec.entraronMin, count: rec.entraronCount, detail: nuevas.map((l: any) => ({ title: l.title || '(tarea)', mins: l.estimatedMinutes || 0 })) },
+    { key: 'sobreplan', label: 'Sobreplanifiqué', mins: Math.max(0, rec.fijado - jornada), detail: [] as { title: string; mins: number }[] },
+    { key: 'tardeMas', label: 'Tardé más de lo estimado', mins: tardeMas, detail: tardeMasDetail.sort((a, b) => b.mins - a.mins) },
+    { key: 'fuera', label: 'Fuera del plan', mins: outOfPlan?.total || 0, detail: fueraDetail },
+    { key: 'espera', label: 'En espera', mins: enEspera, count: enEsperaFates.length, detail: enEsperaFates.map(f => ({ title: f.title || '(tarea)', mins: f.estMin })) },
+    ...(externalCauses || []).map((c, i) => ({ key: `ext-${i}`, label: c.label, mins: c.minutes || 0, detail: [] as { title: string; mins: number }[] })),
+  ].filter(c => c.mins > 0);
+  const totalCausas = raw.reduce((a, c) => a + c.mins, 0);
+  const causas: DesvioCausa[] = raw
+    .map(c => ({
+      ...c,
+      impacto: sinHacer > 0 ? Math.round((c.mins / sinHacer) * 100) : 0,       // vs sin hacer (puede pasar del 100%)
+      pesoRel: totalCausas > 0 ? Math.round((c.mins / totalCausas) * 100) : 0,  // vs suma de causas (suma 100)
+    }))
+    .sort((a, b) => b.pesoRel - a.pesoRel); // §16.112: ordenar por PESO RELATIVO
+  return { sinHacerMin: sinHacer, totalCausasMin: totalCausas, jornada, fijado: rec.fijado, sobreplan: Math.max(0, rec.fijado - jornada), causas };
 }
 
 // §16.101 DESVIACIÓN ESTIMADO vs REGISTRADO (de lo COMPLETADO) — "¿estimo bien?". DISTINTO del FIJADO vs HECHO:

@@ -592,8 +592,11 @@ describe('§16.109 destino del plan + descomposición del desvío', () => {
     expect(m['fuera']).toBe(30);
     expect(m['espera']).toBe(20);     // r2 onHold
     expect(m['ext-0']).toBe(45);      // Visita
-    // ordenadas por peso; pueden pasar del 100% (sobreplan 80/57 = 140%)
+    // §16.112: dos columnas. IMPACTO vs sin-hacer (puede pasar del 100%: sobreplan 80/57 = 140%);
+    // PESO RELATIVO vs suma de causas (207) → sobreplan 80/207 = 39%. Ordenadas por peso relativo.
     expect(t.causas[0].key).toBe('sobreplan');
-    expect(t.causas.find(c => c.key === 'sobreplan')!.pct).toBe(140);
+    expect(t.totalCausasMin).toBe(207); // 12+80+20+30+20+45
+    expect(t.causas.find(c => c.key === 'sobreplan')!.impacto).toBe(140);
+    expect(t.causas.find(c => c.key === 'sobreplan')!.pesoRel).toBe(39);
   });
 });
