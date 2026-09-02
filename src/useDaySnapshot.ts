@@ -31,16 +31,26 @@ export function useDaySnapshot(activeDate: string) {
     return () => { cancel = true; };
   }, [activeDate]);
 
-  // Jornada (una sola vez)
+  // §16.119: jornada GLOBAL (default) + overrides POR DÍA (settings 'jornada_por_dia' = {fecha: minutos}). Para medias jornadas.
+  const [jornadaGlobal, setJornadaGlobal] = useState<number>(DEFAULT_JORNADA);
+  const [jornadaPorDia, setJornadaPorDia] = useState<Record<string, number>>({});
   useEffect(() => {
     let cancel = false;
     (async () => {
-      const { data } = await supabase.from('settings').select('value').eq('key', 'jornada_minutes').maybeSingle();
-      const v = (data as any)?.value;
-      if (!cancel && v != null) setJornadaState(Number(v) || DEFAULT_JORNADA);
+      const [g, d] = await Promise.all([
+        supabase.from('settings').select('value').eq('key', 'jornada_minutes').maybeSingle(),
+        supabase.from('settings').select('value').eq('key', 'jornada_por_dia').maybeSingle(),
+      ]);
+      if (cancel) return;
+      const gv = (g.data as any)?.value; if (gv != null) setJornadaGlobal(Number(gv) || DEFAULT_JORNADA);
+      const dv = (d.data as any)?.value; if (dv && typeof dv === 'object') setJornadaPorDia(dv);
     })();
     return () => { cancel = true; };
   }, []);
+  // la jornada del día activo = override del día si existe, si no la global
+  useEffect(() => {
+    setJornadaState(jornadaPorDia[activeDate] ?? jornadaGlobal);
+  }, [activeDate, jornadaPorDia, jornadaGlobal]);
 
   const latest = snapshots.length ? snapshots[snapshots.length - 1] : null;
 
@@ -62,12 +72,16 @@ export function useDaySnapshot(activeDate: string) {
     return snap;
   }, [activeDate]);
 
+  // §16.119: fijar la jornada del DÍA ACTIVO (override por-día). La global se queda como default para los demás días.
   const setJornada = useCallback(async (minutes: number) => {
     const m = Math.max(0, Math.round(minutes));
     setJornadaState(m);
-    await supabase.from('settings')
-      .upsert({ key: 'jornada_minutes', value: m, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-  }, []);
+    setJornadaPorDia(prev => {
+      const next = { ...prev, [activeDate]: m };
+      supabase.from('settings').upsert({ key: 'jornada_por_dia', value: next, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      return next;
+    });
+  }, [activeDate]);
 
   return { snapshots, latest, jornada, fijar, setJornada };
 }
