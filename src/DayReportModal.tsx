@@ -91,6 +91,7 @@ export function DayReportModal({
   const [hoyOpen, setHoyOpen] = useState(true);          // §16.104 (pieza 8): apartado "para hoy"
   const [otroOpen, setOtroOpen] = useState(true);        // §16.104 (pieza 8): apartado "para otro día"
   const [outOfPlanOpen, setOutOfPlanOpen] = useState(false); // §16.104 (pieza 7): plegado por defecto
+  const [openCauses, setOpenCauses] = useState<Set<string>>(new Set()); // §16.113: detalle desplegable por causa
 
   // Al abrir / cambiar de día, precargar lo guardado.
   useEffect(() => {
@@ -355,15 +356,37 @@ export function DayReportModal({
                   <span className="w-12 text-right text-morado/70">Impacto</span>
                   <span className="w-14 text-right text-turquesa/70">Peso rel.</span>
                 </div>
-                {caus.causas.map(c => (
-                  <div key={c.key} className="flex items-center gap-2 text-[11px] font-bold">
-                    <span className="flex-1 truncate dark:text-white text-text-main-light">{c.label}</span>
-                    <span className="w-8 text-right tabular-nums dark:text-text-secondary text-text-secondary-light">{c.count != null ? c.count : '—'}</span>
-                    <span className="w-14 text-right tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(c.mins)}</span>
-                    <span className="w-12 text-right tabular-nums text-morado">{c.impacto}%</span>
-                    <span className="w-14 text-right tabular-nums text-turquesa">{c.pesoRel}%</span>
-                  </div>
-                ))}
+                {caus.causas.map(c => {
+                  const hasDetail = c.detail && c.detail.length > 0;
+                  const isOpen = openCauses.has(c.key);
+                  return (
+                    <div key={c.key}>
+                      <button
+                        onClick={() => hasDetail && setOpenCauses(prev => { const n = new Set(prev); n.has(c.key) ? n.delete(c.key) : n.add(c.key); return n; })}
+                        className={`flex items-center gap-2 text-[11px] font-bold w-full text-left ${hasDetail ? 'group' : 'cursor-default'}`}
+                      >
+                        <span className="flex-1 truncate dark:text-white text-text-main-light flex items-center gap-1">
+                          {hasDetail && (isOpen ? <ChevronDown size={10} className="text-text-secondary/60 shrink-0" /> : <ChevronRight size={10} className="text-text-secondary/60 shrink-0" />)}
+                          <span className={hasDetail ? 'group-hover:text-turquesa transition-colors' : ''}>{c.label}</span>
+                        </span>
+                        <span className="w-8 text-right tabular-nums dark:text-text-secondary text-text-secondary-light">{c.count != null ? c.count : '—'}</span>
+                        <span className="w-14 text-right tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(c.mins)}</span>
+                        <span className="w-12 text-right tabular-nums text-morado">{c.impacto}%</span>
+                        <span className="w-14 text-right tabular-nums text-turquesa">{c.pesoRel}%</span>
+                      </button>
+                      {hasDetail && isOpen && (
+                        <div className="pl-4 py-0.5 space-y-0.5">
+                          {c.detail.map((d, di) => (
+                            <div key={di} className="flex items-center gap-2 text-[10px]">
+                              <span className="flex-1 truncate dark:text-text-secondary text-text-secondary-light">{d.title}</span>
+                              <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(d.mins)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
