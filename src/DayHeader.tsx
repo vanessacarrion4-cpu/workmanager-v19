@@ -116,11 +116,9 @@ export function DayHeader({
       {/* FILA 3 · META (foto + entrada) — contexto silencioso, solo si aplica */}
       {latest && (
         <div className="mt-1.5 text-[12px] font-medium dark:text-text-secondary text-text-secondary-light">
+          {/* §16.117: quitado el "+N tareas · +tiempo" (neto filtrado, confuso — no cuadraba con "creadas hoy"). El cambio del
+              día vs el plan vive en el Reporte (secuencia entraron/saqué). Aquí solo la hora de fijación. */}
           Fijado a las {hhmm(latest.taken_at)}
-          <span className="mx-1.5 opacity-40">·</span>
-          <span className="tabular-nums">{fmtSigned0(stats.total - latest.task_count)} tarea{Math.abs(stats.total - latest.task_count) === 1 ? '' : 's'}</span>
-          <span className="mx-1.5 opacity-40">·</span>
-          <span className="tabular-nums">{fmtSigned(stats.estimatedTotal - latest.estimated_minutes)}</span>
         </div>
       )}
 
@@ -132,15 +130,16 @@ export function DayHeader({
             className="flex items-center gap-1.5 text-[12px] font-medium dark:text-text-secondary text-text-secondary-light hover:text-turquesa group/ent"
           >
             {entOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            {/* §16.117: una línea con TIEMPO en las dos partes — cuánto trabajo nuevo cayó hoy vs cuánto empujé a futuro. */}
             <span>
-              Entró el {diaLargo(entrada.day)}
-              <span className="mx-1.5 opacity-40">·</span>
-              <span className="tabular-nums dark:text-white text-text-main-light">{entrada.total}</span> tarea{entrada.total === 1 ? '' : 's'}
-              {entrada.forToday > 0 && entrada.later > 0 && (
-                <span className="opacity-70"> ({entrada.forToday} para hoy · {entrada.later} más adelante)</span>
+              Entraron hoy
+              {entrada.forToday > 0 && (
+                <span className="mx-1.5"><span className="tabular-nums dark:text-white text-text-main-light">{entrada.forToday}</span> tarea{entrada.forToday === 1 ? '' : 's'} · <span className="tabular-nums dark:text-white text-text-main-light">{formatMinutes(entrada.hoy.minutes)}</span> para hoy</span>
               )}
-              {entrada.forToday > 0 && entrada.later === 0 && <span className="opacity-70"> (para hoy)</span>}
-              {entrada.forToday === 0 && entrada.later > 0 && <span className="opacity-70"> (todas más adelante)</span>}
+              {entrada.forToday > 0 && entrada.later > 0 && <span className="opacity-40">·</span>}
+              {entrada.later > 0 && (
+                <span className="mx-1.5"><span className="tabular-nums dark:text-white text-text-main-light">{entrada.later}</span> tarea{entrada.later === 1 ? '' : 's'} · <span className="tabular-nums dark:text-white text-text-main-light">{formatMinutes(entrada.otro.minutes)}</span> para otros días</span>
+              )}
             </span>
           </button>
           {entOpen && (
