@@ -902,6 +902,100 @@ export function getReportBreakdown(
   return { byType, byBlock, byTag };
 }
 
+// §16.109 · CLASIFICACIÓN POR DESTINO de las tareas del plan congelado. Sustituye "entraron/salieron" (roto: al COMPLETAR una
+// recurrente se crea una excepción con OTRO id, y el conteo por-id creía que "salió" y otra "entró"). Aquí se clasifica por
+// lo que le PASÓ a cada tarea, mirando la excepción recurrente por templateId+instanceDate (no por id). Necesita el mapa COMPLETO.
+export type PlanFateKind = 'cumplida' | 'pendiente' | 'movida' | 'borrada';
+export interface PlanFate { id: string; estMin: number; blockId: string; tag: string; type: 'core' | 'adhoc'; kind: PlanFateKind; onHold: boolean; rolledOverCount: number; title: string; }
+export function getPlanFates(allTasks: Record<string, Task>, planTaskIds: string[], date: string): PlanFate[] {
+  const excByKey: Record<string, any> = {};
+  Object.values(allTasks).forEach((t: any) => { if (t && t.templateId && t.instanceDate) excByKey[`${t.templateId}__${t.instanceDate}`] = t; });
+  return (planTaskIds || []).map(entry => {
+    const id = planEntryId(entry);
+    const meta = planEntryMeta(entry) || { estMin: 0, blockId: '', tag: 'resto', type: 'adhoc' as const };
+    const isInst = id.startsWith('inst-');
+    const tid = isInst ? id.replace(/^inst-/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '') : '';
+    const cur: any = isInst ? (excByKey[`${tid}__${date}`] || null) : (allTasks[id] || null);
+    let kind: PlanFateKind; let onHold = false; let roll = 0; let title = '';
+    if (!cur) {
+      kind = isInst ? 'pendiente' : 'borrada'; // recurrente sin excepción → sigue pendiente; real sin fila → desaparecida
+      if (isInst) { const tpl: any = allTasks[tid]; onHold = !!tpl?.onHold; title = tpl?.title || ''; }
+    } else {
+      title = cur.title || ''; roll = cur.rolledOverCount || cur.rolled_over_count || 0;
+      if (cur.isDeleted) kind = 'borrada';
+      else if (cur.status === 'completed') kind = 'cumplida';
+      else if (cur.dueDate && cur.dueDate !== date) kind = 'movida';
+      else { kind = 'pendiente'; onHold = !!cur.onHold; }
+    }
+    return { id, estMin: meta.estMin, blockId: meta.blockId, tag: meta.tag, type: meta.type, kind, onHold, rolledOverCount: roll, title };
+  });
+}
+
+// §16.109 · cuenta por destino: 39 cumplidas · 13 pendientes · 10 movidas · 2 borradas (= plan) + N nuevas (hojas de hoy que
+// NO estaban en el plan; una recurrente completada NO cuenta como nueva aunque su id de excepción cambie).
+export interface FateAccounting { plan: number; cumplidas: number; pendientes: number; movidas: number; borradas: number; nuevas: number; nuevasMin: number; }
+export function getFateAccounting(allTasks: Record<string, Task>, planTaskIds: string[], dayTasks: Task[], date: string): FateAccounting {
+  const fates = getPlanFates(allTasks, planTaskIds, date);
+  const c = (k: PlanFateKind) => fates.filter(f => f.kind === k).length;
+  const planIdSet = new Set((planTaskIds || []).map(planEntryId));
+  const leafFromPlan = (l: any) => planIdSet.has(l.id) || (l.templateId && l.instanceDate === date && planIdSet.has(`inst-${l.templateId}-${date}`));
+  const leaves = collectLeafTasks(dayTasks, allTasks, date);
+  const nuevasLeaves = leaves.filter(l => !leafFromPlan(l));
+  return {
+    plan: fates.length, cumplidas: c('cumplida'), pendientes: c('pendiente'), movidas: c('movida'), borradas: c('borrada'),
+    nuevas: nuevasLeaves.length, nuevasMin: nuevasLeaves.reduce((a, l) => a + (l.estimatedMinutes || 0), 0),
+  };
+}
+
+// §16.109 · DESCOMPOSICIÓN DEL DESVÍO en DOS BLOQUES que NO se solapan (dominios disjuntos → ningún minuto se cuenta dos veces).
+//  A · "¿Por qué no cerré el plan?" = reparto del FIJADO no cumplido, por destino (en espera=onHold ESTADO / movidas / borradas
+//      / no llegué). Sobreplanificación va como titular diagnóstico, NO como porción (serían las mismas tareas que no cupieron).
+//  B · "¿En qué se fue el tiempo que no era del plan?" = fuera del plan + tardé más de lo estimado (solo en lo cumplido del plan)
+//      + causas externas (tiempo que mete la usuaria). Denominadores distintos por bloque; cada uno con su 100%.
+export interface DesvioCausa { key: string; label: string; mins: number; }
+export interface DesvioDecomp {
+  jornada: number; fijadoTotal: number; sobreplan: number;
+  bloqueA: { total: number; causas: DesvioCausa[] };
+  bloqueB: { total: number; causas: DesvioCausa[] };
+}
+export function getDesvioDecomposition(
+  allTasks: Record<string, Task>, planTaskIds: string[], dayTasks: Task[], timeEntries: any[], date: string,
+  jornada: number, outOfPlanTotal: number, externalCauses: { label: string; minutes: number }[] = []
+): DesvioDecomp {
+  const fates = getPlanFates(allTasks, planTaskIds, date);
+  const sumEst = (pred: (f: PlanFate) => boolean) => fates.filter(pred).reduce((a, f) => a + f.estMin, 0);
+  const fijadoTotal = fates.reduce((a, f) => a + f.estMin, 0);
+  const enEspera = sumEst(f => f.kind === 'pendiente' && f.onHold);
+  const noLlegue = sumEst(f => f.kind === 'pendiente' && !f.onHold);
+  const movidas = sumEst(f => f.kind === 'movida');
+  const borradas = sumEst(f => f.kind === 'borrada');
+  const bloqueA = {
+    total: enEspera + noLlegue + movidas + borradas, // = fijado NO cumplido
+    causas: [
+      { key: 'espera', label: 'En espera', mins: enEspera },
+      { key: 'movidas', label: 'Movidas a otro día', mins: movidas },
+      { key: 'borradas', label: 'Borradas', mins: borradas },
+      { key: 'noLlegue', label: 'No llegué', mins: noLlegue },
+    ].filter(c => c.mins > 0).sort((a, b) => b.mins - a.mins),
+  };
+  // tardé más = suma de los minutos DE MÁS (registrado − estimado) SOLO en tareas del plan CUMPLIDAS
+  let tardeMas = 0;
+  fates.filter(f => f.kind === 'cumplida').forEach(f => {
+    const over = getTaskRegisteredSelf(f.id, timeEntries, date) - f.estMin;
+    if (over > 0) tardeMas += over;
+  });
+  const externasTotal = (externalCauses || []).reduce((a, c) => a + (c.minutes || 0), 0);
+  const bloqueB = {
+    total: outOfPlanTotal + tardeMas + externasTotal,
+    causas: [
+      { key: 'fuera', label: 'Fuera del plan', mins: outOfPlanTotal },
+      { key: 'tardeMas', label: 'Tardé más de lo estimado', mins: tardeMas },
+      ...(externalCauses || []).map((c, i) => ({ key: `ext-${i}`, label: c.label, mins: c.minutes || 0 })),
+    ].filter(c => c.mins > 0).sort((a, b) => b.mins - a.mins),
+  };
+  return { jornada, fijadoTotal, sobreplan: Math.max(0, fijadoTotal - jornada), bloqueA, bloqueB };
+}
+
 // §16.101 DESVIACIÓN ESTIMADO vs REGISTRADO (de lo COMPLETADO) — "¿estimo bien?". DISTINTO del FIJADO vs HECHO:
 // aquello compara PLAN (foto) contra realidad; esto compara MI ESTIMACIÓN contra MI TIEMPO REAL en lo que sí hice.
 //  · NO depende de la foto → funciona en días sin fijación.

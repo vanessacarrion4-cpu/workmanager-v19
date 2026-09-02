@@ -525,3 +525,57 @@ describe('getEntradasSalidas', () => {
     expect(r.salieron).toEqual({ count: 1, mins: 30 }); // b, con su estimado CONGELADO (30)
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §16.109 · getPlanFates / getFateAccounting / getDesvioDecomposition
+// ─────────────────────────────────────────────────────────────────────────────
+import { getPlanFates, getFateAccounting, getDesvioDecomposition } from './filters';
+
+describe('§16.109 destino del plan + descomposición del desvío', () => {
+  const D = '2026-07-15';
+  const plan = [
+    'r1::30::b1::focus::core', 'r2::20::b1::espera::adhoc', 'r3::10::b2::resto::adhoc', 'r4::15::b1::resto::adhoc',
+    'inst-tA-2026-07-15::40::b1::focus::core', 'inst-tB-2026-07-15::25::b2::resto::adhoc',
+  ];
+  const all = mapOf([
+    task({ id: 'r1', status: 'completed', dueDate: D }),
+    task({ id: 'r2', status: 'pending', dueDate: D, onHold: true } as any),   // EN ESPERA por estado
+    task({ id: 'r3', status: 'pending', dueDate: '2026-07-20' }),             // movida
+    task({ id: 'r4', isDeleted: true } as any),                              // borrada
+    task({ id: 'exA', templateId: 'tA', instanceDate: D, status: 'completed', dueDate: D } as any), // recurrente completada (id distinto)
+    task({ id: 'X', dueDate: D, estimatedMinutes: 12 }),                     // nueva, no estaba en el plan
+  ]);
+
+  it('getPlanFates: clasifica por destino; recurrente completada NO cuenta como movida', () => {
+    const f = getPlanFates(all, plan, D);
+    const byId = Object.fromEntries(f.map(x => [x.id, x.kind]));
+    expect(byId['r1']).toBe('cumplida');
+    expect(byId['r2']).toBe('pendiente');
+    expect(byId['r3']).toBe('movida');
+    expect(byId['r4']).toBe('borrada');
+    expect(byId['inst-tA-2026-07-15']).toBe('cumplida'); // por la excepción, no "salió"
+    expect(byId['inst-tB-2026-07-15']).toBe('pendiente'); // sin excepción → sigue pendiente
+    expect(f.find(x => x.id === 'r2')!.onHold).toBe(true);
+  });
+
+  it('getFateAccounting: la recurrente completada NO se cuenta como nueva', () => {
+    const dayTasks = [all['r1'], all['r2'], all['exA'], all['X']];
+    const a = getFateAccounting(all, plan, dayTasks, D);
+    expect(a).toMatchObject({ plan: 6, cumplidas: 2, pendientes: 2, movidas: 1, borradas: 1, nuevas: 1, nuevasMin: 12 });
+  });
+
+  it('getDesvioDecomposition: dos bloques disjuntos; en espera por onHold; sobreplan como diagnóstico', () => {
+    const te = [{ taskId: 'r1', subtaskId: null, date: D, duration: 50 }, { taskId: 'tA', subtaskId: null, date: D, duration: 40 }];
+    const d = getDesvioDecomposition(all, plan, [all['r1'], all['r2'], all['exA'], all['X']], te, D, 60, 30, [{ label: 'Visita', minutes: 45 }]);
+    expect(d.fijadoTotal).toBe(140);
+    expect(d.sobreplan).toBe(80); // 140 − 60 jornada
+    expect(d.bloqueA.total).toBe(70); // fijado no cumplido
+    const A = Object.fromEntries(d.bloqueA.causas.map(c => [c.key, c.mins]));
+    expect(A).toEqual({ espera: 20, noLlegue: 25, movidas: 10, borradas: 15 });
+    expect(d.bloqueB.total).toBe(95); // fuera 30 + tardeMas 20 + externas 45
+    const B = Object.fromEntries(d.bloqueB.causas.map(c => [c.key, c.mins]));
+    expect(B['fuera']).toBe(30);
+    expect(B['tardeMas']).toBe(20); // r1: reg 50 − est 30
+    expect(B['ext-0']).toBe(45);
+  });
+});
