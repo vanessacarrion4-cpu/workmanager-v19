@@ -529,7 +529,7 @@ describe('getEntradasSalidas', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // §16.109 · getPlanFates / getFateAccounting / getDesvioDecomposition
 // ─────────────────────────────────────────────────────────────────────────────
-import { getPlanFates, getFateAccounting, getDesvioDecomposition } from './filters';
+import { getPlanFates, getFateAccounting, getDayReconciliation, getDesvioCauses } from './filters';
 
 describe('§16.109 destino del plan + descomposición del desvío', () => {
   const D = '2026-07-15';
@@ -564,18 +564,36 @@ describe('§16.109 destino del plan + descomposición del desvío', () => {
     expect(a).toMatchObject({ plan: 6, cumplidas: 2, pendientes: 2, movidas: 1, borradas: 1, nuevas: 1, nuevasMin: 12 });
   });
 
-  it('getDesvioDecomposition: dos bloques disjuntos; en espera por onHold; sobreplan como diagnóstico', () => {
+  it('getDayReconciliation: la secuencia CIERRA (todo estimado; registrado es otro eje)', () => {
     const te = [{ taskId: 'r1', subtaskId: null, date: D, duration: 50 }, { taskId: 'tA', subtaskId: null, date: D, duration: 40 }];
-    const d = getDesvioDecomposition(all, plan, [all['r1'], all['r2'], all['exA'], all['X']], te, D, 60, 30, [{ label: 'Visita', minutes: 45 }]);
-    expect(d.fijadoTotal).toBe(140);
-    expect(d.sobreplan).toBe(80); // 140 − 60 jornada
-    expect(d.bloqueA.total).toBe(70); // fijado no cumplido
-    const A = Object.fromEntries(d.bloqueA.causas.map(c => [c.key, c.mins]));
-    expect(A).toEqual({ espera: 20, noLlegue: 25, movidas: 10, borradas: 15 });
-    expect(d.bloqueB.total).toBe(95); // fuera 30 + tardeMas 20 + externas 45
-    const B = Object.fromEntries(d.bloqueB.causas.map(c => [c.key, c.mins]));
-    expect(B['fuera']).toBe(30);
-    expect(B['tardeMas']).toBe(20); // r1: reg 50 − est 30
-    expect(B['ext-0']).toBe(45);
+    const r = getDayReconciliation(all, plan, [all['r1'], all['r2'], all['exA'], all['X']], te, D);
+    expect(r.fijado).toBe(140);
+    expect(r.entraronMin).toBe(12); expect(r.entraronCount).toBe(1); // X
+    expect(r.saqueMin).toBe(25); // movida 10 + borrada 15
+    expect(r.diaMin).toBe(127); // 140 − 25 + 12
+    expect(r.cumplidoMin).toBe(70); // r1 30 + tA 40
+    expect(r.sinHacerMin).toBe(57); // 127 − 70 = pendiente 45 + nueva pendiente 12
+    expect(r.sinHacerCount).toBe(3);
+    expect(r.registrado).toBe(90); // eje aparte
+    // la identidad cierra:
+    expect(r.fijado - r.saqueMin + r.entraronMin).toBe(r.diaMin);
+    expect(r.diaMin - r.cumplidoMin).toBe(r.sinHacerMin);
+  });
+
+  it('getDesvioCauses: UNA tabla, peso vs sin-hacer; entraron nuevas como causa; en espera por onHold', () => {
+    const te = [{ taskId: 'r1', subtaskId: null, date: D, duration: 50 }, { taskId: 'tA', subtaskId: null, date: D, duration: 40 }];
+    const t = getDesvioCauses(all, plan, [all['r1'], all['r2'], all['exA'], all['X']], te, D, 60,
+      { total: 30, groups: [{ containerId: null, title: 'G', isContainer: false, rows: [], minutes: 30 }] }, [{ label: 'Visita', minutes: 45 }]);
+    expect(t.sinHacerMin).toBe(57);
+    const m = Object.fromEntries(t.causas.map(c => [c.key, c.mins]));
+    expect(m['entraron']).toBe(12);   // la nueva
+    expect(m['sobreplan']).toBe(80);  // 140 − 60
+    expect(m['tardeMas']).toBe(20);   // r1: 50 − 30
+    expect(m['fuera']).toBe(30);
+    expect(m['espera']).toBe(20);     // r2 onHold
+    expect(m['ext-0']).toBe(45);      // Visita
+    // ordenadas por peso; pueden pasar del 100% (sobreplan 80/57 = 140%)
+    expect(t.causas[0].key).toBe('sobreplan');
+    expect(t.causas.find(c => c.key === 'sobreplan')!.pct).toBe(140);
   });
 });

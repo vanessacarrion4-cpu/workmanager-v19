@@ -952,48 +952,81 @@ export function getFateAccounting(allTasks: Record<string, Task>, planTaskIds: s
 //      / no llegué). Sobreplanificación va como titular diagnóstico, NO como porción (serían las mismas tareas que no cupieron).
 //  B · "¿En qué se fue el tiempo que no era del plan?" = fuera del plan + tardé más de lo estimado (solo en lo cumplido del plan)
 //      + causas externas (tiempo que mete la usuaria). Denominadores distintos por bloque; cada uno con su 100%.
-export interface DesvioCausa { key: string; label: string; mins: number; }
-export interface DesvioDecomp {
-  jornada: number; fijadoTotal: number; sobreplan: number;
-  bloqueA: { total: number; causas: DesvioCausa[] };
-  bloqueB: { total: number; causas: DesvioCausa[] };
+// §16.110 · SECUENCIA DEL DÍA que CIERRA (todo en ESTIMADO; `registrado` es OTRO eje, no se resta). El error de siempre era
+// restar registrado (lo gastado) de estimado (lo planeado). Identidad: día = fijado − saqué + entraron; sinHacer = día − cumplido.
+export interface DayReconciliation {
+  fijado: number;                                   // estimado del plan congelado
+  entraronMin: number; entraronCount: number;       // tareas NUEVAS para hoy (creadas tras fijar, con fecha hoy)
+  saqueMin: number; saqueCount: number;             // plan movidas + borradas (salieron del día)
+  diaMin: number;                                   // fijado − saqué + entraron (lo que el día pasó a ser)
+  cumplidoMin: number; cumplidoCount: number;       // estimado de TODO lo completado (plan + nuevas)
+  sinHacerMin: number; sinHacerCount: number;       // día − cumplido = pendiente al final (plan + nuevas sin hacer)
+  registrado: number;                               // FICHÉ — tiempo real, eje aparte
 }
-export function getDesvioDecomposition(
-  allTasks: Record<string, Task>, planTaskIds: string[], dayTasks: Task[], timeEntries: any[], date: string,
-  jornada: number, outOfPlanTotal: number, externalCauses: { label: string; minutes: number }[] = []
-): DesvioDecomp {
+export function getDayReconciliation(
+  allTasks: Record<string, Task>, planTaskIds: string[], dayTasks: Task[], timeEntries: any[], date: string
+): DayReconciliation {
   const fates = getPlanFates(allTasks, planTaskIds, date);
-  const sumEst = (pred: (f: PlanFate) => boolean) => fates.filter(pred).reduce((a, f) => a + f.estMin, 0);
-  const fijadoTotal = fates.reduce((a, f) => a + f.estMin, 0);
-  const enEspera = sumEst(f => f.kind === 'pendiente' && f.onHold);
-  const noLlegue = sumEst(f => f.kind === 'pendiente' && !f.onHold);
-  const movidas = sumEst(f => f.kind === 'movida');
-  const borradas = sumEst(f => f.kind === 'borrada');
-  const bloqueA = {
-    total: enEspera + noLlegue + movidas + borradas, // = fijado NO cumplido
-    causas: [
-      { key: 'espera', label: 'En espera', mins: enEspera },
-      { key: 'movidas', label: 'Movidas a otro día', mins: movidas },
-      { key: 'borradas', label: 'Borradas', mins: borradas },
-      { key: 'noLlegue', label: 'No llegué', mins: noLlegue },
-    ].filter(c => c.mins > 0).sort((a, b) => b.mins - a.mins),
+  const sumEst = (k: PlanFateKind) => fates.filter(f => f.kind === k).reduce((a, f) => a + f.estMin, 0);
+  const cntF = (k: PlanFateKind) => fates.filter(f => f.kind === k).length;
+  const fijado = fates.reduce((a, f) => a + f.estMin, 0);
+  const planIdSet = new Set((planTaskIds || []).map(planEntryId));
+  const leafFromPlan = (l: any) => planIdSet.has(l.id) || (l.templateId && l.instanceDate === date && planIdSet.has(`inst-${l.templateId}-${date}`));
+  const nuevas = collectLeafTasks(dayTasks, allTasks, date).filter(l => !leafFromPlan(l));
+  const nuevasCompl = nuevas.filter(l => isTaskCompleted(l.id, allTasks));
+  const nuevasMin = nuevas.reduce((a, l) => a + (l.estimatedMinutes || 0), 0);
+  const nuevasComplMin = nuevasCompl.reduce((a, l) => a + (l.estimatedMinutes || 0), 0);
+  const saqueMin = sumEst('movida') + sumEst('borrada');
+  const diaMin = fijado - saqueMin + nuevasMin;
+  const cumplidoMin = sumEst('cumplida') + nuevasComplMin;
+  const registrado = (timeEntries || []).filter((e: any) => e && e.date === date).reduce((a: number, e: any) => a + (e.duration || 0), 0);
+  return {
+    fijado, entraronMin: nuevasMin, entraronCount: nuevas.length,
+    saqueMin, saqueCount: cntF('movida') + cntF('borrada'),
+    diaMin, cumplidoMin, cumplidoCount: cntF('cumplida') + nuevasCompl.length,
+    sinHacerMin: diaMin - cumplidoMin, sinHacerCount: cntF('pendiente') + (nuevas.length - nuevasCompl.length),
+    registrado,
   };
-  // tardé más = suma de los minutos DE MÁS (registrado − estimado) SOLO en tareas del plan CUMPLIDAS
-  let tardeMas = 0;
+}
+
+// §16.110 · UNA SOLA TABLA de causas del desvío, PESO vs "sin hacer" (100% = lo que quedó sin hacer). Pueden pasar del 100%:
+// es peso de impacto, no reparto de una tarta. Juntas las que calculo yo y las EXTERNAS que mete la usuaria (misma escala).
+export interface DesvioCausa { key: string; label: string; mins: number; count?: number; pct: number; detail: { title: string; mins: number }[]; }
+export interface DesvioTable { sinHacerMin: number; jornada: number; fijado: number; sobreplan: number; causas: DesvioCausa[]; }
+export function getDesvioCauses(
+  allTasks: Record<string, Task>, planTaskIds: string[], dayTasks: Task[], timeEntries: any[], date: string,
+  jornada: number, outOfPlan: { total: number; groups: OutOfPlanGroup[] }, externalCauses: { label: string; minutes: number }[] = []
+): DesvioTable {
+  const rec = getDayReconciliation(allTasks, planTaskIds, dayTasks, timeEntries, date);
+  const fates = getPlanFates(allTasks, planTaskIds, date);
+  const sinHacer = rec.sinHacerMin;
+  // Entraron nuevas (para hoy) — la causa más grande cuando engorda el día
+  const planIdSet = new Set((planTaskIds || []).map(planEntryId));
+  const leafFromPlan = (l: any) => planIdSet.has(l.id) || (l.templateId && l.instanceDate === date && planIdSet.has(`inst-${l.templateId}-${date}`));
+  const nuevas = collectLeafTasks(dayTasks, allTasks, date).filter(l => !leafFromPlan(l));
+  // Tardé más = minutos de MÁS (registrado − estimado) en lo cumplido del plan
+  const tardeMasDetail: { title: string; mins: number }[] = [];
   fates.filter(f => f.kind === 'cumplida').forEach(f => {
     const over = getTaskRegisteredSelf(f.id, timeEntries, date) - f.estMin;
-    if (over > 0) tardeMas += over;
+    if (over > 0) tardeMasDetail.push({ title: f.title || '(tarea)', mins: over });
   });
-  const externasTotal = (externalCauses || []).reduce((a, c) => a + (c.minutes || 0), 0);
-  const bloqueB = {
-    total: outOfPlanTotal + tardeMas + externasTotal,
-    causas: [
-      { key: 'fuera', label: 'Fuera del plan', mins: outOfPlanTotal },
-      { key: 'tardeMas', label: 'Tardé más de lo estimado', mins: tardeMas },
-      ...(externalCauses || []).map((c, i) => ({ key: `ext-${i}`, label: c.label, mins: c.minutes || 0 })),
-    ].filter(c => c.mins > 0).sort((a, b) => b.mins - a.mins),
-  };
-  return { jornada, fijadoTotal, sobreplan: Math.max(0, fijadoTotal - jornada), bloqueA, bloqueB };
+  const tardeMas = tardeMasDetail.reduce((a, d) => a + d.mins, 0);
+  // En espera = estimado de pendientes en on_hold
+  const enEsperaFates = fates.filter(f => f.kind === 'pendiente' && f.onHold);
+  const enEspera = enEsperaFates.reduce((a, f) => a + f.estMin, 0);
+  const fueraDetail = (outOfPlan?.groups || []).map(g => ({ title: g.title, mins: g.minutes }));
+  const raw: DesvioCausa[] = [
+    { key: 'entraron', label: 'Entraron cosas nuevas', mins: rec.entraronMin, count: rec.entraronCount, pct: 0, detail: nuevas.map((l: any) => ({ title: l.title || '(tarea)', mins: l.estimatedMinutes || 0 })) },
+    { key: 'sobreplan', label: 'Sobreplanifiqué', mins: Math.max(0, rec.fijado - jornada), pct: 0, detail: [] },
+    { key: 'tardeMas', label: 'Tardé más de lo estimado', mins: tardeMas, pct: 0, detail: tardeMasDetail.sort((a, b) => b.mins - a.mins) },
+    { key: 'fuera', label: 'Fuera del plan', mins: outOfPlan?.total || 0, pct: 0, detail: fueraDetail },
+    { key: 'espera', label: 'En espera', mins: enEspera, count: enEsperaFates.length, pct: 0, detail: enEsperaFates.map(f => ({ title: f.title || '(tarea)', mins: f.estMin })) },
+    ...(externalCauses || []).map((c, i) => ({ key: `ext-${i}`, label: c.label, mins: c.minutes || 0, pct: 0, detail: [] as { title: string; mins: number }[] })),
+  ];
+  const causas = raw.filter(c => c.mins > 0)
+    .map(c => ({ ...c, pct: sinHacer > 0 ? Math.round((c.mins / sinHacer) * 100) : 0 }))
+    .sort((a, b) => b.mins - a.mins);
+  return { sinHacerMin: sinHacer, jornada, fijado: rec.fijado, sobreplan: Math.max(0, rec.fijado - jornada), causas };
 }
 
 // §16.101 DESVIACIÓN ESTIMADO vs REGISTRADO (de lo COMPLETADO) — "¿estimo bien?". DISTINTO del FIJADO vs HECHO:
@@ -1011,6 +1044,7 @@ export interface EstimationDeviation {
   registered: number;        // suma registrado real de esas
   deviation: number;         // registered − estimated  (>0 = tardé MÁS de lo estimado)
   ratioPct: number | null;   // registered/estimated·100  (null si estimated=0)
+  byType: DeviationRow[]; // §16.110 (#3): Core/Ad-hoc — ¿estimo peor lo puntual que lo de fondo?
   byBlock: DeviationRow[];
   byTag: DeviationRow[];
   sinTiempo: { count: number; estimated: number }; // completadas SIN registro, aparte
@@ -1026,6 +1060,7 @@ export function getEstimationDeviation(
   const sinTiempo = { count: 0, estimated: 0 };
   const blockMap = new Map<string, { est: number; reg: number; count: number }>();
   const tagMap = new Map<string, { est: number; reg: number; count: number }>();
+  const typeMap = new Map<string, { est: number; reg: number; count: number }>();
   done.forEach(t => {
     const est = t.estimatedMinutes || 0;
     const reg = getTaskRegisteredSelf(t.id, timeEntries, activeDate); // día-scoped (evita agregar el histórico de recurrentes)
@@ -1036,6 +1071,9 @@ export function getEstimationDeviation(
     const tag = (t.tags && t.tags[0]) || 'resto';
     const g = tagMap.get(tag) || { est: 0, reg: 0, count: 0 };
     g.est += est; g.reg += reg; g.count++; tagMap.set(tag, g);
+    const ty = t.taskType === 'core' ? 'core' : 'adhoc';
+    const y = typeMap.get(ty) || { est: 0, reg: 0, count: 0 };
+    y.est += est; y.reg += reg; y.count++; typeMap.set(ty, y);
   });
   const toRows = (m: Map<string, { est: number; reg: number; count: number }>): DeviationRow[] =>
     Array.from(m.entries())
@@ -1045,6 +1083,7 @@ export function getEstimationDeviation(
     count, estimated, registered,
     deviation: registered - estimated,
     ratioPct: estimated > 0 ? Math.round((registered / estimated) * 100) : null,
+    byType: toRows(typeMap),
     byBlock: toRows(blockMap),
     byTag: toRows(tagMap),
     sinTiempo,
