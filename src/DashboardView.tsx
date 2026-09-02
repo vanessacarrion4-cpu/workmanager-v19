@@ -15,7 +15,7 @@ import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { getTaskEstimatedCombo, formatMinutes } from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getEstimationDeviation, getOutOfPlanBreakdown, getFijadoVsHecho, getEntradasSalidas, getPendingLeavesForDay, collectLeafTasks, encodePlanEntry, planEntryId } from './filters';
+import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getEstimationDeviation, getOutOfPlanBreakdown, getFijadoVsHecho, getEntradasSalidas, getDayReconciliation, getDesvioCauses, getPendingLeavesForDay, collectLeafTasks, encodePlanEntry, planEntryId } from './filters';
 import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completado POR DÍA para el filtro "ocultar completadas"
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
@@ -27,6 +27,7 @@ import { useDayReport } from './useDayReport';
 interface DashboardViewProps {
   tasks: Task[];
   allTasksMap: Record<string, Task>;
+  allTasksFull: Record<string, Task>; // §16.110: mapa COMPLETO (clasificar recurrentes movidas para el desvío)
   entrada?: EntradaForDay | null; // TRAMO 2: qué se creó el día visto (calculado en App con el mapa completo)
   onRepasoMove?: (task: Task, newDate: string) => void; // FASE 6 cierre del día: mover al día siguiente/otro
   repasoWillCollide?: (task: Task, destDay: string) => boolean; // ¿la recurrente movida choca con su regla ese día?
@@ -89,7 +90,7 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({
-  tasks, allTasksMap, entrada = null, onRepasoMove, repasoWillCollide, repasoDayLoad, blocks, people = [], onAddPerson, onRenamePerson, onDeletePerson,
+  tasks, allTasksMap, allTasksFull, entrada = null, onRepasoMove, repasoWillCollide, repasoDayLoad, blocks, people = [], onAddPerson, onRenamePerson, onDeletePerson,
   timeEntries = [], activeTimer, onStartTimer, onStopTimer, onToggle, onDelete, onAddTask,
   onUpdateTask, onEditTask, editingTaskId, inlineEditingTaskId, setInlineEditingTaskId,
   onOpenTimePanel, activeDate, onSetDate, onDayChange, onReorderTasks, onReorderSubtasks, onBatchUpdateOrder,
@@ -238,6 +239,9 @@ export function DashboardView({
   const reportFijadoHecho = useMemo(() => getFijadoVsHecho(daySnapshot?.plan_task_ids || [], timeEntries, allTasksMap, activeDate), [daySnapshot, timeEntries, allTasksMap, activeDate]);
   // §16.107 (#b): entraron/salieron respecto al plan (reemplaza el "añadido neto").
   const reportEntradasSalidas = useMemo(() => getEntradasSalidas(daySnapshot?.plan_task_ids || [], dayTasks, allTasksMap, activeDate), [daySnapshot, dayTasks, allTasksMap, activeDate]);
+  // §16.110: la SECUENCIA del día que cierra (estimado) + la TABLA de causas (peso vs sin-hacer). Usan el mapa COMPLETO.
+  const reportReconciliation = useMemo(() => getDayReconciliation(allTasksFull, daySnapshot?.plan_task_ids || [], dayTasks, timeEntries, activeDate), [allTasksFull, daySnapshot, dayTasks, timeEntries, activeDate]);
+  const reportCauses = useMemo(() => getDesvioCauses(allTasksFull, daySnapshot?.plan_task_ids || [], dayTasks, timeEntries, activeDate, jornada, outOfPlanBreakdown, []), [allTasksFull, daySnapshot, dayTasks, timeEntries, activeDate, jornada, outOfPlanBreakdown]);
 
   // §16.104 (pieza 9): RESCATE del día anterior. Al ir a fijar, buscar el día MÁS RECIENTE < hoy con actividad (fijado o
   // tiempo fichado) y SIN reporte, y ofrecer cerrarlo primero. Nunca más de uno; se puede saltar. closed_late lo marca el modal.
@@ -763,6 +767,8 @@ export function DashboardView({
         outOfPlan={outOfPlanBreakdown}
         fijadoHecho={reportFijadoHecho}
         entradasSalidas={reportEntradasSalidas}
+        reconciliation={reportReconciliation}
+        causes={reportCauses}
         entrada={entrada}
         blocks={blocks}
         report={dayReport}

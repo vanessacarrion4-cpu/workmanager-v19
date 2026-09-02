@@ -544,6 +544,7 @@ export default function App() {
               <DashboardView
                 tasks={dashboardTasks}
                 allTasksMap={dashboardTasksMap}
+                allTasksFull={tasks}
                 entrada={entradaDelDia}
                 onRepasoMove={handleRepasoMove}
                 repasoWillCollide={repasoWillCollide}

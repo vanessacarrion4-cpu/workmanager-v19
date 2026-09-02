@@ -6,7 +6,7 @@ import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2, Chevr
 import { formatMinutes } from './utils';
 import { toast } from './toast';
 import { TAG_LABELS } from './constants';
-import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup, FijadoVsHecho, EntradasSalidas } from './filters';
+import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup, FijadoVsHecho, EntradasSalidas, DayReconciliation, DesvioTable } from './filters';
 import { DayReport, MotivoKey } from './useDayReport';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { MonthDatePicker } from './TimeComponents';
@@ -50,7 +50,7 @@ type Decisiones = {
 };
 
 export function DayReportModal({
-  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entradasSalidas, entrada, blocks, report, onGuardar,
+  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entradasSalidas, reconciliation, causes, entrada, blocks, report, onGuardar,
   pendingTasks = [], timeEntries = [], onComplete, onDelete, onRepasoMove, repasoWillCollide, repasoDayLoad,
 }: {
   open: boolean;
@@ -62,6 +62,8 @@ export function DayReportModal({
   outOfPlan?: { total: number; groups: OutOfPlanGroup[] };
   fijadoHecho?: FijadoVsHecho;
   entradasSalidas?: EntradasSalidas;
+  reconciliation?: DayReconciliation;
+  causes?: DesvioTable;
   entrada: EntradaForDay | null;
   blocks: any[];
   report: DayReport | null;
@@ -83,7 +85,7 @@ export function DayReportModal({
   // (si acabas con 29 pendientes y las mueves a mañana, el reporte dice 29, no 0). `decisiones` cuenta lo del repaso (pieza 3).
   // §16.108: un reporte YA GUARDADO es un DOCUMENTO HISTÓRICO — se renderiza desde lo guardado (measures.frozen), no se
   // recalcula con el estado de hoy. `fromSaved` marca ese modo; `entradaSaved` es la entrada congelada del cierre.
-  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; entradasSalidas?: EntradasSalidas; entradaSaved?: EntradaForDay | null; pendingAtOpen: number; pendingMinsAtOpen: number; decisiones: Decisiones; fromSaved?: boolean } | null>(null);
+  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; entradasSalidas?: EntradasSalidas; reconciliation?: DayReconciliation; causes?: DesvioTable; entradaSaved?: EntradaForDay | null; pendingAtOpen: number; pendingMinsAtOpen: number; decisiones: Decisiones; fromSaved?: boolean } | null>(null);
   const [forceLive, setForceLive] = useState(false); // §16.108: "Actualizar con hoy" fuerza recálculo en vivo de un reporte cerrado
   const [entradaOpen, setEntradaOpen] = useState(true); // §16.104 (pieza 4): plegable
   const [hoyOpen, setHoyOpen] = useState(true);          // §16.104 (pieza 8): apartado "para hoy"
@@ -109,7 +111,7 @@ export function DayReportModal({
       setSnap({ ...f, fromSaved: true });
     } else {
       setSnap({
-        verdict: verdictLive, deviation: deviationLive, breakdown: breakdownLive, fijadoHecho, outOfPlan, entradasSalidas,
+        verdict: verdictLive, deviation: deviationLive, breakdown: breakdownLive, fijadoHecho, outOfPlan, entradasSalidas, reconciliation, causes,
         entradaSaved: null,
         pendingAtOpen: pendingTasks.length,
         pendingMinsAtOpen: pendingTasks.reduce((a: number, t: any) => a + (t.estimatedMinutes || 0), 0),
@@ -128,6 +130,8 @@ export function DayReportModal({
   const fh = snap?.fijadoHecho ?? fijadoHecho;
   const oop = snap?.outOfPlan ?? outOfPlan;
   const es = snap?.entradasSalidas ?? entradasSalidas;
+  const rec = snap?.reconciliation ?? reconciliation; // §16.110: secuencia del día (congelada)
+  const caus = snap?.causes ?? causes;                 // §16.110: tabla de causas (congelada)
   const entradaEff = snap?.entradaSaved ?? entrada; // §16.108: entrada congelada si es documento histórico
   const isSaved = !!snap?.fromSaved;
   const pendingAtOpen = snap?.pendingAtOpen ?? pendingTasks.length;
@@ -155,6 +159,7 @@ export function DayReportModal({
         // §16.108: SNAP COMPLETO congelado → al reabrir, el reporte se renderiza desde aquí (documento histórico), no se recalcula.
         frozen: {
           verdict, deviation, breakdown, fijadoHecho: fh ?? null, outOfPlan: oop ?? null, entradasSalidas: es ?? null,
+          reconciliation: rec ?? null, causes: caus ?? null,
           entrada: entradaEff ?? null, pendingAtOpen, pendingMinsAtOpen, decisiones: snap?.decisiones ?? null,
         },
         // §16.105 (pieza 2 del ajuste): guardar TODO el desglose del día para poder dibujar la EVOLUCIÓN semana a semana.
@@ -325,6 +330,29 @@ export function DayReportModal({
             {dec.completadas > 0 && <span className="text-verde">· {dec.completadas} completada{dec.completadas === 1 ? '' : 's'} · {formatMinutes(dec.completadasMin)}</span>}
             {dec.eliminadas > 0 && <span className="text-rosa">· {dec.eliminadas} eliminada{dec.eliminadas === 1 ? '' : 's'} · {formatMinutes(dec.eliminadasMin)}</span>}
             <span className="dark:text-text-secondary text-text-secondary-light">· {sinTocar} sin tocar · {formatMinutes(sinTocarMin)}</span>
+          </div>
+        )}
+
+        {/* §16.110 · ¿EN QUÉ SE ME FUE EL DÍA? — la secuencia que CIERRA (estimado) + UNA tabla de causas (peso vs sin-hacer). */}
+        {rec && rec.fijado > 0 && (
+          <div className="mb-6">
+            <p className="text-[9px] font-black uppercase tracking-widest text-turquesa mb-1.5">¿En qué se me fue el día?</p>
+            <div className="text-[11px] dark:text-text-secondary text-text-secondary-light mb-1 leading-relaxed">
+              Fijé <b className="dark:text-white text-text-main-light">{formatMinutes(rec.fijado)}</b> · entraron <b className="dark:text-white text-text-main-light">{formatMinutes(rec.entraronMin)}</b> para hoy{rec.saqueMin > 0 && <> · saqué <b className="dark:text-white text-text-main-light">{formatMinutes(rec.saqueMin)}</b></>} · el día quedó en <b className="dark:text-white text-text-main-light">{formatMinutes(rec.diaMin)}</b> · cumplí <b className="dark:text-white text-text-main-light">{formatMinutes(rec.cumplidoMin)}</b> · quedó <b className="text-rosa">sin hacer {formatMinutes(rec.sinHacerMin)}</b> ({rec.sinHacerCount} tarea{rec.sinHacerCount === 1 ? '' : 's'})
+            </div>
+            <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light mb-2.5">Todo en tiempo estimado · fiché {formatMinutes(rec.registrado)} — tiempo real, se compara aparte</p>
+            {caus && caus.causas.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70 mb-0.5">Por qué no cerró · peso vs lo que quedó sin hacer</p>
+                {caus.causas.map(c => (
+                  <div key={c.key} className="flex items-center gap-2 text-[11px] font-bold">
+                    <span className="flex-1 truncate dark:text-white text-text-main-light">{c.label}{c.count != null && <span className="font-normal dark:text-text-secondary text-text-secondary-light"> · {c.count}</span>}</span>
+                    <span className="tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(c.mins)}</span>
+                    <span className="w-12 text-right tabular-nums text-turquesa">{c.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
