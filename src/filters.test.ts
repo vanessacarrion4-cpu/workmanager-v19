@@ -608,3 +608,52 @@ describe('§16.109 destino del plan + descomposición del desvío', () => {
     expect(t.causas.find(c => c.key === 'sobreplan')!.pesoRel).toBe(45);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §16.127 · CIERRE nuevo: indicadores + barras + arrastres
+// ─────────────────────────────────────────────────────────────────────────────
+import { getCierreScore, getCierreBarras, getArrastresBreakdown } from './filters';
+
+describe('§16.127 cierre: indicadores, barras, arrastres', () => {
+  const fh: any = {
+    byType: [{ key: 'core', fijado: 115, hecho: 95 }, { key: 'adhoc', fijado: 370, hecho: 175 }],
+    byBlock: [], byTag: [], totalFijado: 485, totalHecho: 270,
+  };
+  const deviation: any = { ratioPct: 104 };
+  const rec: any = { entraronMin: 355 };
+
+  it('getCierreScore: cumplí plan (75%) + protegí core (25%), estimé bien es info', () => {
+    const s = getCierreScore(fh, deviation);
+    expect(s.cumpliPlan.pct).toBe(56);   // 270/485
+    expect(s.cumpliPlan.nota).toBe(5.6);
+    expect(s.protegiCore.pct).toBe(83);  // 95/115
+    expect(s.protegiCore.nota).toBe(8.3);
+    expect(s.estimoBien.pct).toBe(104);  // INFO, sin nota
+    expect(s.notaPonderada).toBe(6.3);   // 0.75·56 + 0.25·83 = 62.75 → 6.3
+  });
+
+  it('getCierreScore: nota tope 10 aunque pase del 100%', () => {
+    const s = getCierreScore({ byType: [{ key: 'core', fijado: 10, hecho: 20 }], totalFijado: 10, totalHecho: 20 } as any, null);
+    expect(s.cumpliPlan.pct).toBe(200);
+    expect(s.cumpliPlan.nota).toBe(10);      // cap
+    expect(s.notaPonderada).toBe(10);        // cap ambos
+  });
+
+  it('getCierreBarras: las dos barras suman el mismo total y cada parte cuadra', () => {
+    const b = getCierreBarras(fh, rec, 206); // nuevoHecho fichado = 206
+    expect(b.planHecho + b.planNoHecho).toBe(b.planFijado);   // 270 + 215 = 485
+    expect(b.nuevoHecho + b.nuevoNoHecho).toBe(b.nuevoTotal); // 206 + 149 = 355
+    expect(b.total).toBe(b.planFijado + b.nuevoTotal);        // 485 + 355 = 840
+    expect(b.pctPlanHecho).toBe(56);
+    expect(b.pctNuevoHecho).toBe(58); // 206/355
+  });
+
+  it('getArrastresBreakdown: histograma + umbrales', () => {
+    const a = getArrastresBreakdown([{ rolledOverCount: 0 }, { rolledOverCount: 1 }, { rolledOverCount: 3 }, { rolledOverCount: 5 }, { rolledOverCount: 3 }]);
+    expect(a.total).toBe(5);
+    expect(a.histograma['3']).toBe(2);
+    expect(a.ge3).toBe(3);
+    expect(a.ge5).toBe(1);
+    expect(a.maxRoll).toBe(5);
+  });
+});

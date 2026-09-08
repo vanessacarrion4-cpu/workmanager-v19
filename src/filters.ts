@@ -1156,3 +1156,71 @@ export function getEstimationDeviation(
     sinTiempo,
   };
 }
+
+// §16.127 · CIERRE — los DOS indicadores con NOTA (media ponderada) + "estimé bien" como INFORMACIÓN (no puntúa: su error ya
+// está contado en "tardé más de lo estimado" de la tabla de causas → contarlo aparte sería doble). Escala directa: nota = pct/10,
+// tope 10 (100%→10, 50%→5). CUMPLÍ EL PLAN (peso 75%) = tiempo del plan trabajado / plan fijado. PROTEGÍ LO CORE (peso 25%) =
+// Core trabajado / Core fijado. Ambos salen de getFijadoVsHecho (que ya se calcula y se guarda).
+export interface CierreScore {
+  cumpliPlan: { hecho: number; fijado: number; pct: number; nota: number };
+  protegiCore: { hecho: number; fijado: number; pct: number; nota: number };
+  estimoBien: { pct: number | null }; // INFORMACIÓN, sin nota ni peso
+  notaPonderada: number;              // 0..10
+  pesoPlan: number; pesoCore: number;
+}
+export function getCierreScore(fh: FijadoVsHecho | null | undefined, deviation: EstimationDeviation | null | undefined): CierreScore {
+  const cap = (n: number) => Math.max(0, Math.min(100, n));
+  const notaDe = (pct: number) => Math.round(cap(pct) / 10 * 10) / 10; // pct/10, 1 decimal, tope 10
+  const fijado = fh?.totalFijado || 0, hecho = fh?.totalHecho || 0;
+  const pctPlan = fijado > 0 ? Math.round(hecho / fijado * 100) : 0;
+  const core = (fh?.byType || []).find(r => r.key === 'core') || { fijado: 0, hecho: 0 };
+  const pctCore = core.fijado > 0 ? Math.round(core.hecho / core.fijado * 100) : 0;
+  const pesoPlan = 0.75, pesoCore = 0.25;
+  const notaPonderada = Math.round((pesoPlan * cap(pctPlan) + pesoCore * cap(pctCore)) / 10 * 10) / 10;
+  return {
+    cumpliPlan: { hecho, fijado, pct: pctPlan, nota: notaDe(pctPlan) },
+    protegiCore: { hecho: core.hecho, fijado: core.fijado, pct: pctCore, nota: notaDe(pctCore) },
+    estimoBien: { pct: deviation?.ratioPct ?? null },
+    notaPonderada, pesoPlan, pesoCore,
+  };
+}
+
+// §16.127 · CIERRE — las DOS barras. Mismo total = plan-fijado + nuevo-estimado, para leerse una contra otra. Todo en TIEMPO:
+// "hecho" = tiempo fichado (real); "no hecho" = resto del estimado (fijado−hecho / estimadoNuevo−hechoNuevo), como acordado (#1/#2).
+// nuevoHechoMin = tiempo fichado en tareas nuevas (= outOfPlan.total). Los % de subtítulo son reales (sin clamp); los tramos sí
+// se recortan para que sumen el total (si fichaste más que lo estimado, el exceso ya se ve en "tardé más").
+export interface CierreBarras {
+  total: number;
+  planFijado: number; nuevoTotal: number;
+  planHecho: number; planNoHecho: number;
+  nuevoHecho: number; nuevoNoHecho: number;
+  pctPlanDelDia: number; pctNuevoDelDia: number;
+  pctPlanHecho: number; pctNuevoHecho: number;
+}
+export function getCierreBarras(fh: FijadoVsHecho | null | undefined, rec: DayReconciliation | null | undefined, nuevoHechoMin: number): CierreBarras {
+  const planFijado = fh?.totalFijado || 0;
+  const planHecho = Math.min(fh?.totalHecho || 0, planFijado);
+  const planNoHecho = Math.max(0, planFijado - planHecho);
+  const nuevoTotal = rec?.entraronMin || 0;
+  const nuevoHecho = Math.min(nuevoHechoMin || 0, nuevoTotal);
+  const nuevoNoHecho = Math.max(0, nuevoTotal - nuevoHecho);
+  const total = planFijado + nuevoTotal;
+  const pc = (a: number, b: number) => b > 0 ? Math.round(a / b * 100) : 0;
+  return {
+    total, planFijado, nuevoTotal, planHecho, planNoHecho, nuevoHecho, nuevoNoHecho,
+    pctPlanDelDia: pc(planFijado, total), pctNuevoDelDia: pc(nuevoTotal, total),
+    pctPlanHecho: pc(fh?.totalHecho || 0, planFijado), pctNuevoHecho: pc(nuevoHechoMin || 0, nuevoTotal),
+  };
+}
+
+// §16.127 · CIERRE — histograma de arrastres de las PENDIENTES (para analizar a semanas si las muy arrastradas se hacen o se borran).
+export interface ArrastresBreakdown { histograma: Record<string, number>; total: number; ge3: number; ge5: number; maxRoll: number; }
+export function getArrastresBreakdown(pendingTasks: any[]): ArrastresBreakdown {
+  const histograma: Record<string, number> = {}; let ge3 = 0, ge5 = 0, maxRoll = 0;
+  (pendingTasks || []).forEach(t => {
+    const r = t.rolledOverCount || 0;
+    histograma[r] = (histograma[r] || 0) + 1;
+    if (r >= 3) ge3++; if (r >= 5) ge5++; if (r > maxRoll) maxRoll = r;
+  });
+  return { histograma, total: (pendingTasks || []).length, ge3, ge5, maxRoll };
+}

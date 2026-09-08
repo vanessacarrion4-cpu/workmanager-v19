@@ -6078,3 +6078,32 @@ El reporte del 1/09 mostraba varias cifras de "previsto" mezcladas sin etiqueta:
   desde `frozen`, NO se recalcula (banner "📄 Reporte cerrado"). Botón "Actualizar con hoy" (`forceLive`) para re-calcular a
   propósito. Reportes ANTIGUOS sin `frozen` (p.ej. 1/09) caen al cálculo en vivo (legacy) — reabrir para VER no toca lo guardado;
   solo pulsar Guardar sobrescribiría. Desde la próxima fijación+cierre, todo queda congelado y reabrir es seguro.
+
+## 16.126 Integridad de datos: truncación a 1000 → duplicados de tiempo (sesión 28)
+- `time_entries`/`meetings` se cargaban con `.select('*')` SIN paginar → PostgREST corta a 1000 y las MÁS NUEVAS no cargaban →
+  parecían borradas → re-registro → DUPLICADOS reales. Arreglado (paginar `.range()` como `tasks`) + latentes blindados
+  (findPreviousUnclosedDay, papelera) + **cinturón anti-duplicado en la capa de datos** (ignora entrada idéntica creada en <3s;
+  los guards por-botón eran frágiles, uno se coló en el chip). Limpieza revisada de 18 duplicados 07/08 (185m) con backup. Regla:
+  toda carga de tabla que crezca DEBE paginar; verificar duplicados ANTES de paginar una tabla que se truncaba.
+
+## 16.127 REDISEÑO DEL CIERRE (sesión 28) — PRINCIPIO DE DATOS + modelo
+**PRINCIPIO (firme):** *Cada reporte guarda el desglose completo, no solo los totales. El objetivo es analizar patrones a lo
+largo de semanas y convertirlos en feedback accionable. Ningún dato del cierre se muestra sin guardarse.*
+
+- **Dos indicadores con NOTA (media ponderada), NO "horas trabajadas"** (la nota vieja siempre salía alta porque ella siempre
+  trabaja). `getCierreScore`: **CUMPLÍ EL PLAN** (peso 75%) = tiempo del plan trabajado / plan fijado; **PROTEGÍ LO CORE** (peso 25%)
+  = Core trabajado / Core fijado. Escala directa nota = pct/10 (tope 10). **"ESTIMÉ BIEN" es INFORMACIÓN, no puntúa** (su error ya
+  está en "tardé más de lo estimado" de la tabla de causas → contarlo aparte sería doble).
+- **Dos barras** (`getCierreBarras`), mismo total = plan-fijado + nuevo-estimado, para leerse una contra otra: BARRA 1 de dónde
+  salió el día (plan vs nuevo); BARRA 2 en qué acabó (plan-hecho / plan-no-hecho / nuevo-hecho / nuevo-no-hecho). "No hecho" =
+  fijado−hecho todo junto (el detalle movido/borrado/espera vive en la tabla de causas, que CUELGA del indicador CUMPLÍ EL PLAN).
+- **Arrastres** (`getArrastresBreakdown`): histograma de las pendientes por nº de arrastres + borradas con su contador.
+- **Guardado (measures.frozen):** `score` (indicadores+nota), `barras`, `arrastres` — además de lo ya guardado (fijadoHecho,
+  deviation, causes, reconciliation, decisiones, deletedRolls). `measures.notaNueva` al nivel superior para leer medias sin abrir cada frozen.
+- **Medias/tendencias:** media de los últimos 7 días CERRADOS (los sin reporte se excluyen); mínimo **3** días para media; flecha
+  de tendencia SOLO desde **14** cerrados (7-vs-7 pleno), hueco antes (no flechas ruidosas). Verde mejora / rojo empeora.
+- **Backfill:** recálculo EN VIVO de la nota nueva para 01-09…08-09 (08-09 en vivo, no del frozen viejo con duplicados); 31-08 sin
+  foto → sin nota nueva y fuera de medias. Export de los frozen actuales ANTES de tocar.
+- **HORIZONTE (2 meses, NO se construye ahora):** acumular días cerrados → analizar patrones (qué bloque incumplo siempre, cuánto
+  entra de media al día, si fijar >X horas hunde el cumplimiento, si las muy arrastradas se hacen o se borran) → convertirlos en
+  AVISOS dentro de la app en el momento de FIJAR (no en el reporte de la noche), que es cuando se puede actuar.
