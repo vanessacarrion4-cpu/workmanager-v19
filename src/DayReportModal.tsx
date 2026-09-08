@@ -50,7 +50,7 @@ type Decisiones = {
 };
 
 export function DayReportModal({
-  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entradasSalidas, reconciliation, causes, cierreTasks, jornada, causasExternas = [], onAddCausaExterna, entrada, blocks, report, onGuardar,
+  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entradasSalidas, reconciliation, causes, cierreTasks, jornada, medias, causasExternas = [], onAddCausaExterna, entrada, blocks, report, onGuardar,
   pendingTasks = [], timeEntries = [], onComplete, onDelete, onRepasoMove, repasoWillCollide, repasoDayLoad,
 }: {
   open: boolean;
@@ -66,6 +66,7 @@ export function DayReportModal({
   causes?: DesvioTable;
   cierreTasks?: CierreTaskRow[]; // §16.127: detalle por tarea (desplegables + análisis); se congela y guarda
   jornada?: number; // §16.127: jornada disponible del día (min) — para cruzar fijado × jornada (sobreplanificación)
+  medias?: { nota?: MediaInfo; cumpliPlan?: MediaInfo; protegiCore?: MediaInfo }; // §16.127 (paso 4): medias 7 días + tendencia 7v7
   causasExternas?: { id: string; label: string }[];
   onAddCausaExterna?: (label: string) => void;
   entrada: EntradaForDay | null;
@@ -150,6 +151,8 @@ export function DayReportModal({
   const caus = snap?.causes ?? causes;                 // §16.110: tabla de causas (congelada)
   const barras = getCierreBarras(fh, rec, oop?.total || 0);          // §16.127: las dos barras (plan vs nuevo · hecho vs no)
   const cierreTaskDetail: CierreTaskRow[] = snap?.cierreTasks ?? cierreTasks ?? []; // §16.127: detalle por tarea (desplegables)
+  const score = getCierreScore(fh, deviation);                       // §16.127: los dos indicadores + nota ponderada
+  const tienePlan = !!(fh && fh.totalFijado > 0);                    // sin foto/plan → no hay indicadores de cumplimiento
   // §16.114: fundir las causas CALCULADAS con las EXTERNAS que mete la usuaria, y recalcular impacto/peso-rel.
   const mergedCausas = (() => {
     const sinHacer = rec?.sinHacerMin || 0;
@@ -268,14 +271,16 @@ export function DayReportModal({
           </div>
         )}
 
-        {/* 1 · NOTA (grande) + ETIQUETA + FRASE + tiempo fuera de plan (§16.47) */}
+        {/* 1 · NOTA (grande) + VEREDICTO + media de días cerrados con tendencia. §16.127: la nota es la PONDERADA nueva
+            (cumplí plan 75% + protegí core 25%), no la vieja de horas trabajadas. Sin foto/plan → cae a la etiqueta sola. */}
         <div className="mb-5">
-          {verdict.nota != null ? (
+          {tienePlan ? (
             <div className="flex items-baseline gap-3">
-              <span className="text-[44px] font-black leading-none tabular-nums dark:text-white text-text-main-light shrink-0">{verdict.nota.toFixed(1).replace('.', ',')}</span>
+              <span className="text-[44px] font-black leading-none tabular-nums dark:text-white text-text-main-light shrink-0">{score.notaPonderada.toFixed(1).replace('.', ',')}</span>
               <div className="min-w-0">
                 <p className={`text-base font-black ${verdictColor(verdict.key)}`}>{verdict.label}</p>
                 <p className="text-[12px] dark:text-text-secondary text-text-secondary-light">{verdict.frase}</p>
+                <MediaTendencia m={medias?.nota} />
               </div>
             </div>
           ) : (
@@ -327,43 +332,12 @@ export function DayReportModal({
         {/* §16.116: el resumen de decisiones se movió abajo, con el repaso (la cabecera queda: nota + tarjetas + secuencia). */}
 
         {/* §16.110 · ¿EN QUÉ SE ME FUE EL DÍA? — la secuencia (paso 3: se retira, la absorben las barras) + tabla de causas. */}
-        {rec && rec.fijado > 0 && (
-          <Question title="¿En qué se me fue el día?" open={openQ.has('desvio')} onToggle={() => toggleQ('desvio')}
-            headline={(
-              <div>
-                <div className="leading-relaxed">
-                  {(() => {
-                    const seg = (key: string, node: React.ReactNode, detail: { title: string; mins: number }[]) => (
-                      <button onClick={(e) => { e.stopPropagation(); detail.length && setOpenSeq(s => s === key ? null : key); }} className={detail.length ? 'underline decoration-dotted decoration-text-secondary/40 hover:decoration-turquesa' : ''}>{node}</button>
-                    );
-                    return <>
-                      Fijé <b className="dark:text-white text-text-main-light">{formatMinutes(rec.fijado)}</b>
-                      {' · '}entraron {seg('entraron', <b className="dark:text-white text-text-main-light">{formatMinutes(rec.entraronMin)}</b>, rec.entraronDetail)} para hoy
-                      {rec.saqueMin > 0 && <>{' · '}saqué {seg('saque', <b className="dark:text-white text-text-main-light">{formatMinutes(rec.saqueMin)}</b>, rec.saqueDetail)}</>}
-                      {' · '}el día quedó en <b className="dark:text-white text-text-main-light">{formatMinutes(rec.diaMin)}</b>
-                      {' · '}cumplí {seg('cumpli', <b className="dark:text-white text-text-main-light">{formatMinutes(rec.cumplidoMin)}</b>, rec.cumplidoDetail)}
-                      {' · '}quedó {seg('sinhacer', <b className="text-rosa">sin hacer {formatMinutes(rec.sinHacerMin)}</b>, rec.sinHacerDetail)} ({rec.sinHacerCount} tarea{rec.sinHacerCount === 1 ? '' : 's'})
-                    </>;
-                  })()}
-                </div>
-                {openSeq && (() => {
-                  const d = openSeq === 'entraron' ? rec.entraronDetail : openSeq === 'saque' ? rec.saqueDetail : openSeq === 'cumpli' ? rec.cumplidoDetail : rec.sinHacerDetail;
-                  return (
-                    <div className="pl-3 mt-1 space-y-0.5 border-l-2 border-turquesa/30">
-                      {d.map((x, xi) => (
-                        <div key={xi} className="flex items-center gap-2 text-[10px]">
-                          {/* §16.122: el tiempo pegado al título (no al borde) — se leen juntos. */}
-                          <span className="truncate max-w-[70%] dark:text-text-secondary text-text-secondary-light">{x.title}</span>
-                          <span className="tabular-nums shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(x.mins)}</span>
-                          <span className="flex-1" />
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-                <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light mt-1">Todo en tiempo estimado · fiché {formatMinutes(rec.registrado)} — tiempo real, se compara aparte.</p>
-              </div>
-            )}>
+        {/* §16.127 (paso 3) · 4 · CUMPLÍ EL PLAN — el indicador (nota + peso + explicación + media), con la TABLA DE CAUSAS
+            colgando (ya no es una pregunta aparte: es la explicación de por qué no cerré el plan). */}
+        {tienePlan && (
+          <IndicadorCierre titulo="Cumplí el plan" peso="75%" nota={score.cumpliPlan.nota}
+            explicacion={<>Del plan fijado ({formatMinutes(score.cumpliPlan.fijado)}) trabajé <b className="dark:text-white text-text-main-light">{formatMinutes(score.cumpliPlan.hecho)}</b> · {score.cumpliPlan.pct}%</>}
+            media={<MediaTendencia m={medias?.cumpliPlan} />}>
             {mergedCausas.length > 0 && (
               <div className="space-y-0.5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por qué no cerró</p>
@@ -447,70 +421,27 @@ export function DayReportModal({
                 }} className="text-[10px] font-black uppercase tracking-widest text-turquesa hover:underline px-1">Añadir</button>
               </div>
             </div>
-          </Question>
+          </IndicadorCierre>
         )}
 
-        {/* 2c · ¿CUMPLÍ MI PLAN? — FIJADO vs HECHO (§16.104 pieza 6). Plegable, titular = fijado → hecho. Necesita foto. */}
-        {verdict.hasPlan && fijadoHecho && fijadoHecho.byBlock.length > 0 && (
-          <Question title="¿Cumplí mi plan?" open={openQ.has('cumpli')} onToggle={() => toggleQ('cumpli')}
-            headline={<span className="tabular-nums">{formatMinutes(fijadoHecho.totalFijado)} → {formatMinutes(fijadoHecho.totalHecho)} <span className="text-text-secondary/70">fijado → hecho</span></span>}>
-            {/* §16.105 (pieza 3): Por TIPO (Core/Ad-hoc) — dice si el día se fue en puntual vs trabajo de fondo. */}
-            {fijadoHecho.byType.length > 0 && (
-              <div className="flex items-center gap-x-6 gap-y-1 flex-wrap mb-2">
-                <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por tipo</span>
-                {[...fijadoHecho.byType].sort((a, b) => (a.key === 'core' ? -1 : 1)).map(r => (
-                  <FhRow key={r.key} label={r.key === 'core' ? 'Core' : 'Ad-hoc'} color={r.key === 'core' ? CORE_HEX : ADHOC_HEX} fijado={r.fijado} hecho={r.hecho} />
-                ))}
-              </div>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3">
-              <div className="space-y-1">
-                <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por bloque</span>
-                {fijadoHecho.byBlock.slice(0, 12).map(r => (
-                  <FhRow key={r.key} label={blockName(r.key)} color={blockColor(r.key)} fijado={r.fijado} hecho={r.hecho} />
-                ))}
-              </div>
-              <div className="space-y-1">
-                <span className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por etiqueta</span>
-                {[...fijadoHecho.byTag].sort((a, b) => tagRank(a.key) - tagRank(b.key)).slice(0, 12).map(r => (
-                  <FhRow key={r.key} label={tagLabel(r.key)} color={tagHexKey(r.key)} fijado={r.fijado} hecho={r.hecho} />
-                ))}
-              </div>
-            </div>
-          </Question>
+        {/* §16.127 (paso 3) · 5 · PROTEGÍ LO CORE — segundo indicador (peso 25%). ¿Sobrevivió el trabajo de fondo al día? */}
+        {tienePlan && (
+          <IndicadorCierre titulo="Protegí lo Core" peso="25%" nota={score.protegiCore.nota}
+            explicacion={<>De Core fijado ({formatMinutes(score.protegiCore.fijado)}) trabajé <b className="dark:text-white text-text-main-light">{formatMinutes(score.protegiCore.hecho)}</b> · {score.protegiCore.pct}%</>}
+            media={<MediaTendencia m={medias?.protegiCore} />} />
         )}
 
-        {/* 3 · ¿QUÉ ENTRÓ HOY? — plegable (Question); titular = N tareas · M para hoy */}
-        {entradaEff && entradaEff.total > 0 && (
-          <Question title="¿Qué entró hoy?" open={openQ.has('entro')} onToggle={() => toggleQ('entro')}
-            headline={<span>{entradaEff.total} tarea{entradaEff.total === 1 ? '' : 's'} · {entradaEff.forToday} para hoy{entradaEff.later > 0 ? ` · ${entradaEff.later} más adelante` : ''}</span>}>
-            <div className="space-y-3 pl-3 border-l dark:border-border-main border-border-main-light">
-              {/* §16.104 (pieza 8): dos apartados — PARA HOY primero, PARA OTRO DÍA después */}
-              {entradaEff.hoy.count > 0 && (
-                <EntradaSectionView label="Planificadas para hoy" section={entradaEff.hoy} otherPhrase="para otra fecha" open={hoyOpen} onToggle={() => setHoyOpen(o => !o)} showDate={false} />
-              )}
-              {entradaEff.otro.count > 0 && (
-                <EntradaSectionView label="Para otro día" section={entradaEff.otro} otherPhrase="para hoy" open={otroOpen} onToggle={() => setOtroOpen(o => !o)} showDate={true} />
-              )}
-            </div>
-          </Question>
-        )}
-
-        {/* §16.107 (#4): quitado el "Desglose del día (estimado)" — era el estado del día al cierre con lo añadido dentro
-            (el 4º número que confundía). El dato SÍ se sigue guardando en measures.desglose.estimado para las gráficas de
-            evolución; solo se retira de la pantalla del reporte. Se ve en Mi Día durante la jornada si hace falta. */}
-
-        {/* 4b · ¿ESTIMO BIEN? — desviación estimado vs registrado de lo COMPLETADO (§16.101). No depende de la foto. */}
-        <Question title="¿Estimo bien?" open={openQ.has('estimo')} onToggle={() => toggleQ('estimo')}
-          headline={deviation.count === 0
-            ? <span className="text-text-secondary/70">estimado vs real · sin completadas con tiempo</span>
-            : <span>Estimé {formatMinutes(deviation.estimated)} · tardé {formatMinutes(deviation.registered)} <span className={`tabular-nums ${devColor(deviation.ratioPct)}`}>{devDelta(deviation.deviation)}{deviation.ratioPct != null ? ` (${deviation.ratioPct}%)` : ''}</span></span>}>
-          {deviation.count === 0 ? (
-            <p className="text-[11px] dark:text-text-secondary text-text-secondary-light">
-              Sin tareas completadas con tiempo fichado{deviation.sinTiempo.count > 0 ? ` · ${deviation.sinTiempo.count} completada${deviation.sinTiempo.count === 1 ? '' : 's'} sin fichar` : ''}.
-            </p>
-          ) : (
-            <>
+        {/* §16.127 (paso 3) · 6 · ESTIMÉ BIEN — INFORMACIÓN, NO puntúa (su error ya vive en "tardé más de lo estimado" de las
+            causas → contarlo aparte sería doble). El % + su desglose por tipo/bloque/etiqueta. Absorbe la vieja "¿estimo bien?". */}
+        <div className="mb-5 border-t dark:border-border-main/40 border-border-main-light/40 pt-4">
+          <p className="text-[11px] font-black uppercase tracking-widest dark:text-white text-text-main-light">Estimé bien <span className="text-[9px] font-bold text-text-secondary/60 lowercase tracking-normal">· información, no puntúa</span></p>
+          <p className="text-[12px] dark:text-text-secondary text-text-secondary-light mt-1">
+            {deviation.count === 0
+              ? <span className="text-text-secondary/70">estimado vs real · sin completadas con tiempo{deviation.sinTiempo.count > 0 ? ` (${deviation.sinTiempo.count} sin fichar)` : ''}</span>
+              : <>Estimé {formatMinutes(deviation.estimated)} · tardé {formatMinutes(deviation.registered)} <span className={`tabular-nums ${devColor(deviation.ratioPct)}`}>{devDelta(deviation.deviation)}{deviation.ratioPct != null ? ` (${deviation.ratioPct}%)` : ''}</span></>}
+          </p>
+          {deviation.count > 0 && (
+            <div className="mt-3">
               {/* §16.110 (#3): Por TIPO (Core/Ad-hoc) — ¿estimo peor lo puntual que lo de fondo? (como FIJADO vs HECHO) */}
               {deviation.byType && deviation.byType.length > 0 && (
                 <div className="flex items-center gap-x-6 gap-y-1 flex-wrap mb-2">
@@ -543,9 +474,9 @@ export function DayReportModal({
                   {deviation.sinTiempo.count} completada{deviation.sinTiempo.count === 1 ? '' : 's'} sin tiempo fichado — fuera del cálculo.
                 </p>
               )}
-            </>
+            </div>
           )}
-        </Question>
+        </div>
 
         {/* §16.116: casillas de MOTIVO retiradas — las causas se calculan y viven en la tabla del desvío (+ causas externas).
             Se conserva solo una nota libre opcional. */}
@@ -732,6 +663,41 @@ function DesgloseCierre({ tasks, blockName }: { tasks: CierreTaskRow[]; blockNam
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// §16.127 (paso 4) · media de los últimos días CERRADOS + flecha de tendencia (7-vs-7, solo desde 14 días; media desde 3).
+export interface MediaInfo { avg: number | null; trend: 'up' | 'down' | null; n: number }
+function MediaTendencia({ m }: { m?: MediaInfo }) {
+  if (!m || m.avg == null) return null; // hueco: menos de 3 días cerrados → mejor nada que un número sin significado
+  return (
+    <p className="text-[10px] dark:text-text-secondary/70 text-text-secondary-light mt-0.5 flex items-center gap-1">
+      <span>media {m.n} día{m.n === 1 ? '' : 's'}: <b className="tabular-nums">{m.avg.toFixed(1).replace('.', ',')}</b></span>
+      {m.trend === 'up' && <span className="text-verde font-black" title="mejora vs los 7 anteriores">▲</span>}
+      {m.trend === 'down' && <span className="text-rosa font-black" title="empeora vs los 7 anteriores">▼</span>}
+    </p>
+  );
+}
+
+// §16.127 (paso 3) · un INDICADOR del cierre: nota grande + título + peso + explicación + media/tendencia, y lo que cuelgue
+// (p.ej. la tabla de causas cuelga de "Cumplí el plan"). Color de la nota: verde ≥7, naranja ≥5, rosa por debajo.
+function IndicadorCierre({ titulo, nota, peso, explicacion, media, children }: { titulo: string; nota: number; peso: string; explicacion: React.ReactNode; media?: React.ReactNode; children?: React.ReactNode }) {
+  const color = nota >= 7 ? 'text-verde' : nota >= 5 ? 'text-naranja' : 'text-rosa';
+  return (
+    <div className="mb-5 border-t dark:border-border-main/40 border-border-main-light/40 pt-4">
+      <div className="flex items-start gap-3">
+        <span className={`text-[32px] font-black leading-none tabular-nums shrink-0 ${color}`}>{nota.toFixed(1).replace('.', ',')}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-widest dark:text-white text-text-main-light">{titulo}</span>
+            <span className="text-[9px] font-bold text-text-secondary/60">peso {peso}</span>
+          </div>
+          <p className="text-[11px] dark:text-text-secondary text-text-secondary-light mt-0.5">{explicacion}</p>
+          {media}
+        </div>
+      </div>
+      {children && <div className="mt-3">{children}</div>}
     </div>
   );
 }

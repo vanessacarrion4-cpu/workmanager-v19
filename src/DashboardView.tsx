@@ -254,6 +254,36 @@ export function DashboardView({
   const reportCauses = useMemo(() => getDesvioCauses(allTasksFull, reportSnapshot?.plan_task_ids || [], dayTasksAll, timeEntries, activeDate, jornada, outOfPlanBreakdown, []), [allTasksFull, reportSnapshot, dayTasksAll, timeEntries, activeDate, jornada, outOfPlanBreakdown]);
   // §16.127: DETALLE POR TAREA del cierre (para los desplegables de las barras y el análisis a 2 meses). Se guarda entero en frozen.
   const reportCierreTasks = useMemo(() => getCierreTaskDetail(reportSnapshot?.plan_task_ids || [], timeEntries, allTasksFull, dayTasksAll, activeDate), [reportSnapshot, timeEntries, allTasksFull, dayTasksAll, activeDate]);
+  // §16.127 (paso 4): MEDIAS de los últimos días CERRADOS (anteriores a hoy) + tendencia. media desde 3 días; flecha SOLO desde
+  // 14 (7-vs-7 pleno) — nada de flechas ruidosas. Se leen de day_reports (notaNueva / frozen.score); los días sin ese dato se excluyen.
+  const [medias, setMedias] = useState<{ nota?: any; cumpliPlan?: any; protegiCore?: any }>({});
+  useEffect(() => {
+    let cancel = false;
+    const mediaDe = (vals: number[]) => {
+      if (vals.length < 3) return { avg: null, trend: null, n: vals.length };
+      const avg = vals.slice(0, 7).reduce((a, b) => a + b, 0) / Math.min(7, vals.length);
+      let trend: 'up' | 'down' | null = null;
+      if (vals.length >= 14) {
+        const r = vals.slice(0, 7).reduce((a, b) => a + b, 0) / 7;
+        const p = vals.slice(7, 14).reduce((a, b) => a + b, 0) / 7;
+        trend = r > p ? 'up' : r < p ? 'down' : null;
+      }
+      return { avg, trend, n: Math.min(7, vals.length) };
+    };
+    (async () => {
+      const { data } = await supabase.from('day_reports').select('date,measures').lt('date', activeDate).order('date', { ascending: false }).limit(90);
+      if (cancel || !data) return;
+      const notas: number[] = [], cp: number[] = [], pc: number[] = [];
+      data.forEach((r: any) => {
+        const m = r.measures || {}; const s = m.frozen?.score;
+        const n = m.notaNueva ?? s?.notaPonderada; if (n != null) notas.push(n);
+        if (s?.cumpliPlan?.nota != null) cp.push(s.cumpliPlan.nota);
+        if (s?.protegiCore?.nota != null) pc.push(s.protegiCore.nota);
+      });
+      setMedias({ nota: mediaDe(notas), cumpliPlan: mediaDe(cp), protegiCore: mediaDe(pc) });
+    })();
+    return () => { cancel = true; };
+  }, [activeDate, dayReport]);
   // §16.114: lista de CAUSAS EXTERNAS (gestionada como los bloques, en settings JSON, sin SQL). Semilla si no existe.
   const [causasExternas, setCausasExternas] = useState<{ id: string; label: string }[]>([]);
   useEffect(() => {
@@ -824,6 +854,7 @@ export function DashboardView({
         causes={reportCauses}
         cierreTasks={reportCierreTasks}
         jornada={jornada}
+        medias={medias}
         causasExternas={causasExternas}
         onAddCausaExterna={addCausaExterna}
         entrada={entrada}
