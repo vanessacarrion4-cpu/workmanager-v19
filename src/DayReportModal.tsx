@@ -6,7 +6,7 @@ import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2, Chevr
 import { formatMinutes } from './utils';
 import { toast } from './toast';
 import { TAG_LABELS } from './constants';
-import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup, FijadoVsHecho, EntradasSalidas, DayReconciliation, DesvioTable, getCierreScore, getCierreBarras, getArrastresBreakdown, ArrastresBreakdown, CierreTaskRow } from './filters';
+import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup, FijadoVsHecho, EntradasSalidas, DayReconciliation, DesvioTable, getCierreScore, getCierreBarras, getArrastresBreakdown, ArrastresBreakdown, CierreTaskRow, getCierreBarrasByGroup } from './filters';
 import { DayReport, MotivoKey } from './useDayReport';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { MonthDatePicker } from './TimeComponents';
@@ -321,6 +321,8 @@ export function DayReportModal({
         {/* §16.127 (paso 2) · LAS DOS BARRAS — sustituyen a la línea de secuencia. De dónde salió el día (plan vs nuevo) y en qué
             acabó (plan-hecho/no + nuevo-hecho/no), mismo total y escala. Cada tramo de la 2ª despliega su lista de tareas. */}
         {rec && barras.total > 0 && <BarrasCierre b={barras} tasks={cierreTaskDetail} />}
+        {/* §16.127 (paso 2b): desglose plegado por tipo/bloque/etiqueta (mismas dos barras por grupo). */}
+        {rec && barras.total > 0 && cierreTaskDetail.length > 0 && <DesgloseCierre tasks={cierreTaskDetail} blockName={blockName} />}
 
         {/* §16.116: el resumen de decisiones se movió abajo, con el repaso (la cabecera queda: nota + tarjetas + secuencia). */}
 
@@ -673,6 +675,61 @@ function BarrasCierre({ b, tasks }: { b: CierreBarras; tasks: CierreTaskRow[] })
               <span className="flex-1" />
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// §16.127 (paso 2b) · DESGLOSE plegable (cerrado por defecto): selector Tipo/Bloque/Etiqueta y, por cada grupo, las MISMAS dos
+// barras (compactas) con cabecera "nombre · hice el X%". Todos los grupos, ordenados por total. Sale de taskDetail (ya guardado).
+function DesgloseCierre({ tasks, blockName }: { tasks: CierreTaskRow[]; blockName: (id: string) => string }) {
+  const [open, setOpen] = useState(false);
+  const [dim, setDim] = useState<'type' | 'block' | 'tag'>('type');
+  const AZUL = '#3B82F6', NARANJA = '#F59E0B';
+  const groups = open ? getCierreBarrasByGroup(tasks, dim) : [];
+  const label = (k: string) => dim === 'type' ? (k === 'core' ? 'Core' : 'Ad-hoc') : dim === 'block' ? (blockName(k) || '—') : k;
+  const w = (n: number, total: number) => `${total > 0 ? Math.max(0, (n / total) * 100) : 0}%`;
+  return (
+    <div className="mb-4">
+      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-text-secondary/70 hover:text-turquesa transition-colors">
+        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />} Ver desglosado por tipo, bloque o etiqueta
+      </button>
+      {open && (
+        <div className="mt-2.5">
+          <div className="flex gap-1 mb-2.5">
+            {(['type', 'block', 'tag'] as const).map(d => (
+              <button key={d} onClick={() => setDim(d)}
+                className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-colors ${dim === d ? 'bg-turquesa text-white' : 'dark:bg-white/5 bg-black/5 text-text-secondary hover:text-turquesa'}`}>
+                {d === 'type' ? 'Tipo' : d === 'block' ? 'Bloque' : 'Etiqueta'}
+              </button>
+            ))}
+          </div>
+          <div className="space-y-3">
+            {groups.map(g => {
+              const b = g.barras; const total = b.total || 1;
+              const pct = b.planFijado > 0 ? b.pctPlanHecho : b.pctNuevoHecho;
+              return (
+                <div key={g.key}>
+                  <div className="flex items-baseline justify-between mb-0.5 gap-2">
+                    <span className="text-[10px] font-bold dark:text-white text-text-main-light truncate">{label(g.key)}</span>
+                    <span className="text-[10px] tabular-nums shrink-0 dark:text-text-secondary text-text-secondary-light">hice el {Math.min(100, pct)}% · {formatMinutes(b.total)}</span>
+                  </div>
+                  <div className="flex h-2 w-full rounded overflow-hidden dark:bg-white/5 bg-black/5">
+                    {b.planFijado > 0 && <div style={{ width: w(b.planFijado, total), backgroundColor: AZUL }} />}
+                    {b.nuevoTotal > 0 && <div style={{ width: w(b.nuevoTotal, total), backgroundColor: NARANJA }} />}
+                  </div>
+                  <div className="flex h-2 w-full rounded overflow-hidden dark:bg-white/5 bg-black/5 mt-0.5">
+                    {b.planHecho > 0 && <div style={{ width: w(b.planHecho, total), backgroundColor: AZUL }} />}
+                    {b.planNoHecho > 0 && <div style={{ width: w(b.planNoHecho, total), backgroundColor: AZUL, opacity: 0.38 }} />}
+                    {b.nuevoHecho > 0 && <div style={{ width: w(b.nuevoHecho, total), backgroundColor: NARANJA }} />}
+                    {b.nuevoNoHecho > 0 && <div style={{ width: w(b.nuevoNoHecho, total), backgroundColor: NARANJA, opacity: 0.38 }} />}
+                  </div>
+                </div>
+              );
+            })}
+            {groups.length === 0 && <p className="text-[10px] dark:text-text-secondary text-text-secondary-light">— sin datos —</p>}
+          </div>
         </div>
       )}
     </div>

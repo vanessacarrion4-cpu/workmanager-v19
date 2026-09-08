@@ -1276,3 +1276,32 @@ export function getCierreTaskDetail(planTaskIds: string[], timeEntries: any[], a
   });
   return rows;
 }
+
+// §16.127 (paso 2b) · las DOS barras calculadas desde un subconjunto de tareas (para el desglose por tipo/bloque/etiqueta).
+// Misma lógica que getCierreBarras pero agregando taskDetail: plan/nuevo por estimado; hecho = fichado; no hecho = resto (clamp).
+export function barrasFromTasks(rows: CierreTaskRow[]): CierreBarras {
+  const plan = (rows || []).filter(r => r.isPlan), nuevo = (rows || []).filter(r => !r.isPlan);
+  const sum = (a: CierreTaskRow[], k: 'estMin' | 'fichado') => a.reduce((s, r) => s + (r[k] || 0), 0);
+  const planFijado = sum(plan, 'estMin'), planFichadoReal = sum(plan, 'fichado');
+  const nuevoTotal = sum(nuevo, 'estMin'), nuevoFichadoReal = sum(nuevo, 'fichado');
+  const planHecho = Math.min(planFichadoReal, planFijado), planNoHecho = Math.max(0, planFijado - planHecho);
+  const nuevoHecho = Math.min(nuevoFichadoReal, nuevoTotal), nuevoNoHecho = Math.max(0, nuevoTotal - nuevoHecho);
+  const total = planFijado + nuevoTotal;
+  const pc = (a: number, b: number) => b > 0 ? Math.round(a / b * 100) : 0;
+  return {
+    total, planFijado, nuevoTotal, planHecho, planNoHecho, nuevoHecho, nuevoNoHecho, planFichadoReal, nuevoFichadoReal,
+    pctPlanDelDia: pc(planFijado, total), pctNuevoDelDia: pc(nuevoTotal, total),
+    pctPlanHecho: pc(planFichadoReal, planFijado), pctNuevoHecho: pc(nuevoFichadoReal, nuevoTotal),
+  };
+}
+
+// §16.127 (paso 2b) · agrupar taskDetail por dimensión (tipo/bloque/etiqueta) → una barra-doble por grupo, ordenadas por total desc.
+export interface GrupoBarras { key: string; barras: CierreBarras; }
+export function getCierreBarrasByGroup(rows: CierreTaskRow[], dim: 'type' | 'block' | 'tag'): GrupoBarras[] {
+  const keyOf = (r: CierreTaskRow) => dim === 'type' ? r.type : dim === 'block' ? (r.blockId || '—') : (r.tag || 'resto');
+  const groups: Record<string, CierreTaskRow[]> = {};
+  (rows || []).forEach(r => { const k = keyOf(r); (groups[k] ||= []).push(r); });
+  return Object.entries(groups)
+    .map(([key, rs]) => ({ key, barras: barrasFromTasks(rs) }))
+    .sort((a, b) => b.barras.total - a.barras.total);
+}
