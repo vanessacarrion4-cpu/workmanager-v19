@@ -331,19 +331,49 @@ export function useSupabase({
           console.warn('[SUPABASE] Error loading persons:', personsError);
         }
 
-        // Cargar time entries
-        const { data: timeEntriesData, error: timeEntriesError } = await supabase
-          .from('time_entries')
-          .select('*');
+        // Cargar time entries — PAGINADO (§16.126). Antes `.select('*')` SIN rango → PostgREST corta a 1000 filas y las
+        // MÁS NUEVAS (los últimos días) se quedaban fuera; parecían borradas y la usuaria las re-registraba (duplicados).
+        // Mismo patrón que `tasks` arriba. El dato NUNCA se perdía: estaba en la base, solo no se cargaba.
+        let timeEntriesData: any[] = [];
+        let timeEntriesError: any = null;
+        {
+          let teFrom = 0;
+          while (true) {
+            const { data, error } = await supabase
+              .from('time_entries')
+              .select('*')
+              .order('created_at', { ascending: true })
+              .range(teFrom, teFrom + PAGE_SIZE - 1);
+            if (error) { timeEntriesError = error; break; }
+            if (!data || data.length === 0) break;
+            timeEntriesData = [...timeEntriesData, ...data];
+            if (data.length < PAGE_SIZE) break;
+            teFrom += PAGE_SIZE;
+          }
+        }
 
         if (timeEntriesError) {
           console.warn('[SUPABASE] Error loading time entries:', timeEntriesError);
         }
 
-        // Cargar reuniones
-        const { data: meetingsData, error: meetingsError } = await supabase
-          .from('meetings')
-          .select('*');
+        // Cargar reuniones — PAGINADO (§16.126). Hoy son pocas, pero el mismo `.select('*')` sin rango cortaría a 1000 si crecen.
+        let meetingsData: any[] = [];
+        let meetingsError: any = null;
+        {
+          let mFrom = 0;
+          while (true) {
+            const { data, error } = await supabase
+              .from('meetings')
+              .select('*')
+              .order('date', { ascending: true })
+              .range(mFrom, mFrom + PAGE_SIZE - 1);
+            if (error) { meetingsError = error; break; }
+            if (!data || data.length === 0) break;
+            meetingsData = [...meetingsData, ...data];
+            if (data.length < PAGE_SIZE) break;
+            mFrom += PAGE_SIZE;
+          }
+        }
 
         if (meetingsError) {
           console.warn('[SUPABASE] Error loading meetings:', meetingsError);
