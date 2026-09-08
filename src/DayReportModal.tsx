@@ -148,6 +148,8 @@ export function DayReportModal({
   const es = snap?.entradasSalidas ?? entradasSalidas;
   const rec = snap?.reconciliation ?? reconciliation; // §16.110: secuencia del día (congelada)
   const caus = snap?.causes ?? causes;                 // §16.110: tabla de causas (congelada)
+  const barras = getCierreBarras(fh, rec, oop?.total || 0);          // §16.127: las dos barras (plan vs nuevo · hecho vs no)
+  const cierreTaskDetail: CierreTaskRow[] = snap?.cierreTasks ?? cierreTasks ?? []; // §16.127: detalle por tarea (desplegables)
   // §16.114: fundir las causas CALCULADAS con las EXTERNAS que mete la usuaria, y recalcular impacto/peso-rel.
   const mergedCausas = (() => {
     const sinHacer = rec?.sinHacerMin || 0;
@@ -316,11 +318,13 @@ export function DayReportModal({
           </Medida>
         </div>
 
-        {/* §16.115: "Entraron/Salieron" retirado — ya vive en la SECUENCIA (entraron / saqué) de "¿En qué se me fue el día?". */}
+        {/* §16.127 (paso 2) · LAS DOS BARRAS — sustituyen a la línea de secuencia. De dónde salió el día (plan vs nuevo) y en qué
+            acabó (plan-hecho/no + nuevo-hecho/no), mismo total y escala. Cada tramo de la 2ª despliega su lista de tareas. */}
+        {rec && barras.total > 0 && <BarrasCierre b={barras} tasks={cierreTaskDetail} />}
 
         {/* §16.116: el resumen de decisiones se movió abajo, con el repaso (la cabecera queda: nota + tarjetas + secuencia). */}
 
-        {/* §16.110 · ¿EN QUÉ SE ME FUE EL DÍA? — la secuencia que CIERRA (estimado) + UNA tabla de causas (peso vs sin-hacer). */}
+        {/* §16.110 · ¿EN QUÉ SE ME FUE EL DÍA? — la secuencia (paso 3: se retira, la absorben las barras) + tabla de causas. */}
         {rec && rec.fijado > 0 && (
           <Question title="¿En qué se me fue el día?" open={openQ.has('desvio')} onToggle={() => toggleQ('desvio')}
             headline={(
@@ -597,6 +601,75 @@ export function DayReportModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// §16.127 (paso 2) · LAS DOS BARRAS. Barra 1: de dónde salió el día (Fijadas azul + Nuevas naranja). Barra 2: en qué acabó
+// (plan-hecho / plan-no-hecho / nuevo-hecho / nuevo-no-hecho), mismo total y escala que la 1ª, mismo orden → se leen una contra
+// otra. Hecho = tono fuerte; no hecho = tono claro. Cada tramo de la 2ª despliega su lista COMPLETA de tareas (de taskDetail).
+function BarrasCierre({ b, tasks }: { b: CierreBarras; tasks: CierreTaskRow[] }) {
+  const [openSeg, setOpenSeg] = useState<string | null>(null);
+  const AZUL = '#3B82F6', NARANJA = '#F59E0B';
+  const total = b.total || 1;
+  const pctW = (n: number) => `${Math.max(0, (n / total) * 100)}%`;
+  const listOf = (seg: string): CierreTaskRow[] =>
+    seg === 'ph' ? tasks.filter(t => t.isPlan && t.done)
+    : seg === 'pn' ? tasks.filter(t => t.isPlan && !t.done)
+    : seg === 'nh' ? tasks.filter(t => !t.isPlan && t.done)
+    : seg === 'nn' ? tasks.filter(t => !t.isPlan && !t.done)
+    : [];
+  const segTitle: Record<string, string> = { ph: 'Del plan · hecho', pn: 'Del plan · sin hacer', nh: 'Nuevo · hecho', nn: 'Nuevo · sin hacer' };
+  const Seg = ({ id, mins, color, faint }: { id: string; mins: number; color: string; faint?: boolean }) =>
+    mins <= 0 ? null : (
+      <button onClick={() => setOpenSeg(o => (o === id ? null : id))} title={`${segTitle[id]} · ${formatMinutes(mins)}`}
+        style={{ width: pctW(mins), backgroundColor: color, opacity: faint ? 0.38 : 1 }}
+        className={`h-full transition-all hover:brightness-110 ${openSeg === id ? 'ring-2 ring-inset ring-white/80' : ''}`} />
+    );
+  const det = openSeg ? listOf(openSeg) : [];
+  return (
+    <div className="mb-5">
+      {/* BARRA 1 */}
+      <div className="flex items-baseline justify-between mb-1">
+        <span className="text-[10px] font-black uppercase tracking-widest dark:text-white text-text-main-light">De dónde salió el día</span>
+        <span className="text-[11px] font-bold tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(b.total)}</span>
+      </div>
+      <div className="flex h-4 w-full rounded-lg overflow-hidden dark:bg-white/5 bg-black/5">
+        {b.planFijado > 0 && <div style={{ width: pctW(b.planFijado), backgroundColor: AZUL }} className="h-full" />}
+        {b.nuevoTotal > 0 && <div style={{ width: pctW(b.nuevoTotal), backgroundColor: NARANJA }} className="h-full" />}
+      </div>
+      <div className="flex items-center gap-4 mt-1 text-[10px] font-bold dark:text-text-secondary text-text-secondary-light">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: AZUL }} /> Fijadas {formatMinutes(b.planFijado)}</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: NARANJA }} /> Nuevas {formatMinutes(b.nuevoTotal)}</span>
+      </div>
+      <p className="text-[10px] dark:text-text-secondary/80 text-text-secondary-light mt-0.5">{b.pctPlanDelDia}% era mi plan · {b.pctNuevoDelDia}% entró después</p>
+
+      {/* BARRA 2 */}
+      <div className="flex items-baseline justify-between mb-1 mt-3.5">
+        <span className="text-[10px] font-black uppercase tracking-widest dark:text-white text-text-main-light">En qué acabó</span>
+        <span className="text-[11px] font-bold tabular-nums dark:text-text-secondary text-text-secondary-light">{formatMinutes(b.total)}</span>
+      </div>
+      <div className="flex h-4 w-full rounded-lg overflow-hidden dark:bg-white/5 bg-black/5">
+        <Seg id="ph" mins={b.planHecho} color={AZUL} />
+        <Seg id="pn" mins={b.planNoHecho} color={AZUL} faint />
+        <Seg id="nh" mins={b.nuevoHecho} color={NARANJA} />
+        <Seg id="nn" mins={b.nuevoNoHecho} color={NARANJA} faint />
+      </div>
+      <p className="text-[10px] dark:text-text-secondary/80 text-text-secondary-light mt-1">Del plan hice el {b.pctPlanHecho}% · De lo nuevo hice el {b.pctNuevoHecho}%</p>
+
+      {openSeg && (
+        <div className="mt-2 pl-3 border-l-2 border-turquesa/30 space-y-0.5 ml-1">
+          <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">{segTitle[openSeg]} · {det.length}</p>
+          {det.length === 0 && <p className="text-[10px] dark:text-text-secondary text-text-secondary-light">— nada aquí —</p>}
+          {det.map((t, i) => (
+            <div key={t.id + '-' + i} className="flex items-center gap-2 text-[10px]">
+              <span className="truncate max-w-[60%] dark:text-text-secondary text-text-secondary-light">{t.title}</span>
+              <span className="tabular-nums shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(t.estMin)}{t.fichado > 0 ? ` · fiché ${formatMinutes(t.fichado)}` : ''}</span>
+              <span className="flex-1" />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -6107,3 +6107,12 @@ largo de semanas y convertirlos en feedback accionable. Ningún dato del cierre 
 - **HORIZONTE (2 meses, NO se construye ahora):** acumular días cerrados → analizar patrones (qué bloque incumplo siempre, cuánto
   entra de media al día, si fijar >X horas hunde el cumplimiento, si las muy arrastradas se hacen o se borran) → convertirlos en
   AVISOS dentro de la app en el momento de FIJAR (no en el reporte de la noche), que es cuando se puede actuar.
+- **HIPÓTESIS a verificar (análisis 2 meses):** ¿hay relación entre la DURACIÓN ESTIMADA de una tarea y la probabilidad de que se
+  haga? Señal del 08-09 (PROTEGÍ LO CORE 32%): lo que sobrevivió fueron las tareas Core CORTAS (5-15m); lo que murió fueron los dos
+  bloques LARGOS de fondo ("Central cuadro" 2h y "Ver con Blai" 30m, ambos a cero). No es "no protejo Core" sino "los bloques largos
+  de trabajo de fondo no sobreviven al día". Si lo de >1h acaba sistemáticamente sin hacerse, cambia cómo planificar (trocear, o
+  reservar hueco protegido). El dato ya se guarda: `fijadoHecho` por tarea + estimado + fichado por día. Solo falta acumular y cruzar
+  duración-estimada × ¿fichada?. NO construir; guardado para el análisis.
+- **PRIORIDAD (posible, más adelante):** `priority` se quitó en s.12 (competía con las etiquetas) → NO se reabre ahora. Se guarda
+  `taskDetail.order` (posición en Mi Día) como proxy vivo de "qué pongo primero". Si el análisis del `order` sugiere que hace falta
+  una prioridad de verdad (marcable), reconsiderar entonces — no antes.
