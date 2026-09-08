@@ -46,6 +46,20 @@ export function useTimerHandlers({
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
 
+  // §16.126 (#2): CINTURÓN DE SEGURIDAD anti-duplicado en la CAPA DE DATOS. Los guards por-botón son frágiles (uno se escapó
+  // en el chip). Aquí, antes de crear CUALQUIER entrada de tiempo, se ignora una idéntica (misma tarea+subtarea+día+minutos)
+  // registrada en los últimos 3s. Protege todas las vías —presentes y futuras— sin depender de que cada botón tenga su guard.
+  // Síncrono (ref), no depende del timing de setState. Ventana corta: una 2ª sesión real del mismo minuto es implausible en 3s.
+  const recentInsertsRef = useRef<{ key: string; at: number }[]>([]);
+  const isRecentDuplicate = useCallback((taskId: string, subtaskId: string | null, date: string, minutes: number): boolean => {
+    const key = `${taskId}|${subtaskId || ''}|${date}|${minutes}`;
+    const now = Date.now();
+    recentInsertsRef.current = recentInsertsRef.current.filter(r => now - r.at < 3000);
+    if (recentInsertsRef.current.some(r => r.key === key)) return true;
+    recentInsertsRef.current.push({ key, at: now });
+    return false;
+  }, []);
+
   // DIAG-TEMP: traza del completado (payload → escritura AWAIT con respuesta real → readback → estado local).
   const diagComplete = (origin: string, targetId: string, t: Task | undefined, meta: any) => {
     const completedAt = new Date().toISOString();
@@ -169,6 +183,11 @@ export function useTimerHandlers({
     // DIAG-TEMP: qué llega al PARAR el cronómetro → si subtaskId es null aquí, el objetivo cae en el contenedor.
     diag('timer:STOP-confirm', { pendingTaskId: pendingEntry.taskId, pendingSubtaskId: pendingEntry.subtaskId, esSubtarea: !!pendingEntry.subtaskId, markComplete, minutes });
 
+    if (isRecentDuplicate(pendingEntry.taskId, pendingEntry.subtaskId, pendingEntry.date, minutes)) { // §16.126 (#2): cinturón anti-duplicado
+      toast.warn('Ese tiempo ya se acaba de registrar (evitado duplicado).');
+      return;
+    }
+
     const newEntry: TimeEntry = {
       id: `te-${Date.now()}`,
       taskId: pendingEntry.taskId,
@@ -201,7 +220,7 @@ export function useTimerHandlers({
     }).then(({ error }) => {
       if (error) console.error('[SUPABASE] Error saving time entry:', error);
     });
-  }, [tasks, setTimeEntries, handleUpdateTask, resolveId]);
+  }, [tasks, setTimeEntries, handleUpdateTask, resolveId, isRecentDuplicate]);
 
   const handleManualTimeEntry = useCallback((
     taskId: string,
@@ -215,6 +234,10 @@ export function useTimerHandlers({
     const entryTarget = resolveActionTarget(subtaskId || taskId, tasks);
     if ((entryTarget?.subtasks || []).some((sid: string) => tasks[sid] && !tasks[sid].isDeleted)) {
       toast.warn('No se registra tiempo sobre un contenedor: su tiempo es la suma de sus tareas.');
+      return;
+    }
+    if (isRecentDuplicate(taskId, subtaskId, date, minutes)) { // §16.126 (#2): cinturón anti-duplicado
+      toast.warn('Ese tiempo ya se acaba de registrar (evitado duplicado).');
       return;
     }
     const resolvedTaskId = resolveId(taskId, tasks) || taskId;
@@ -252,7 +275,7 @@ export function useTimerHandlers({
     }).then(({ error }) => {
       if (error) console.error('[SUPABASE] Error saving manual time entry:', error);
     });
-  }, [tasks, setTimeEntries, handleUpdateTask, resolveId]);
+  }, [tasks, setTimeEntries, handleUpdateTask, resolveId, isRecentDuplicate]);
 
   const handleDeleteTimeEntry = useCallback((entryId: string) => {
     setTimeEntries(prev => prev.filter(e => e.id !== entryId));
