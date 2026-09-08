@@ -54,13 +54,22 @@ export function useDeletedTasks() {
       }
       const d30 = new Date(Date.now() - 30 * 86400000).toISOString();
       const cutoff = since > d30 ? since : d30; // max(lanzamiento, hoy−30d)
-      const { data } = await supabase
-        .from('tasks').select('*')
-        .eq('is_deleted', true)
-        .not('deleted_at', 'is', null)
-        .gte('deleted_at', cutoff)
-        .order('deleted_at', { ascending: false });
-      if (!cancel) { setDeleted((data || []).map(mapRow)); setLoading(false); }
+      // §16.126: PAGINAR (antes sin rango → PostgREST corta a 1000 y la papelera podía omitir borrados dentro de la ventana).
+      let data: any[] = []; let pFrom = 0; const PSZ = 1000;
+      while (true) {
+        const { data: page, error } = await supabase
+          .from('tasks').select('*')
+          .eq('is_deleted', true)
+          .not('deleted_at', 'is', null)
+          .gte('deleted_at', cutoff)
+          .order('deleted_at', { ascending: false })
+          .range(pFrom, pFrom + PSZ - 1);
+        if (error || !page || page.length === 0) break;
+        data = data.concat(page);
+        if (page.length < PSZ) break;
+        pFrom += PSZ;
+      }
+      if (!cancel) { setDeleted(data.map(mapRow)); setLoading(false); }
     })();
     return () => { cancel = true; };
   }, [reloadKey]);

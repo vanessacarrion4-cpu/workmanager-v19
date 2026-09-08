@@ -832,8 +832,14 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
       ? 'dark:text-registrado text-registrado-light'
       : 'dark:text-registrado/40 text-registrado-light/60';
 
+  // §16.126 (#2): guard anti-doble-clic. El panel y el modal de cronómetro ya lo tienen; el registro RÁPIDO del chip NO lo
+  // tenía → un doble clic en un preset creaba dos entradas idénticas. Como el chip NO se desmonta al registrar (es de la fila),
+  // el ref se REINICIA al reabrir el popover (handleOpen), no por-montaje como en los otros.
+  const submittingRef = useRef(false);
+
   const handleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
+    submittingRef.current = false; // nuevo registro empieza limpio
     if (onAddEntry && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - 20;
@@ -857,6 +863,8 @@ export function RegisteredTimeChip({ value, estimated, onAddEntry, taskId, subta
   const register = (mins: number) => {
     if (mins <= 0) return;
     if (!onAddEntry) return;
+    if (submittingRef.current) return;   // §16.126 (#2): guard anti-doble-clic
+    submittingRef.current = true;
     onAddEntry(taskId, subtaskId, mins, date, '', markComplete);
     setShow(false);
   };

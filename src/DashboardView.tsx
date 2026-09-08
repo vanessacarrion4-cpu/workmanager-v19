@@ -282,10 +282,17 @@ export function DashboardView({
       // §16.104 (pieza 9 + ampliación): candidatos = días < hoy con actividad. Señales: fijado (day_snapshots), tiempo
       // fichado (time_entries, en memoria) y TAREAS PLANIFICADAS (tasks.due_date pasado — se consulta porque esta vista solo
       // tiene el mapa del día). Se ofrece el más reciente que NO tenga fila en day_reports.
-      const [{ data: reps }, { data: snaps }, { data: dued }] = await Promise.all([
-        supabase.from('day_reports').select('date'),
-        supabase.from('day_snapshots').select('date'),
-        supabase.from('tasks').select('due_date').eq('is_deleted', false).eq('is_template', false).lt('due_date', activeDate).not('due_date', 'is', null).order('due_date', { ascending: false }).limit(1000),
+      // §16.126: PAGINAR (antes day_reports/day_snapshots sin límite y tasks con limit(1000) → PostgREST cortaba a 1000 y
+      // podía omitir días con actividad → no ofrecer un día sin cerrar. Mismo bug de truncación que time_entries.)
+      const pageAll = async (make: (from: number, to: number) => any): Promise<any[]> => {
+        let out: any[] = [], from = 0; const SZ = 1000;
+        while (true) { const { data, error } = await make(from, from + SZ - 1); if (error || !data || !data.length) break; out = out.concat(data); if (data.length < SZ) break; from += SZ; }
+        return out;
+      };
+      const [reps, snaps, dued] = await Promise.all([
+        pageAll((f, t) => supabase.from('day_reports').select('date').range(f, t)),
+        pageAll((f, t) => supabase.from('day_snapshots').select('date').range(f, t)),
+        pageAll((f, t) => supabase.from('tasks').select('due_date').eq('is_deleted', false).eq('is_template', false).lt('due_date', activeDate).not('due_date', 'is', null).order('due_date', { ascending: false }).range(f, t)),
       ]);
       const reportSet = new Set((reps || []).map((r: any) => r.date));
       const cand = new Set<string>();
