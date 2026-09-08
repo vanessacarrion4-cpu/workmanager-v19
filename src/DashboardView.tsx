@@ -15,7 +15,7 @@ import { Task, TagType, WorkBlock, TimeEntry, Person } from './types';
 import { TAG_LABELS } from './constants';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { getTaskEstimatedCombo, formatMinutes } from './utils';
-import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getEstimationDeviation, getOutOfPlanBreakdown, getFijadoVsHecho, getEntradasSalidas, getDayReconciliation, getDesvioCauses, getPendingLeavesForDay, collectLeafTasks, encodePlanEntry, planEntryId } from './filters';
+import { filterTasksForDay, groupTasksByTag, getStatsForDay, EntradaForDay, computeVerdict, getReportBreakdown, getEstimationDeviation, getOutOfPlanBreakdown, getFijadoVsHecho, getEntradasSalidas, getDayReconciliation, getDesvioCauses, getPendingLeavesForDay, getCierreTaskDetail, collectLeafTasks, encodePlanEntry, planEntryId } from './filters';
 import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completado POR DÍA para el filtro "ocultar completadas"
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
@@ -249,6 +249,8 @@ export function DashboardView({
   // día CON delegadas (dayTasksAll) para que "sin hacer" == repaso (§16.123).
   const reportReconciliation = useMemo(() => getDayReconciliation(allTasksFull, daySnapshot?.plan_task_ids || [], dayTasksAll, timeEntries, activeDate), [allTasksFull, daySnapshot, dayTasksAll, timeEntries, activeDate]);
   const reportCauses = useMemo(() => getDesvioCauses(allTasksFull, daySnapshot?.plan_task_ids || [], dayTasksAll, timeEntries, activeDate, jornada, outOfPlanBreakdown, []), [allTasksFull, daySnapshot, dayTasksAll, timeEntries, activeDate, jornada, outOfPlanBreakdown]);
+  // §16.127: DETALLE POR TAREA del cierre (para los desplegables de las barras y el análisis a 2 meses). Se guarda entero en frozen.
+  const reportCierreTasks = useMemo(() => getCierreTaskDetail(daySnapshot?.plan_task_ids || [], timeEntries, allTasksFull, dayTasksAll, activeDate), [daySnapshot, timeEntries, allTasksFull, dayTasksAll, activeDate]);
   // §16.114: lista de CAUSAS EXTERNAS (gestionada como los bloques, en settings JSON, sin SQL). Semilla si no existe.
   const [causasExternas, setCausasExternas] = useState<{ id: string; label: string }[]>([]);
   useEffect(() => {
@@ -806,6 +808,7 @@ export function DashboardView({
         entradasSalidas={reportEntradasSalidas}
         reconciliation={reportReconciliation}
         causes={reportCauses}
+        cierreTasks={reportCierreTasks}
         causasExternas={causasExternas}
         onAddCausaExterna={addCausaExterna}
         entrada={entrada}

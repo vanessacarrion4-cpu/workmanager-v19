@@ -6,7 +6,7 @@ import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2, Chevr
 import { formatMinutes } from './utils';
 import { toast } from './toast';
 import { TAG_LABELS } from './constants';
-import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup, FijadoVsHecho, EntradasSalidas, DayReconciliation, DesvioTable, getCierreScore, getCierreBarras, getArrastresBreakdown, ArrastresBreakdown } from './filters';
+import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup, FijadoVsHecho, EntradasSalidas, DayReconciliation, DesvioTable, getCierreScore, getCierreBarras, getArrastresBreakdown, ArrastresBreakdown, CierreTaskRow } from './filters';
 import { DayReport, MotivoKey } from './useDayReport';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { MonthDatePicker } from './TimeComponents';
@@ -50,7 +50,7 @@ type Decisiones = {
 };
 
 export function DayReportModal({
-  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entradasSalidas, reconciliation, causes, causasExternas = [], onAddCausaExterna, entrada, blocks, report, onGuardar,
+  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entradasSalidas, reconciliation, causes, cierreTasks, causasExternas = [], onAddCausaExterna, entrada, blocks, report, onGuardar,
   pendingTasks = [], timeEntries = [], onComplete, onDelete, onRepasoMove, repasoWillCollide, repasoDayLoad,
 }: {
   open: boolean;
@@ -64,6 +64,7 @@ export function DayReportModal({
   entradasSalidas?: EntradasSalidas;
   reconciliation?: DayReconciliation;
   causes?: DesvioTable;
+  cierreTasks?: CierreTaskRow[]; // §16.127: detalle por tarea (desplegables + análisis); se congela y guarda
   causasExternas?: { id: string; label: string }[];
   onAddCausaExterna?: (label: string) => void;
   entrada: EntradaForDay | null;
@@ -87,7 +88,7 @@ export function DayReportModal({
   // (si acabas con 29 pendientes y las mueves a mañana, el reporte dice 29, no 0). `decisiones` cuenta lo del repaso (pieza 3).
   // §16.108: un reporte YA GUARDADO es un DOCUMENTO HISTÓRICO — se renderiza desde lo guardado (measures.frozen), no se
   // recalcula con el estado de hoy. `fromSaved` marca ese modo; `entradaSaved` es la entrada congelada del cierre.
-  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; entradasSalidas?: EntradasSalidas; reconciliation?: DayReconciliation; causes?: DesvioTable; entradaSaved?: EntradaForDay | null; pendingAtOpen: number; pendingMinsAtOpen: number; decisiones: Decisiones; arrastres?: ArrastresBreakdown; fromSaved?: boolean } | null>(null);
+  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; entradasSalidas?: EntradasSalidas; reconciliation?: DayReconciliation; causes?: DesvioTable; entradaSaved?: EntradaForDay | null; pendingAtOpen: number; pendingMinsAtOpen: number; decisiones: Decisiones; arrastres?: ArrastresBreakdown; cierreTasks?: CierreTaskRow[]; fromSaved?: boolean } | null>(null);
   const [forceLive, setForceLive] = useState(false); // §16.108: "Actualizar con hoy" fuerza recálculo en vivo de un reporte cerrado
   const [entradaOpen, setEntradaOpen] = useState(true); // §16.104 (pieza 4): plegable
   const [hoyOpen, setHoyOpen] = useState(true);          // §16.104 (pieza 8): apartado "para hoy"
@@ -129,6 +130,7 @@ export function DayReportModal({
         pendingMinsAtOpen: pendingTasks.reduce((a: number, t: any) => a + (t.estimatedMinutes || 0), 0),
         decisiones: { manana: 0, otro: 0, completadas: 0, eliminadas: 0, mananaMin: 0, otroMin: 0, completadasMin: 0, eliminadasMin: 0 },
         arrastres: getArrastresBreakdown(pendingTasks), // §16.127 (e): histograma de arrastres AL ABRIR (congelado)
+        cierreTasks: cierreTasks ?? [], // §16.127: detalle por tarea congelado al abrir
         fromSaved: false,
       });
     }
@@ -178,6 +180,7 @@ export function DayReportModal({
       const cierreScore = getCierreScore(fh, deviation);
       const cierreBarras = getCierreBarras(fh, rec, oop?.total || 0);
       const cierreArrastres = snap?.arrastres ?? getArrastresBreakdown(pendingTasks);
+      const cierreTaskDetail = snap?.cierreTasks ?? cierreTasks ?? []; // §16.127: detalle por tarea (congelado al abrir)
       // §16.104: se guardan las medidas CONGELADAS (verdict del snap) + el resumen de decisiones del repaso.
       const measures = {
         key: verdict.key, nota: verdict.nota, previsto: verdict.previsto, registrado: verdict.registrado,
@@ -196,8 +199,8 @@ export function DayReportModal({
           verdict, deviation, breakdown, fijadoHecho: fh ?? null, outOfPlan: oop ?? null, entradasSalidas: es ?? null,
           reconciliation: rec ?? null, causes: caus ?? null,
           entrada: entradaEff ?? null, pendingAtOpen, pendingMinsAtOpen, decisiones: snap?.decisiones ?? null,
-          // §16.127: cierre nuevo (b, d, e) — se guarda SIEMPRE, aunque aún no se muestre.
-          score: cierreScore, barras: cierreBarras, arrastres: cierreArrastres,
+          // §16.127: cierre nuevo (b, d, e) — se guarda SIEMPRE, aunque aún no se muestre. taskDetail = per-tarea (desplegables + análisis).
+          score: cierreScore, barras: cierreBarras, arrastres: cierreArrastres, taskDetail: cierreTaskDetail,
         },
         // §16.105 (pieza 2 del ajuste): guardar TODO el desglose del día para poder dibujar la EVOLUCIÓN semana a semana.
         // Por tipo/bloque/etiqueta: estimado (desglose del día), fijado-vs-hecho (en tiempo), desviación (estimo bien), no previsto.

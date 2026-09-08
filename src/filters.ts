@@ -1224,3 +1224,42 @@ export function getArrastresBreakdown(pendingTasks: any[]): ArrastresBreakdown {
   });
   return { histograma, total: (pendingTasks || []).length, ge3, ge5, maxRoll };
 }
+
+// §16.127 · CIERRE — DETALLE POR TAREA (lo que el agregado NO permite): cada tarea del plan + cada nueva, con su estimado
+// (congelado si es del plan), tiempo fichado, tipo, bloque, etiqueta, arrastres y si se hizo. Es la lista de los desplegables de
+// las barras Y la materia prima del análisis a 2 meses (p.ej. duración estimada × ¿se hizo?). Se guarda ENTERO en frozen.
+export interface CierreTaskRow { title: string; estMin: number; fichado: number; type: 'core' | 'adhoc'; blockId: string; tag: string; rolls: number; isPlan: boolean; done: boolean; }
+export function getCierreTaskDetail(planTaskIds: string[], timeEntries: any[], allTasksMap: Record<string, Task>, dayTasks: Task[], date: string): CierreTaskRow[] {
+  const rows: CierreTaskRow[] = [];
+  const planIdSet = new Set((planTaskIds || []).map(planEntryId));
+  (planTaskIds || []).forEach(e => {
+    const id = planEntryId(e); const m = planEntryMeta(e);
+    const live: any = allTasksMap[id] || allTasksMap[resolveInstId(id)];
+    rows.push({
+      title: live?.title || '(tarea)',
+      estMin: m ? m.estMin : (live?.estimatedMinutes || 0),           // CONGELADO si la foto es nueva
+      fichado: getTaskRegisteredSelf(id, timeEntries, date),
+      type: (m ? m.type : (live?.taskType === 'core' ? 'core' : 'adhoc')) as 'core' | 'adhoc',
+      blockId: m ? m.blockId : (live?.blockId || ''),
+      tag: m ? m.tag : ((live?.tags && live.tags[0]) || 'resto'),
+      rolls: live?.rolledOverCount || live?.rolled_over_count || 0,
+      isPlan: true,
+      done: isCompletedForDay(id, allTasksMap, date),
+    });
+  });
+  const leafFromPlan = (l: any) => planIdSet.has(l.id) || planIdSet.has(`inst-${resolveInstId(l.id)}-${date}`) || (l.templateId && l.instanceDate === date && planIdSet.has(`inst-${l.templateId}-${date}`));
+  collectLeafTasks(dayTasks, allTasksMap, date, { includeDelegatedNoTag: true }).filter(l => !leafFromPlan(l)).forEach((l: any) => {
+    rows.push({
+      title: l.title || '(tarea)',
+      estMin: l.estimatedMinutes || 0,
+      fichado: getTaskRegisteredSelf(l.id, timeEntries, date),
+      type: (l.taskType === 'core' ? 'core' : 'adhoc'),
+      blockId: l.blockId || '',
+      tag: (l.tags && l.tags[0]) || 'resto',
+      rolls: l.rolledOverCount || 0,
+      isPlan: false,
+      done: isCompletedForDay(l.id, allTasksMap, date),
+    });
+  });
+  return rows;
+}
