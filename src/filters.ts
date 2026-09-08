@@ -1230,7 +1230,9 @@ export function getArrastresBreakdown(pendingTasks: any[]): ArrastresBreakdown {
 // las barras Y la materia prima del análisis a 2 meses (p.ej. duración estimada × ¿se hizo?). Se guarda ENTERO en frozen.
 // §16.127: `id`/`templateId` = para seguir a la MISMA tarea entre días (análisis longitudinal: ¿las arrastradas se hacen o se
 // borran?). `id` es el resuelto (plantilla para recurrentes), estable de un día a otro.
-export interface CierreTaskRow { id: string; templateId: string; title: string; estMin: number; fichado: number; type: 'core' | 'adhoc'; blockId: string; tag: string; rolls: number; isPlan: boolean; done: boolean; }
+// §16.127: `order` = posición en Mi Día = proxy VIVO de "qué pongo primero" (la `priority` se eliminó en s.12: hoy es constante
+// 'media', dato falso → NO se guarda). Con `order` + fichado se puede responder "¿hago primero lo que puse arriba?".
+export interface CierreTaskRow { id: string; templateId: string; title: string; estMin: number; fichado: number; type: 'core' | 'adhoc'; blockId: string; tag: string; rolls: number; order: number; isPlan: boolean; done: boolean; }
 export function getCierreTaskDetail(planTaskIds: string[], timeEntries: any[], allTasksMap: Record<string, Task>, dayTasks: Task[], date: string): CierreTaskRow[] {
   const rows: CierreTaskRow[] = [];
   const planIdSet = new Set((planTaskIds || []).map(planEntryId));
@@ -1247,6 +1249,7 @@ export function getCierreTaskDetail(planTaskIds: string[], timeEntries: any[], a
       blockId: m ? m.blockId : (live?.blockId || ''),
       tag: m ? m.tag : ((live?.tags && live.tags[0]) || 'resto'),
       rolls: live?.rolledOverCount || live?.rolled_over_count || 0,
+      order: live?.order ?? 0,
       isPlan: true,
       done: isCompletedForDay(id, allTasksMap, date),
     });
@@ -1262,6 +1265,7 @@ export function getCierreTaskDetail(planTaskIds: string[], timeEntries: any[], a
       blockId: l.blockId || '',
       tag: (l.tags && l.tags[0]) || 'resto',
       rolls: l.rolledOverCount || 0,
+      order: l.order ?? 0,
       isPlan: false,
       done: isCompletedForDay(l.id, allTasksMap, date),
     });
