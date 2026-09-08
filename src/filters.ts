@@ -1228,14 +1228,18 @@ export function getArrastresBreakdown(pendingTasks: any[]): ArrastresBreakdown {
 // §16.127 · CIERRE — DETALLE POR TAREA (lo que el agregado NO permite): cada tarea del plan + cada nueva, con su estimado
 // (congelado si es del plan), tiempo fichado, tipo, bloque, etiqueta, arrastres y si se hizo. Es la lista de los desplegables de
 // las barras Y la materia prima del análisis a 2 meses (p.ej. duración estimada × ¿se hizo?). Se guarda ENTERO en frozen.
-export interface CierreTaskRow { title: string; estMin: number; fichado: number; type: 'core' | 'adhoc'; blockId: string; tag: string; rolls: number; isPlan: boolean; done: boolean; }
+// §16.127: `id`/`templateId` = para seguir a la MISMA tarea entre días (análisis longitudinal: ¿las arrastradas se hacen o se
+// borran?). `id` es el resuelto (plantilla para recurrentes), estable de un día a otro.
+export interface CierreTaskRow { id: string; templateId: string; title: string; estMin: number; fichado: number; type: 'core' | 'adhoc'; blockId: string; tag: string; rolls: number; isPlan: boolean; done: boolean; }
 export function getCierreTaskDetail(planTaskIds: string[], timeEntries: any[], allTasksMap: Record<string, Task>, dayTasks: Task[], date: string): CierreTaskRow[] {
   const rows: CierreTaskRow[] = [];
   const planIdSet = new Set((planTaskIds || []).map(planEntryId));
   (planTaskIds || []).forEach(e => {
     const id = planEntryId(e); const m = planEntryMeta(e);
-    const live: any = allTasksMap[id] || allTasksMap[resolveInstId(id)];
+    const rid = resolveInstId(id);
+    const live: any = allTasksMap[id] || allTasksMap[rid];
     rows.push({
+      id: rid, templateId: live?.templateId || (id.startsWith('inst-') ? rid : ''),
       title: live?.title || '(tarea)',
       estMin: m ? m.estMin : (live?.estimatedMinutes || 0),           // CONGELADO si la foto es nueva
       fichado: getTaskRegisteredSelf(id, timeEntries, date),
@@ -1250,6 +1254,7 @@ export function getCierreTaskDetail(planTaskIds: string[], timeEntries: any[], a
   const leafFromPlan = (l: any) => planIdSet.has(l.id) || planIdSet.has(`inst-${resolveInstId(l.id)}-${date}`) || (l.templateId && l.instanceDate === date && planIdSet.has(`inst-${l.templateId}-${date}`));
   collectLeafTasks(dayTasks, allTasksMap, date, { includeDelegatedNoTag: true }).filter(l => !leafFromPlan(l)).forEach((l: any) => {
     rows.push({
+      id: resolveInstId(l.id), templateId: l.templateId || (String(l.id).startsWith('inst-') ? resolveInstId(l.id) : ''),
       title: l.title || '(tarea)',
       estMin: l.estimatedMinutes || 0,
       fichado: getTaskRegisteredSelf(l.id, timeEntries, date),

@@ -50,7 +50,7 @@ type Decisiones = {
 };
 
 export function DayReportModal({
-  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entradasSalidas, reconciliation, causes, cierreTasks, causasExternas = [], onAddCausaExterna, entrada, blocks, report, onGuardar,
+  open, onClose, activeDate, verdict: verdictLive, breakdown: breakdownLive, deviation: deviationLive, outOfPlan, fijadoHecho, entradasSalidas, reconciliation, causes, cierreTasks, jornada, causasExternas = [], onAddCausaExterna, entrada, blocks, report, onGuardar,
   pendingTasks = [], timeEntries = [], onComplete, onDelete, onRepasoMove, repasoWillCollide, repasoDayLoad,
 }: {
   open: boolean;
@@ -65,6 +65,7 @@ export function DayReportModal({
   reconciliation?: DayReconciliation;
   causes?: DesvioTable;
   cierreTasks?: CierreTaskRow[]; // §16.127: detalle por tarea (desplegables + análisis); se congela y guarda
+  jornada?: number; // §16.127: jornada disponible del día (min) — para cruzar fijado × jornada (sobreplanificación)
   causasExternas?: { id: string; label: string }[];
   onAddCausaExterna?: (label: string) => void;
   entrada: EntradaForDay | null;
@@ -194,6 +195,7 @@ export function DayReportModal({
         deletedRolls, // §16.120 (#f): arrastres de las tareas borradas en el repaso
         // §16.127 (d): nota nueva ponderada al nivel superior, para leer la media de días cerrados sin abrir cada frozen.
         notaNueva: cierreScore.notaPonderada,
+        jornada: jornada ?? null, // §16.127: jornada disponible del día (para análisis fijado × jornada)
         // §16.108: SNAP COMPLETO congelado → al reabrir, el reporte se renderiza desde aquí (documento histórico), no se recalcula.
         frozen: {
           verdict, deviation, breakdown, fijadoHecho: fh ?? null, outOfPlan: oop ?? null, entradasSalidas: es ?? null,

@@ -612,7 +612,7 @@ describe('§16.109 destino del plan + descomposición del desvío', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // §16.127 · CIERRE nuevo: indicadores + barras + arrastres
 // ─────────────────────────────────────────────────────────────────────────────
-import { getCierreScore, getCierreBarras, getArrastresBreakdown } from './filters';
+import { getCierreScore, getCierreBarras, getArrastresBreakdown, getCierreTaskDetail } from './filters';
 
 describe('§16.127 cierre: indicadores, barras, arrastres', () => {
   const fh: any = {
@@ -655,5 +655,21 @@ describe('§16.127 cierre: indicadores, barras, arrastres', () => {
     expect(a.ge3).toBe(3);
     expect(a.ge5).toBe(1);
     expect(a.maxRoll).toBe(5);
+  });
+
+  it('getCierreTaskDetail: por tarea con id, estimado congelado, hecho, tipo y done', () => {
+    const D = '2026-07-15';
+    const all = mapOf([
+      task({ id: 'r1', status: 'completed', dueDate: D }),
+      task({ id: 'r2', status: 'pending', dueDate: D }),
+      task({ id: 'X', status: 'pending', dueDate: D, estimatedMinutes: 12 }),
+    ]);
+    const plan = ['r1::30::b1::focus::core', 'r2::20::b2::resto::adhoc'];
+    const te = [{ taskId: 'r1', subtaskId: null, date: D, duration: 40 }];
+    const rows = getCierreTaskDetail(plan, te, all, [all['r1'], all['r2'], all['X']], D);
+    const byId = Object.fromEntries(rows.map(r => [r.id, r]));
+    expect(byId['r1']).toMatchObject({ estMin: 30, fichado: 40, type: 'core', isPlan: true, done: true });
+    expect(byId['r2']).toMatchObject({ estMin: 20, type: 'adhoc', isPlan: true, done: false });
+    expect(byId['X']).toMatchObject({ estMin: 12, isPlan: false, done: false }); // nueva (no en plan)
   });
 });

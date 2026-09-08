@@ -809,6 +809,7 @@ export function DashboardView({
         reconciliation={reportReconciliation}
         causes={reportCauses}
         cierreTasks={reportCierreTasks}
+        jornada={jornada}
         causasExternas={causasExternas}
         onAddCausaExterna={addCausaExterna}
         entrada={entrada}
