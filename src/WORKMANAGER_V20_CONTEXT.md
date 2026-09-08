@@ -6116,3 +6116,19 @@ largo de semanas y convertirlos en feedback accionable. Ningún dato del cierre 
 - **PRIORIDAD (posible, más adelante):** `priority` se quitó en s.12 (competía con las etiquetas) → NO se reabre ahora. Se guarda
   `taskDetail.order` (posición en Mi Día) como proxy vivo de "qué pongo primero". Si el análisis del `order` sugiere que hace falta
   una prioridad de verdad (marcable), reconsiderar entonces — no antes.
+
+## 16.128 DÍA NO LABORABLE (festivo/vacaciones/enferma) — DECISIÓN ABIERTA, propuesta sin construir
+**Problema (real, reaparecerá):** hoy la app NO distingue "no trabajé" de "trabajé mal": los dos dan cumplimiento bajo (04-09 salía
+0,4 y no era un fallo, es que no fue día de trabajo). Un día no trabajado es el MISMO caso que un día sin reporte: se EXCLUYE,
+NUNCA cuenta como cero (ni nota, ni medias, ni rachas, ni estadísticas).
+**Propuesta (Claude, a validar):** las dos vías, liderando por la detección:
+- **DETECTAR + PREGUNTAR al cerrar (principal):** si el día no tiene tiempo fichado NI tareas completadas, al ir a cerrar/fijar la
+  app pregunta "¿Hoy no era día de trabajo? [Día no laborable / Sí trabajé, ciérralo normal]". Es coste cero y coge justo el caso
+  que no recordaría marcar (el día que me pongo mala no lo veo venir). NO decidir en silencio (podría haber trabajo offline) → PREGUNTAR.
+- **MARCAR a mano (complemento):** poder marcar un día como no laborable por adelantado (festivos/vacaciones conocidos) para que no
+  fije ni dé la lata.
+- **Por qué no auto-silencioso:** silencio = riesgo de excluir un día real. **Por qué no solo-manual:** me olvidaría los días de baja.
+- **Efecto (c):** día no laborable = sin nota, fuera de medias/rachas/stats, nunca 0. Las medias YA excluyen días sin `notaNueva`
+  (§16.127), así que basta con que un día no laborable no tenga nota; + marcarlo para que NO cuente como "día pendiente de cerrar".
+- **Implementación (cuando toque, sin SQL/DDL):** lista de fechas en `settings` (patrón `jornada_por_dia`/`causas_externas`), p.ej.
+  `dias_no_laborables`. El reporte de ese día muestra "Día no laborable" y no calcula nota. NO construir hasta OK de la propietaria.
