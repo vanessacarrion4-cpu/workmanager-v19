@@ -53,6 +53,9 @@ export function useDaySnapshot(activeDate: string) {
   }, [activeDate, jornadaPorDia, jornadaGlobal]);
 
   const latest = snapshots.length ? snapshots[snapshots.length - 1] : null;
+  // §16.127 (doc 6012): el REPORTE usa la PRIMERA foto del día (el plan de la mañana, con el que arranqué), no `latest`. La
+  // cabecera sí usa `latest` (re-fijar re-planifica el delta, a propósito). Con el aviso al re-fijar habrá 1 foto/día salvo sustitución.
+  const first = snapshots.length ? snapshots[0] : null;
 
   // RE-FIJAR sustituye (nueva foto, delta a cero desde ese momento): guardamos una fila NUEVA con su hora; `latest`
   // pasa a ser esta. No se acumula (el delta se calcula siempre contra la última).
@@ -83,5 +86,5 @@ export function useDaySnapshot(activeDate: string) {
     });
   }, [activeDate]);
 
-  return { snapshots, latest, jornada, fijar, setJornada };
+  return { snapshots, latest, first, jornada, fijar, setJornada };
 }

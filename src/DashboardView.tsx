@@ -20,6 +20,7 @@ import { isCompletedForDay } from './fase3Contracts'; // §16.16 (b3): completad
 import { supabase } from './supabaseClient';
 import { TaskCard, BulkActionBar, DashboardHarmonicCalendar } from './components';
 import { DayHeader } from './DayHeader'; // TRAMO 1: cabecera + foto (sustituye a las 3 tarjetas)
+import { useConfirm } from './ConfirmContext'; // §16.127: aviso al re-fijar (sustituir/cancelar)
 import { useDaySnapshot } from './useDaySnapshot';
 import { DayReportModal } from './DayReportModal'; // TRAMO 4: reporte del día
 import { useDayReport } from './useDayReport';
@@ -209,7 +210,9 @@ export function DashboardView({
   }, [dayTasks, allTasksMap, timeEntries, activeDate]);
 
   // TRAMO 1 (foto del día): fijaciones + jornada del día activo.
-  const { latest: daySnapshot, jornada, fijar, setJornada } = useDaySnapshot(activeDate);
+  // §16.127: `daySnapshot` (última foto) → cabecera/delta; `reportSnapshot` (PRIMERA foto del día) → TODO el reporte (doc 6012).
+  const { latest: daySnapshot, first: reportSnapshot, jornada, fijar, setJornada } = useDaySnapshot(activeDate);
+  const askConfirm = useConfirm(); // §16.127: aviso al re-fijar
 
   // TRAMO 4 (reporte del día): valoración automática + motivos/nota guardados.
   const [showReport, setShowReport] = useState(false);
@@ -217,28 +220,28 @@ export function DashboardView({
   // §16.102: denominador del reporte = PLAN CONGELADO de la foto (no recuento en vivo, que se mueve). `hechas` = cuántas
   // de ese plan están hechas AHORA. Sin foto con plan → null → el reporte muestra recuento sin "de M" (hueco honesto).
   const planCompletion = useMemo(() => {
-    const plan = daySnapshot?.plan_task_ids;
+    const plan = reportSnapshot?.plan_task_ids;
     if (!plan || plan.length === 0) return null;
     const hechas = plan.filter((e: string) => isCompletedForDay(planEntryId(e), allTasksMap, activeDate)).length; // §16.106
     return { total: plan.length, hechas };
-  }, [daySnapshot, allTasksMap, activeDate]);
+  }, [reportSnapshot, allTasksMap, activeDate]);
   const verdict = useMemo(
     () => computeVerdict(
       stats,
-      daySnapshot ? { estimated_minutes: daySnapshot.estimated_minutes, completed_count: daySnapshot.completed_count, plan_task_ids: daySnapshot.plan_task_ids } : null,
+      reportSnapshot ? { estimated_minutes: reportSnapshot.estimated_minutes, completed_count: reportSnapshot.completed_count, plan_task_ids: reportSnapshot.plan_task_ids } : null,
       jornada, timeEntries, activeDate, planCompletion
     ),
-    [stats, daySnapshot, jornada, timeEntries, activeDate, planCompletion]
+    [stats, reportSnapshot, jornada, timeEntries, activeDate, planCompletion]
   );
   const reportBreakdown = useMemo(() => getReportBreakdown(dayTasks, allTasksMap, activeDate), [dayTasks, allTasksMap, activeDate]);
   // §16.101 ¿Estimo bien? — desviación estimado vs registrado de lo completado (no depende de la foto).
   const reportDeviation = useMemo(() => getEstimationDeviation(dayTasks, allTasksMap, timeEntries, activeDate), [dayTasks, allTasksMap, timeEntries, activeDate]);
   // §16.104 (pieza 7): desglose del tiempo NO previsto (tareas con tiempo fuera del plan de la foto).
-  const outOfPlanBreakdown = useMemo(() => getOutOfPlanBreakdown(daySnapshot?.plan_task_ids || [], timeEntries, allTasksMap, activeDate), [daySnapshot, timeEntries, allTasksMap, activeDate]);
+  const outOfPlanBreakdown = useMemo(() => getOutOfPlanBreakdown(reportSnapshot?.plan_task_ids || [], timeEntries, allTasksMap, activeDate), [reportSnapshot, timeEntries, allTasksMap, activeDate]);
   // §16.104 (pieza 6): FIJADO vs HECHO en tiempo, por bloque y etiqueta (necesita foto con plan).
-  const reportFijadoHecho = useMemo(() => getFijadoVsHecho(daySnapshot?.plan_task_ids || [], timeEntries, allTasksMap, activeDate), [daySnapshot, timeEntries, allTasksMap, activeDate]);
+  const reportFijadoHecho = useMemo(() => getFijadoVsHecho(reportSnapshot?.plan_task_ids || [], timeEntries, allTasksMap, activeDate), [reportSnapshot, timeEntries, allTasksMap, activeDate]);
   // §16.107 (#b): entraron/salieron respecto al plan (reemplaza el "añadido neto").
-  const reportEntradasSalidas = useMemo(() => getEntradasSalidas(daySnapshot?.plan_task_ids || [], dayTasks, allTasksMap, activeDate), [daySnapshot, dayTasks, allTasksMap, activeDate]);
+  const reportEntradasSalidas = useMemo(() => getEntradasSalidas(reportSnapshot?.plan_task_ids || [], dayTasks, allTasksMap, activeDate), [reportSnapshot, dayTasks, allTasksMap, activeDate]);
   // §16.118/§16.123: día SIN el filtro hideDelegatedNoTag → incluye las delegadas-sin-etiqueta, para que el repaso, la secuencia
   // "sin hacer" y el número salgan del MISMO conjunto y ninguna pendiente quede invisible. Fuente única de las pendientes.
   const dayTasksAll = useMemo(() => {
@@ -247,10 +250,10 @@ export function DashboardView({
   }, [tasks, activeDate, blocks, allTasksMap]);
   // §16.110: la SECUENCIA del día que cierra (estimado) + la TABLA de causas (peso vs sin-hacer). Usan el mapa COMPLETO y el
   // día CON delegadas (dayTasksAll) para que "sin hacer" == repaso (§16.123).
-  const reportReconciliation = useMemo(() => getDayReconciliation(allTasksFull, daySnapshot?.plan_task_ids || [], dayTasksAll, timeEntries, activeDate), [allTasksFull, daySnapshot, dayTasksAll, timeEntries, activeDate]);
-  const reportCauses = useMemo(() => getDesvioCauses(allTasksFull, daySnapshot?.plan_task_ids || [], dayTasksAll, timeEntries, activeDate, jornada, outOfPlanBreakdown, []), [allTasksFull, daySnapshot, dayTasksAll, timeEntries, activeDate, jornada, outOfPlanBreakdown]);
+  const reportReconciliation = useMemo(() => getDayReconciliation(allTasksFull, reportSnapshot?.plan_task_ids || [], dayTasksAll, timeEntries, activeDate), [allTasksFull, reportSnapshot, dayTasksAll, timeEntries, activeDate]);
+  const reportCauses = useMemo(() => getDesvioCauses(allTasksFull, reportSnapshot?.plan_task_ids || [], dayTasksAll, timeEntries, activeDate, jornada, outOfPlanBreakdown, []), [allTasksFull, reportSnapshot, dayTasksAll, timeEntries, activeDate, jornada, outOfPlanBreakdown]);
   // §16.127: DETALLE POR TAREA del cierre (para los desplegables de las barras y el análisis a 2 meses). Se guarda entero en frozen.
-  const reportCierreTasks = useMemo(() => getCierreTaskDetail(daySnapshot?.plan_task_ids || [], timeEntries, allTasksFull, dayTasksAll, activeDate), [daySnapshot, timeEntries, allTasksFull, dayTasksAll, activeDate]);
+  const reportCierreTasks = useMemo(() => getCierreTaskDetail(reportSnapshot?.plan_task_ids || [], timeEntries, allTasksFull, dayTasksAll, activeDate), [reportSnapshot, timeEntries, allTasksFull, dayTasksAll, activeDate]);
   // §16.114: lista de CAUSAS EXTERNAS (gestionada como los bloques, en settings JSON, sin SQL). Semilla si no existe.
   const [causasExternas, setCausasExternas] = useState<{ id: string; label: string }[]>([]);
   useEffect(() => {
@@ -306,6 +309,17 @@ export function DashboardView({
     } catch { return null; }
   };
   const attemptFijar = async () => {
+    // §16.127 (c, doc 5985/6010): si YA hay foto hoy, re-fijar debe AVISAR y pedir confirmación (default seguro = cancelar). Así
+    // no se sustituye en silencio la foto de la mañana, que es la que mide el reporte. La cabecera/delta sí usan la última.
+    if (daySnapshot?.taken_at) {
+      const hh = new Date(daySnapshot.taken_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      const ok = await askConfirm({
+        title: 'Ya fijaste hoy',
+        message: `Fijaste el día a las ${hh}. El reporte mide tu cumplimiento contra ESA foto (el plan de la mañana). Si la sustituyes, el reporte pasará a medir contra el plan de ahora y perderás el de la mañana.`,
+        confirmText: 'Sustituir la foto', danger: true,
+      });
+      if (!ok) return; // default seguro: se conserva la foto de la mañana
+    }
     const prev = await findPreviousUnclosedDay();
     if (prev) { setRescateDay(prev); return; }
     doFijar();

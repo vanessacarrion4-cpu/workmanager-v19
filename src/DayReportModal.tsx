@@ -655,7 +655,12 @@ function BarrasCierre({ b, tasks }: { b: CierreBarras; tasks: CierreTaskRow[] })
         <Seg id="nh" mins={b.nuevoHecho} color={NARANJA} />
         <Seg id="nn" mins={b.nuevoNoHecho} color={NARANJA} faint />
       </div>
-      <p className="text-[10px] dark:text-text-secondary/80 text-text-secondary-light mt-1">Del plan hice el {b.pctPlanHecho}% · De lo nuevo hice el {b.pctNuevoHecho}%</p>
+      {/* §16.127: por debajo del 100% "hice el X%"; por encima, el número honesto sin "hice" ("N estimados, M dedicados"). */}
+      <p className="text-[10px] dark:text-text-secondary/80 text-text-secondary-light mt-1">
+        {b.pctPlanHecho <= 100 ? `Del plan hice el ${b.pctPlanHecho}%` : `Del plan: ${formatMinutes(b.planFijado)} estimados, ${formatMinutes(b.planFichadoReal)} dedicados`}
+        {' · '}
+        {b.pctNuevoHecho <= 100 ? `de lo nuevo hice el ${b.pctNuevoHecho}%` : `de lo nuevo: ${formatMinutes(b.nuevoTotal)} estimados, ${formatMinutes(b.nuevoFichadoReal)} dedicados`}
+      </p>
 
       {openSeg && (
         <div className="mt-2 pl-3 border-l-2 border-turquesa/30 space-y-0.5 ml-1">

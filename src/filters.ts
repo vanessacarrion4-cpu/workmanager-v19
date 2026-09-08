@@ -1194,22 +1194,26 @@ export interface CierreBarras {
   planFijado: number; nuevoTotal: number;
   planHecho: number; planNoHecho: number;
   nuevoHecho: number; nuevoNoHecho: number;
+  planFichadoReal: number; nuevoFichadoReal: number; // §16.127: fichado REAL sin recortar (para "N estimados, M dedicados" si pasa del 100%)
   pctPlanDelDia: number; pctNuevoDelDia: number;
   pctPlanHecho: number; pctNuevoHecho: number;
 }
 export function getCierreBarras(fh: FijadoVsHecho | null | undefined, rec: DayReconciliation | null | undefined, nuevoHechoMin: number): CierreBarras {
   const planFijado = fh?.totalFijado || 0;
-  const planHecho = Math.min(fh?.totalHecho || 0, planFijado);
+  const planFichadoReal = fh?.totalHecho || 0;
+  const planHecho = Math.min(planFichadoReal, planFijado);
   const planNoHecho = Math.max(0, planFijado - planHecho);
   const nuevoTotal = rec?.entraronMin || 0;
-  const nuevoHecho = Math.min(nuevoHechoMin || 0, nuevoTotal);
+  const nuevoFichadoReal = nuevoHechoMin || 0;
+  const nuevoHecho = Math.min(nuevoFichadoReal, nuevoTotal);
   const nuevoNoHecho = Math.max(0, nuevoTotal - nuevoHecho);
   const total = planFijado + nuevoTotal;
   const pc = (a: number, b: number) => b > 0 ? Math.round(a / b * 100) : 0;
   return {
     total, planFijado, nuevoTotal, planHecho, planNoHecho, nuevoHecho, nuevoNoHecho,
+    planFichadoReal, nuevoFichadoReal,
     pctPlanDelDia: pc(planFijado, total), pctNuevoDelDia: pc(nuevoTotal, total),
-    pctPlanHecho: pc(fh?.totalHecho || 0, planFijado), pctNuevoHecho: pc(nuevoHechoMin || 0, nuevoTotal),
+    pctPlanHecho: pc(planFichadoReal, planFijado), pctNuevoHecho: pc(nuevoFichadoReal, nuevoTotal),
   };
 }
 
