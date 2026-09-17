@@ -22,6 +22,7 @@ import {
   TimePickerChip, TaskTypeChip, TimerDisplay
 } from './components';
 import { getTaskRegisteredCombo, getTaskEstimatedCombo } from './utils';
+import { DraftTextarea } from './DraftTextarea'; // §16.130: borrador local — las notas NO se guardan por tecla
 import { useConfirm } from './ConfirmContext';
 
 import { supabase } from './supabaseClient';
@@ -821,19 +822,19 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                             {/* Nota inline — §barrido: plegada si vacía (antes el editor abierto siempre doblaba la fila) */}
                             {(hasNote || notesOpen.has(`${meeting.id}__${item.taskId}`)) ? (
                               <div className="px-4 pb-3 border-t dark:border-border-main/30 border-border-main-light/30 pt-2">
-                                <textarea
+                                {/* §16.130: borrador local. Antes cada tecla llamaba a onUpdateMeetings → una escritura
+                                    en Supabase por letra (y, hasta §16.130, un barrido que borraba filas). */}
+                                <DraftTextarea
                                   autoFocus={!hasNote}
-                                  value={item.note || ''}
-                                  onChange={e => {
+                                  initial={item.note || ''}
+                                  onCommit={(texto: string) => {
                                     const updatedItems = meeting.items.map((i: any) =>
-                                      i.taskId === item.taskId ? { ...i, note: e.target.value } : i
+                                      i.taskId === item.taskId ? { ...i, note: texto } : i
                                     );
                                     const updatedMeeting = { ...meeting, items: updatedItems };
                                     onUpdateMeetings(meetings.map((m: any) => m.id === meeting.id ? updatedMeeting : m));
                                   }}
                                   placeholder="Nota sobre esta tarea..."
-                                  rows={1}
-                                  onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
                                   className="w-full dark:bg-transparent bg-transparent border-none text-sm dark:text-text-secondary text-text-secondary-light dark:placeholder:text-text-secondary/30 placeholder:text-text-secondary-light/40 outline-none resize-none overflow-hidden"
                                 />
                               </div>

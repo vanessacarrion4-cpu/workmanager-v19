@@ -24,6 +24,7 @@ import { getVisibleSubtasksForBloques, hiddenCompletedCountForBloques, container
 import { getTagColor } from './helpers';
 import { useConfirm } from './ConfirmContext';
 import { TitleField } from './TitleField';
+import { DraftTextarea } from './DraftTextarea'; // §16.130: las notas no se guardan por tecla
 import {
   TaskTypeChip, TimePickerChip, DatePickerChip, RecurrencePickerChip,
   TagPickerChip, EstimatedTimeChip, RegisteredTimeChip, BlockPickerChip,
@@ -1079,19 +1080,19 @@ export function TaskCard({
                       {/* Nota de subtarea en reunión */}
                       {inMeeting && meetingItems && onUpdateMeetingItems && (
                         <div className="px-4 pb-2 ml-5 border-t dark:border-border-main/20 border-border-main-light/20">
-                          <textarea
-                            value={meetingItems.find((i: any) => i.taskId === subId)?.note || ''}
-                            onChange={e => {
+                          {/* §16.130: borrador local (en una reunión ya guardada, esto escribía en base por tecla). */}
+                          <DraftTextarea
+                            key={subId}
+                            initial={meetingItems.find((i: any) => i.taskId === subId)?.note || ''}
+                            onCommit={(texto: string) => {
                               const existing = meetingItems.find((i: any) => i.taskId === subId);
                               if (existing) {
-                                onUpdateMeetingItems(meetingItems.map((i: any) => i.taskId === subId ? { ...i, note: e.target.value } : i));
+                                onUpdateMeetingItems(meetingItems.map((i: any) => i.taskId === subId ? { ...i, note: texto } : i));
                               } else {
-                                onUpdateMeetingItems([...meetingItems, { taskId: subId, note: e.target.value, isSubtask: true }]);
+                                onUpdateMeetingItems([...meetingItems, { taskId: subId, note: texto, isSubtask: true }]);
                               }
                             }}
                             placeholder="Nota sobre esta subtarea..."
-                            rows={1}
-                            onInput={(e: any) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
                             className="w-full dark:bg-transparent bg-transparent border-none text-sm dark:text-text-secondary text-text-secondary-light dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/30 outline-none resize-none overflow-hidden mt-1"
                           />
                         </div>
