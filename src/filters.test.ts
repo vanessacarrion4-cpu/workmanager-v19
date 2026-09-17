@@ -599,13 +599,15 @@ describe('§16.109 destino del plan + descomposición del desvío', () => {
     expect(m['tardeMas']).toBe(20);   // r1: 50 − 30
     expect(m['espera']).toBe(20);     // r2 onHold
     expect(m['ext-0']).toBe(45);      // Visita
+    // §16.129: las que SAQUÉ del día (movidas o borradas) tienen su propia fila: se calculaban y no se pintaban.
+    expect(m['saque']).toBe(25);      // exA, sacada del día
     // el tiempo REALMENTE trabajado en lo aparecido va aparte (no suma al peso): "de eso trabajé 30"
     expect(t.causas.find(c => c.key === 'aparecio')!.worked).toBe(30);
     // §16.112: IMPACTO vs sin-hacer (sobreplan 80/57 = 140%); PESO REL vs suma de causas (177) → sobreplan 80/177 = 45%.
     expect(t.causas[0].key).toBe('sobreplan');
-    expect(t.totalCausasMin).toBe(177); // 12+80+20+20+45 (sin la fila "fuera")
+    expect(t.totalCausasMin).toBe(202); // 12+80+20+20+45+25 (§16.129: con "las saqué del día")
     expect(t.causas.find(c => c.key === 'sobreplan')!.impacto).toBe(140);
-    expect(t.causas.find(c => c.key === 'sobreplan')!.pesoRel).toBe(45);
+    expect(t.causas.find(c => c.key === 'sobreplan')!.pesoRel).toBe(40); // 80/202
   });
 });
 

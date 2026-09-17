@@ -1083,6 +1083,10 @@ export function getDesvioCauses(
     { key: 'sobreplan', label: 'Sobreplanifiqué', mins: Math.max(0, rec.fijado - jornada), detail: [] as { title: string; mins: number; worked?: boolean; real?: number }[] },
     { key: 'tardeMas', label: 'Tardé más de lo estimado', mins: tardeMas, detail: tardeMasDetail.sort((a, b) => b.mins - a.mins) },
     { key: 'espera', label: 'En espera', mins: enEspera, count: enEsperaFates.length, detail: enEsperaFates.map(f => ({ title: f.title || '(tarea)', mins: f.estMin })) },
+    // §16.129: lo que SAQUÉ del día (movidas o borradas). Se calculaba desde §16.110 pero no se pintaba en ninguna parte
+    // desde que se retiró la secuencia (§16.127 paso 3) — y es la mitad de la respuesta a "por qué no cerré el plan":
+    // esas tareas siguen en el denominador del indicador (borrar lo no hecho no sube la nota), así que deben tener su línea.
+    { key: 'saque', label: 'Las saqué del día (movidas o borradas)', mins: rec.saqueMin, count: rec.saqueCount, detail: rec.saqueDetail },
     ...(externalCauses || []).map((c, i) => ({ key: `ext-${i}`, label: c.label, mins: c.minutes || 0, detail: [] as { title: string; mins: number; worked?: boolean; real?: number }[] })),
   ].filter(c => c.mins > 0);
   const totalCausas = raw.reduce((a, c) => a + c.mins, 0);

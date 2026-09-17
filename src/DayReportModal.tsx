@@ -106,6 +106,7 @@ export function DayReportModal({
   const [extSel, setExtSel] = useState<{ label: string; mins: number }[]>([]); // §16.114: causas externas seleccionadas (con su tiempo)
   const [extPickLabel, setExtPickLabel] = useState('');
   const [extPickMins, setExtPickMins] = useState('');
+  const [sinFicharOpen, setSinFicharOpen] = useState(false); // §16.129: lista de las cerradas sin fichar
 
   // Al abrir / cambiar de día, precargar lo guardado.
   useEffect(() => {
@@ -170,6 +171,9 @@ export function DayReportModal({
   })();
   const entradaEff = snap?.entradaSaved ?? entrada; // §16.108: entrada congelada si es documento histórico
   const isSaved = !!snap?.fromSaved;
+  // §16.129: día cerrado DESPUÉS (rescate del día anterior). Cerrando en diferido no se ficha, para no ensuciar el día en
+  // curso → las "cerradas sin fichar" de ese día son normales y no deben leerse como trabajo fantasma.
+  const closedLate = ((report?.measures as any)?.closedLate ?? (activeDate < formatLocalISO(new Date()))) as boolean;
   // §16.118: "en el repaso" = mismo conjunto que "sin hacer" de la secuencia (ya alineados). Cuenta y minutos salen de la
   // contabilidad congelada (rec) para que cuadren exacto; si no hay foto, cae al recuento del repaso.
   const pendingAtOpen = rec?.sinHacerCount ?? snap?.pendingAtOpen ?? pendingTasks.length;
@@ -343,6 +347,30 @@ export function DayReportModal({
           <IndicadorCierre titulo="Cumplí el plan" peso="75%" nota={score.cumpliPlan.nota}
             explicacion={<>Del plan fijado ({formatMinutes(score.cumpliPlan.fijado)}) saqué adelante <b className="dark:text-white text-text-main-light">{formatMinutes(cred(score.cumpliPlan))}</b> · {score.cumpliPlan.pct}%</>}
             media={<MediaTendencia m={medias?.cumpliPlan} />}>
+            {/* §16.129 · CERRADAS SIN FICHAR: no restan (una tarea cerrada salió adelante, se cronometrara o no), pero se
+                vigilan: si el número crece, la nota se apoya en casillas marcadas y no en tiempo real. */}
+            {score.cerradasSinFichar?.count > 0 && (
+              <div className="mb-2">
+                <button onClick={() => setSinFicharOpen(o => !o)} className="flex items-center gap-1 text-[10px] font-bold dark:text-text-secondary text-text-secondary-light hover:text-turquesa">
+                  {sinFicharOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                  <span>Cerradas sin fichar: <b className="dark:text-white text-text-main-light">{score.cerradasSinFichar.count}</b> ({formatMinutes(score.cerradasSinFichar.mins)})</span>
+                  {closedLate && <span className="dark:text-text-secondary/70 text-text-secondary-light">· día cerrado en diferido</span>}
+                </button>
+                {sinFicharOpen && (
+                  <div className="mt-1 pl-4 border-l-2 border-turquesa/30 space-y-0.5 ml-1">
+                    {score.cerradasSinFichar.detail.map((d, i) => (
+                      <div key={d.title + i} className="flex items-center gap-2 text-[10px]">
+                        <span className="truncate max-w-[70%] dark:text-text-secondary text-text-secondary-light">{d.title}</span>
+                        <span className="tabular-nums shrink-0 dark:text-text-secondary/70 text-text-secondary-light">{formatMinutes(d.estMin)}</span>
+                      </div>
+                    ))}
+                    <p className="text-[9px] dark:text-text-secondary/70 text-text-secondary-light leading-snug pt-0.5">
+                      Cuentan como sacadas adelante por su estimación. Para que cuente el tiempo real, fíchalo con la fecha de ese día.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
             {mergedCausas.length > 0 && (
               <div className="space-y-0.5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">Por qué no cerró</p>
