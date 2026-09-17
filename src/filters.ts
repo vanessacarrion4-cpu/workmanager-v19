@@ -1211,35 +1211,56 @@ export function getCierreScore(rows: CierreTaskRow[] | null | undefined, deviati
   };
 }
 
-// §16.127 · CIERRE — las DOS barras. Mismo total = plan-fijado + nuevo-estimado, para leerse una contra otra. Todo en TIEMPO:
-// "hecho" = tiempo fichado (real); "no hecho" = resto del estimado (fijado−hecho / estimadoNuevo−hechoNuevo), como acordado (#1/#2).
-// nuevoHechoMin = tiempo fichado en tareas nuevas (= outOfPlan.total). Los % de subtítulo son reales (sin clamp); los tramos sí
-// se recortan para que sumen el total (si fichaste más que lo estimado, el exceso ya se ve en "tardé más").
+// §16.129 · CIERRE — las DOS barras, con el MISMO crédito por tarea que los indicadores (antes: agregados, con el mismo
+// sesgo — el 9/09 pintaba 410 de 440 min "hecho" cuando 22 de 29 tareas no se habían tocado). Mismo total = plan-fijado +
+// nuevo-estimado, para leerse una contra otra.
+//  · "hecho"    = Σ crédito (cerrada → su estimación; si no, tiempo real con tope su estimación).
+//  · "no hecho" = estimación − crédito.
+// EL TIEMPO REAL NO SE PIERDE: las barras están en ESTIMADO (es el eje del plan), y el tiempo real se reconcilia aparte con
+// dos identidades que siempre cuadran:
+//   (1) fichado = dentro de lo estimado + exceso      → a dónde fue tu tiempo real
+//   (2) crédito = dentro de lo estimado + creditoSinReloj  → de qué está hecha la barra
+// `creditoSinReloj` = lo que se da por hecho sin reloj (tareas cerradas que ficharon menos que su estimación, típico de
+// cerrar el día en diferido). `exceso` es lo que alimenta "tardé más de lo estimado".
 export interface CierreBarras {
   total: number;
   planFijado: number; nuevoTotal: number;
   planHecho: number; planNoHecho: number;
   nuevoHecho: number; nuevoNoHecho: number;
-  planFichadoReal: number; nuevoFichadoReal: number; // §16.127: fichado REAL sin recortar (para "N estimados, M dedicados" si pasa del 100%)
+  planFichadoReal: number; nuevoFichadoReal: number; // fichado REAL sin recortar
+  planDentro: number; nuevoDentro: number;           // fichado que cabe dentro de la estimación
+  planExceso: number; nuevoExceso: number; exceso: number;
+  creditoSinReloj: number;                           // crédito dado sin tiempo fichado detrás
+  fichadoTotal: number;                              // planFichadoReal + nuevoFichadoReal
   pctPlanDelDia: number; pctNuevoDelDia: number;
   pctPlanHecho: number; pctNuevoHecho: number;
 }
-export function getCierreBarras(fh: FijadoVsHecho | null | undefined, rec: DayReconciliation | null | undefined, nuevoHechoMin: number): CierreBarras {
-  const planFijado = fh?.totalFijado || 0;
-  const planFichadoReal = fh?.totalHecho || 0;
-  const planHecho = Math.min(planFichadoReal, planFijado);
-  const planNoHecho = Math.max(0, planFijado - planHecho);
-  const nuevoTotal = rec?.entraronMin || 0;
-  const nuevoFichadoReal = nuevoHechoMin || 0;
-  const nuevoHecho = Math.min(nuevoFichadoReal, nuevoTotal);
-  const nuevoNoHecho = Math.max(0, nuevoTotal - nuevoHecho);
-  const total = planFijado + nuevoTotal;
+export function getCierreBarras(rows: CierreTaskRow[] | null | undefined): CierreBarras {
+  const plan = (rows || []).filter(r => r.isPlan), nuevo = (rows || []).filter(r => !r.isPlan);
+  const sum = (a: CierreTaskRow[], f: (r: CierreTaskRow) => number) => a.reduce((s, r) => s + f(r), 0);
+  const dentro = (r: CierreTaskRow) => Math.min(r.fichado || 0, r.estMin || 0);
+  const over = (r: CierreTaskRow) => Math.max(0, (r.fichado || 0) - (r.estMin || 0));
+  const lado = (a: CierreTaskRow[]) => ({
+    fijado: sum(a, r => r.estMin || 0),
+    credito: sum(a, creditoTarea),
+    fichado: sum(a, r => r.fichado || 0),
+    dentro: sum(a, dentro),
+    exceso: sum(a, over),
+  });
+  const P = lado(plan), N = lado(nuevo);
+  const total = P.fijado + N.fijado;
   const pc = (a: number, b: number) => b > 0 ? Math.round(a / b * 100) : 0;
   return {
-    total, planFijado, nuevoTotal, planHecho, planNoHecho, nuevoHecho, nuevoNoHecho,
-    planFichadoReal, nuevoFichadoReal,
-    pctPlanDelDia: pc(planFijado, total), pctNuevoDelDia: pc(nuevoTotal, total),
-    pctPlanHecho: pc(planFichadoReal, planFijado), pctNuevoHecho: pc(nuevoFichadoReal, nuevoTotal),
+    total, planFijado: P.fijado, nuevoTotal: N.fijado,
+    planHecho: P.credito, planNoHecho: Math.max(0, P.fijado - P.credito),
+    nuevoHecho: N.credito, nuevoNoHecho: Math.max(0, N.fijado - N.credito),
+    planFichadoReal: P.fichado, nuevoFichadoReal: N.fichado,
+    planDentro: P.dentro, nuevoDentro: N.dentro,
+    planExceso: P.exceso, nuevoExceso: N.exceso, exceso: P.exceso + N.exceso,
+    creditoSinReloj: (P.credito - P.dentro) + (N.credito - N.dentro),
+    fichadoTotal: P.fichado + N.fichado,
+    pctPlanDelDia: pc(P.fijado, total), pctNuevoDelDia: pc(N.fijado, total),
+    pctPlanHecho: pc(P.credito, P.fijado), pctNuevoHecho: pc(N.credito, N.fijado),
   };
 }
 
@@ -1253,6 +1274,20 @@ export function getArrastresBreakdown(pendingTasks: any[]): ArrastresBreakdown {
     if (r >= 3) ge3++; if (r >= 5) ge5++; if (r > maxRoll) maxRoll = r;
   });
   return { histograma, total: (pendingTasks || []).length, ge3, ge5, maxRoll };
+}
+
+// §16.129 · TIEMPO FICHADO PROPIO de una tarea, para el detalle del cierre. Una time_entry con `subtaskId` es de la HOJA;
+// sin él, de la tarea raíz. `getTaskRegisteredSelf` (utils) también da por suya la entrada cuando el id coincide con su
+// `taskId` aunque apunte a una hija → si el contenedor y la hoja están los DOS en el detalle, los mismos minutos se cuentan
+// dos veces. Caso real 15/09: el plan traía "Subvenció… desglosar" (contenedor) y durante el día nació "Demanar subvenció"
+// (su hoja, con los 120m); el detalle sumaba 10h40 de fichado en un día de 8h40. Aquí cada minuto tiene UN solo dueño.
+function registradoPropio(id: string, timeEntries: any[], date: string): number {
+  const rid = resolveInstId(id);
+  return (timeEntries || []).reduce((acc: number, e: any) => {
+    if (!e || e.date !== date || !(e.duration > 0)) return acc;
+    const owner = resolveInstId(e.subtaskId || e.taskId);
+    return owner === rid ? acc + e.duration : acc;
+  }, 0);
 }
 
 // §16.127 · CIERRE — DETALLE POR TAREA (lo que el agregado NO permite): cada tarea del plan + cada nueva, con su estimado
@@ -1274,7 +1309,7 @@ export function getCierreTaskDetail(planTaskIds: string[], timeEntries: any[], a
       id: rid, templateId: live?.templateId || (id.startsWith('inst-') ? rid : ''),
       title: live?.title || '(tarea)',
       estMin: m ? m.estMin : (live?.estimatedMinutes || 0),           // CONGELADO si la foto es nueva
-      fichado: getTaskRegisteredSelf(id, timeEntries, date),
+      fichado: registradoPropio(id, timeEntries, date), // §16.129: sin robarle el tiempo a sus hojas
       type: (m ? m.type : (live?.taskType === 'core' ? 'core' : 'adhoc')) as 'core' | 'adhoc',
       blockId: m ? m.blockId : (live?.blockId || ''),
       tag: m ? m.tag : ((live?.tags && live.tags[0]) || 'resto'),
@@ -1290,7 +1325,7 @@ export function getCierreTaskDetail(planTaskIds: string[], timeEntries: any[], a
       id: resolveInstId(l.id), templateId: l.templateId || (String(l.id).startsWith('inst-') ? resolveInstId(l.id) : ''),
       title: l.title || '(tarea)',
       estMin: l.estimatedMinutes || 0,
-      fichado: getTaskRegisteredSelf(l.id, timeEntries, date),
+      fichado: registradoPropio(l.id, timeEntries, date), // §16.129
       type: (l.taskType === 'core' ? 'core' : 'adhoc'),
       blockId: l.blockId || '',
       tag: (l.tags && l.tags[0]) || 'resto',
@@ -1303,23 +1338,9 @@ export function getCierreTaskDetail(planTaskIds: string[], timeEntries: any[], a
   return rows;
 }
 
-// §16.127 (paso 2b) · las DOS barras calculadas desde un subconjunto de tareas (para el desglose por tipo/bloque/etiqueta).
-// Misma lógica que getCierreBarras pero agregando taskDetail: plan/nuevo por estimado; hecho = fichado; no hecho = resto (clamp).
-export function barrasFromTasks(rows: CierreTaskRow[]): CierreBarras {
-  const plan = (rows || []).filter(r => r.isPlan), nuevo = (rows || []).filter(r => !r.isPlan);
-  const sum = (a: CierreTaskRow[], k: 'estMin' | 'fichado') => a.reduce((s, r) => s + (r[k] || 0), 0);
-  const planFijado = sum(plan, 'estMin'), planFichadoReal = sum(plan, 'fichado');
-  const nuevoTotal = sum(nuevo, 'estMin'), nuevoFichadoReal = sum(nuevo, 'fichado');
-  const planHecho = Math.min(planFichadoReal, planFijado), planNoHecho = Math.max(0, planFijado - planHecho);
-  const nuevoHecho = Math.min(nuevoFichadoReal, nuevoTotal), nuevoNoHecho = Math.max(0, nuevoTotal - nuevoHecho);
-  const total = planFijado + nuevoTotal;
-  const pc = (a: number, b: number) => b > 0 ? Math.round(a / b * 100) : 0;
-  return {
-    total, planFijado, nuevoTotal, planHecho, planNoHecho, nuevoHecho, nuevoNoHecho, planFichadoReal, nuevoFichadoReal,
-    pctPlanDelDia: pc(planFijado, total), pctNuevoDelDia: pc(nuevoTotal, total),
-    pctPlanHecho: pc(planFichadoReal, planFijado), pctNuevoHecho: pc(nuevoFichadoReal, nuevoTotal),
-  };
-}
+// §16.127 (paso 2b) · las DOS barras de un SUBCONJUNTO de tareas (desglose por tipo/bloque/etiqueta). Es el mismo
+// cálculo que getCierreBarras (§16.129: una sola fuente de verdad) aplicado a las filas del grupo.
+export const barrasFromTasks = (rows: CierreTaskRow[]): CierreBarras => getCierreBarras(rows);
 
 // §16.127 (paso 2b) · agrupar taskDetail por dimensión (tipo/bloque/etiqueta) → una barra-doble por grupo, ordenadas por total desc.
 export interface GrupoBarras { key: string; barras: CierreBarras; }

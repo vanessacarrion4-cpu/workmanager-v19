@@ -612,7 +612,7 @@ describe('§16.109 destino del plan + descomposición del desvío', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // §16.127 · CIERRE nuevo: indicadores + barras + arrastres
 // ─────────────────────────────────────────────────────────────────────────────
-import { getCierreScore, getCierreBarras, getArrastresBreakdown, getCierreTaskDetail } from './filters';
+import { getCierreScore, getCierreBarras, barrasFromTasks, getArrastresBreakdown, getCierreTaskDetail } from './filters';
 
 describe('§16.127 cierre: indicadores, barras, arrastres', () => {
   const fh: any = {
@@ -674,15 +674,50 @@ describe('§16.127 cierre: indicadores, barras, arrastres', () => {
     expect(s.cerradasSinFichar.count).toBe(0);
   });
 
-  it('getCierreBarras: las dos barras suman el mismo total y cada parte cuadra', () => {
-    const b = getCierreBarras(fh, rec, 206); // nuevoHecho fichado = 206
-    expect(b.planHecho + b.planNoHecho).toBe(b.planFijado);   // 270 + 215 = 485
-    expect(b.nuevoHecho + b.nuevoNoHecho).toBe(b.nuevoTotal); // 206 + 149 = 355
-    expect(b.total).toBe(b.planFijado + b.nuevoTotal);        // 485 + 355 = 840
-    expect(b.pctPlanHecho).toBe(56);
-    expect(b.pctNuevoHecho).toBe(58); // 206/355
+  it('getCierreBarras: los tramos cuadran y el exceso NO rellena el hueco de lo no tocado (§16.129)', () => {
+    // 9/09: plan 60+380, la de 60 se llevó 360; una nueva de 50 con 20 fichados.
+    const rows = [
+      row({ id: 'a', estMin: 60, fichado: 360, done: true }),
+      row({ id: 'b', estMin: 380, fichado: 0 }),
+      row({ id: 'n', estMin: 50, fichado: 20, isPlan: false }),
+    ];
+    const b = getCierreBarras(rows as any);
+    expect(b.planHecho + b.planNoHecho).toBe(b.planFijado);     // 60 + 380 = 440
+    expect(b.nuevoHecho + b.nuevoNoHecho).toBe(b.nuevoTotal);   // 20 + 30 = 50
+    expect(b.total).toBe(490);
+    expect(b.planHecho).toBe(60);       // NO 360: el exceso no entra en la barra
+    expect(b.pctPlanHecho).toBe(14);    // NO 82%
+    expect(b.exceso).toBe(300);
   });
 
+  it('getCierreBarras: identidad del TIEMPO REAL — fichado = dentro de lo estimado + exceso', () => {
+    const rows = [
+      row({ id: 'a', estMin: 60, fichado: 360, done: true }),  // dentro 60, exceso 300
+      row({ id: 'b', estMin: 380, fichado: 45 }),              // dentro 45
+      row({ id: 'n', estMin: 50, fichado: 70, isPlan: false }),// dentro 50, exceso 20
+    ];
+    const b = getCierreBarras(rows as any);
+    expect(b.fichadoTotal).toBe(475);                                     // 360+45+70
+    expect(b.planDentro + b.nuevoDentro + b.exceso).toBe(b.fichadoTotal); // 155 + 320 = 475
+  });
+
+  it('getCierreBarras: identidad del CRÉDITO — crédito = dentro de lo estimado + crédito sin reloj', () => {
+    const rows = [
+      row({ id: 'tancament', estMin: 180, fichado: 0, done: true }), // cerrada sin fichar → 180 sin reloj
+      row({ id: 'b', estMin: 60, fichado: 30 }),                     // avance real 30
+    ];
+    const b = getCierreBarras(rows as any);
+    expect(b.planHecho).toBe(210);
+    expect(b.planDentro).toBe(30);
+    expect(b.creditoSinReloj).toBe(180);
+    expect(b.planDentro + b.creditoSinReloj).toBe(b.planHecho);
+    expect(b.fichadoTotal).toBe(30); // el tiempo real sigue siendo 30m, sin inflar
+  });
+
+  it('barrasFromTasks: el desglose por grupo usa el MISMO cálculo que las barras', () => {
+    const rows = [row({ id: 'a', estMin: 60, fichado: 360, done: true }), row({ id: 'b', estMin: 380, fichado: 0 })];
+    expect(barrasFromTasks(rows as any)).toEqual(getCierreBarras(rows as any));
+  });
   it('getArrastresBreakdown: histograma + umbrales', () => {
     const a = getArrastresBreakdown([{ rolledOverCount: 0 }, { rolledOverCount: 1 }, { rolledOverCount: 3 }, { rolledOverCount: 5 }, { rolledOverCount: 3 }]);
     expect(a.total).toBe(5);
@@ -690,6 +725,22 @@ describe('§16.127 cierre: indicadores, barras, arrastres', () => {
     expect(a.ge3).toBe(3);
     expect(a.ge5).toBe(1);
     expect(a.maxRoll).toBe(5);
+  });
+
+  it('getCierreTaskDetail: el contenedor NO se queda el tiempo de su hoja (§16.129, caso 15/09)', () => {
+    // Una sola time_entry de 120m sobre la hoja (task_id = contenedor, subtask_id = hoja). Antes se contaba en las DOS filas
+    // (el detalle daba 10h40 de fichado en un día de 8h40); ahora cada minuto tiene un dueño.
+    const D = '2026-09-15';
+    const all = mapOf([
+      task({ id: 'cont', status: 'pending', dueDate: D, estimatedMinutes: 30, subtasks: ['hoja'] }),
+      task({ id: 'hoja', status: 'completed', dueDate: D, estimatedMinutes: 75, parentTaskId: 'cont' }),
+    ]);
+    const te = [{ taskId: 'cont', subtaskId: 'hoja', date: D, duration: 120 }];
+    const rows = getCierreTaskDetail(['cont::30::b2::focus::adhoc'], te, all, [all['cont']], D);
+    const byId = Object.fromEntries(rows.map(r => [r.id, r]));
+    expect(byId['cont'].fichado).toBe(0);    // el contenedor no ficha por su hoja
+    expect(byId['hoja'].fichado).toBe(120);
+    expect(rows.reduce((a, r) => a + r.fichado, 0)).toBe(120); // el día no se infla
   });
 
   it('getCierreTaskDetail: por tarea con id, estimado congelado, hecho, tipo y done', () => {

@@ -92,7 +92,7 @@ export function DayReportModal({
   // (si acabas con 29 pendientes y las mueves a mañana, el reporte dice 29, no 0). `decisiones` cuenta lo del repaso (pieza 3).
   // §16.108: un reporte YA GUARDADO es un DOCUMENTO HISTÓRICO — se renderiza desde lo guardado (measures.frozen), no se
   // recalcula con el estado de hoy. `fromSaved` marca ese modo; `entradaSaved` es la entrada congelada del cierre.
-  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; entradasSalidas?: EntradasSalidas; reconciliation?: DayReconciliation; causes?: DesvioTable; entradaSaved?: EntradaForDay | null; pendingAtOpen: number; pendingMinsAtOpen: number; decisiones: Decisiones; arrastres?: ArrastresBreakdown; cierreTasks?: CierreTaskRow[]; score?: CierreScore; fromSaved?: boolean } | null>(null);
+  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; entradasSalidas?: EntradasSalidas; reconciliation?: DayReconciliation; causes?: DesvioTable; entradaSaved?: EntradaForDay | null; pendingAtOpen: number; pendingMinsAtOpen: number; decisiones: Decisiones; arrastres?: ArrastresBreakdown; cierreTasks?: CierreTaskRow[]; score?: CierreScore; barras?: CierreBarras; fromSaved?: boolean } | null>(null);
   const [forceLive, setForceLive] = useState(false); // §16.108: "Actualizar con hoy" fuerza recálculo en vivo de un reporte cerrado
   const [entradaOpen, setEntradaOpen] = useState(true); // §16.104 (pieza 4): plegable
   const [hoyOpen, setHoyOpen] = useState(true);          // §16.104 (pieza 8): apartado "para hoy"
@@ -152,7 +152,8 @@ export function DayReportModal({
   const rec = snap?.reconciliation ?? reconciliation; // §16.110: secuencia del día (congelada)
   const caus = snap?.causes ?? causes;                 // §16.110: tabla de causas (congelada)
   const cierreTaskDetail: CierreTaskRow[] = snap?.cierreTasks ?? cierreTasks ?? []; // §16.127: detalle por tarea (desplegables)
-  const barras = getCierreBarras(fh, rec, oop?.total || 0);          // §16.127: las dos barras (plan vs nuevo · hecho vs no)
+  // §16.129: las barras salen del detalle POR TAREA (mismo crédito que los indicadores). Reporte viejo sin detalle → las guardadas.
+  const barras: CierreBarras = cierreTaskDetail.length ? getCierreBarras(cierreTaskDetail) : (snap?.barras ?? getCierreBarras([]));
   // §16.129: los indicadores salen del detalle POR TAREA (crédito con tope). Un reporte viejo guardado SIN detalle (anterior
   // al §16.127) no se puede recalcular con la fórmula nueva: se muestra su score congelado tal cual (documento histórico).
   const score: CierreScore = cierreTaskDetail.length ? getCierreScore(cierreTaskDetail, deviation) : (snap?.score ?? getCierreScore([], deviation));
@@ -189,7 +190,7 @@ export function DayReportModal({
       // patrones a lo largo de semanas. Todo sale de lo que ya se congela (fh/rec/oop/deviation/arrastres del snap).
       const cierreTaskDetail = snap?.cierreTasks ?? cierreTasks ?? []; // §16.127: detalle por tarea (congelado al abrir)
       const cierreScore = getCierreScore(cierreTaskDetail, deviation); // §16.129: crédito por tarea (tope = su estimación)
-      const cierreBarras = getCierreBarras(fh, rec, oop?.total || 0);
+      const cierreBarras = getCierreBarras(cierreTaskDetail);
       const cierreArrastres = snap?.arrastres ?? getArrastresBreakdown(pendingTasks);
       // §16.104: se guardan las medidas CONGELADAS (verdict del snap) + el resumen de decisiones del repaso.
       const measures = {
@@ -550,13 +551,18 @@ function BarrasCierre({ b, tasks }: { b: CierreBarras; tasks: CierreTaskRow[] })
   const AZUL = '#3B82F6', NARANJA = '#F59E0B';
   const total = b.total || 1;
   const pctW = (n: number) => `${Math.max(0, (n / total) * 100)}%`;
-  const listOf = (seg: string): CierreTaskRow[] =>
-    seg === 'ph' ? tasks.filter(t => t.isPlan && t.done)
-    : seg === 'pn' ? tasks.filter(t => t.isPlan && !t.done)
-    : seg === 'nh' ? tasks.filter(t => !t.isPlan && t.done)
-    : seg === 'nn' ? tasks.filter(t => !t.isPlan && !t.done)
-    : [];
-  const segTitle: Record<string, string> = { ph: 'Del plan · hecho', pn: 'Del plan · sin hacer', nh: 'Nuevo · hecho', nn: 'Nuevo · sin hacer' };
+  // §16.129: el tramo se reparte por MINUTOS, no por tareas: una tarea a medias aporta su crédito al tramo "sacado adelante"
+  // y el resto de su estimación al de "sin hacer", así que sale en los dos con la parte que le toca (los tramos cuadran).
+  const credito = (t: CierreTaskRow) => (t.done ? (t.estMin || 0) : Math.min(t.fichado || 0, t.estMin || 0));
+  const listOf = (seg: string): { t: CierreTaskRow; mins: number }[] => {
+    const lado = tasks.filter(t => (seg[0] === 'p' ? t.isPlan : !t.isPlan));
+    const hecho = seg[1] === 'h';
+    return lado
+      .map(t => ({ t, mins: hecho ? credito(t) : Math.max(0, (t.estMin || 0) - credito(t)) }))
+      .filter(x => x.mins > 0)
+      .sort((a, b) => b.mins - a.mins);
+  };
+  const segTitle: Record<string, string> = { ph: 'Del plan · sacado adelante', pn: 'Del plan · sin hacer', nh: 'Nuevo · sacado adelante', nn: 'Nuevo · sin hacer' };
   const Seg = ({ id, mins, color, faint }: { id: string; mins: number; color: string; faint?: boolean }) =>
     mins <= 0 ? null : (
       <button onClick={() => setOpenSeg(o => (o === id ? null : id))} title={`${segTitle[id]} · ${formatMinutes(mins)}`}
@@ -594,19 +600,31 @@ function BarrasCierre({ b, tasks }: { b: CierreBarras; tasks: CierreTaskRow[] })
       </div>
       {/* §16.127: por debajo del 100% "hice el X%"; por encima, el número honesto sin "hice" ("N estimados, M dedicados"). */}
       <p className="text-[10px] dark:text-text-secondary/80 text-text-secondary-light mt-1">
-        {b.pctPlanHecho <= 100 ? `Del plan hice el ${b.pctPlanHecho}%` : `Del plan: ${formatMinutes(b.planFijado)} estimados, ${formatMinutes(b.planFichadoReal)} dedicados`}
-        {' · '}
-        {b.pctNuevoHecho <= 100 ? `de lo nuevo hice el ${b.pctNuevoHecho}%` : `de lo nuevo: ${formatMinutes(b.nuevoTotal)} estimados, ${formatMinutes(b.nuevoFichadoReal)} dedicados`}
+        Del plan saqué adelante el {b.pctPlanHecho}% · de lo nuevo el {b.pctNuevoHecho}%
       </p>
-
+      {/* §16.129 · CUADRE: las barras van en ESTIMADO (es el eje del plan); el TIEMPO REAL no cabe en ellas y se reconcilia
+          aquí, con una identidad exacta: fichado = lo que cupo dentro de lo estimado + el exceso. El exceso no puntúa como
+          plan cumplido: vive en "tardé más de lo estimado". */}
+      {b.fichadoTotal > 0 && (
+        <p className="text-[10px] dark:text-text-secondary/80 text-text-secondary-light mt-1 leading-snug">
+          <b className="dark:text-white text-text-main-light">Tu tiempo real: {formatMinutes(b.fichadoTotal)}</b> = {formatMinutes(b.planDentro + b.nuevoDentro)} dentro de lo estimado
+          {b.exceso > 0 && <> + <b className="text-rosa">{formatMinutes(b.exceso)} de exceso</b> <span className="dark:text-text-secondary/70 text-text-secondary-light">(no cuenta como plan cumplido: está en «tardé más»)</span></>}
+        </p>
+      )}
+      {b.creditoSinReloj > 0 && (
+        <p className="text-[10px] dark:text-text-secondary/80 text-text-secondary-light leading-snug">
+          De lo sacado adelante, {formatMinutes(b.creditoSinReloj)} son tareas cerradas sin fichar tiempo.
+        </p>
+      )}
       {openSeg && (
         <div className="mt-2 pl-3 border-l-2 border-turquesa/30 space-y-0.5 ml-1">
           <p className="text-[9px] font-black uppercase tracking-widest text-text-secondary/70">{segTitle[openSeg]} · {det.length}</p>
           {det.length === 0 && <p className="text-[10px] dark:text-text-secondary text-text-secondary-light">— nada aquí —</p>}
-          {det.map((t, i) => (
-            <div key={t.id + '-' + i} className="flex items-center gap-2 text-[10px]">
-              <span className="truncate max-w-[60%] dark:text-text-secondary text-text-secondary-light">{t.title}</span>
-              <span className="tabular-nums shrink-0 dark:text-text-secondary text-text-secondary-light">{formatMinutes(t.estMin)}{t.fichado > 0 ? ` · fiché ${formatMinutes(t.fichado)}` : ''}</span>
+          {det.map((x, i) => (
+            <div key={x.t.id + '-' + i} className="flex items-center gap-2 text-[10px]">
+              <span className="truncate max-w-[55%] dark:text-text-secondary text-text-secondary-light">{x.t.title}</span>
+              <span className="tabular-nums shrink-0 font-bold dark:text-white text-text-main-light">{formatMinutes(x.mins)}</span>
+              <span className="tabular-nums shrink-0 dark:text-text-secondary/70 text-text-secondary-light">de {formatMinutes(x.t.estMin)}{x.t.fichado > 0 ? ' · fiché ' + formatMinutes(x.t.fichado) : ''}</span>
               <span className="flex-1" />
             </div>
           ))}
