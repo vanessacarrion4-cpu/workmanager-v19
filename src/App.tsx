@@ -750,10 +750,20 @@ export default function App() {
                 onUpdateTask={handleUpdateTask}
                 onToggleTask={handleToggleStatus}
                 onUpdatePeople={setPeople}
+                // §16.130 · GUARDAR UNA REUNIÓN ESCRIBE ESA REUNIÓN Y NADA MÁS. Antes esto reescribía la tabla ENTERA
+                // (upsert de las N reuniones) y después hacía `select id` + DELETE de toda fila que no estuviera en el
+                // estado local: un barrido que, con la lista local incompleta o desfasada, BORRABA reuniones buenas de la
+                // base. Y la nota inline lo disparaba en CADA TECLA. No hay ninguna reunión posterior al 3/09 por esto.
+                // Ahora: se upsertan solo las filas que han cambiado respecto al estado anterior, y NADA se borra aquí.
+                // Borrar es una acción aparte (onDeleteMeeting), cuando la usuaria le da a borrar.
                 onUpdateMeetings={async (updatedMeetings: any[]) => {
+                  const previas = meetings;
                   setMeetings(updatedMeetings);
+                  const antesPorId: Record<string, any> = Object.fromEntries((previas || []).map((m: any) => [m.id, m]));
+                  const cambiadas = (updatedMeetings || []).filter((m: any) => JSON.stringify(antesPorId[m.id]) !== JSON.stringify(m));
+                  if (cambiadas.length === 0) return;
                   try {
-                    for (const m of updatedMeetings) {
+                    for (const m of cambiadas) {
                       const { error } = await supabase.from('meetings').upsert({
                         id: m.id, person_id: m.personId, date: m.date,
                         notes: m.notes || '', items: m.items || [],
@@ -761,18 +771,21 @@ export default function App() {
                       }, { onConflict: 'id' });
                       if (error) throw error;
                     }
-                    const currentIds = updatedMeetings.map((m: any) => m.id);
-                    const { data: existing } = await supabase.from('meetings').select('id');
-                    if (existing) {
-                      const toDelete = existing.filter((r: any) => !currentIds.includes(r.id));
-                      for (const r of toDelete) {
-                        const { error } = await supabase.from('meetings').delete().eq('id', r.id);
-                        if (error) throw error;
-                      }
-                    }
                   } catch (e) {
                     console.error('[SUPABASE] Error guardando reuniones:', e);
+                    setMeetings(previas); // §16.130: si la base falla, la pantalla no se queda diciendo que se guardó
                     reportPersistError({ verbo: 'guardar', singular: 'la reunión', plural: 'reuniones' });
+                  }
+                }}
+                // §16.130: borrar una reunión es SU propia acción, con su borrado dirigido por id.
+                onDeleteMeeting={async (id: string) => {
+                  const previas = meetings;
+                  setMeetings(previas.filter((m: any) => m.id !== id));
+                  const { error } = await supabase.from('meetings').delete().eq('id', id);
+                  if (error) {
+                    console.error('[SUPABASE] Error borrando la reunión:', error);
+                    setMeetings(previas);
+                    reportPersistError({ verbo: 'borrar', singular: 'la reunión', plural: 'reuniones' });
                   }
                 }}
                 onAddTask={handleAddTask}

@@ -40,7 +40,7 @@ function getPersonColor(people: any[], personId: string) {
   return PERSON_COLORS[idx >= 0 ? idx % PERSON_COLORS.length : 0];
 }
 
-export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '', onGoToTemplate = null, hideCompletedExternal }: any) {
+export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onDeleteMeeting, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '', onGoToTemplate = null, hideCompletedExternal }: any) {
   const askConfirm = useConfirm();
 
   // Highlight helper
@@ -733,8 +733,10 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                     <button
                       onClick={async () => {
                         if (await askConfirm({ message: `¿Eliminar la reunión con ${getPersonName(meeting.personId)}?`, confirmText: 'Eliminar', danger: true })) {
-                          const updated = meetings.filter((m: any) => m.id !== meeting.id);
-                          onUpdateMeetings(updated);
+                          // §16.130: borrado DIRIGIDO por id. Antes se mandaba la lista sin ella y era el barrido de
+                          // huérfanas quien la borraba — el mismo barrido que se llevaba por delante a las demás.
+                          if (onDeleteMeeting) onDeleteMeeting(meeting.id);
+                          else onUpdateMeetings(meetings.filter((m: any) => m.id !== meeting.id));
                         }
                       }}
                       className="w-8 h-8 flex items-center justify-center text-rosa/60 hover:text-rosa hover:bg-rosa/10 rounded-xl transition-all"
