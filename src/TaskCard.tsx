@@ -627,7 +627,9 @@ export function TaskCard({
               )}
             </div>
 
-            {/* Título: <span> mide su texto (los chips lo pegan; se trunca al chocar, min-w-0).
+            {/* Título: <span> mide su texto (los chips lo pegan; se trunca al chocar). §16.130: min-w-[5rem] en vez de
+                min-w-0 — con min-w-0 el título se encogía hasta DESAPARECER (0 px) si el raíl no cabía, como pasaba en
+                el modal de componer una reunión. Un título truncado se lee; uno de 0 px, no.
                 <input> solo al editar. Clic → edita; Enter guarda, Escape cancela, salir guarda. */}
             <TitleField
               value={task.title}
@@ -635,8 +637,8 @@ export function TaskCard({
               onStartEdit={enterTitleEdit}
               onCommit={commitTitle}
               onCancel={cancelTitle}
-              inputClassName={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none flex-1 min-w-0 truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${rowCompleted ? 'line-through' : ''}`}
-              spanClassName={`text-[13px] font-black min-w-0 truncate capitalize cursor-text ${rowCompleted ? 'line-through dark:text-white/60 text-text-main-light/60' : (!task.title ? 'italic font-medium dark:text-text-secondary/40 text-text-secondary-light/40' : 'dark:text-white text-text-main-light')}`}
+              inputClassName={`text-[13px] font-black dark:text-white text-text-main-light bg-transparent outline-none flex-1 min-w-[5rem] truncate dark:placeholder:text-text-secondary/20 placeholder:text-text-secondary-light/20 capitalize tracking-normal ${rowCompleted ? 'line-through' : ''}`}
+              spanClassName={`text-[13px] font-black min-w-[5rem] truncate capitalize cursor-text ${rowCompleted ? 'line-through dark:text-white/60 text-text-main-light/60' : (!task.title ? 'italic font-medium dark:text-text-secondary/40 text-text-secondary-light/40' : 'dark:text-white text-text-main-light')}`}
             />
               {/* Icono adjuntos */}
               {task.attachments && task.attachments.length > 0 && (

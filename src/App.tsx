@@ -750,6 +750,8 @@ export default function App() {
                 onUpdateTask={handleUpdateTask}
                 onToggleTask={handleToggleStatus}
                 onUpdatePeople={setPeople}
+                // §16.130: Delegadas era la ÚNICA vista sin onAddPerson → añadir persona ahí no escribía en persons.
+                onAddPerson={handleAddPerson}
                 // §16.130 · GUARDAR UNA REUNIÓN ESCRIBE ESA REUNIÓN Y NADA MÁS. Antes esto reescribía la tabla ENTERA
                 // (upsert de las N reuniones) y después hacía `select id` + DELETE de toda fila que no estuviera en el
                 // estado local: un barrido que, con la lista local incompleta o desfasada, BORRABA reuniones buenas de la

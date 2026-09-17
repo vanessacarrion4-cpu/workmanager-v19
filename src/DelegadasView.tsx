@@ -41,7 +41,7 @@ function getPersonColor(people: any[], personId: string) {
   return PERSON_COLORS[idx >= 0 ? idx % PERSON_COLORS.length : 0];
 }
 
-export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onUpdateMeetings, onDeleteMeeting, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '', onGoToTemplate = null, hideCompletedExternal }: any) {
+export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, timeEntries, onUpdateTask, onToggleTask, onUpdatePeople, onAddPerson, onUpdateMeetings, onDeleteMeeting, onAddTask, onEditTask, onDeleteTask, onRenamePerson, onDeletePerson, onRecurrenceDateChange = null, selectionMode = false, selectedTaskIds = new Set(), onToggleTaskSelection = null, onToggleSelectionMode = null, bulkUpdateTasks = null, bulkDeleteTasks = null, bulkDuplicateTasks = null, setBulkDelegateModal = null, setBulkDateModal = null, setBulkTimeModal = null, searchQuery = '', onGoToTemplate = null, hideCompletedExternal }: any) {
   const askConfirm = useConfirm();
 
   // Highlight helper
@@ -62,7 +62,13 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
   };
 
   const [activeTab, setActiveTab] = useState<'tareas' | 'reuniones'>('tareas');
-  const [filterPersonId, setFilterPersonId] = useState<string | null>(null);
+  // §16.130: el filtro de persona es de CADA pestaña. Era uno solo y compartido: filtrabas por alguien en Tareas, te
+  // pasabas a Reuniones y las de los demás desaparecían — parecía que se habían perdido.
+  const [filterPersonTareas, setFilterPersonTareas] = useState<string | null>(null);
+  const [filterPersonReuniones, setFilterPersonReuniones] = useState<string | null>(null);
+  // el resto de la vista sigue leyendo filterPersonId: ahora apunta al de la pestaña en la que estás.
+  const filterPersonId = activeTab === 'tareas' ? filterPersonTareas : filterPersonReuniones;
+  const setFilterPersonId = activeTab === 'tareas' ? setFilterPersonTareas : setFilterPersonReuniones;
   const [expandedPersons, setExpandedPersons] = useState<Set<string>>(new Set());
   const [showManageTeam, setShowManageTeam] = useState(false);
   const [newPersonName, setNewPersonName] = useState('');
@@ -241,7 +247,11 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
   const handleAddPerson = () => {
     if (!newPersonName.trim()) return;
     const p: any = { id: `p-${Date.now()}`, name: newPersonName.trim(), createdAt: new Date().toISOString() };
-    onUpdatePeople((prev: any[]) => [...prev, p]);
+    // §16.130: ESCRIBIR, no solo pintar. Esta vista solo tocaba el estado local (onUpdatePeople = setPeople), así que la
+    // persona desaparecía al recargar — y con ella el nombre de las reuniones hechas con ella ("Desconocido"). onAddPerson
+    // es el handler de App que inserta en `persons` y ya actualiza el estado; solo se cae al local si no llega.
+    if (onAddPerson) onAddPerson(p);
+    else onUpdatePeople((prev: any[]) => [...prev, p]);
     setNewPersonName('');
   };
 
@@ -1046,11 +1056,13 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
         {showNewMeeting && newMeeting && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowNewMeeting(false)} />
+            {/* §16.130: este modal pinta FILAS completas (con el raíl de columnas de ~480px). Con max-w-lg no cabía el
+                título: se quedaba en 0 px de ancho y desaparecía de la pantalla (en claro y en oscuro). */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-3xl p-6 shadow-2xl w-full max-w-lg z-10 max-h-[85vh] overflow-y-auto"
+              className="relative dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-3xl p-6 shadow-2xl w-full max-w-4xl z-10 max-h-[85vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -1207,7 +1219,9 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-3xl p-6 shadow-2xl w-full max-w-lg z-10 max-h-[85vh] overflow-y-auto"
+              // §16.130: este modal pinta FILAS completas (con el raíl de columnas de ~480px). Con max-w-lg no cabía
+              // el título: se quedaba en 0 px de ancho y desaparecía de la pantalla (en claro y en oscuro).
+              className="relative dark:bg-bg-card bg-white border dark:border-border-main border-border-main-light rounded-3xl p-6 shadow-2xl w-full max-w-4xl z-10 max-h-[85vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-6">
                 <div>
