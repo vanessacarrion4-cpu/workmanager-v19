@@ -299,11 +299,12 @@ export function useTimerHandlers({
     const path = `${taskId}/${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from('task-attachments').upload(path, file);
     if (error) { console.error('[ATTACHMENTS] Upload error:', error); return; }
-    const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(path);
+    // §16.133: NO se guarda la URL pública permanente (bastaba con que se filtrara una vez). Se guarda el
+    // `path` y cada apertura pide una URL firmada que caduca (ver attachments.ts).
     const attachment = {
       id: `att-${Date.now()}`,
       name: file.name,
-      url: urlData.publicUrl,
+      url: '',
       type: file.type,
       size: file.size,
       path,

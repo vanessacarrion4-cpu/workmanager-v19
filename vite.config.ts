@@ -1,14 +1,13 @@
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, '.', '');
+export default defineConfig(() => {
   return {
     plugins: [react()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-    },
+    // §16.132: aquí se inyectaba GEMINI_API_KEY en el bundle (herencia de la plantilla de AI Studio). No se
+    // usa en ninguna parte y era un cepo: cualquier clave definida en esa variable habría acabado publicada en
+    // el JavaScript que sirve el navegador. Fuera.
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

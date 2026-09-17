@@ -20,6 +20,7 @@ import { Task, TagType } from './types';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { TAG_LABELS } from './constants';
 import { getTaskRegisteredCombo, formatMinutes, isExpiredTemplate } from './utils';
+import { getAttachmentUrl } from './attachments'; // §16.133: URLs firmadas (el cubo deja de ser público)
 import { toast } from './toast'; // #3 rastreo: aviso al intentar guardar sin título
 import {
   DelegationChip, DatePickerChip, TagPickerChip, RecurrencePickerChip,
@@ -85,6 +86,19 @@ export function TaskModal({
   const [uploading, setUploading] = useState(false);
   const [showTimeEntry, setShowTimeEntry] = useState(initialShowTime);
   const notesRef = useRef<HTMLTextAreaElement>(null);
+  // §16.133: una URL firmada por adjunto, pedida al abrir la tarea. Caduca en 1h; si la tarea sigue abierta
+  // más tiempo, se vuelve a pedir al reabrir. Mientras no llega, el enlace no apunta a ninguna parte.
+  const [attUrls, setAttUrls] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let cancelado = false;
+    const lista = localTask.attachments || [];
+    if (lista.length === 0) { setAttUrls({}); return; }
+    (async () => {
+      const pares = await Promise.all(lista.map(async (a: any) => [a.id, await getAttachmentUrl(a)] as const));
+      if (!cancelado) setAttUrls(Object.fromEntries(pares));
+    })();
+    return () => { cancelado = true; };
+  }, [JSON.stringify((localTask.attachments || []).map((a: any) => a.id))]);
   // Una tarea COMPLETADA no se edita (ni desde la fila ni desde el modal — el modal era la puerta de
   // atrás). Con `locked` el cuerpo del modal es no-editable; excepción: el tiempo registrado. (sesión 15)
   const locked = localTask.status === 'completed';
@@ -902,7 +916,7 @@ export function TaskModal({
                   return (
                     <div key={att.id} className="flex items-center gap-2 p-2.5 dark:bg-bg-main bg-white border dark:border-border-main border-border-main-light rounded-xl group">
                       {isImage ? (
-                        <img src={att.url} alt={att.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0 cursor-pointer" onClick={() => window.open(att.url, '_blank')} />
+                        <img src={attUrls[att.id] || undefined} alt={att.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0 cursor-pointer" onClick={() => attUrls[att.id] && window.open(attUrls[att.id], '_blank')} />
                       ) : (
                         <div className="w-8 h-8 rounded-lg dark:bg-bg-card bg-gray-100 flex items-center justify-center flex-shrink-0">
                           <Paperclip size={13} className="text-turquesa" />
@@ -913,7 +927,7 @@ export function TaskModal({
                         <p className="text-[9px] dark:text-text-secondary text-text-secondary-light">{att.size ? `${Math.round(att.size / 1024)}KB` : ''}</p>
                       </div>
                       <div className={`flex items-center gap-1 transition-opacity ${locked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                        <a href={att.url} target="_blank" rel="noopener noreferrer" className="w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/10 hover:bg-turquesa/20 rounded-lg transition-all">
+                        <a href={attUrls[att.id] || undefined} target="_blank" rel="noopener noreferrer" title={attUrls[att.id] ? 'Abrir' : 'Preparando el enlace…'} className={`w-6 h-6 flex items-center justify-center text-turquesa bg-turquesa/10 hover:bg-turquesa/20 rounded-lg transition-all ${attUrls[att.id] ? '' : 'opacity-40 pointer-events-none'}`}>
                           <Eye size={11} />
                         </a>
                         {!locked && (
