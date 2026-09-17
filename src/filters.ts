@@ -1157,30 +1157,56 @@ export function getEstimationDeviation(
   };
 }
 
-// §16.127 · CIERRE — los DOS indicadores con NOTA (media ponderada) + "estimé bien" como INFORMACIÓN (no puntúa: su error ya
-// está contado en "tardé más de lo estimado" de la tabla de causas → contarlo aparte sería doble). Escala directa: nota = pct/10,
-// tope 10 (100%→10, 50%→5). CUMPLÍ EL PLAN (peso 75%) = tiempo del plan trabajado / plan fijado. PROTEGÍ LO CORE (peso 25%) =
-// Core trabajado / Core fijado. Ambos salen de getFijadoVsHecho (que ya se calcula y se guarda).
+// §16.129 · CIERRE — los DOS indicadores con NOTA (media ponderada), calculados TAREA A TAREA (antes: agregados). "Estimé
+// bien" sigue siendo INFORMACIÓN (no puntúa: su error ya está en "tardé más de lo estimado" → contarlo aparte sería doble).
+// Escala directa: nota = pct/10, tope 10. CUMPLÍ EL PLAN (peso 75%) = Σ crédito / Σ estimado del plan. PROTEGÍ LO CORE (25%)
+// = lo mismo sobre las tareas Core. El DENOMINADOR es el plan fijado ENTERO: una tarea borrada sigue contando (con crédito 0),
+// así que borrar lo que no se hizo NUNCA sube la nota.
+// POR QUÉ POR TAREA (§16.129): con agregados (totalHecho/totalFijado) el exceso de UNA tarea rellenaba el hueco de las demás
+// —un día con 22 de 29 tareas sin tocar daba 93%— y además ese exceso contaba DOS veces: a favor en la nota y en contra en la
+// tabla de causas. Con el tope por tarea el exceso solo vive en "tardé más".
 export interface CierreScore {
-  cumpliPlan: { hecho: number; fijado: number; pct: number; nota: number };
-  protegiCore: { hecho: number; fijado: number; pct: number; nota: number };
+  cumpliPlan: { credito: number; fijado: number; fichadoReal: number; pct: number; nota: number };
+  protegiCore: { credito: number; fijado: number; fichadoReal: number; pct: number; nota: number };
   estimoBien: { pct: number | null }; // INFORMACIÓN, sin nota ni peso
+  // §16.129: tareas del plan CERRADAS sin un minuto fichado. No restan (el crédito las da por hechas), pero se guardan para
+  // vigilarlas: si el número crece, la nota se apoya en casillas marcadas y no en tiempo real.
+  cerradasSinFichar: { count: number; mins: number; detail: { title: string; estMin: number }[] };
+  exceso: number;                     // minutos fichados POR ENCIMA de su estimación (no puntúan: van a "tardé más")
   notaPonderada: number;              // 0..10
   pesoPlan: number; pesoCore: number;
 }
-export function getCierreScore(fh: FijadoVsHecho | null | undefined, deviation: EstimationDeviation | null | undefined): CierreScore {
+// CRÉDITO de una tarea del plan: cerrada → su estimación entera (aunque no se fichara: hay días cerrados en diferido, donde
+// no se ficha para no ensuciar el día siguiente); sin cerrar → el tiempo real, con TOPE su estimación.
+export const creditoTarea = (r: CierreTaskRow): number =>
+  r.done ? (r.estMin || 0) : Math.min(r.fichado || 0, r.estMin || 0);
+
+export function getCierreScore(rows: CierreTaskRow[] | null | undefined, deviation: EstimationDeviation | null | undefined): CierreScore {
   const cap = (n: number) => Math.max(0, Math.min(100, n));
   const notaDe = (pct: number) => Math.round(cap(pct) / 10 * 10) / 10; // pct/10, 1 decimal, tope 10
-  const fijado = fh?.totalFijado || 0, hecho = fh?.totalHecho || 0;
-  const pctPlan = fijado > 0 ? Math.round(hecho / fijado * 100) : 0;
-  const core = (fh?.byType || []).find(r => r.key === 'core') || { fijado: 0, hecho: 0 };
-  const pctCore = core.fijado > 0 ? Math.round(core.hecho / core.fijado * 100) : 0;
+  const plan = (rows || []).filter(r => r.isPlan);
+  const core = plan.filter(r => r.type === 'core');
+  const sum = (a: CierreTaskRow[], f: (r: CierreTaskRow) => number) => a.reduce((s, r) => s + f(r), 0);
+  const uno = (a: CierreTaskRow[]) => {
+    const fijado = sum(a, r => r.estMin || 0);
+    const credito = sum(a, creditoTarea);
+    const fichadoReal = sum(a, r => r.fichado || 0);
+    const pct = fijado > 0 ? Math.round(credito / fijado * 100) : 0;
+    return { credito, fijado, fichadoReal, pct, nota: notaDe(pct) };
+  };
+  const cumpliPlan = uno(plan), protegiCore = uno(core);
+  const sinFichar = plan.filter(r => r.done && !(r.fichado > 0));
   const pesoPlan = 0.75, pesoCore = 0.25;
-  const notaPonderada = Math.round((pesoPlan * cap(pctPlan) + pesoCore * cap(pctCore)) / 10 * 10) / 10;
+  const notaPonderada = Math.round((pesoPlan * cap(cumpliPlan.pct) + pesoCore * cap(protegiCore.pct)) / 10 * 10) / 10;
   return {
-    cumpliPlan: { hecho, fijado, pct: pctPlan, nota: notaDe(pctPlan) },
-    protegiCore: { hecho: core.hecho, fijado: core.fijado, pct: pctCore, nota: notaDe(pctCore) },
+    cumpliPlan, protegiCore,
     estimoBien: { pct: deviation?.ratioPct ?? null },
+    cerradasSinFichar: {
+      count: sinFichar.length,
+      mins: sum(sinFichar, r => r.estMin || 0),
+      detail: sinFichar.map(r => ({ title: r.title || '(tarea)', estMin: r.estMin || 0 })).sort((a, b) => b.estMin - a.estMin),
+    },
+    exceso: sum(plan, r => Math.max(0, (r.fichado || 0) - (r.estMin || 0))),
     notaPonderada, pesoPlan, pesoCore,
   };
 }

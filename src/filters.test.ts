@@ -622,21 +622,56 @@ describe('§16.127 cierre: indicadores, barras, arrastres', () => {
   const deviation: any = { ratioPct: 104 };
   const rec: any = { entraronMin: 355 };
 
-  it('getCierreScore: cumplí plan (75%) + protegí core (25%), estimé bien es info', () => {
-    const s = getCierreScore(fh, deviation);
-    expect(s.cumpliPlan.pct).toBe(56);   // 270/485
-    expect(s.cumpliPlan.nota).toBe(5.6);
-    expect(s.protegiCore.pct).toBe(83);  // 95/115
-    expect(s.protegiCore.nota).toBe(8.3);
-    expect(s.estimoBien.pct).toBe(104);  // INFO, sin nota
-    expect(s.notaPonderada).toBe(6.3);   // 0.75·56 + 0.25·83 = 62.75 → 6.3
+  // §16.129: el indicador se calcula POR TAREA (crédito con tope = su estimación; cerrada → estimación entera).
+  const row = (o: any) => ({ id: o.id, templateId: '', title: o.title || o.id, estMin: o.estMin, fichado: o.fichado || 0, type: o.type || 'adhoc', blockId: 'b1', tag: 'resto', rolls: 0, order: 0, isPlan: o.isPlan !== false, done: !!o.done });
+
+  it('getCierreScore: el exceso de UNA tarea no rellena el hueco de las otras (§16.129)', () => {
+    // caso real 9/09: plan de 440m, una tarea de 60m que se llevó 360m, el resto sin tocar.
+    const rows = [row({ id: 'a', estMin: 60, fichado: 360, done: true }), row({ id: 'b', estMin: 380, fichado: 0 })];
+    const s = getCierreScore(rows as any, { ratioPct: 331 } as any);
+    expect(s.cumpliPlan.credito).toBe(60);       // 360 fichados → crédito 60 (tope)
+    expect(s.cumpliPlan.fichadoReal).toBe(360);  // el tiempo real se conserva como dato
+    expect(s.cumpliPlan.pct).toBe(14);           // 60/440 — NO 82%
+    expect(s.exceso).toBe(300);                  // 5h de más, solo para 'tardé más'
+    expect(s.estimoBien.pct).toBe(331);          // info, sin nota
   });
 
-  it('getCierreScore: nota tope 10 aunque pase del 100%', () => {
-    const s = getCierreScore({ byType: [{ key: 'core', fijado: 10, hecho: 20 }], totalFijado: 10, totalHecho: 20 } as any, null);
-    expect(s.cumpliPlan.pct).toBe(200);
-    expect(s.cumpliPlan.nota).toBe(10);      // cap
-    expect(s.notaPonderada).toBe(10);        // cap ambos
+  it('getCierreScore: cerrada sin fichar vale su estimación entera y queda contada aparte', () => {
+    const rows = [row({ id: 'a', estMin: 180, fichado: 0, done: true, title: 'Tancament' }), row({ id: 'b', estMin: 60, fichado: 30 })];
+    const s = getCierreScore(rows as any, null);
+    expect(s.cumpliPlan.credito).toBe(210);           // 180 (cerrada) + 30 (avance real)
+    expect(s.cumpliPlan.pct).toBe(88);                // 210/240
+    expect(s.cerradasSinFichar).toMatchObject({ count: 1, mins: 180 });
+    expect(s.cerradasSinFichar.detail[0].title).toBe('Tancament');
+  });
+
+  it('getCierreScore: borrar lo no hecho NO sube la nota (sigue en el denominador)', () => {
+    // una tarea del plan que se borró no aparece como hecha ni se cae del plan: crédito 0 sobre su estimación.
+    const rows = [row({ id: 'a', estMin: 60, fichado: 60, done: true }), row({ id: 'borrada', estMin: 60, fichado: 0 })];
+    const s = getCierreScore(rows as any, null);
+    expect(s.cumpliPlan.fijado).toBe(120);
+    expect(s.cumpliPlan.pct).toBe(50);
+  });
+
+  it('getCierreScore: Core con su propio crédito + nota ponderada 75/25', () => {
+    const rows = [
+      row({ id: 'c1', estMin: 100, fichado: 100, done: true, type: 'core' }),
+      row({ id: 'c2', estMin: 100, fichado: 0, type: 'core' }),
+      row({ id: 'a1', estMin: 200, fichado: 50 }),
+      row({ id: 'n1', estMin: 90, fichado: 90, isPlan: false }), // NUEVA: fuera del indicador
+    ];
+    const s = getCierreScore(rows as any, null);
+    expect(s.cumpliPlan.fijado).toBe(400);   // sin la nueva
+    expect(s.cumpliPlan.pct).toBe(38);       // (100+0+50)/400
+    expect(s.protegiCore.pct).toBe(50);      // 100/200
+    expect(s.notaPonderada).toBe(4.1);       // 0.75·38 + 0.25·50 = 41
+  });
+
+  it('getCierreScore: sin plan → ceros, sin dividir por cero', () => {
+    const s = getCierreScore([], null);
+    expect(s.cumpliPlan.pct).toBe(0);
+    expect(s.notaPonderada).toBe(0);
+    expect(s.cerradasSinFichar.count).toBe(0);
   });
 
   it('getCierreBarras: las dos barras suman el mismo total y cada parte cuadra', () => {

@@ -6,7 +6,7 @@ import { X, Check, Repeat, CheckCircle2, ArrowRight, CalendarDays, Trash2, Chevr
 import { formatMinutes } from './utils';
 import { toast } from './toast';
 import { TAG_LABELS } from './constants';
-import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup, FijadoVsHecho, EntradasSalidas, DayReconciliation, DesvioTable, getCierreScore, getCierreBarras, getArrastresBreakdown, ArrastresBreakdown, CierreTaskRow, getCierreBarrasByGroup } from './filters';
+import { DayVerdict, DayBreakdown, EntradaForDay, EntradaSection, EstimationDeviation, OutOfPlanGroup, FijadoVsHecho, EntradasSalidas, DayReconciliation, DesvioTable, getCierreScore, getCierreBarras, getArrastresBreakdown, ArrastresBreakdown, CierreTaskRow, getCierreBarrasByGroup, CierreScore, CierreBarras } from './filters';
 import { DayReport, MotivoKey } from './useDayReport';
 import { formatLocalISO, parseLocalISO } from './dateUtils';
 import { MonthDatePicker } from './TimeComponents';
@@ -20,6 +20,8 @@ function diaLargo(iso: string): string {
 }
 const tagLabel = (tag: string): string => (TAG_LABELS as any)[tag]?.label || tag;
 const tagIcon = (tag: string): string => (TAG_LABELS as any)[tag]?.icon || '•';
+// §16.129: el indicador guarda 'credito'; los reportes anteriores guardaban 'hecho' (tiempo fichado). Leer ambos.
+const cred = (x: any): number => (x?.credito ?? x?.hecho ?? 0);
 
 // Colores de ENTIDAD para el desglose — MISMOS que la cinta (§16.43): etiqueta = color real (getTagColor→hex),
 // bloque = block.color, tipo = familia verde (core saturado, ad-hoc claro). Etiqueta en el ORDEN de Mi Día, no por tiempo.
@@ -90,7 +92,7 @@ export function DayReportModal({
   // (si acabas con 29 pendientes y las mueves a mañana, el reporte dice 29, no 0). `decisiones` cuenta lo del repaso (pieza 3).
   // §16.108: un reporte YA GUARDADO es un DOCUMENTO HISTÓRICO — se renderiza desde lo guardado (measures.frozen), no se
   // recalcula con el estado de hoy. `fromSaved` marca ese modo; `entradaSaved` es la entrada congelada del cierre.
-  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; entradasSalidas?: EntradasSalidas; reconciliation?: DayReconciliation; causes?: DesvioTable; entradaSaved?: EntradaForDay | null; pendingAtOpen: number; pendingMinsAtOpen: number; decisiones: Decisiones; arrastres?: ArrastresBreakdown; cierreTasks?: CierreTaskRow[]; fromSaved?: boolean } | null>(null);
+  const [snap, setSnap] = useState<{ verdict: DayVerdict; deviation: EstimationDeviation; breakdown: DayBreakdown; fijadoHecho?: FijadoVsHecho; outOfPlan?: { total: number; groups: OutOfPlanGroup[] }; entradasSalidas?: EntradasSalidas; reconciliation?: DayReconciliation; causes?: DesvioTable; entradaSaved?: EntradaForDay | null; pendingAtOpen: number; pendingMinsAtOpen: number; decisiones: Decisiones; arrastres?: ArrastresBreakdown; cierreTasks?: CierreTaskRow[]; score?: CierreScore; fromSaved?: boolean } | null>(null);
   const [forceLive, setForceLive] = useState(false); // §16.108: "Actualizar con hoy" fuerza recálculo en vivo de un reporte cerrado
   const [entradaOpen, setEntradaOpen] = useState(true); // §16.104 (pieza 4): plegable
   const [hoyOpen, setHoyOpen] = useState(true);          // §16.104 (pieza 8): apartado "para hoy"
@@ -149,9 +151,11 @@ export function DayReportModal({
   const es = snap?.entradasSalidas ?? entradasSalidas;
   const rec = snap?.reconciliation ?? reconciliation; // §16.110: secuencia del día (congelada)
   const caus = snap?.causes ?? causes;                 // §16.110: tabla de causas (congelada)
-  const barras = getCierreBarras(fh, rec, oop?.total || 0);          // §16.127: las dos barras (plan vs nuevo · hecho vs no)
   const cierreTaskDetail: CierreTaskRow[] = snap?.cierreTasks ?? cierreTasks ?? []; // §16.127: detalle por tarea (desplegables)
-  const score = getCierreScore(fh, deviation);                       // §16.127: los dos indicadores + nota ponderada
+  const barras = getCierreBarras(fh, rec, oop?.total || 0);          // §16.127: las dos barras (plan vs nuevo · hecho vs no)
+  // §16.129: los indicadores salen del detalle POR TAREA (crédito con tope). Un reporte viejo guardado SIN detalle (anterior
+  // al §16.127) no se puede recalcular con la fórmula nueva: se muestra su score congelado tal cual (documento histórico).
+  const score: CierreScore = cierreTaskDetail.length ? getCierreScore(cierreTaskDetail, deviation) : (snap?.score ?? getCierreScore([], deviation));
   const tienePlan = !!(fh && fh.totalFijado > 0);                    // sin foto/plan → no hay indicadores de cumplimiento
   // §16.114: fundir las causas CALCULADAS con las EXTERNAS que mete la usuaria, y recalcular impacto/peso-rel.
   const mergedCausas = (() => {
@@ -183,10 +187,10 @@ export function DayReportModal({
       // §16.127 · CIERRE nuevo: se calculan y GUARDAN los dos indicadores + nota (d), las dos barras plan/nuevo (b) y el
       // histograma de arrastres (e). PRINCIPIO: ningún dato del cierre se muestra sin guardarse — el objetivo es analizar
       // patrones a lo largo de semanas. Todo sale de lo que ya se congela (fh/rec/oop/deviation/arrastres del snap).
-      const cierreScore = getCierreScore(fh, deviation);
+      const cierreTaskDetail = snap?.cierreTasks ?? cierreTasks ?? []; // §16.127: detalle por tarea (congelado al abrir)
+      const cierreScore = getCierreScore(cierreTaskDetail, deviation); // §16.129: crédito por tarea (tope = su estimación)
       const cierreBarras = getCierreBarras(fh, rec, oop?.total || 0);
       const cierreArrastres = snap?.arrastres ?? getArrastresBreakdown(pendingTasks);
-      const cierreTaskDetail = snap?.cierreTasks ?? cierreTasks ?? []; // §16.127: detalle por tarea (congelado al abrir)
       // §16.104: se guardan las medidas CONGELADAS (verdict del snap) + el resumen de decisiones del repaso.
       const measures = {
         key: verdict.key, nota: verdict.nota, previsto: verdict.previsto, registrado: verdict.registrado,
@@ -336,7 +340,7 @@ export function DayReportModal({
             colgando (ya no es una pregunta aparte: es la explicación de por qué no cerré el plan). */}
         {tienePlan && (
           <IndicadorCierre titulo="Cumplí el plan" peso="75%" nota={score.cumpliPlan.nota}
-            explicacion={<>Del plan fijado ({formatMinutes(score.cumpliPlan.fijado)}) trabajé <b className="dark:text-white text-text-main-light">{formatMinutes(score.cumpliPlan.hecho)}</b> · {score.cumpliPlan.pct}%</>}
+            explicacion={<>Del plan fijado ({formatMinutes(score.cumpliPlan.fijado)}) saqué adelante <b className="dark:text-white text-text-main-light">{formatMinutes(cred(score.cumpliPlan))}</b> · {score.cumpliPlan.pct}%</>}
             media={<MediaTendencia m={medias?.cumpliPlan} />}>
             {mergedCausas.length > 0 && (
               <div className="space-y-0.5">
@@ -427,7 +431,7 @@ export function DayReportModal({
         {/* §16.127 (paso 3) · 5 · PROTEGÍ LO CORE — segundo indicador (peso 25%). ¿Sobrevivió el trabajo de fondo al día? */}
         {tienePlan && (
           <IndicadorCierre titulo="Protegí lo Core" peso="25%" nota={score.protegiCore.nota}
-            explicacion={<>De Core fijado ({formatMinutes(score.protegiCore.fijado)}) trabajé <b className="dark:text-white text-text-main-light">{formatMinutes(score.protegiCore.hecho)}</b> · {score.protegiCore.pct}%</>}
+            explicacion={<>De Core fijado ({formatMinutes(score.protegiCore.fijado)}) saqué adelante <b className="dark:text-white text-text-main-light">{formatMinutes(cred(score.protegiCore))}</b> · {score.protegiCore.pct}%</>}
             media={<MediaTendencia m={medias?.protegiCore} />} />
         )}
 
