@@ -39,7 +39,7 @@ import { WeekView } from './WeekView';
 import { TaskModal } from './TaskModal';
 import { StickyActionBar } from './StickyActionBar';
 import {
-  BlockModal, TimeManagementPanel, RecurrenceChoiceModal,
+  BlockModal, RecurrenceChoiceModal,
   TimerDisplay, InstancesModal
 } from './components';
 
@@ -87,7 +87,6 @@ export default function App() {
     accumulatedSeconds: number;
     title: string;
   } | null>(null);
-  const [showTimePanel, setShowTimePanel] = useState<{ taskId: string; subtaskId: string | null } | null>(null);
   const [timerStopModal, setTimerStopModal] = useState<{ minutes: number; pendingEntry: any } | null>(null);
 
   // --- People & Meetings ---
@@ -1243,21 +1242,10 @@ export default function App() {
         );
       })()}
 
-      {/* TimeManagementPanel */}
-      <AnimatePresence>
-        {showTimePanel && (
-          <TimeManagementPanel
-            taskId={showTimePanel.taskId}
-            subtaskId={showTimePanel.subtaskId}
-            allTasksMap={tasks}
-            timeEntries={timeEntries}
-            onAddEntry={timerHandlers.handleManualTimeEntry}
-            onDeleteEntry={timerHandlers.handleDeleteTimeEntry}
-            onUpdateEntry={timerHandlers.handleUpdateTimeEntry}
-            onClose={() => setShowTimePanel(null)}
-          />
-        )}
-      </AnimatePresence>
+      {/* §16.129: aquí vivía un SEGUNDO montaje del TimeManagementPanel que nunca se abría (nadie llamaba a
+          setShowTimePanel) y que además era el único sitio que no le pasaba la fecha de la tarea. Se retira: el panel
+          real se abre desde TaskModal (onOpenTimePanel), que sí le pasa instanceDate || dueDate — verificado en
+          pantalla: el día 16 abierto el 17, el campo Fecha viene con 16/09. */}
 
       {/* Modal cambio de fecha en instancia recurrente */}
       {pendingDateChange && (
