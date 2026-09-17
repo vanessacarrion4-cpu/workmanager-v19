@@ -50,3 +50,39 @@ describe('isExpiredTemplate (F5-6: ocultar series terminadas de Bloques/Búsqued
     expect(isExpiredTemplate({ isTemplate: true }, TODAY)).toBe(false);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §16.131 · el acumulado de tiempo no cuenta dos veces el de las hojas
+// ─────────────────────────────────────────────────────────────────────────────
+import { getTaskRegisteredCombo, getTaskRegisteredSelf } from './utils';
+
+describe('§16.131 getTaskRegisteredCombo: cada minuto tiene un solo dueño', () => {
+  // Forma REAL de las entradas: la de una hoja lleva el id del contenedor en taskId y el de la hoja en subtaskId.
+  const tasks: any = {
+    cont: { id: 'cont', title: 'Subvenció desglosar', subtasks: ['hoja'], estimatedMinutes: 30 },
+    hoja: { id: 'hoja', title: 'Demanar subvenció', parentTaskId: 'cont', subtasks: [] },
+  };
+  const te = [
+    { id: 'te1', taskId: 'cont', subtaskId: 'hoja', date: '2026-09-15', duration: 120 }, // 2h en la HOJA
+    { id: 'te2', taskId: 'cont', subtaskId: null, date: '2026-09-14', duration: 180 },   // 3h en el CONTENEDOR
+  ];
+
+  it('el contenedor suma sus 3h propias + las 2h de la hoja = 5h (antes: 7h 30m)', () => {
+    expect(getTaskRegisteredCombo('cont', tasks, te, new Set())).toBe(300);
+  });
+
+  it('la hoja sigue teniendo sus 2h', () => {
+    expect(getTaskRegisteredCombo('hoja', tasks, te, new Set())).toBe(120);
+  });
+
+  it('filtrando por día, el contenedor no se queda el tiempo de la hoja', () => {
+    expect(getTaskRegisteredCombo('cont', tasks, te, new Set(), '2026-09-15')).toBe(120); // solo la hoja ese día
+    expect(getTaskRegisteredCombo('cont', tasks, te, new Set(), '2026-09-14')).toBe(180); // solo lo propio
+  });
+
+  it('getTaskRegisteredSelf NO se toca: sus otros llamadores (las guardas de "intacta") siguen igual', () => {
+    // sigue siendo generoso a propósito: la entrada de la hoja también cuenta como del contenedor.
+    expect(getTaskRegisteredSelf('cont', te)).toBe(300);
+    expect(getTaskRegisteredSelf('hoja', te)).toBe(120);
+  });
+});

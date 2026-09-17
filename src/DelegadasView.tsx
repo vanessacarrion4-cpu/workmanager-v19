@@ -1021,10 +1021,12 @@ export function DelegadasView({ tasks, allTasksMap, blocks, people, meetings, ti
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm font-bold dark:text-white text-text-main-light truncate ${isCompleted ? 'line-through' : ''}`}>{task.title}</p>
+                          {/* §16.131: estaba a 9px (medido: contraste 4,6 sobre la fila) — legal pero diminuto para leer
+                              de un vistazo al escoger los temas. Sube a 12px y a un gris con más cuerpo. */}
                           {subNames.length > 0 && (
-                            <p className="text-[9px] dark:text-text-secondary text-text-secondary-light truncate mt-0.5">{subNames.join(' · ')}</p>
+                            <p className="text-[12px] dark:text-text-secondary text-text-secondary-light/90 truncate mt-0.5">{subNames.join(' · ')}</p>
                           )}
-                          {isCompleted && <span className="text-[9px] text-turquesa font-black uppercase tracking-wider">Completada</span>}
+                          {isCompleted && <span className="text-[11px] text-turquesa font-black uppercase tracking-wider">Completada</span>}
                         </div>
                       </button>
                     );

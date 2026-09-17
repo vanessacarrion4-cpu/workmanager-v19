@@ -445,13 +445,37 @@ export function getTaskRegisteredSelf(taskId: string, timeEntries: any[], filter
     .reduce((acc, e) => acc + (e.duration || 0), 0);
 }
 
+// §16.131 · DUEÑO ÚNICO de una entrada de tiempo, para el ACUMULADO por subárbol. Una time_entry con `subtaskId` es de
+// la HOJA (su `taskId` solo dice de qué raíz cuelga); sin `subtaskId`, es de la tarea raíz.
+// `getTaskRegisteredSelf` (arriba) NO distingue: da por suya la entrada cuando el id coincide con el `taskId`, aunque
+// apunte a una hija. Al sumarla dentro de getTaskRegisteredCombo (self + hijas), los minutos de cada hoja se contaban DOS
+// VECES. Caso real: el modal de "Subvenció Ajuntament de Vilanova" pintaba 7h 30m cuando lo real eran 5h 15m (3h propias
+// + 2h 15m de sus hojas). Afectaba a 102 contenedores con tiempo en sus hojas.
+// Se corrige SOLO aquí, dentro del acumulado. `getTaskRegisteredSelf` se deja como está: sus otros 8 llamadores (entre
+// ellos las dos guardas de "tarea intacta") dependen de su comportamiento actual y hoy dan el mismo resultado, porque el
+// modelo es de DOS niveles (comprobado en los datos: 0 tareas que sean hija y madre a la vez).
+function registradoPropioEstricto(taskId: string, timeEntries: any[], filterDate?: string): number {
+  if (!taskId || !timeEntries) return 0;
+  const resolveInst = (id: string | null | undefined): string => {
+    if (!id) return '';
+    return id.startsWith('inst-') ? id.replace(/^inst-/, '').replace(/-d{4}-d{2}-d{2}$/, '') : id;
+  };
+  const rid = resolveInst(taskId);
+  return (timeEntries || []).reduce((acc: number, e: any) => {
+    if (!e) return acc;
+    if (filterDate && e.date !== filterDate) return acc;
+    const dueno = resolveInst(e.subtaskId || e.taskId); // con subtarea → es de la hoja
+    return dueno === rid ? acc + (e.duration || 0) : acc;
+  }, 0);
+}
+
 export function getTaskRegisteredCombo(taskId: string, tasks: Record<string, Task>, timeEntries: any[], visited = new Set<string>(), filterDate?: string): number {
   if (visited.has(taskId)) return 0;
   visited.add(taskId);
   const task = tasks[taskId];
   if (!task) return 0;
 
-  let total = getTaskRegisteredSelf(taskId, timeEntries, filterDate);
+  let total = registradoPropioEstricto(taskId, timeEntries, filterDate); // §16.131: sin quedarse el tiempo de sus hojas
   if (task.subtasks && task.subtasks.length > 0) {
     total += task.subtasks.reduce((acc, subId) => acc + getTaskRegisteredCombo(subId, tasks, timeEntries, visited, filterDate), 0);
   }
